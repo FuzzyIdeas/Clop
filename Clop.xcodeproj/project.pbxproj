@@ -7,19 +7,26 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		C7AB6625288301590041BEC8 /* ClipOptimApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6624288301590041BEC8 /* ClipOptimApp.swift */; };
+		C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6624288301590041BEC8 /* ClopApp.swift */; };
 		C7AB6627288301590041BEC8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6626288301590041BEC8 /* ContentView.swift */; };
 		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
+		C7AB663528841EA40041BEC8 /* pngquant in Resources */ = {isa = PBXBuildFile; fileRef = C7AB663428841EA40041BEC8 /* pngquant */; };
+		C7AB663728841EB00041BEC8 /* jpegoptim in Resources */ = {isa = PBXBuildFile; fileRef = C7AB663628841EB00041BEC8 /* jpegoptim */; };
+		C7AB663928841ED30041BEC8 /* gifsicle in Resources */ = {isa = PBXBuildFile; fileRef = C7AB663828841ED30041BEC8 /* gifsicle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		C7AB6621288301590041BEC8 /* ClipOptim.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClipOptim.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		C7AB6624288301590041BEC8 /* ClipOptimApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipOptimApp.swift; sourceTree = "<group>"; };
+		C7AB6621288301590041BEC8 /* Clop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C7AB6624288301590041BEC8 /* ClopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopApp.swift; sourceTree = "<group>"; };
 		C7AB6626288301590041BEC8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C7AB66282883015A0041BEC8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		C7AB662D2883015A0041BEC8 /* ClipOptim.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClipOptim.entitlements; sourceTree = "<group>"; };
+		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
+		C7AB663428841EA40041BEC8 /* pngquant */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = pngquant; sourceTree = "<group>"; };
+		C7AB663628841EB00041BEC8 /* jpegoptim */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = jpegoptim; sourceTree = "<group>"; };
+		C7AB663828841ED30041BEC8 /* gifsicle */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = gifsicle; sourceTree = "<group>"; };
+		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -36,7 +43,7 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
-				C7AB6623288301590041BEC8 /* ClipOptim */,
+				C7AB6623288301590041BEC8 /* Clop */,
 				C7AB6622288301590041BEC8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -44,21 +51,23 @@
 		C7AB6622288301590041BEC8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				C7AB6621288301590041BEC8 /* ClipOptim.app */,
+				C7AB6621288301590041BEC8 /* Clop.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		C7AB6623288301590041BEC8 /* ClipOptim */ = {
+		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
-				C7AB6624288301590041BEC8 /* ClipOptimApp.swift */,
+				C7AB663A288460F30041BEC8 /* Info.plist */,
+				C7AB663328841E890041BEC8 /* bin */,
+				C7AB6624288301590041BEC8 /* ClopApp.swift */,
 				C7AB6626288301590041BEC8 /* ContentView.swift */,
 				C7AB66282883015A0041BEC8 /* Assets.xcassets */,
-				C7AB662D2883015A0041BEC8 /* ClipOptim.entitlements */,
+				C7AB662D2883015A0041BEC8 /* Clop.entitlements */,
 				C7AB662A2883015A0041BEC8 /* Preview Content */,
 			);
-			path = ClipOptim;
+			path = Clop;
 			sourceTree = "<group>";
 		};
 		C7AB662A2883015A0041BEC8 /* Preview Content */ = {
@@ -69,12 +78,22 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		C7AB663328841E890041BEC8 /* bin */ = {
+			isa = PBXGroup;
+			children = (
+				C7AB663828841ED30041BEC8 /* gifsicle */,
+				C7AB663628841EB00041BEC8 /* jpegoptim */,
+				C7AB663428841EA40041BEC8 /* pngquant */,
+			);
+			path = bin;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		C7AB6620288301590041BEC8 /* ClipOptim */ = {
+		C7AB6620288301590041BEC8 /* Clop */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C7AB66302883015A0041BEC8 /* Build configuration list for PBXNativeTarget "ClipOptim" */;
+			buildConfigurationList = C7AB66302883015A0041BEC8 /* Build configuration list for PBXNativeTarget "Clop" */;
 			buildPhases = (
 				C7AB661D288301590041BEC8 /* Sources */,
 				C7AB661E288301590041BEC8 /* Frameworks */,
@@ -84,9 +103,9 @@
 			);
 			dependencies = (
 			);
-			name = ClipOptim;
-			productName = ClipOptim;
-			productReference = C7AB6621288301590041BEC8 /* ClipOptim.app */;
+			name = Clop;
+			productName = Clop;
+			productReference = C7AB6621288301590041BEC8 /* Clop.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -104,7 +123,7 @@
 					};
 				};
 			};
-			buildConfigurationList = C7AB661C288301590041BEC8 /* Build configuration list for PBXProject "ClipOptim" */;
+			buildConfigurationList = C7AB661C288301590041BEC8 /* Build configuration list for PBXProject "Clop" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -117,7 +136,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				C7AB6620288301590041BEC8 /* ClipOptim */,
+				C7AB6620288301590041BEC8 /* Clop */,
 			);
 		};
 /* End PBXProject section */
@@ -127,8 +146,11 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7AB663728841EB00041BEC8 /* jpegoptim in Resources */,
+				C7AB663528841EA40041BEC8 /* pngquant in Resources */,
 				C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */,
 				C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */,
+				C7AB663928841ED30041BEC8 /* gifsicle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -140,7 +162,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,
-				C7AB6625288301590041BEC8 /* ClipOptimApp.swift in Sources */,
+				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -265,22 +287,25 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = ClipOptim/ClipOptim.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ClipOptim/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Clop/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Clop;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.ClipOptim;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -292,22 +317,25 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = ClipOptim/ClipOptim.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ClipOptim/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Clop/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Clop;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.ClipOptim;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -317,7 +345,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		C7AB661C288301590041BEC8 /* Build configuration list for PBXProject "ClipOptim" */ = {
+		C7AB661C288301590041BEC8 /* Build configuration list for PBXProject "Clop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C7AB662E2883015A0041BEC8 /* Debug */,
@@ -326,7 +354,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C7AB66302883015A0041BEC8 /* Build configuration list for PBXNativeTarget "ClipOptim" */ = {
+		C7AB66302883015A0041BEC8 /* Build configuration list for PBXNativeTarget "Clop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C7AB66312883015A0041BEC8 /* Debug */,
