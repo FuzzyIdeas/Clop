@@ -5,7 +5,26 @@
 //  Created by Alin Panaitiu on 16.07.2022.
 //
 
+import ServiceManagement
 import SwiftUI
+
+// MARK: - LaunchAtLoginToggle
+
+struct LaunchAtLoginToggle: View {
+    @State var loginItemEnabled = launchAtLogin
+
+    var body: some View {
+        Toggle("Launch at login", isOn: $loginItemEnabled)
+            .onChange(of: loginItemEnabled) { enabled in
+                launchAtLogin = enabled
+                if enabled {
+                    try? SMAppService.mainApp.register()
+                } else {
+                    try? SMAppService.mainApp.unregister()
+                }
+            }
+    }
+}
 
 // MARK: - MenuView
 
@@ -14,6 +33,7 @@ struct MenuView: View {
 
     var body: some View {
         Toggle("Show menubar icon", isOn: $showMenubarIcon)
+        LaunchAtLoginToggle()
         Divider()
         Button("Quit") {
             NSApp.terminate(nil)
@@ -25,6 +45,7 @@ struct MenuView: View {
 
 struct ContentView: View {
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
+
     var body: some View {
         HStack(spacing: 40) {
             VStack {
@@ -39,12 +60,12 @@ struct ContentView: View {
                     Text("optimizer")
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .offset(x: 0, y: -2)
-
                 }
-                    .offset(x: 0, y: -25)
+                .offset(x: 0, y: -25)
             }
-            VStack {
+            VStack(alignment: .leading) {
                 Toggle("Show menubar icon", isOn: $showMenubarIcon)
+                LaunchAtLoginToggle()
             }.frame(height: 100, alignment: .top)
         }
         .padding(.horizontal, 50)
