@@ -10,6 +10,7 @@ import SwiftUI
 import Cocoa
 import Combine
 import Foundation
+import ServiceManagement
 import System
 import UniformTypeIdentifiers
 
@@ -346,6 +347,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         UserDefaults.standard.register(defaults: [SHOW_MENUBAR_ICON: true])
+        launchAtLogin = SMAppService.mainApp.status == .enabled
 
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [self] _ in
             let newChangeCount = NSPasteboard.general.changeCount
@@ -374,6 +376,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 }
+
+var launchAtLogin = false
 
 // MARK: - ClopApp
 
