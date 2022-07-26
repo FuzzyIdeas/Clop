@@ -370,6 +370,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// MARK: - WindowModifierView
+
+class WindowModifierView: NSView {
+    // MARK: Lifecycle
+
+    init(_ modifier: @escaping (NSWindow) -> Void) {
+        self.modifier = modifier
+        super.init(frame: .zero)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    // MARK: Internal
+
+    var modifier: ((NSWindow) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        if let window, let modifier {
+            modifier(window)
+        }
+        super.viewDidMoveToWindow()
+    }
+}
+
+// MARK: - WindowModifier
+
+struct WindowModifier: NSViewRepresentable {
+    // MARK: Lifecycle
+
+    init(_ modifier: @escaping (NSWindow) -> Void) {
+        self.modifier = modifier
+    }
+
+    // MARK: Internal
+
+    var modifier: (NSWindow) -> Void
+
+    func makeNSView(context: Self.Context) -> NSView { WindowModifierView(modifier) }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
 var launchAtLogin = false
 
 // MARK: - ImageOptimizationResult
@@ -401,7 +448,12 @@ struct ClopApp: App {
     var body: some Scene {
         Window("Settings", id: "settings") {
             ContentView()
+                .background(WindowModifier { window in
+                    window.isMovableByWindowBackground = true
+                })
+                .fixedSize()
         }
+        .windowStyle(.hiddenTitleBar)
         .onChange(of: scenePhase) { newScenePhase in
             switch newScenePhase {
             case .active:
