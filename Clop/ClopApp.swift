@@ -264,16 +264,23 @@ class PBImage {
             throw ClopError.alreadyOptimized(path.string)
         }
 
+        let img: PBImage
         switch type {
         case .png:
-            return try Self.optimizePNG(path: path)
+            img = try Self.optimizePNG(path: path)
         case .jpeg:
-            return try Self.optimizeJPEG(path: path)
+            img = try Self.optimizeJPEG(path: path)
         case .gif:
-            return try Self.optimizeGIF(path: path)
+            img = try Self.optimizeGIF(path: path)
         default:
             throw ClopError.unknownImageType(path.string)
         }
+
+        guard img.data.count < data.count else {
+            throw ClopError.imageSizeLarger(path.string)
+        }
+
+        return img
     }
 
     func copyToClipboard() {
@@ -298,6 +305,7 @@ enum ClopError: Error, CustomStringConvertible {
     case processError(Process)
     case alreadyOptimized(String)
     case unknownImageType(String)
+    case imageSizeLarger(String)
 
     // MARK: Internal
 
@@ -314,6 +322,8 @@ enum ClopError: Error, CustomStringConvertible {
             return "Can't start process: \(string)"
         case let .alreadyOptimized(string):
             return "Image is already optimized: \(string)"
+        case let .imageSizeLarger(string):
+            return "Optimized image size is larger: \(string)"
         case let .unknownImageType(string):
             return "Unknown image type: \(string)"
         case let .processError(proc):
@@ -330,42 +340,25 @@ enum ClopError: Error, CustomStringConvertible {
     }
 }
 
-func optimizeImage(_ image: PBImage? = nil) throws {
+func optimizeImage(_ image: PBImage? = nil) throws -> PBImage {
     let image = try (image ?? PBImage.fromPasteboard())
     let optimizedImage = try image.optimize()
     optimizedImage.copyToClipboard()
+
+    return optimizedImage
 }
 
 let SHOW_MENUBAR_ICON = "showMenubarIcon"
+let SHOW_SIZE_NOTIFICATION = "showSizeNotification"
 
 // MARK: - AppDelegate
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var observers: [AnyCancellable] = []
-    var timer: Timer?
-    var pbChangeCount = NSPasteboard.general.changeCount
 
     func applicationDidFinishLaunching(_: Notification) {
-        UserDefaults.standard.register(defaults: [SHOW_MENUBAR_ICON: true])
+        UserDefaults.standard.register(defaults: [SHOW_MENUBAR_ICON: true, SHOW_SIZE_NOTIFICATION: true])
         launchAtLogin = SMAppService.mainApp.status == .enabled
-
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [self] _ in
-            let newChangeCount = NSPasteboard.general.changeCount
-            guard newChangeCount != pbChangeCount else {
-                return
-            }
-            pbChangeCount = newChangeCount
-
-            do {
-                try optimizeImage(try PBImage.fromPasteboard())
-            } catch let error as ClopError {
-                print(error.description)
-            } catch {
-                print(error.localizedDescription)
-            }
-        }
-
-        timer?.tolerance = 100
 
         if let window = NSApplication.shared.windows.first, UserDefaults.standard.bool(forKey: SHOW_MENUBAR_ICON) {
             window.close()
@@ -379,6 +372,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 var launchAtLogin = false
 
+// MARK: - ImageOptimizationResult
+
+struct ImageOptimizationResult: Identifiable, Codable, Hashable {
+    let id: String
+    let oldBytes: Int
+    let newBytes: Int
+}
+
 // MARK: - ClopApp
 
 @main
@@ -388,7 +389,14 @@ struct ClopApp: App {
     @Environment(\.openWindow) var openWindow
     @Environment(\.dismiss) var dismiss
     @Environment(\.scenePhase) var scenePhase
+
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
+    @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
+
+    @State var timer: Timer?
+    @State var pbChangeCount = NSPasteboard.general.changeCount
+
+    @State var sizeNotificationWindow: OSDWindow?
 
     var body: some Scene {
         Window("Settings", id: "settings") {
@@ -398,11 +406,7 @@ struct ClopApp: App {
             switch newScenePhase {
             case .active:
                 print("App is active")
-                if !showMenubarIcon {
-                    DispatchQueue.main.async {
-                        openWindow(id: "settings")
-                    }
-                }
+                start()
             case .inactive:
                 print("App is inactive")
             case .background:
@@ -413,16 +417,48 @@ struct ClopApp: App {
         }
         .windowResizability(.contentSize)
 
-        MenuBarExtra("Clop", image: "MenubarIcon", isInserted: $showMenubarIcon) {
-            MenuView()
-        }
-        .menuBarExtraStyle(.menu)
-        .onChange(of: showMenubarIcon) { show in
-            if !show {
+        MenuBarExtra(isInserted: $showMenubarIcon, content: { MenuView() }, label: { Image(nsImage: NSImage(named: "MenubarIcon")!) })
+            .menuBarExtraStyle(.menu)
+            .onChange(of: showMenubarIcon) { show in
+                if !show {
+                    openWindow(id: "settings")
+                } else {
+                    NSApplication.shared.keyWindow?.close()
+                }
+            }
+    }
+
+    func start() {
+        if !showMenubarIcon {
+            DispatchQueue.main.async {
                 openWindow(id: "settings")
-            } else {
-                NSApplication.shared.keyWindow?.close()
             }
         }
+
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [self] _ in
+            let newChangeCount = NSPasteboard.general.changeCount
+            guard newChangeCount != pbChangeCount else {
+                return
+            }
+            pbChangeCount = newChangeCount
+
+            do {
+                let img = try PBImage.fromPasteboard()
+                let newImg = try optimizeImage(img)
+
+                guard showSizeNotification, img.data.count != newImg.data.count else { return }
+                let result = ImageOptimizationResult(id: img.path.string, oldBytes: img.data.count, newBytes: newImg.data.count)
+
+                sizeNotificationWindow =
+                    OSDWindow(swiftuiView: AnyView(SizeNotificationView(oldBytes: result.oldBytes, newBytes: result.newBytes)))
+                sizeNotificationWindow?.show(fadeAfter: 1000, fadeDuration: 0.2, corner: .bottomRight)
+            } catch let error as ClopError {
+                print(error.description)
+            } catch {
+                print(error.localizedDescription)
+            }
+        }
+
+        timer?.tolerance = 100
     }
 }
