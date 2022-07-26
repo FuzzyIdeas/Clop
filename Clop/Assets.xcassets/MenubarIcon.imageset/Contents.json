@@ -1,14 +1,8 @@
 {
   "images" : [
     {
-      "filename" : "Menu Bar Icon.png",
-      "idiom" : "mac",
-      "scale" : "1x"
-    },
-    {
-      "filename" : "Menu Bar Icon@2x.png",
-      "idiom" : "mac",
-      "scale" : "2x"
+      "filename" : "Menu Bar Icon.svg",
+      "idiom" : "mac"
     }
   ],
   "info" : {

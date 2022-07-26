@@ -30,9 +30,11 @@ struct LaunchAtLoginToggle: View {
 
 struct MenuView: View {
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
+    @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
 
     var body: some View {
         Toggle("Show menubar icon", isOn: $showMenubarIcon)
+        Toggle("Show size notification", isOn: $showSizeNotification)
         LaunchAtLoginToggle()
         Divider()
         Button("Quit") {
@@ -45,6 +47,7 @@ struct MenuView: View {
 
 struct ContentView: View {
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
+    @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
 
     var body: some View {
         HStack(spacing: 40) {
@@ -65,6 +68,7 @@ struct ContentView: View {
             }
             VStack(alignment: .leading) {
                 Toggle("Show menubar icon", isOn: $showMenubarIcon)
+                Toggle("Show size notification", isOn: $showSizeNotification)
                 LaunchAtLoginToggle()
             }.frame(height: 100, alignment: .top)
         }
