@@ -139,6 +139,10 @@ class PBImage {
 
     // MARK: Internal
 
+    static let PNG_HEADER: Data = .init([0x89, 0x50, 0x4E, 0x47])
+    static let JPEG_HEADER: Data = .init([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46])
+    static let GIF_HEADER: Data = .init([0x47, 0x49, 0x46, 0x38, 0x39])
+
     let data: Data
     let path: FilePath
 
@@ -202,6 +206,32 @@ class PBImage {
         }
 
         return PBImage(data: data, path: newPath, type: .jpeg, optimized: true)
+    }
+
+    static func optimizeTIFF(path: FilePath) throws -> PBImage {
+        guard let data = fm.contents(atPath: path.string), let name = path.stem else {
+            throw ClopError.fileNotFound(path.string)
+        }
+
+        if data.starts(with: PNG_HEADER) {
+            let png = path.removingLastComponent().appending("\(name).png")
+            try fm.moveItem(atPath: path.string, toPath: png.string)
+            return try optimizePNG(path: png)
+        }
+
+        if data.starts(with: JPEG_HEADER) {
+            let jpg = path.removingLastComponent().appending("\(name).jpg")
+            try fm.moveItem(atPath: path.string, toPath: jpg.string)
+            return try optimizeJPEG(path: jpg)
+        }
+
+        if data.starts(with: GIF_HEADER) {
+            let gif = path.removingLastComponent().appending("\(name).gif")
+            try fm.moveItem(atPath: path.string, toPath: gif.string)
+            return try optimizeGIF(path: gif)
+        }
+
+        throw ClopError.unknownImageType(path.string)
     }
 
     static func optimizePNG(path: FilePath) throws -> PBImage {
@@ -272,6 +302,8 @@ class PBImage {
             img = try Self.optimizeJPEG(path: path)
         case .gif:
             img = try Self.optimizeGIF(path: path)
+        case .tiff:
+            img = try Self.optimizeTIFF(path: path)
         default:
             throw ClopError.unknownImageType(path.string)
         }
