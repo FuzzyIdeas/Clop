@@ -139,8 +139,8 @@ class PBImage {
 
     // MARK: Internal
 
-    static let PNG_HEADER: Data = .init([0x89, 0x50, 0x4E, 0x47])
-    static let JPEG_HEADER: Data = .init([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46])
+    static let PNG_HEADER: Data = .init([0x89, 0x50, 0x4e, 0x47])
+    static let JPEG_HEADER: Data = .init([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
     static let GIF_HEADER: Data = .init([0x47, 0x49, 0x46, 0x38, 0x39])
 
     let data: Data
@@ -392,7 +392,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: [SHOW_MENUBAR_ICON: true, SHOW_SIZE_NOTIFICATION: true])
         launchAtLogin = SMAppService.mainApp.status == .enabled
 
-        if let window = NSApplication.shared.windows.first, UserDefaults.standard.bool(forKey: SHOW_MENUBAR_ICON) {
+        if let window = NSApplication.shared.windows.first {
             window.close()
         }
     }
@@ -449,7 +449,8 @@ struct WindowModifier: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-var launchAtLogin = false
+var launchAtLogin = SMAppService.mainApp.status == .enabled
+var startCount: Int = 0
 
 // MARK: - ImageOptimizationResult
 
@@ -506,6 +507,7 @@ struct ClopApp: App {
             .onChange(of: showMenubarIcon) { show in
                 if !show {
                     openWindow(id: "settings")
+                    NSApp.activate(ignoringOtherApps: true)
                 } else {
                     NSApplication.shared.keyWindow?.close()
                 }
@@ -513,9 +515,11 @@ struct ClopApp: App {
     }
 
     func start() {
-        if !showMenubarIcon {
+        startCount += 1
+        if !showMenubarIcon, startCount > 1 {
             DispatchQueue.main.async {
                 openWindow(id: "settings")
+                NSApp.activate(ignoringOtherApps: true)
             }
         }
 
