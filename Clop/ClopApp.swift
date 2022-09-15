@@ -139,8 +139,8 @@ class PBImage {
 
     // MARK: Internal
 
-    static let PNG_HEADER: Data = .init([0x89, 0x50, 0x4e, 0x47])
-    static let JPEG_HEADER: Data = .init([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+    static let PNG_HEADER: Data = .init([0x89, 0x50, 0x4E, 0x47])
+    static let JPEG_HEADER: Data = .init([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46])
     static let GIF_HEADER: Data = .init([0x47, 0x49, 0x46, 0x38, 0x39])
 
     let data: Data
@@ -382,6 +382,7 @@ func optimizeImage(_ image: PBImage? = nil) throws -> PBImage {
 
 let SHOW_MENUBAR_ICON = "showMenubarIcon"
 let SHOW_SIZE_NOTIFICATION = "showSizeNotification"
+let OPTIMIZE_TIFF = "optimizeTIFF"
 
 // MARK: - AppDelegate
 
@@ -450,7 +451,7 @@ struct WindowModifier: NSViewRepresentable {
 }
 
 var launchAtLogin = SMAppService.mainApp.status == .enabled
-var startCount: Int = 0
+var startCount = 0
 
 // MARK: - ImageOptimizationResult
 
@@ -472,6 +473,7 @@ struct ClopApp: App {
 
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
     @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
+    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = false
 
     @State var timer: Timer?
     @State var pbChangeCount = NSPasteboard.general.changeCount
@@ -532,6 +534,10 @@ struct ClopApp: App {
 
             do {
                 let img = try PBImage.fromPasteboard()
+                guard img.type != .tiff || optimizeTIFF else {
+                    print("Skipping image \(img.path) because TIFF optimization is disabled")
+                    return
+                }
                 let newImg = try optimizeImage(img)
 
                 guard showSizeNotification, img.data.count != newImg.data.count else { return }
