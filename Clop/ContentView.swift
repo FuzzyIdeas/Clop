@@ -31,10 +31,12 @@ struct LaunchAtLoginToggle: View {
 struct MenuView: View {
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
     @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
+    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = false
 
     var body: some View {
         Toggle("Show menubar icon", isOn: $showMenubarIcon)
         Toggle("Show bytes saved notification", isOn: $showSizeNotification)
+        Toggle("Optimize TIFF data", isOn: $optimizeTIFF)
         LaunchAtLoginToggle()
         Divider()
         Button("Quit") {
@@ -48,6 +50,7 @@ struct MenuView: View {
 struct ContentView: View {
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
     @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
+    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -71,6 +74,7 @@ struct ContentView: View {
                     Toggle("Show menubar icon", isOn: $showMenubarIcon)
                     Toggle("Show bytes saved notification", isOn: $showSizeNotification)
                         .fixedSize()
+                    Toggle("Optimize TIFF data", isOn: $optimizeTIFF)
                     LaunchAtLoginToggle()
                 }.frame(height: 100, alignment: .top)
             }
