@@ -490,6 +490,40 @@ struct ImageOptimizationResult: Identifiable, Codable, Hashable {
     let newBytes: Int
 }
 
+// MARK: - Optimizer
+
+class Optimizer: ObservableObject {
+    // MARK: Lifecycle
+
+    init(running: Bool = true, oldBytes: Int = 0, newBytes: Int = 0) {
+        self.running = running
+        self.oldBytes = oldBytes
+        self.newBytes = newBytes
+    }
+
+    // MARK: Internal
+
+    @Published var running = true
+    @Published var oldBytes = 0
+    @Published var newBytes = 0
+
+    func finish(result: ImageOptimizationResult) {
+        withAnimation(.spring()) {
+            self.oldBytes = result.oldBytes
+            self.newBytes = result.newBytes
+            self.running = false
+        }
+    }
+
+    func finish(oldBytes: Int, newBytes: Int) {
+        withAnimation(.spring()) {
+            self.oldBytes = oldBytes
+            self.newBytes = newBytes
+            self.running = false
+        }
+    }
+}
+
 // MARK: - ClopApp
 
 @main
@@ -563,18 +597,24 @@ struct ClopApp: App {
 
             do {
                 let img = try PBImage.fromPasteboard()
+                guard !img.optimized else { return }
                 guard img.type != .tiff || optimizeTIFF else {
                     print("Skipping image \(img.path) because TIFF optimization is disabled")
                     return
                 }
+
+                let optimizer = Optimizer()
+                if showSizeNotification {
+                    sizeNotificationWindow = OSDWindow(swiftuiView: AnyView(SizeNotificationView(optimizer: optimizer)))
+                    sizeNotificationWindow?.show(fadeAfter: 5000, fadeDuration: 0.2, corner: .bottomRight)
+                }
+
                 let newImg = try optimizeImage(img)
+                guard showSizeNotification else { return }
 
-                guard showSizeNotification, img.data.count != newImg.data.count else { return }
-                let result = ImageOptimizationResult(id: img.path.string, oldBytes: img.data.count, newBytes: newImg.data.count)
-
-                sizeNotificationWindow =
-                    OSDWindow(swiftuiView: AnyView(SizeNotificationView(oldBytes: result.oldBytes, newBytes: result.newBytes)))
-                sizeNotificationWindow?.show(fadeAfter: 1000, fadeDuration: 0.2, corner: .bottomRight)
+                optimizer
+                    .finish(result: ImageOptimizationResult(id: img.path.string, oldBytes: img.data.count, newBytes: newImg.data.count))
+                sizeNotificationWindow?.show(fadeAfter: 1500, fadeDuration: 0.2, corner: .bottomRight)
             } catch let error as ClopError {
                 print(error.description)
             } catch {
