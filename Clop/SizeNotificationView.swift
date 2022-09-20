@@ -25,19 +25,22 @@ extension Int {
 // MARK: - SizeNotificationView
 
 struct SizeNotificationView: View {
-    @State var oldBytes: Int
-    @State var newBytes: Int
+    @ObservedObject var optimizer: Optimizer
 
     var body: some View {
         HStack {
             HStack {
-                Text(oldBytes.humanSize)
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.red)
-                Image(systemName: "arrow.right")
-                Text(newBytes.humanSize)
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.blue)
+                if optimizer.running {
+                    ProgressView().progressViewStyle(.circular).controlSize(.small)
+                } else {
+                    Text(optimizer.oldBytes.humanSize)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.red)
+                    Image(systemName: "arrow.right")
+                    Text(optimizer.newBytes.humanSize)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(optimizer.newBytes < optimizer.oldBytes ? .blue : .red)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
@@ -50,6 +53,7 @@ struct SizeNotificationView: View {
                 .frame(width: 30, height: 30, alignment: .center)
         }
         .padding()
+        .frame(width: 400, alignment: .trailing)
         .fixedSize()
     }
 }
@@ -58,7 +62,10 @@ struct SizeNotificationView: View {
 
 struct SizeNotificationView_Previews: PreviewProvider {
     static var previews: some View {
-        SizeNotificationView(oldBytes: 750_190, newBytes: 211_932)
+        SizeNotificationView(optimizer: Optimizer())
+            .padding()
+            .background(LinearGradient(colors: [.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+        SizeNotificationView(optimizer: Optimizer(running: false, oldBytes: 750_190, newBytes: 211_932))
             .padding()
             .background(LinearGradient(colors: [.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
