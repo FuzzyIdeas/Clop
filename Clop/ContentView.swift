@@ -31,7 +31,7 @@ struct LaunchAtLoginToggle: View {
 struct MenuView: View {
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
     @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
-    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = false
+    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = true
 
     var body: some View {
         Toggle("Show menubar icon", isOn: $showMenubarIcon)
@@ -50,7 +50,7 @@ struct MenuView: View {
 struct ContentView: View {
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
     @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
-    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = false
+    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = true
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
