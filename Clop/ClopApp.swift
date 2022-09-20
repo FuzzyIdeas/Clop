@@ -143,6 +143,29 @@ class PBImage {
     static let JPEG_HEADER: Data = .init([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46])
     static let GIF_HEADER: Data = .init([0x47, 0x49, 0x46, 0x38, 0x39])
 
+    static var NOT_IMAGE_TYPES: Set<NSPasteboard.PasteboardType> = [
+        .init("com.apple.icns"),
+        .init("public.svg-image"),
+        .init("public.xml"),
+        .init("com.adobe.illustrator.ai-image"),
+        .init("com.adobe.photoshop-image"),
+        .init("com.adobe.photoshop-large-image"),
+        .init("com.ilm.openexr-image"),
+        .init("com.kodak.flashpix-image"),
+        .init("com.sgi.sgi-image"),
+        .init("com.truevision.tga-image"),
+        .init("org.oasis-open.opendocument.image"),
+        .init("org.oasis-open.opendocument.image-template"),
+        .init("public.xbitmap-image"),
+        .init("com.apple.notes.sketch"),
+        .init("com.bohemiancoding.sketch.clouddrawing.single"),
+        .init("com.bohemiancoding.sketch.drawing"),
+        .init("com.bohemiancoding.sketch.drawing.single"),
+        .init("com.apple.graphic-icon"),
+        .init("com.apple.icon-decoration"),
+        .init("com.apple.iconset"),
+    ]
+
     let data: Data
     let path: FilePath
 
@@ -256,6 +279,10 @@ class PBImage {
         return PBImage(data: data, path: newPath, type: .png, optimized: true)
     }
 
+    static func isRaw(pasteboardItem: NSPasteboardItem) -> Bool {
+        pasteboardItem.types.contains(where: { $0.rawValue.contains("raw-image") })
+    }
+
     class func fromCommandLine() throws -> PBImage {
         let impath = CommandLine.arguments[1]
         guard fm.fileExists(atPath: impath) else {
@@ -270,7 +297,9 @@ class PBImage {
 
     class func fromPasteboard() throws -> PBImage {
         let pb = NSPasteboard.general
-        guard let item = pb.pasteboardItems?.first, let nsImage = NSImage(pasteboard: pb)
+        guard let item = pb.pasteboardItems?.first,
+              !NSOrderedSet(array: item.types).intersectsSet(NOT_IMAGE_TYPES), !isRaw(pasteboardItem: item),
+              let nsImage = NSImage(pasteboard: pb)
         else {
             throw ClopError.noClipboardImage(pb.pasteboardItems?.first?.string(forType: .fileURL) ?? "")
         }
@@ -473,7 +502,7 @@ struct ClopApp: App {
 
     @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
     @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
-    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = false
+    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = true
 
     @State var timer: Timer?
     @State var pbChangeCount = NSPasteboard.general.changeCount
