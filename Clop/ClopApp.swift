@@ -164,6 +164,7 @@ class PBImage {
         .init("com.apple.graphic-icon"),
         .init("com.apple.icon-decoration"),
         .init("com.apple.iconset"),
+        .init("com.microsoft.Object-Descriptor"),
     ]
 
     let data: Data
