@@ -143,6 +143,10 @@ class PBImage {
     static let JPEG_HEADER: Data = .init([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46])
     static let GIF_HEADER: Data = .init([0x47, 0x49, 0x46, 0x38, 0x39])
 
+    static var NOT_IMAGE_TYPE_PATTERN =
+        try! Regex(
+            "com.microsoft.ole.source|com.microsoft.Art|com.microsoft.PowerPoint|com.microsoft.image-svg-xml|com.microsoft.DataObject"
+        )
     static var NOT_IMAGE_TYPES: Set<NSPasteboard.PasteboardType> = [
         .init("com.apple.icns"),
         .init("public.svg-image"),
@@ -165,6 +169,8 @@ class PBImage {
         .init("com.apple.icon-decoration"),
         .init("com.apple.iconset"),
         .init("com.microsoft.Object-Descriptor"),
+        .init("com.microsoft.appbundleid"),
+        .init("com.adobe.pdf"),
     ]
 
     let data: Data
@@ -300,6 +306,7 @@ class PBImage {
         let pb = NSPasteboard.general
         guard let item = pb.pasteboardItems?.first,
               !NSOrderedSet(array: item.types).intersectsSet(NOT_IMAGE_TYPES), !isRaw(pasteboardItem: item),
+              (try NOT_IMAGE_TYPE_PATTERN.firstMatch(in: item.types.map(\.rawValue).joined(separator: " "))) == nil,
               let nsImage = NSImage(pasteboard: pb)
         else {
             throw ClopError.noClipboardImage(pb.pasteboardItems?.first?.string(forType: .fileURL) ?? "")
