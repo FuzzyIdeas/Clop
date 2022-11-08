@@ -60,7 +60,7 @@ open class OSDWindow: NSWindow, NSWindowDelegate {
     open var onClick: ((NSEvent) -> Void)?
 
     override open func mouseDown(with event: NSEvent) {
-        guard !ignoresMouseEvents, let onClick = onClick else { return }
+        guard !ignoresMouseEvents, let onClick else { return }
         onClick(event)
     }
 
@@ -74,9 +74,9 @@ open class OSDWindow: NSWindow, NSWindowDelegate {
         corner: ScreenCorner? = nil,
         screen: NSScreen? = nil
     ) {
-        if let corner = corner {
+        if let corner {
             moveToScreen(screen, corner: corner)
-        } else if let point = point {
+        } else if let point {
             setFrameOrigin(point)
         } else if let screenFrame = (screen ?? NSScreen.main)?.visibleFrame {
             setFrameOrigin(screenFrame.origin)
@@ -95,7 +95,7 @@ open class OSDWindow: NSWindow, NSWindowDelegate {
         closer?.cancel()
         guard closeMilliseconds > 0 else { return }
         fader = mainAsyncAfter(ms: fadeMilliseconds) { [weak self] in
-            guard let self = self, self.isVisible else { return }
+            guard let self, self.isVisible else { return }
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = fadeDuration
                 self.animator().alphaValue = 0.01
@@ -112,7 +112,7 @@ open class OSDWindow: NSWindow, NSWindowDelegate {
     @Published public var screenPlacement: NSScreen?
 
     public func windowDidResize(_ notification: Notification) {
-        guard let screenCorner = screenCorner, let screenPlacement = screenPlacement else { return }
+        guard let screenCorner, let screenPlacement else { return }
         moveToScreen(screenPlacement, corner: screenCorner)
     }
 
@@ -128,11 +128,11 @@ open class OSDWindow: NSWindow, NSWindowDelegate {
             return
         }
 
-        if let screen = screen {
+        if let screen {
             screenPlacement = screen
         }
 
-        guard let corner = corner else {
+        guard let corner else {
             setFrameOrigin(screenFrame.origin)
             return
         }
