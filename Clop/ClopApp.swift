@@ -145,7 +145,7 @@ class PBImage {
 
     static var NOT_IMAGE_TYPE_PATTERN =
         try! Regex(
-            "com.microsoft.ole.source|com.microsoft.Art|com.microsoft.PowerPoint|com.microsoft.image-svg-xml|com.microsoft.DataObject|IBPasteboardType|IBDocument"
+            "com.microsoft.ole.source|com.microsoft.Art|com.microsoft.PowerPoint|com.microsoft.image-svg-xml|com.microsoft.DataObject|IBPasteboardType|IBDocument|com.pixelmator"
         )
     static var NOT_IMAGE_TYPES: Set<NSPasteboard.PasteboardType> = [
         .init("com.apple.icns"),
