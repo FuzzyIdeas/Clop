@@ -5,93 +5,117 @@
 //  Created by Alin Panaitiu on 16.07.2022.
 //
 
-import ServiceManagement
+import Defaults
+import LaunchAtLogin
+import Lowtech
+import LowtechIndie
+import LowtechPro
 import SwiftUI
-
-// MARK: - LaunchAtLoginToggle
-
-struct LaunchAtLoginToggle: View {
-    @State var loginItemEnabled = launchAtLogin
-
-    var body: some View {
-        Toggle("Launch at login", isOn: $loginItemEnabled)
-            .onChange(of: loginItemEnabled) { enabled in
-                launchAtLogin = enabled
-                if enabled {
-                    try? SMAppService.mainApp.register()
-                } else {
-                    try? SMAppService.mainApp.unregister()
-                }
-            }
-    }
-}
+import System
 
 // MARK: - MenuView
 
 struct MenuView: View {
-    @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
-    @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
-    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = true
+    @ObservedObject var um = UM
+    @ObservedObject var om = OM
+    @ObservedObject var pm = PM
+    @Environment(\.openWindow) var openWindow
+
+    @Default(.keyComboModifiers) var keyComboModifiers
+    @Default(.useAggresiveOptimizationGIF) var useAggresiveOptimizationGIF
+    @Default(.useAggresiveOptimizationJPEG) var useAggresiveOptimizationJPEG
+    @Default(.useAggresiveOptimizationPNG) var useAggresiveOptimizationPNG
+    @Default(.useAggresiveOptimizationMP4) var useAggresiveOptimizationMP4
+
+    @ViewBuilder var proErrors: some View {
+        Section("Skipped items because of free version limits") {
+            ForEach(om.skippedBecauseNotPro, id: \.self) { url in
+                let str = url.isFileURL ? url.filePath.shellString : url.absoluteString
+                Button("    \(str.count > 50 ? (str.prefix(25) + "..." + str.suffix(15)) : str)") {
+                    QuickLooker.quicklook(url: url)
+                }
+            }
+            Button("Get Clop Pro") {
+                settingsViewManager.tab = .about
+                openWindow(id: "settings")
+                
+                PRO?.manageLicence()
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
 
     var body: some View {
-        Toggle("Show menubar icon", isOn: $showMenubarIcon)
-        Toggle("Show bytes saved notification", isOn: $showSizeNotification)
-        Toggle("Optimize TIFF data", isOn: $optimizeTIFF)
-        LaunchAtLoginToggle()
+        Button("Settings") {
+            openWindow(id: "settings")
+            NSApp.activate(ignoringOtherApps: true)
+        }.keyboardShortcut(",")
+        LaunchAtLogin.Toggle()
+
         Divider()
+
+        Section("Clipboard actions") {
+            Button("Optimize") {
+                Task.init { try? await optimizeLastClipboardItem() }
+            }.keyboardShortcut("c", modifiers: keyComboModifiers.eventModifiers)
+
+            if !useAggresiveOptimizationGIF ||
+                !useAggresiveOptimizationJPEG ||
+                !useAggresiveOptimizationPNG ||
+                !useAggresiveOptimizationMP4
+            {
+                Button("Optimize (aggresive)") {
+                    Task.init { try? await optimizeLastClipboardItem(aggressiveOptimization: true) }
+                }.keyboardShortcut("a", modifiers: keyComboModifiers.eventModifiers)
+            }
+
+            Button("Downscale") {
+                scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
+                Task.init { try? await optimizeLastClipboardItem(downscaleTo: scalingFactor) }
+            }.keyboardShortcut("-", modifiers: keyComboModifiers.eventModifiers)
+            Button("Quicklook") {
+                Task.init { try? await quickLookLastClipboardItem() }
+            }.keyboardShortcut(" ", modifiers: keyComboModifiers.eventModifiers)
+
+        }
+
+        Section("Backups") {
+            Button("Open backups folder") {
+                NSWorkspace.shared.open(FilePath.backups.url)
+            }
+
+            Button("Revert last optimizations") {
+                om.clipboardImageOptimizer?.restoreOriginal()
+            }
+            .keyboardShortcut("z", modifiers: keyComboModifiers.eventModifiers)
+            .disabled(om.clipboardImageOptimizer?.isOriginal ?? true)
+            Button("Bring back last result") {
+                guard let last = om.removedOptimizers.popLast() else {
+                    return
+                }
+                om.optimizers = om.optimizers.without(last).with(last)
+            }
+            .keyboardShortcut("=", modifiers: keyComboModifiers.eventModifiers)
+            .disabled(om.removedOptimizers.isEmpty)
+        }
+
+        if let pro = pm.pro, !pro.active, !om.skippedBecauseNotPro.isEmpty {
+            proErrors
+        }
+
+        Button("Manage license") {
+            settingsViewManager.tab = .about
+            openWindow(id: "settings")
+            
+            PRO?.manageLicence()
+            NSApp.activate(ignoringOtherApps: true)
+        }
+
+        Button(um.newVersion != nil ? "v\(um.newVersion!) available" : "Check for updates") {
+            checkForUpdates()
+        }
         Button("Quit") {
             NSApp.terminate(nil)
-        }
-    }
-}
-
-// MARK: - ContentView
-
-struct ContentView: View {
-    @AppStorage(SHOW_MENUBAR_ICON) var showMenubarIcon = true
-    @AppStorage(SHOW_SIZE_NOTIFICATION) var showSizeNotification = true
-    @AppStorage(OPTIMIZE_TIFF) var optimizeTIFF = true
-
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            HStack(spacing: 40) {
-                VStack {
-                    Image("clop")
-                        .imageScale(.large)
-                        .foregroundColor(.accentColor)
-                    VStack {
-                        Text("Clop")
-                            .font(.system(size: 36, weight: .black, design: .rounded))
-                        Text("Clipboard")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        Text("optimizer")
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .offset(x: 0, y: -2)
-                    }
-                    .offset(x: 0, y: -25)
-                }
-                VStack(alignment: .leading) {
-                    Toggle("Show menubar icon", isOn: $showMenubarIcon)
-                    Toggle("Show bytes saved notification", isOn: $showSizeNotification)
-                        .fixedSize()
-                    Toggle("Optimize TIFF data", isOn: $optimizeTIFF)
-                    LaunchAtLoginToggle()
-                }.frame(height: 100, alignment: .top)
-            }
-            .padding(.horizontal, 50)
-            .padding(.vertical, 20)
-
-            Button("Quit", role: .destructive) { NSApp.terminate(nil) }
-                .buttonStyle(.borderedProminent)
-                .offset(x: -20, y: -20)
-        }
-    }
-}
-
-// MARK: - ContentView_Previews
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
+        }.keyboardShortcut("q")
     }
 }

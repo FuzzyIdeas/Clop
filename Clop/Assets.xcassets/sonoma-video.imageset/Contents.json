@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "sonoma-video.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
