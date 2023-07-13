@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Swift Build",
+            "type": "shell",
+            "command": "swift build",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Swift",
+            "type": "shell",
+            "command": "swift ${file}",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$swiftc",
+        }
+    ]
+}
