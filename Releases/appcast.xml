@@ -1,0 +1,16 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <item>
+            <title>2.0.0</title>
+            <pubDate>Wed, 09 Aug 2023 09:59:39 +0300</pubDate>
+            <link>https://lowtechguys.com/clop</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>2.0.0</sparkle:version>
+            <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.0.0.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.0.0.dmg" length="52441854" type="application/octet-stream" sparkle:edSignature="/rl6V/Aw3bJ47O6AK3gogCnWsfsVXsyomjZx0SWoyGXQ2H6eYE0Ys217XAvlNLKzFE8LldlW6FnJXGl6APGDCg=="/>
+        </item>
+    </channel>
+</rss>
