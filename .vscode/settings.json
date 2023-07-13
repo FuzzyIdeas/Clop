@@ -1,0 +1,4 @@
+{
+    "cmake.configureOnOpen": true,
+    "swift.swiftEnvironmentVariables": {}
+}
