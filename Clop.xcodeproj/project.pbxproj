@@ -42,7 +42,6 @@
 		C7760ABE2A5E92B800851F8C /* ClopUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopUtils.swift; sourceTree = "<group>"; };
 		C7760AC02A5E957700851F8C /* OptimizationUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizationUtils.swift; sourceTree = "<group>"; };
 		C7760AC22A5FF89B00851F8C /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
-		C78211072A59E3BC008DB106 /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
 		C78211082A5B21A4008DB106 /* Xattr.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Xattr.swift; sourceTree = "<group>"; };
 		C7A70F442A73EF7B007C4A99 /* ffmpeg */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = ffmpeg; sourceTree = "<group>"; };
 		C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopShortcuts.swift; sourceTree = "<group>"; };
@@ -80,7 +79,6 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
-				C78211072A59E3BC008DB106 /* Lowtech */,
 				C7AB6623288301590041BEC8 /* Clop */,
 				C7AB6622288301590041BEC8 /* Products */,
 			);
