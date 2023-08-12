@@ -38,7 +38,7 @@ struct MenuView: View {
             Button("Get Clop Pro") {
                 settingsViewManager.tab = .about
                 openWindow(id: "settings")
-                
+
                 PRO?.manageLicence()
                 NSApp.activate(ignoringOtherApps: true)
             }
@@ -106,7 +106,7 @@ struct MenuView: View {
         Button("Manage license") {
             settingsViewManager.tab = .about
             openWindow(id: "settings")
-            
+
             PRO?.manageLicence()
             NSApp.activate(ignoringOtherApps: true)
         }

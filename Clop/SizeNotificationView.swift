@@ -245,13 +245,13 @@ struct SizeNotificationView: View {
                 Button(
                     action: {
                         guard !isPreview else { return }
-                        
+
                         if optimizer.running {
                             optimizer.stop(remove: false)
                             optimizer.url = optimizer.originalURL
                             optimizer.finish(oldBytes: optimizer.oldBytes ?! optimizer.path?.fileSize() ?? 0, newBytes: -1)
                         }
-                        
+
                         if optimizer.downscaleFactor < 1 {
                             optimizer.downscale(toFactor: optimizer.downscaleFactor, aggressiveOptimization: true)
                         } else {
