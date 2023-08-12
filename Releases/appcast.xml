@@ -10,7 +10,7 @@
             <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.0.0.html</sparkle:releaseNotesLink>
-            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.0.0.dmg" length="52443755" type="application/octet-stream" sparkle:edSignature="iYz+bUao+53z6TwXM7RdSbUhGbrCHZdNdWNxolefAVkVAT6LpiX6OxxzVVKd6k2ViDQnyy8VMr7bQKoEgohmCg=="/>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.0.0.dmg" length="52449601" type="application/octet-stream" sparkle:edSignature="9MC+Wl9fjIx1kpIWuASe0y5Pk+bLorZxeIAA/G7cBto32mHXJOrDNiOxCpbSHxSz9u+TJf5543GUMTx8kxKbDA=="/>
         </item>
     </channel>
 </rss>
