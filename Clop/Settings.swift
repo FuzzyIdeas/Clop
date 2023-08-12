@@ -15,19 +15,19 @@ extension SauceKey: Defaults.Serializable {}
 extension UTType: Defaults.Serializable {}
 
 extension UTType {
-    static let avif = UTType("public.avif")!
-    static let webm = UTType("org.webmproject.webm")!
-    static let mkv = UTType("org.matroska.mkv")!
-    static let mpeg = UTType("public.mpeg")!
-    static let wmv = UTType("com.microsoft.windows-media-wmv")!
-    static let flv = UTType("com.adobe.flash.video")!
-    static let m4v = UTType("com.apple.m4v-video")!
+    static let avif = UTType("public.avif")
+    static let webm = UTType("org.webmproject.webm")
+    static let mkv = UTType("org.matroska.mkv")
+    static let mpeg = UTType("public.mpeg")
+    static let wmv = UTType("com.microsoft.windows-media-wmv")
+    static let flv = UTType("com.adobe.flash.video")
+    static let m4v = UTType("com.apple.m4v-video")
 }
 
-let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg]
+let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg].compactMap { $0 }
 let FORMATS_CONVERTIBLE_TO_MP4: [UTType] = VIDEO_FORMATS.without([.mpeg4Movie])
 
-let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif]
+let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
 let FORMATS_CONVERTIBLE_TO_JPEG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let FORMATS_CONVERTIBLE_TO_PNG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 
@@ -38,9 +38,9 @@ public extension Defaults.Keys {
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
     static let optimizeTIFF = Key<Bool>("optimizeTIFF", default: true)
-    static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [.webP, .avif, .heic, .bmp])
+    static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
-    static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [.quickTimeMovie, .mpeg2Video, .mpeg, .webm])
+    static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
     #if arch(arm64)
         static let useCPUIntensiveEncoder = Key<Bool>("useCPUIntensiveEncoder", default: false)
     #endif
@@ -55,7 +55,7 @@ public extension Defaults.Keys {
     static let maxVideoSizeMB = Key<Int>("maxVideoSizeMB", default: 500)
     static let maxImageSizeMB = Key<Int>("maxImageSizeMB", default: 50)
     static let imageFormatsToSkip = Key<Set<UTType>>("imageFormatsToSkip", default: [.tiff])
-    static let videoFormatsToSkip = Key<Set<UTType>>("videoFormatsToSkip", default: [.mkv, .m4v])
+    static let videoFormatsToSkip = Key<Set<UTType>>("videoFormatsToSkip", default: [UTType.mkv, UTType.m4v].compactMap { $0 }.set)
     static let adaptiveVideoSize = Key<Bool>("adaptiveVideoSize", default: true)
     static let adaptiveImageSize = Key<Bool>("adaptiveVideoSize", default: true)
 
