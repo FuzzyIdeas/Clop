@@ -590,6 +590,7 @@ struct SettingsView: View {
         default:
             return event
         }
+        return nil
     }
 
     if combo.modifierFlags == [.command] {
@@ -609,8 +610,9 @@ struct SettingsView: View {
         default:
             return event
         }
+        return nil
     }
-    return nil
+    return event
 }
 
 struct SettingsView_Previews: PreviewProvider {
