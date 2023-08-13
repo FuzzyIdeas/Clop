@@ -276,6 +276,7 @@ class FileOptimizationWatcher {
     func startWatching() {
         if watching {
             EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+            watching = false
         }
 
         guard !paths.isEmpty else { return }

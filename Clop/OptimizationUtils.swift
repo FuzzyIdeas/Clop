@@ -290,8 +290,8 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
             if type.isVideo, let path = originalURL?.filePath ?? path {
                 guard let video = try await (
                     oldSize == nil
-                        ? Video.byFetchingResolution(path: path, fileSize: oldBytes, id: self.id)
-                        : Video(path: path, size: oldSize, fileSize: oldBytes, id: self.id)
+                        ? Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id)
+                        : Video(path: path, metadata: VideoMetadata(resolution: oldSize!, fps: 0), fileSize: oldBytes, id: self.id)
                 )
                 else {
                     return
@@ -355,7 +355,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
             return
         }
         if type.isVideo, path.exists {
-            let video = Video(path: path, size: oldSize, fileSize: oldBytes, thumb: false)
+            let video = Video(path: path, metadata: VideoMetadata(resolution: oldSize!, fps: 0), fileSize: oldBytes, thumb: false)
             Task.init { try? await optimizeVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimization: shouldUseAggressiveOptimization) }
         }
     }
@@ -631,7 +631,7 @@ func optimizeURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: 
 
         case .video:
             let result: Video?
-            if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingResolution(path: downloadPath, id: optimizer.id) {
+            if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimizer.id) {
                 result = try await downscaleVideo(video, id: optimizer.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
             } else {
                 result = try await optimizeVideo(Video(path: downloadPath, id: optimizer.id), id: optimizer.id, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
@@ -829,7 +829,7 @@ var manualOptimizationCount = 0
                 throw ClopError.alreadyOptimized(path)
             }
             let result = try await proGuard(count: &manualOptimizationCount, limit: 2, url: path.url) {
-                if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingResolution(path: path) {
+                if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: path) {
                     return try await downscaleVideo(video, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
                 } else {
                     return try await optimizeVideo(Video(path: path), allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)

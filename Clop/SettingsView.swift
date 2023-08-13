@@ -60,6 +60,9 @@ struct VideoSettingsView: View {
     @Default(.maxVideoSizeMB) var maxVideoSizeMB
     @Default(.videoFormatsToSkip) var videoFormatsToSkip
     @Default(.adaptiveVideoSize) var adaptiveVideoSize
+    @Default(.capVideoFPS) var capVideoFPS
+    @Default(.targetVideoFPS) var targetVideoFPS
+    @Default(.minVideoFPS) var minVideoFPS
 
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
@@ -93,22 +96,59 @@ struct VideoSettingsView: View {
                         Text("Adaptive optimization").regular(13)
                             + Text("\nUses the CPU intensive encoder for short workloads, and the battery efficient one for larger files").round(11, weight: .regular)
                     }
-                    Toggle(isOn: $useCPUIntensiveEncoder) {
+                    Toggle(isOn: $useCPUIntensiveEncoder.animation(.spring())) {
                         Text("Use CPU intensive encoder").regular(13)
                             + Text("\nGenerates smaller files with better visual quality but takes longer and uses more CPU").round(11, weight: .regular)
                     }
-                    Toggle(isOn: $useAggresiveOptimizationMP4) {
-                        Text("Aggressive optimization").regular(13)
-                            + Text("\nDecrease visual quality and increase processing time for even smaller files").round(11, weight: .regular)
+                    if useCPUIntensiveEncoder {
+                        Toggle(isOn: $useAggresiveOptimizationMP4) {
+                            Text("Aggressive optimization").regular(13)
+                                + Text("\nDecrease visual quality and increase processing time for even smaller files").round(11, weight: .regular)
+                        }
+                        .disabled(!useCPUIntensiveEncoder)
+                        .padding(.leading)
                     }
-                    .disabled(!useCPUIntensiveEncoder)
-                    .padding(.leading)
                 #else
                     Toggle(isOn: $useAggresiveOptimizationMP4) {
                         Text("Use more aggressive optimization").regular(13)
                             + Text("\nGenerates smaller files with slightly worse visual quality but takes longer and uses more CPU").round(11, weight: .regular)
                     }
                 #endif
+                Toggle(isOn: $capVideoFPS.animation(.spring())) {
+                    HStack {
+                        Text("Cap frames per second to").regular(13).padding(.trailing, 10)
+                        Button("30fps") {
+                            withAnimation(.spring()) { targetVideoFPS = 30 }
+                        }.buttonStyle(ToggleButton(isOn: .oneway { targetVideoFPS == 30 }))
+                        Button("60fps") {
+                            withAnimation(.spring()) { targetVideoFPS = 60 }
+                        }.buttonStyle(ToggleButton(isOn: .oneway { targetVideoFPS == 60 }))
+                        Button("1/2 of source") {
+                            withAnimation(.spring()) { targetVideoFPS = -2 }
+                        }.buttonStyle(ToggleButton(isOn: .oneway { targetVideoFPS == -2 }))
+                        Button("1/4 of source") {
+                            withAnimation(.spring()) { targetVideoFPS = -4 }
+                        }.buttonStyle(ToggleButton(isOn: .oneway { targetVideoFPS == -4 }))
+                    }.disabled(!capVideoFPS)
+                }
+                if targetVideoFPS < 0, capVideoFPS {
+                    HStack {
+                        Text("but no less than").regular(13).padding(.trailing, 10)
+                        Button("10fps") {
+                            minVideoFPS = 10
+                        }.buttonStyle(ToggleButton(isOn: .oneway { minVideoFPS == 10 }))
+                        Button("24fps") {
+                            minVideoFPS = 24
+                        }.buttonStyle(ToggleButton(isOn: .oneway { minVideoFPS == 24 }))
+                        Button("30fps") {
+                            minVideoFPS = 30
+                        }.buttonStyle(ToggleButton(isOn: .oneway { minVideoFPS == 30 }))
+                        Button("60fps") {
+                            minVideoFPS = 60
+                        }.buttonStyle(ToggleButton(isOn: .oneway { minVideoFPS == 60 }))
+                    }
+                    .padding(.leading, 10)
+                }
             }
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimization")) {
                 HStack {

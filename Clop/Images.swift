@@ -86,7 +86,7 @@ class Image: CustomStringConvertible {
         self.path = path
         self.data = data
         image = NSImage(data: data)!
-        self.type = type ?? image.type ?? UTType(filenameExtension: path.extension ?? "") ?? .png
+        self.type = type ?? image.type ?? UTType(filenameExtension: path.extension ?? "") ?? UTType(mimeType: path.fetchFileType() ?? "") ?? .png
 
         if let optimized {
             self.optimized = optimized
@@ -94,12 +94,11 @@ class Image: CustomStringConvertible {
     }
 
     init?(path: FilePath, optimized: Bool? = nil) {
-        guard let data = fm.contents(atPath: path.string), let nsImage = NSImage(data: data),
-              let type = nsImage.type
-        else {
+        guard let data = fm.contents(atPath: path.string), let nsImage = NSImage(data: data) else {
             return nil
         }
 
+        let type = nsImage.type ?? UTType(filenameExtension: path.extension ?? "") ?? UTType(mimeType: path.fetchFileType() ?? "") ?? .png
         self.path = path
         self.data = data
         self.type = type
@@ -553,7 +552,7 @@ class Image: CustomStringConvertible {
     print("\(event.path): \(flag)")
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
-          flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag != [.itemIsFile, .itemXattrMod],
+          flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
           !path.hasOptimizationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxImageSizeMB] * 1_000_000, imageOptimizeDebouncers[event.path] == nil
     else {
         if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {

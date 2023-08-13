@@ -12,7 +12,7 @@ let FFMPEG = Bundle.main.url(forResource: "ffmpeg", withExtension: nil)!.path
 // let MEDIAINFO = Bundle.main.url(forResource: "mediainfo", withExtension: nil)!.path
 
 class Video {
-    init(path: FilePath, size: CGSize? = nil, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) {
+    init(path: FilePath, metadata: VideoMetadata? = nil, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) {
         self.path = path
         self.convertedFrom = convertedFrom
         self.id = id
@@ -21,11 +21,11 @@ class Video {
             self.fileSize = fileSize
         }
 
-        if let size {
-            self.size = size
+        if let metadata {
+            self.metadata = metadata
         } else {
             Task.init {
-                self.size = try? await getVideoResolution(path: path)
+                self.metadata = try? await getVideoMetadata(path: path)
                 await MainActor.run { optimizer?.oldSize = self.size }
             }
         }
@@ -35,20 +35,27 @@ class Video {
     }
 
     let path: FilePath
-    var size: CGSize?
     lazy var fileSize: Int = path.fileSize() ?? 0
     var convertedFrom: Video?
     let id: String?
+
+    var metadata: VideoMetadata?
+
+    var size: CGSize? { metadata?.resolution }
+    var fps: Float? {
+        guard let fps = metadata?.fps, fps > 0 else { return nil }
+        return fps
+    }
 
     @MainActor var optimizer: Optimizer? {
         OM.optimizers.first(where: { $0.id == id ?? path.string })
     }
 
-    static func byFetchingResolution(path: FilePath, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) async throws -> Video? {
-        let size = try await getVideoResolution(path: path)
-        let video = Video(path: path, size: size, fileSize: fileSize, convertedFrom: convertedFrom, thumb: thumb, id: id)
+    static func byFetchingMetadata(path: FilePath, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) async throws -> Video? {
+        let metadata = try await getVideoMetadata(path: path)
+        let video = Video(path: path, metadata: metadata, fileSize: fileSize, convertedFrom: convertedFrom, thumb: thumb, id: id)
 
-        await MainActor.run { video.optimizer?.oldSize = size }
+        await MainActor.run { video.optimizer?.oldSize = metadata?.resolution }
 
         return video
     }
@@ -85,6 +92,19 @@ class Video {
             additionalArgs += ["-vf", "scale=w=\(size.width.i.s):h=\(size.height.i.s)"]
         }
 
+        var newFPS = fps
+        if Defaults[.capVideoFPS] {
+            newFPS = Defaults[.targetVideoFPS]
+            if newFPS == -2, let fps {
+                newFPS = max(fps / 2, Defaults[.minVideoFPS])
+            } else if newFPS == -4, let fps {
+                newFPS = max(fps / 4, Defaults[.minVideoFPS])
+            } else if newFPS! < 0 {
+                newFPS = 60
+            }
+            additionalArgs += ["-fpsmax", "\(newFPS!)"]
+        }
+
         let aggressive = aggressiveOptimization ?? Defaults[.useAggresiveOptimizationMP4]
         mainActor { optimizer.aggresive = aggressive }
         #if arch(arm64)
@@ -110,12 +130,22 @@ class Video {
         try? tmpPath.setOptimizationStatusXattr("true")
 
         try tmpPath.move(to: outputPath, force: true)
-        return Video(path: outputPath, size: newSize ?? size, convertedFrom: forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil)
+
+        if Defaults[.capVideoFPS], let fps, let new = newFPS, new > fps {
+            newFPS = fps
+        }
+        let metadata = VideoMetadata(resolution: newSize ?? size ?? .zero, fps: newFPS ?? fps ?? 0)
+        return Video(path: outputPath, metadata: metadata, convertedFrom: forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil)
     }
 
 }
 
-func getVideoResolution(path: FilePath) async throws -> CGSize? {
+struct VideoMetadata {
+    let resolution: CGSize
+    let fps: Float
+}
+
+func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
     guard let track = try await AVURLAsset(url: path.url).loadTracks(withMediaType: .video).first else {
         return nil
     }
@@ -123,7 +153,8 @@ func getVideoResolution(path: FilePath) async throws -> CGSize? {
     if let transform = try? await track.load(.preferredTransform) {
         size = size.applying(transform)
     }
-    return CGSize(width: abs(size.width), height: abs(size.height))
+    let fps = try await track.load(.nominalFrameRate)
+    return VideoMetadata(resolution: CGSize(width: abs(size.width), height: abs(size.height)), fps: fps)
 }
 
 let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}).(\d{2})"#, as: (Substring, Substring, Substring, Substring, Substring).self).anchorsMatchLineEndings(true)
@@ -201,7 +232,7 @@ var processTerminated = Set<pid_t>()
     print("\(event.path): \(flag)")
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
-          flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag != [.itemIsFile, .itemXattrMod],
+          flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
           !path.hasOptimizationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxVideoSizeMB] * 1_000_000, videoOptimizeDebouncers[event.path] == nil
     else {
         if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {

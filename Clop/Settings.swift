@@ -41,6 +41,10 @@ public extension Defaults.Keys {
     static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
     static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
+    static let capVideoFPS = Key<Bool>("capVideoFPS", default: true)
+    static let targetVideoFPS = Key<Float>("targetVideoFPS", default: 60)
+    static let minVideoFPS = Key<Float>("minVideoFPS", default: 30)
+
     #if arch(arm64)
         static let useCPUIntensiveEncoder = Key<Bool>("useCPUIntensiveEncoder", default: false)
     #endif
