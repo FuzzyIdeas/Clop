@@ -329,7 +329,7 @@ class Image: CustomStringConvertible {
 
         path.backup(operation: .copy)
 
-        var type = UTType.png
+        var type = UTType.jpeg
         if let pngOutFile, pngOutFile.exists,
            let pngSize = pngOutFile.fileSize(), pngSize > 0,
            let jpegSize = tempFile.fileSize(),

@@ -196,7 +196,6 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
     var type: ItemType
     let startedAt = Date()
 
-    @Published var running = true
     @Published var hidden = false
     @Published var isOriginal = false
     @Published var progress = Progress()
@@ -227,6 +226,15 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     @Published var inRemoval = false
 
+    @Published var running = true {
+        didSet {
+            if running, !oldValue {
+                remover = nil
+                inRemoval = false
+                lastRemoveAfterMs = nil
+            }
+        }
+    }
     @Published var url: URL? {
         didSet {
             print("URL set to \(url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
