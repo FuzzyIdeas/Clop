@@ -160,7 +160,6 @@ struct SizeNotificationView: View {
             }
         }
     }
-
     @ViewBuilder var sizeDiff: some View {
         if let oldSize = optimizer.oldSize {
             HStack(spacing: 3) {
@@ -176,6 +175,7 @@ struct SizeNotificationView: View {
             .fixedSize()
         }
     }
+
     var fileSizeDiff: some View {
         HStack {
             Text(optimizer.oldBytes.humanSize)
@@ -191,7 +191,6 @@ struct SizeNotificationView: View {
         .lineLimit(1)
         .fixedSize()
     }
-
     var closeStopButton: some View {
         Button(
             action: {
@@ -210,9 +209,7 @@ struct SizeNotificationView: View {
                 .shadow(radius: 2)
         )
     }
-
-    @ViewBuilder
-    var restoreOptimizeButton: some View {
+    @ViewBuilder var restoreOptimizeButton: some View {
         if optimizer.url != nil, !optimizer.running {
             if optimizer.isOriginal {
                 Button(
@@ -229,7 +226,6 @@ struct SizeNotificationView: View {
             }
         }
     }
-
     var sideButtons: some View {
         VStack {
             Button(
@@ -363,7 +359,6 @@ struct SizeNotificationView: View {
             .fixedSize(horizontal: !thumb, vertical: false)
         }
     }
-
     @ViewBuilder var noticeView: some View {
         if let notice = optimizer.notice {
             VStack(alignment: .leading) {
@@ -379,7 +374,6 @@ struct SizeNotificationView: View {
             .fixedSize(horizontal: !showsThumbnail, vertical: false)
         }
     }
-
     @ViewBuilder var thumbnailView: some View {
         VStack {
             HStack {

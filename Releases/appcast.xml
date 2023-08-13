@@ -2,6 +2,20 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <item>
+            <title>2.0.1</title>
+            <pubDate>Sat, 12 Aug 2023 12:24:43 +0300</pubDate>
+            <link>https://lowtechguys.com/clop</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>2.0.1</sparkle:version>
+            <sparkle:shortVersionString>2.0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.0.1.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.0.1.dmg" length="52438718" type="application/octet-stream" sparkle:edSignature="bel61S/7AQug+CExGxIbClLhxnl9TpJda9lp5ZiKWXCo5lU3HhvF/mptRG0GdhYhX62EJFJFqyov00b+SYR8Bg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.0.1-2.0.0.delta" sparkle:deltaFrom="2.0.0" length="502806" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="NKGex11yjM1bice+VCY982+NKsKiCnAN5je0CVr+1rddyBDfW5e2mCfoqz5KZ7wrdk5yYOsDK9qjdqCxmgtBAA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>2.0.0</title>
             <pubDate>Wed, 09 Aug 2023 09:59:39 +0300</pubDate>
             <link>https://lowtechguys.com/clop</link>
