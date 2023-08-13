@@ -103,6 +103,16 @@ struct MenuView: View {
             proErrors
         }
 
+        Menu("About...") {
+            Button("Contact the developer") {
+                NSWorkspace.shared.open(contactURL())
+            }
+            Button("Privacy policy") {
+                NSWorkspace.shared.open("https://lowtechguys.com/clop/privacy".url!)
+            }
+            Text("License: \((pm.pro?.active ?? false) ? "Pro" : "Free")")
+            Text("Version: v\(Bundle.main.version)")
+        }
         Button("Manage license") {
             settingsViewManager.tab = .about
             openWindow(id: "settings")
@@ -118,4 +128,21 @@ struct MenuView: View {
             NSApp.terminate(nil)
         }.keyboardShortcut("q")
     }
+}
+
+func contactURL() -> URL {
+    guard var urlBuilder = URLComponents(url: "https://lowtechguys.com/contact".url!, resolvingAgainstBaseURL: false) else {
+        return "https://lowtechguys.com/contact".url!
+    }
+    urlBuilder.queryItems = [URLQueryItem(name: "userid", value: SERIAL_NUMBER_HASH), URLQueryItem(name: "app", value: "Clop")]
+
+    if let licenseCode = product?.licenseCode {
+        urlBuilder.queryItems?.append(URLQueryItem(name: "code", value: licenseCode))
+    }
+
+    if let email = product?.activationEmail {
+        urlBuilder.queryItems?.append(URLQueryItem(name: "email", value: email))
+    }
+
+    return urlBuilder.url ?? "https://lowtechguys.com/contact".url!
 }
