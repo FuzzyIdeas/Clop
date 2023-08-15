@@ -213,6 +213,14 @@ extension FilePath {
     func fetchFileType() -> String? {
         shell("/usr/bin/file", args: ["-b", "--mime-type", string]).o
     }
+
+    func copyExif(from source: FilePath) {
+        let exifProc = shell("/usr/bin/perl5.30", args: [EXIFTOOL, "-overwrite_original", "-TagsFromFile", source.string, string], wait: true)
+        #if DEBUG
+            debug("EXIFTOOL: out=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
+        #endif
+    }
+
 }
 
 let HALF_HALF = sqrt(0.5)

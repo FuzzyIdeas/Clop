@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C707EBB22A8B765500EE75DA /* exiftool in Resources */ = {isa = PBXBuildFile; fileRef = C707EBB12A8B765500EE75DA /* exiftool */; };
 		C733B3D22A50789C002A0585 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
 		C7760AB62A5C4EE500851F8C /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB52A5C4EE500851F8C /* Images.swift */; };
 		C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB72A5C854600851F8C /* SettingsView.swift */; };
@@ -35,6 +36,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C707EBB12A8B765500EE75DA /* exiftool */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.perl; path = exiftool; sourceTree = "<group>"; };
 		C733B3D12A50789C002A0585 /* Video.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
 		C7760AB52A5C4EE500851F8C /* Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		C7760AB72A5C854600851F8C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 		C7AB663328841E890041BEC8 /* bin */ = {
 			isa = PBXGroup;
 			children = (
+				C707EBB12A8B765500EE75DA /* exiftool */,
 				C7A70F442A73EF7B007C4A99 /* ffmpeg */,
 				C7D9200F2890308D00FA0C83 /* libjpeg.9.dylib */,
 				C7D920112890308D00FA0C83 /* liblcms2.2.dylib */,
@@ -208,6 +211,7 @@
 			files = (
 				C7AB663728841EB00041BEC8 /* jpegoptim in Resources */,
 				C7D920152890316400FA0C83 /* libpng16.16.dylib in Resources */,
+				C707EBB22A8B765500EE75DA /* exiftool in Resources */,
 				C7D920172890316900FA0C83 /* libjpeg.9.dylib in Resources */,
 				C7D920162890316700FA0C83 /* liblcms2.2.dylib in Resources */,
 				C7A70F452A73EF7B007C4A99 /* ffmpeg in Resources */,
