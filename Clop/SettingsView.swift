@@ -149,6 +149,7 @@ struct VideoSettingsView: View {
                     }
                     .padding(.leading, 10)
                 }
+
             }
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimization")) {
                 HStack {
@@ -181,6 +182,7 @@ struct ImagesSettingsView: View {
     @Default(.maxImageSizeMB) var maxImageSizeMB
     @Default(.imageFormatsToSkip) var imageFormatsToSkip
     @Default(.adaptiveImageSize) var adaptiveImageSize
+    @Default(.downscaleRetinaImages) var downscaleRetinaImages
 
     @Default(.useAggresiveOptimizationJPEG) var useAggresiveOptimizationJPEG
     @Default(.useAggresiveOptimizationPNG) var useAggresiveOptimizationPNG
@@ -223,6 +225,10 @@ struct ImagesSettingsView: View {
                 Toggle(isOn: $adaptiveImageSize) {
                     Text("Adaptive optimization").regular(13)
                         + Text("\nOptimize detail heavy images as JPEG and low-detail ones as PNG").round(11, weight: .regular)
+                }
+                Toggle(isOn: $downscaleRetinaImages) {
+                    Text("Downscale HiDPI images to 72 DPI").regular(13)
+                        + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular)
                 }
 
             }
