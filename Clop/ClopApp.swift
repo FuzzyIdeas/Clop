@@ -210,7 +210,7 @@ class AppDelegate: LowtechProAppDelegate {
             }
         }
         imageWatcher = FileOptimizationWatcher(paths: Defaults[.imageDirs], key: .imageDirs, shouldHandle: shouldHandleImage(event:)) { event in
-            guard let img = Image(path: FilePath(event.path)) else { return }
+            guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
                 try? await optimizeImage(img, debounceMS: 200)
             }
