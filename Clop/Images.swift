@@ -16,6 +16,7 @@ import UniformTypeIdentifiers
 let PNGQUANT = Bundle.main.url(forResource: "pngquant", withExtension: nil)!.path
 let JPEGOPTIM = Bundle.main.url(forResource: "jpegoptim", withExtension: nil)!.path
 let GIFSICLE = Bundle.main.url(forResource: "gifsicle", withExtension: nil)!.path
+let EXIFTOOL = Bundle.main.url(forResource: "exiftool", withExtension: nil)!.path
 let VIPSTHUMBNAIL = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin", "/opt/sw/bin"].map { "\($0)/vipsthumbnail" }.first(where: { fm.fileExists(atPath: $0) })
 
 extension NSPasteboard.PasteboardType {
@@ -234,6 +235,14 @@ class Image: CustomStringConvertible {
         return img
     }
 
+    func addExif(fromPath path: FilePath) {
+        let _ = shell(args: [EXIFTOOL, "-overwrite_original", "-TagsFromFile", path.string, self.path.string], wait: true)
+    }
+
+    func addExif(fromImage image: Image) {
+        let _ = shell(args: [EXIFTOOL, "-overwrite_original", "-TagsFromFile", image.path.string, path.string], wait: true)
+    }
+
     func optimizeGIF(optimizer: Optimizer, resizeTo newSize: CGSize? = nil, scaleTo scaleFactor: Double? = nil, fromSize: CGSize? = nil, aggressiveOptimization: Bool? = nil) throws -> Image {
         let tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.gif")
 
@@ -279,6 +288,7 @@ class Image: CustomStringConvertible {
         }
         path.backup(operation: .copy)
 
+        tempFile.copyExif(from: path)
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
@@ -339,6 +349,7 @@ class Image: CustomStringConvertible {
             type = .png
         }
 
+        tempFile.copyExif(from: path)
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
@@ -431,6 +442,7 @@ class Image: CustomStringConvertible {
             type = .jpeg
         }
 
+        tempFile.copyExif(from: path)
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
