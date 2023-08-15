@@ -24,7 +24,7 @@ DERIVED_DATA_DIR=$(shell ls -td $$HOME/Library/Developer/Xcode/DerivedData/Clop-
 print-%  : ; @echo $* = $($*)
 
 upload:
-	rsync -avz Releases/*.{delta,dmg} hetzner:/static/lowtechguys/releases/ || true
+	rsync -avzP Releases/*.{delta,dmg} hetzner:/static/lowtechguys/releases/ || true
 	rsync -avz Releases/*.html hetzner:/static/lowtechguys/ReleaseNotes/
 	rsync -avzP Releases/appcast.xml hetzner:/static/lowtechguys/clop/
 	cfcli -d lowtechguys.com purge
