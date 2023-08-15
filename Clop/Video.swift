@@ -60,6 +60,15 @@ class Video {
         return video
     }
 
+    func useAggressiveOptimisation(aggressiveSetting: Bool) -> Bool {
+        Defaults[.useCPUIntensiveEncoder] || aggressiveSetting ||
+            (
+                Defaults[.adaptiveVideoSize] &&
+                    ((size?.area.i ?? Int.max) < (1920 * 1080) || fileSize < 20_000_000)
+            )
+
+    }
+
     @MainActor
     func fetchThumbnail() {
         generateThumbnail(for: path.url, size: THUMB_SIZE) { [weak self] thumb in
@@ -108,7 +117,7 @@ class Video {
         let aggressive = aggressiveOptimization ?? Defaults[.useAggresiveOptimizationMP4]
         mainActor { optimizer.aggresive = aggressive }
         #if arch(arm64)
-            let encoderArgs = Defaults[.useCPUIntensiveEncoder] || (aggressiveOptimization ?? false) || (Defaults[.adaptiveVideoSize] && (size?.area.i ?? Int.max) < (1920 * 1080))
+            let encoderArgs = useAggressiveOptimisation(aggressiveSetting: aggressiveOptimization ?? false)
                 ? ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "20"] : [])
                 : ["-vcodec", "h264_videotoolbox", "-q:v", "50", "-tag:v", "avc1"]
         #else
@@ -127,8 +136,8 @@ class Video {
         }
 
         tmpPath.waitForFile(for: 2)
+        tmpPath.copyExif(from: path)
         try? tmpPath.setOptimizationStatusXattr("true")
-
         try tmpPath.move(to: outputPath, force: true)
 
         if Defaults[.capVideoFPS], let fps, let new = newFPS, new > fps {
@@ -137,7 +146,6 @@ class Video {
         let metadata = VideoMetadata(resolution: newSize ?? size ?? .zero, fps: newFPS ?? fps ?? 0)
         return Video(path: outputPath, metadata: metadata, convertedFrom: forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil)
     }
-
 }
 
 struct VideoMetadata {
