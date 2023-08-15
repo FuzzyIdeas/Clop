@@ -60,14 +60,16 @@ class Video {
         return video
     }
 
-    func useAggressiveOptimisation(aggressiveSetting: Bool) -> Bool {
-        Defaults[.useCPUIntensiveEncoder] || aggressiveSetting ||
-            (
-                Defaults[.adaptiveVideoSize] &&
-                    ((size?.area.i ?? Int.max) < (1920 * 1080) || fileSize < 20_000_000)
-            )
+    #if arch(arm64)
+        func useAggressiveOptimisation(aggressiveSetting: Bool) -> Bool {
+            Defaults[.useCPUIntensiveEncoder] || aggressiveSetting ||
+                (
+                    Defaults[.adaptiveVideoSize] &&
+                        ((size?.area.i ?? Int.max) < (1920 * 1080) || fileSize < 20_000_000)
+                )
 
-    }
+        }
+    #endif
 
     @MainActor
     func fetchThumbnail() {
