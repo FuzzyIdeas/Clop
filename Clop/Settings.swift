@@ -62,6 +62,7 @@ public extension Defaults.Keys {
     static let videoFormatsToSkip = Key<Set<UTType>>("videoFormatsToSkip", default: [UTType.mkv, UTType.m4v].compactMap { $0 }.set)
     static let adaptiveVideoSize = Key<Bool>("adaptiveVideoSize", default: true)
     static let adaptiveImageSize = Key<Bool>("adaptiveVideoSize", default: true)
+    static let downscaleRetinaImages = Key<Bool>("downscaleRetinaImages", default: false)
 
     static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
     static let showImages = Key<Bool>("showImages", default: true)

@@ -226,6 +226,8 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     @Published var inRemoval = false
 
+    @Atomic var retinaDownscaled = false
+
     @Published var running = true {
         didSet {
             if running, !oldValue {
@@ -264,7 +266,6 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         resetRemover()
         OM.quicklook(optimizer: self)
     }
-
     func downscale(toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimization: Bool? = nil) {
         guard !inRemoval else { return }
 
@@ -281,7 +282,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
 
         Task.init {
-            if type.isImage, let path = originalURL?.filePath ?? path, let image = Image(path: path) {
+            if type.isImage, let path = originalURL?.filePath ?? path, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
                 if thumbnail == nil {
                     thumbnail = image.image
                 }
@@ -358,7 +359,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         } else if aggresive {
             shouldUseAggressiveOptimization = true
         }
-        if type.isImage, let img = Image(path: path) {
+        if type.isImage, let img = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
             Task.init { try? await optimizeImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimization: shouldUseAggressiveOptimization) }
             return
         }
@@ -390,7 +391,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         self.newBytes = -1
         self.newSize = nil
 
-        if type.isImage, let image = Image(path: path), id == IDs.clipboardImage {
+        if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled), id == IDs.clipboardImage {
             image.copyToClipboard()
         }
         isOriginal = true
@@ -503,7 +504,11 @@ class OptimizationManager: ObservableObject, QLPreviewPanelDataSource {
     var clipboardImageOptimizer: Optimizer? { optimizers.first(where: { $0.id == Optimizer.IDs.clipboardImage }) }
 
     func optimizer(id: String, type: ItemType, operation: String, hidden: Bool = false) -> Optimizer {
-        let optimizer = OM.optimizers.first(where: { $0.id == id }) ?? Optimizer(id: id, type: type, operation: operation)
+        let optimizer = (
+            OM.optimizers.first(where: { $0.id == id }) ??
+                (current?.id == id ? current : nil) ??
+                Optimizer(id: id, type: type, operation: operation)
+        )
 
         optimizer.operation = operation
         optimizer.running = true
@@ -512,6 +517,9 @@ class OptimizationManager: ObservableObject, QLPreviewPanelDataSource {
 
         if !OM.optimizers.contains(optimizer) {
             OM.optimizers = OM.optimizers.with(optimizer)
+        }
+        if id == Optimizer.IDs.clipboardImage || id == Optimizer.IDs.clipboard {
+            OM.current = optimizer
         }
 
         showFloatingThumbnails()
@@ -623,7 +631,7 @@ func optimizeURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: 
 
         switch type {
         case .image:
-            guard let img = Image(path: downloadPath) else {
+            guard let img = Image(path: downloadPath, retinaDownscaled: optimizer.retinaDownscaled) else {
                 throw ClopError.downloadError("invalid image")
             }
 
@@ -678,7 +686,7 @@ enum ClipboardType {
     case unknown
 
     static func fromString(_ str: String) -> ClipboardType {
-        if let data = Data(base64Encoded: str.replacing(BASE64_PREFIX, with: "").trimmedPath), let img = Image(data: data) {
+        if let data = Data(base64Encoded: str.replacing(BASE64_PREFIX, with: "").trimmedPath), let img = Image(data: data, retinaDownscaled: false) {
             return .image(img)
         }
 
@@ -704,7 +712,7 @@ enum ClipboardType {
             return .image(img)
         }
 
-        if let str = item.string(forType: .string), let data = Data(base64Encoded: str.replacing(BASE64_PREFIX, with: "").trimmedPath), let img = Image(data: data) {
+        if let str = item.string(forType: .string), let data = Data(base64Encoded: str.replacing(BASE64_PREFIX, with: "").trimmedPath), let img = Image(data: data, retinaDownscaled: false) {
             return .image(img)
         }
 
@@ -817,7 +825,7 @@ var manualOptimizationCount = 0
         guard let result else { return nil }
         return .image(result)
     case let .file(path):
-        if path.isImage, let img = Image(path: path) {
+        if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
             guard !path.hasOptimizationStatusXattr() else {
                 nope("Image already optimized")
                 throw ClopError.alreadyOptimized(path)
