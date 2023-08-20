@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
+<dict>
+	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>LSUIElement</key>
+		<key>NSAllowsArbitraryLoads</key>
 		<true/>
-		<key>NSPrincipalClass</key>
-		<string>SentryCrashExceptionApplication</string>
-		<key>SUFeedURL</key>
-		<string>https://files.lowtechguys.com/clop/appcast.xml</string>
-		<key>SUPublicEDKey</key>
-		<string>lqnO6tg2A9evTIFo2SC9ArZ6NS84gtBshcAWdwh12xQ=</string>
 	</dict>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>SentryCrashExceptionApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://files.lowtechguys.com/clop/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>lqnO6tg2A9evTIFo2SC9ArZ6NS84gtBshcAWdwh12xQ=</string>
+</dict>
 </plist>

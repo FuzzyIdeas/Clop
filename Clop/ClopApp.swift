@@ -26,15 +26,118 @@ class AppDelegate: LowtechProAppDelegate {
     var didBecomeActiveAtLeastOnce = false
     var openWindow: OpenWindowAction?
 
-    var videoWatcher: FileOptimizationWatcher?
-    var imageWatcher: FileOptimizationWatcher?
+    var videoWatcher: FileOptimisationWatcher?
+    var imageWatcher: FileOptimisationWatcher?
 
     @MainActor var swipeEnded = true
 
     @Setting(.floatingResultsCorner) var floatingResultsCorner
 
+    lazy var draggingSet: PassthroughSubject<Bool, Never> = debouncer(in: &observers, every: .milliseconds(200)) { dragging in
+        mainActor {
+            DM.dragging = dragging
+            if !dragging {
+                DM.dropped = true
+            }
+        }
+    }
+
+    var lastDragChangeCount = NSPasteboard(name: .drag).changeCount
+
+    @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
+        guard let event, NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 2 else {
+            return
+        }
+
+        let drag = NSPasteboard(name: .drag)
+        guard self.lastDragChangeCount != drag.changeCount else {
+//            print("Drag ignored: \(self.lastDragChangeCount) \(drag.changeCount) \(DM.dropped)")
+            return
+        }
+        DM.dropped = false
+        self.lastDragChangeCount = drag.changeCount
+
+        #if DEBUG
+            drag.pasteboardItems?.forEach { item in
+                item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
+                    print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
+                }
+            }
+        #endif
+
+        let toOptimise: [ClipboardType] = drag.pasteboardItems?.compactMap { item -> ClipboardType? in
+            let types = item.types
+            if types.contains(.fileURL), let url = item.string(forType: .fileURL)?.url,
+               let path = url.existingFilePath, path.isImage || path.isVideo
+            {
+                return .file(path)
+            }
+
+            if let str = item.string(forType: .string), let path = str.existingFilePath, path.isImage || path.isVideo {
+                return .file(path)
+            }
+
+            if types.contains(.promise), let type = item.string(forType: .promise), let utType = UTType(type), IMAGE_VIDEO_FORMATS.contains(utType) {
+                if let url = item.string(forType: .URL)?.url {
+                    return .url(url)
+                }
+                if let path = item.string(forType: .fileURL)?.url?.existingFilePath ?? item.string(forType: .promisedFileURL)?.url?.filePath {
+                    return .file(path)
+                }
+                if let fileName = item.string(forType: .promisedFileName) ?? item.string(forType: .promisedSuggestedFileName), fileName.isNotEmpty {
+                    return .file(fm.temporaryDirectory.appendingPathComponent("_promise_\(fileName)", conformingTo: utType).filePath)
+                }
+                return .file(FilePath.tmp)
+            }
+
+            if types.contains(.URL), let url = item.string(forType: .URL)?.url ?? item.string(forType: .string)?.url, url.isImage || url.isVideo {
+                return .url(url)
+            }
+
+            if types.set.hasElements(from: IMAGE_VIDEO_PASTEBOARD_TYPES) {
+                for type in IMAGE_VIDEO_PASTEBOARD_TYPES {
+                    guard let data = item.data(forType: type), let image = Image(data: data, retinaDownscaled: false) else {
+                        continue
+                    }
+                    return .image(image)
+                }
+            }
+
+            if let str = item.string(forType: .string), let url = str.url, url.isImage || url.isVideo {
+                return .url(url)
+            }
+
+            return nil
+        } ?? []
+
+        guard toOptimise.isNotEmpty else {
+            DM.itemsToOptimise = []
+            return
+        }
+
+        DM.itemsToOptimise = toOptimise
+        self.draggingSet.send(true)
+        showFloatingThumbnails()
+    }
+    @MainActor lazy var mouseUpMonitor = GlobalEventMonitor(mask: [.leftMouseUp]) { event in
+        self.draggingSet.send(false)
+        if !DM.dragHovering {
+            DM.dragging = false
+            DM.itemsToOptimise = []
+        }
+    }
+    @MainActor lazy var stopDragMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
+        guard let event, event.modifierFlags.contains(.option), !DM.dragHovering else { return }
+
+        DM.dragging = false
+    }
+
+    @Setting(.optimiseVideoClipboard) var optimiseVideoClipboard
+
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
+            print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
+
             NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
                 .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
                 .forEach {
@@ -67,49 +170,49 @@ class AppDelegate: LowtechProAppDelegate {
                     } else {
                         guard scalingFactor > 0.1 else { return }
                         scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
-                        Task.init { try? await optimizeLastClipboardItem(downscaleTo: scalingFactor) }
+                        Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
                     }
                 case .delete:
-                    if let opt = OM.optimizers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
-                        hoveredOptimizerID = nil
+                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+                        hoveredOptimiserID = nil
                         opt.stop(animateRemoval: true)
                     }
                 case .equal:
-                    if let opt = OM.removedOptimizers.popLast() {
+                    if let opt = OM.removedOptimisers.popLast() {
                         opt.bringBack()
                     }
                 case .space:
-                    if let opt = OM.optimizers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
                         opt.quicklook()
                     } else {
                         Task.init { try? await quickLookLastClipboardItem() }
                     }
                 case .z:
-                    if let opt = OM.optimizers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.isOriginal {
+                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.isOriginal {
                         opt.restoreOriginal()
                     }
                 case .p:
                     pauseForNextClipboardEvent = true
                     showNotice("**Paused**\nNext clipboard event will be ignored")
                 case .c:
-                    Task.init { try? await optimizeLastClipboardItem() }
+                    Task.init { try? await optimiseLastClipboardItem() }
                 case .a:
-                    if let opt = OM.optimizers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.aggresive {
+                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.aggresive {
                         if opt.downscaleFactor < 1 {
-                            opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimization: true)
+                            opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
                         } else {
-                            opt.optimize(allowLarger: true, aggressiveOptimization: true, fromOriginal: true)
+                            opt.optimise(allowLarger: true, aggressiveOptimisation: true, fromOriginal: true)
                         }
                     } else {
-                        Task.init { try? await optimizeLastClipboardItem(aggressiveOptimization: true) }
+                        Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
                     }
                 case SauceKey.NUMBER_KEYS.suffix(from: 1).arr:
                     guard let number = key.QWERTYCharacter.d else { break }
 
-                    if let opt = OM.optimizers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
                         opt.downscale(toFactor: number / 10.0)
                     } else {
-                        Task.init { try? await optimizeLastClipboardItem(downscaleTo: number / 10.0) }
+                        Task.init { try? await optimiseLastClipboardItem(downscaleTo: number / 10.0) }
                     }
                 default:
                     break
@@ -150,9 +253,36 @@ class AppDelegate: LowtechProAppDelegate {
             }
             .store(in: &observers)
 
-        initOptimizers()
+        initOptimisers()
         trackScrollWheel()
 
+        if Defaults[.enableDragAndDrop] {
+            dragMonitor.start()
+            mouseUpMonitor.start()
+            stopDragMonitor.start()
+        }
+        pub(.enableDragAndDrop)
+            .sink { enabled in
+                if enabled.newValue {
+                    self.dragMonitor.start()
+                    self.stopDragMonitor.start()
+                    self.mouseUpMonitor.start()
+                } else {
+                    self.dragMonitor.stop()
+                    self.stopDragMonitor.stop()
+                    self.mouseUpMonitor.stop()
+                }
+            }
+            .store(in: &observers)
+        pub(.enableClipboardOptimiser)
+            .sink { enabled in
+                if enabled.newValue {
+                    self.initClipboardOptimiser()
+                } else {
+                    clipboardWatcher?.invalidate()
+                }
+            }
+            .store(in: &observers)
     }
 
     func trackScrollWheel() {
@@ -168,10 +298,10 @@ class AppDelegate: LowtechProAppDelegate {
 
                 mainActor {
                     if self.swipeEnded, self.floatingResultsCorner.isTrailing ? event.scrollingDeltaX > 3 : event.scrollingDeltaX < -3,
-                       let hov = hoveredOptimizerID, let optimizer = OM.optimizers.first(where: { $0.id == hov })
+                       let hov = hoveredOptimiserID, let optimiser = OM.optimisers.first(where: { $0.id == hov })
                     {
-                        hoveredOptimizerID = nil
-                        optimizer.stop(remove: true, animateRemoval: true)
+                        hoveredOptimiserID = nil
+                        optimiser.stop(remove: true, animateRemoval: true)
                         self.swipeEnded = false
                     }
                     if event.scrollingDeltaX == 0 {
@@ -202,33 +332,54 @@ class AppDelegate: LowtechProAppDelegate {
         false
     }
 
-    @MainActor func initOptimizers() {
-        videoWatcher = FileOptimizationWatcher(paths: Defaults[.videoDirs], key: .videoDirs, shouldHandle: shouldHandleVideo(event:)) { event in
+    @MainActor func initOptimisers() {
+        videoWatcher = FileOptimisationWatcher(paths: Defaults[.videoDirs], key: .videoDirs, shouldHandle: shouldHandleVideo(event:)) { event in
             let video = Video(path: FilePath(event.path))
             Task.init {
-                try? await optimizeVideo(video, debounceMS: 200)
+                try? await optimiseVideo(video, debounceMS: 200)
             }
         }
-        imageWatcher = FileOptimizationWatcher(paths: Defaults[.imageDirs], key: .imageDirs, shouldHandle: shouldHandleImage(event:)) { event in
+        imageWatcher = FileOptimisationWatcher(paths: Defaults[.imageDirs], key: .imageDirs, shouldHandle: shouldHandleImage(event:)) { event in
             guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
-                try? await optimizeImage(img, debounceMS: 200)
+                try? await optimiseImage(img, debounceMS: 200)
             }
         }
 
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+        if Defaults[.enableClipboardOptimiser] {
+            initClipboardOptimiser()
+        }
+    }
+
+    @MainActor func initClipboardOptimiser() {
+        clipboardWatcher?.invalidate()
+        clipboardWatcher = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
             let newChangeCount = NSPasteboard.general.changeCount
             guard newChangeCount != pbChangeCount else {
                 return
             }
             pbChangeCount = newChangeCount
-            mainActor { optimizeClipboardImage() }
+            guard !pauseForNextClipboardEvent else {
+                pauseForNextClipboardEvent = false
+                return
+            }
+            guard let item = NSPasteboard.general.pasteboardItems?.first, item.string(forType: .optimisationStatus) != "true" else {
+                return
+            }
+
+            mainActor {
+                if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo {
+                    Task.init {
+                        try? await optimiseVideo(Video(path: path))
+                    }
+                    return
+                }
+                optimiseClipboardImage(item: item)
+            }
         }
 
-        timer?.tolerance = 100
+        clipboardWatcher?.tolerance = 100
     }
-
     @objc func statusBarButtonClicked(_ sender: NSClickGestureRecognizer) {
         mainActor {
             if OM.skippedBecauseNotPro.isNotEmpty {
@@ -242,6 +393,18 @@ class AppDelegate: LowtechProAppDelegate {
     }
 }
 
+extension NSPasteboardItem {
+    var existingFilePath: FilePath? {
+        string(forType: .fileURL)?.fileURL?.existingFilePath ?? string(forType: .string)?.fileURL?.existingFilePath
+    }
+    var filePath: FilePath? {
+        string(forType: .fileURL)?.fileURL?.filePath ?? string(forType: .string)?.fileURL?.filePath
+    }
+    var url: URL? {
+        string(forType: .URL)?.url
+    }
+}
+
 var statusItem: NSStatusItem? {
     NSApp.windows.lazy.compactMap { window in
         window.perform(Selector(("statusItem")))?.takeUnretainedValue() as? NSStatusItem
@@ -249,7 +412,7 @@ var statusItem: NSStatusItem? {
 }
 
 @MainActor
-class FileOptimizationWatcher {
+class FileOptimisationWatcher {
     init(paths: [String], key: Defaults.Key<[String]>? = nil, shouldHandle: @escaping (EonilFSEventsEvent) -> Bool, handler: @escaping (EonilFSEventsEvent) -> Void) {
         self.paths = paths
         self.key = key
@@ -287,18 +450,18 @@ class FileOptimizationWatcher {
             mainActor {
                 guard self.shouldHandle(event) else { return }
                 Task.init {
-                    var count = self.optimizedCount
+                    var count = self.optimisedCount
                     try? await proGuard(count: &count, limit: 2, url: event.path.fileURL) {
                         self.handler(event)
                     }
-                    self.optimizedCount = count
+                    self.optimisedCount = count
                 }
             }
         }
         watching = true
     }
 
-    private var optimizedCount = 0
+    private var optimisedCount = 0
 }
 
 @MainActor func proLimitsReached(url: URL? = nil) {
@@ -314,8 +477,8 @@ class FileOptimizationWatcher {
         return
     }
 
-    let optimizer = OM.optimizer(id: Optimizer.IDs.pro, type: .unknown, operation: "")
-    optimizer.finish(error: "Free version limits reached", notice: "Only 2 file optimizations per session\nare included in the free version", keepFor: 5000)
+    let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
+    optimiser.finish(error: "Free version limits reached", notice: "Only 2 file optimisations per session\nare included in the free version", keepFor: 5000)
 }
 
 #if DEBUG
@@ -323,7 +486,7 @@ class FileOptimizationWatcher {
 #else
     let sizeNotificationWindow = OSDWindow(swiftuiView: SizeNotificationContainer().any, level: .floating, canScreenshot: false, allowsMouse: true)
 #endif
-var timer: Timer?
+var clipboardWatcher: Timer?
 var pbChangeCount = NSPasteboard.general.changeCount
 let THUMB_SIZE = CGSize(width: 300, height: 220)
 
@@ -369,5 +532,35 @@ struct ClopApp: App {
                 }
             }
 
+    }
+}
+
+import ObjectiveC.runtime
+
+extension NSFilePromiseReceiver {
+    static let swizzleReceivePromisedFiles: () = {
+        let originalSelector = #selector(receivePromisedFiles(atDestination:options:operationQueue:reader:))
+        let swizzledSelector = #selector(swizzledReceivePromisedFiles(atDestination:options:operationQueue:reader:))
+
+        guard let originalMethod = class_getInstanceMethod(NSFilePromiseReceiver.self, originalSelector),
+              let swizzledMethod = class_getInstanceMethod(NSFilePromiseReceiver.self, swizzledSelector)
+        else {
+            return
+        }
+
+        method_exchangeImplementations(originalMethod, swizzledMethod)
+    }()
+
+    @objc private func swizzledReceivePromisedFiles(atDestination destinationDir: URL, options: [AnyHashable: Any] = [:], operationQueue: OperationQueue, reader: @escaping (URL, Error?) -> Void) {
+        let exc = tryBlock {
+            self.swizzledReceivePromisedFiles(atDestination: destinationDir, options: options, operationQueue: operationQueue, reader: reader)
+        }
+        guard let exc else {
+            return
+        }
+        print(exc)
+        Task.init {
+            await showNotice("Pasteboard error in retrieving file")
+        }
     }
 }

@@ -5,6 +5,7 @@
 //  Created by Alin Panaitiu on 13.07.2023.
 //
 
+import Cocoa
 import Defaults
 import Foundation
 import Lowtech
@@ -30,14 +31,24 @@ let FORMATS_CONVERTIBLE_TO_MP4: [UTType] = VIDEO_FORMATS.without([.mpeg4Movie])
 let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
 let FORMATS_CONVERTIBLE_TO_JPEG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let FORMATS_CONVERTIBLE_TO_PNG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
+let IMAGE_VIDEO_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS
 
 let VIDEO_EXTENSIONS = VIDEO_FORMATS.compactMap(\.preferredFilenameExtension)
 let IMAGE_EXTENSIONS = IMAGE_FORMATS.compactMap(\.preferredFilenameExtension) + ["jpg"]
 
+let VIDEO_PASTEBOARD_TYPES = VIDEO_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
+let IMAGE_PASTEBOARD_TYPES = IMAGE_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
+let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PASTEBOARD_TYPES + VIDEO_PASTEBOARD_TYPES + [.fileContents]).set
+
 public extension Defaults.Keys {
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
-    static let optimizeTIFF = Key<Bool>("optimizeTIFF", default: true)
+    static let optimiseTIFF = Key<Bool>("optimiseTIFF", default: true)
+    static let enableClipboardOptimiser = Key<Bool>("enableClipboardOptimiser", default: true)
+    static let optimiseVideoClipboard = Key<Bool>("optimiseVideoClipboard", default: false)
+    static let optimiseImagePathClipboard = Key<Bool>("optimiseImagePathClipboard", default: false)
+    static let convertInPlace = Key<Bool>("convertInPlace", default: false)
+
     static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
     static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
@@ -48,10 +59,10 @@ public extension Defaults.Keys {
     #if arch(arm64)
         static let useCPUIntensiveEncoder = Key<Bool>("useCPUIntensiveEncoder", default: false)
     #endif
-    static let useAggresiveOptimizationMP4 = Key<Bool>("useAggresiveOptimizationMP4", default: false)
-    static let useAggresiveOptimizationJPEG = Key<Bool>("useAggresiveOptimizationJPEG", default: false)
-    static let useAggresiveOptimizationPNG = Key<Bool>("useAggresiveOptimizationPNG", default: false)
-    static let useAggresiveOptimizationGIF = Key<Bool>("useAggresiveOptimizationGIF", default: false)
+    static let useAggresiveOptimisationMP4 = Key<Bool>("useAggresiveOptimisationMP4", default: false)
+    static let useAggresiveOptimisationJPEG = Key<Bool>("useAggresiveOptimisationJPEG", default: false)
+    static let useAggresiveOptimisationPNG = Key<Bool>("useAggresiveOptimisationPNG", default: false)
+    static let useAggresiveOptimisationGIF = Key<Bool>("useAggresiveOptimisationGIF", default: false)
 
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
@@ -65,6 +76,7 @@ public extension Defaults.Keys {
     static let downscaleRetinaImages = Key<Bool>("downscaleRetinaImages", default: false)
 
     static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
+    static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
     static let showImages = Key<Bool>("showImages", default: true)
     static let autoHideFloatingResults = Key<Bool>("autoHideFloatingResults", default: true)
     static let autoHideFloatingResultsAfter = Key<Int>("autoHideFloatingResultsAfter", default: 30)

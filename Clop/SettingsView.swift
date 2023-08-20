@@ -67,14 +67,14 @@ struct VideoSettingsView: View {
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
     #endif
-    @Default(.useAggresiveOptimizationMP4) var useAggresiveOptimizationMP4
+    @Default(.useAggresiveOptimisationMP4) var useAggresiveOptimisationMP4
 
     var body: some View {
         Form {
-            Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimize videos as they appear in these folders")) {
+            Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise videos as they appear in these folders")) {
                 DirListView(dirs: $videoDirs)
             }
-            Section(header: SectionHeader(title: "Optimization rules")) {
+            Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack {
                     Text("Skip videos larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxVideoSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
@@ -93,7 +93,7 @@ struct VideoSettingsView: View {
                 }
                 #if arch(arm64)
                     Toggle(isOn: $adaptiveVideoSize) {
-                        Text("Adaptive optimization").regular(13)
+                        Text("Adaptive optimisation").regular(13)
                             + Text("\nUses the CPU intensive encoder for short workloads, and the battery efficient one for larger files").round(11, weight: .regular)
                     }
                     Toggle(isOn: $useCPUIntensiveEncoder.animation(.spring())) {
@@ -101,16 +101,16 @@ struct VideoSettingsView: View {
                             + Text("\nGenerates smaller files with better visual quality but takes longer and uses more CPU").round(11, weight: .regular)
                     }
                     if useCPUIntensiveEncoder {
-                        Toggle(isOn: $useAggresiveOptimizationMP4) {
-                            Text("Aggressive optimization").regular(13)
+                        Toggle(isOn: $useAggresiveOptimisationMP4) {
+                            Text("Aggressive optimisation").regular(13)
                                 + Text("\nDecrease visual quality and increase processing time for even smaller files").round(11, weight: .regular)
                         }
                         .disabled(!useCPUIntensiveEncoder)
                         .padding(.leading)
                     }
                 #else
-                    Toggle(isOn: $useAggresiveOptimizationMP4) {
-                        Text("Use more aggressive optimization").regular(13)
+                    Toggle(isOn: $useAggresiveOptimisationMP4) {
+                        Text("Use more aggressive optimisation").regular(13)
                             + Text("\nGenerates smaller files with slightly worse visual quality but takes longer and uses more CPU").round(11, weight: .regular)
                     }
                 #endif
@@ -151,7 +151,7 @@ struct VideoSettingsView: View {
                 }
 
             }
-            Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimization")) {
+            Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
                     (Text("Convert to ").regular(13) + Text("mp4").mono(13)).padding(.trailing, 10)
                     ForEach(FORMATS_CONVERTIBLE_TO_MP4, id: \.identifier) { format in
@@ -184,16 +184,16 @@ struct ImagesSettingsView: View {
     @Default(.adaptiveImageSize) var adaptiveImageSize
     @Default(.downscaleRetinaImages) var downscaleRetinaImages
 
-    @Default(.useAggresiveOptimizationJPEG) var useAggresiveOptimizationJPEG
-    @Default(.useAggresiveOptimizationPNG) var useAggresiveOptimizationPNG
-    @Default(.useAggresiveOptimizationGIF) var useAggresiveOptimizationGIF
+    @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
+    @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
+    @Default(.useAggresiveOptimisationGIF) var useAggresiveOptimisationGIF
 
     var body: some View {
         Form {
-            Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimize images as they appear in these folders")) {
+            Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
                 DirListView(dirs: $imageDirs)
             }
-            Section(header: SectionHeader(title: "Optimization rules")) {
+            Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack {
                     Text("Skip images larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxImageSizeMB, formatter: BoundFormatter(min: 1, max: 500))
@@ -211,20 +211,20 @@ struct ImagesSettingsView: View {
                     }
                 }
                 HStack {
-                    Text("Use more aggressive optimization for").regular(13).padding(.trailing, 10)
+                    Text("Use more aggressive optimisation for").regular(13).padding(.trailing, 10)
                     Button("jpeg") {
-                        useAggresiveOptimizationJPEG.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimizationJPEG))
+                        useAggresiveOptimisationJPEG.toggle()
+                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimisationJPEG))
                     Button("png") {
-                        useAggresiveOptimizationPNG.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimizationPNG))
+                        useAggresiveOptimisationPNG.toggle()
+                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimisationPNG))
                     Button("gif") {
-                        useAggresiveOptimizationGIF.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimizationGIF))
+                        useAggresiveOptimisationGIF.toggle()
+                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimisationGIF))
                 }
                 Toggle(isOn: $adaptiveImageSize) {
-                    Text("Adaptive optimization").regular(13)
-                        + Text("\nOptimize detail heavy images as JPEG and low-detail ones as PNG").round(11, weight: .regular)
+                    Text("Adaptive optimisation").regular(13)
+                        + Text("\nOptimise detail heavy images as JPEG and low-detail ones as PNG").round(11, weight: .regular)
                 }
                 Toggle(isOn: $downscaleRetinaImages) {
                     Text("Downscale HiDPI images to 72 DPI").regular(13)
@@ -232,7 +232,7 @@ struct ImagesSettingsView: View {
                 }
 
             }
-            Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimization")) {
+            Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
                     (Text("Convert to ").regular(13) + Text("jpeg").mono(13)).padding(.trailing, 10)
                     ForEach(FORMATS_CONVERTIBLE_TO_JPEG, id: \.identifier) { format in
@@ -334,10 +334,10 @@ struct KeysSettingsView: View {
                 keyToggle(.delete, actionName: "Stop and Remove", description: "Stop the last running action and remove the floating result")
                 keyToggle(.equal, actionName: "Bring Back", description: "Bring back the last removed floating result")
                 keyToggle(.space, actionName: "QuickLook", description: "Preview the latest image or video")
-                keyToggle(.z, actionName: "Restore original", description: "Revert optimizations and downscaling actions done on the latest image or video")
-                keyToggle(.p, actionName: "Pause for next copy", description: "Don't apply optimizations on the next copied image")
-                keyToggle(.c, actionName: "Optimize current clipboard", description: "Apply optimizations on the copied image, URL or path")
-                keyToggle(.a, actionName: "Optimize aggressively", description: "Apply aggressive optimizations on the copied image, URL or path")
+                keyToggle(.z, actionName: "Restore original", description: "Revert optimisations and downscaling actions done on the latest image or video")
+                keyToggle(.p, actionName: "Pause for next copy", description: "Don't apply optimisations on the next copied image")
+                keyToggle(.c, actionName: "Optimise current clipboard", description: "Apply optimisations on the copied image, URL or path")
+                keyToggle(.a, actionName: "Optimise aggressively", description: "Apply aggressive optimisations on the copied image, URL or path")
             }.padding(.leading, 20)
             Section(header: SectionHeader(title: "Resize keys")) {
                 HStack(alignment: .bottom, spacing: 14) {
@@ -501,14 +501,39 @@ struct FloatingSettingsView: View {
 }
 struct GeneralSettingsView: View {
     @Default(.showMenubarIcon) var showMenubarIcon
-    @Default(.optimizeTIFF) var optimizeTIFF
+    @Default(.optimiseTIFF) var optimiseTIFF
+    @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
+    @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
+    @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
+    @Default(.enableDragAndDrop) var enableDragAndDrop
 
     var body: some View {
         Form {
             Toggle("Show menubar icon", isOn: $showMenubarIcon)
             LaunchAtLogin.Toggle()
             Section(header: SectionHeader(title: "Clipboard")) {
-                Toggle("Optimize TIFF data", isOn: $optimizeTIFF)
+                Toggle(isOn: $enableClipboardOptimiser) {
+                    Text("Enable clipboard optimiser").regular(13)
+                        + Text("\nWatch for copied images and optimise them automatically").round(11, weight: .regular)
+                }
+                Toggle(isOn: $optimiseTIFF) {
+                    Text("Optimise copied TIFF data").regular(13)
+                        + Text("\nUsually coming from graphical design apps, it's sometimes better to not optimise it").round(11, weight: .regular)
+                }.disabled(!enableClipboardOptimiser)
+                Toggle(isOn: $optimiseVideoClipboard) {
+                    Text("Optimise copied video files").regular(13)
+                        + Text("\nSystem pasteboard can't hold video data, only video file paths. This option automatically optimises copied paths").round(11, weight: .regular)
+                }.disabled(!enableClipboardOptimiser)
+                Toggle(isOn: $optimiseImagePathClipboard) {
+                    Text("Optimise copied image files").regular(13)
+                        + Text("\nCopying images from Finder results in file paths instead of image data. This option automatically optimises copied paths").round(11, weight: .regular)
+                }.disabled(!enableClipboardOptimiser)
+            }
+            Section(header: SectionHeader(title: "Integrations")) {
+                Toggle(isOn: $enableDragAndDrop) {
+                    Text("Enable drop zone").regular(13)
+                        + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular)
+                }
             }
         }
         .padding(.horizontal, 50)

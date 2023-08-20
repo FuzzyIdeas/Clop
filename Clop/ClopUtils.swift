@@ -71,14 +71,14 @@ enum ClopError: Error, CustomStringConvertible {
     case noClipboardImage(FilePath)
     case noProcess(String)
     case processError(Process)
-    case alreadyOptimized(FilePath)
+    case alreadyOptimised(FilePath)
     case unknownImageType(FilePath)
     case skippedType(String)
     case imageSizeLarger(FilePath)
     case videoSizeLarger(FilePath)
     case videoError(String)
     case downloadError(String)
-    case optimizationPaused(FilePath)
+    case optimisationPaused(FilePath)
     case conversionFailed(FilePath)
     case proError(String)
     case downscaleFailed(FilePath)
@@ -96,22 +96,22 @@ enum ClopError: Error, CustomStringConvertible {
             return "No image in clipboard: \(p.string.count > 100 ? p.string.prefix(50) + "..." + p.string.suffix(50) : p.string)"
         case let .noProcess(string):
             return "Can't start process: \(string)"
-        case let .alreadyOptimized(p):
-            return "Image is already optimized: \(p)"
+        case let .alreadyOptimised(p):
+            return "Image is already optimised: \(p)"
         case let .imageSizeLarger(p):
-            return "Optimized image size is larger: \(p)"
+            return "Optimised image size is larger: \(p)"
         case let .videoSizeLarger(p):
-            return "Optimized video size is larger: \(p)"
+            return "Optimised video size is larger: \(p)"
         case let .unknownImageType(p):
             return "Unknown image type: \(p)"
         case let .videoError(string):
-            return "Error optimizing video: \(string)"
+            return "Error optimising video: \(string)"
         case let .downloadError(string):
             return "Download failed: \(string)"
         case let .skippedType(string):
             return "Type is skipped: \(string)"
-        case let .optimizationPaused(p):
-            return "Optimization paused: \(p)"
+        case let .optimisationPaused(p):
+            return "Optimisation paused: \(p)"
         case let .conversionFailed(p):
             return "Conversion failed: \(p)"
         case let .proError(string):
@@ -144,12 +144,12 @@ enum ClopError: Error, CustomStringConvertible {
             return "No image in clipboard"
         case .noProcess:
             return "Can't start process"
-        case .alreadyOptimized:
-            return "Already optimized"
+        case .alreadyOptimised:
+            return "Already optimised"
         case .imageSizeLarger:
-            return "Optimized image is larger"
+            return "Already optimised"
         case .videoSizeLarger:
-            return "Optimized video is larger"
+            return "Already optimised"
         case .unknownImageType:
             return "Unknown image type"
         case .processError:
@@ -160,8 +160,8 @@ enum ClopError: Error, CustomStringConvertible {
             return "Download failed"
         case .skippedType:
             return "Type is skipped"
-        case .optimizationPaused:
-            return "Optimization paused"
+        case .optimisationPaused:
+            return "Optimisation paused"
         case .conversionFailed:
             return "Conversion failed"
         case .proError:
@@ -176,17 +176,25 @@ enum ClopError: Error, CustomStringConvertible {
 
 extension Progress.FileOperationKind {
     static let analyzing = Self(rawValue: "Analyzing")
-    static let optimizing = Self(rawValue: "Optimizing")
+    static let optimising = Self(rawValue: "Optimising")
 }
 
-func setOptimizationStatusXattr(forFile url: inout URL, value: String) throws {
-    try Xattr.set(named: "clop.optimization.status", data: value.data(using: .utf8)!, atPath: url.path)
+func setOptimisationStatusXattr(forFile url: inout URL, value: String) throws {
+    try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: url.path)
 }
 
 extension URL {
-    func hasOptimizationStatusXattr() -> Bool {
-        (try? Xattr.dataFor(named: "clop.optimization.status", atPath: path))?.s ?? "false" == "true"
+    func hasOptimisationStatusXattr() -> Bool {
+        (try? Xattr.dataFor(named: "clop.optimisation.status", atPath: path))?.s ?? "false" == "true"
     }
+
+    var isImage: Bool { hasExtension(from: IMAGE_EXTENSIONS) }
+    var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
+
+    func hasExtension(from exts: [String]) -> Bool {
+        exts.contains((pathExtension.split(separator: "@").last?.s ?? pathExtension).lowercased())
+    }
+
 }
 
 extension FilePath {
@@ -199,12 +207,12 @@ extension FilePath {
     static var downloads = FilePath.dir("/tmp/clop/downloads")
     static var forResize = FilePath.dir("/tmp/clop/for-resize")
 
-    func setOptimizationStatusXattr(_ value: String) throws {
-        try Xattr.set(named: "clop.optimization.status", data: value.data(using: .utf8)!, atPath: string)
+    func setOptimisationStatusXattr(_ value: String) throws {
+        try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)
     }
 
-    func hasOptimizationStatusXattr() -> Bool {
-        guard let data = (try? Xattr.dataFor(named: "clop.optimization.status", atPath: string)) else {
+    func hasOptimisationStatusXattr() -> Bool {
+        guard let data = (try? Xattr.dataFor(named: "clop.optimisation.status", atPath: string)) else {
             return false
         }
         return !data.isEmpty
