@@ -20,16 +20,18 @@ enum IntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
     }
 }
 
-struct OptimizeFileIntent: AppIntent {
+var shortcutsOptimisationCount = 0
+
+struct OptimiseFileIntent: AppIntent {
     init() {}
 
-    static var title: LocalizedStringResource = "Optimize video or image"
-    static var description = IntentDescription("Optimizes an image or video received as input.")
+    static var title: LocalizedStringResource = "Optimise video or image"
+    static var description = IntentDescription("Optimises an image or video received as input.")
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Optimize \(\.$item)") {
+        Summary("Optimise \(\.$item)") {
             \.$hideFloatingResult
-            \.$aggressiveOptimization
+            \.$aggressiveOptimisation
             \.$downscaleFactor
         }
     }
@@ -40,8 +42,8 @@ struct OptimizeFileIntent: AppIntent {
     @Parameter(title: "Hide floating result")
     var hideFloatingResult: Bool
 
-    @Parameter(title: "Use aggressive optimization")
-    var aggressiveOptimization: Bool
+    @Parameter(title: "Use aggressive optimisation")
+    var aggressiveOptimisation: Bool
 
     @Parameter(title: "Downscale fraction", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 1.0, controlStyle: .field, inclusiveRange: (0.1, 1.0))
     var downscaleFactor: Double
@@ -52,8 +54,8 @@ struct OptimizeFileIntent: AppIntent {
 
         let result: ClipboardType?
         do {
-            result = try await optimizeItem(clip, id: item, hideFloatingResult: hideFloatingResult, downscaleTo: downscaleFactor, aggressiveOptimization: aggressiveOptimization)
-        } catch let ClopError.alreadyOptimized(path) {
+            result = try await optimiseItem(clip, id: item, hideFloatingResult: hideFloatingResult, downscaleTo: downscaleFactor, aggressiveOptimisation: aggressiveOptimisation, optimisationCount: &shortcutsOptimisationCount)
+        } catch let ClopError.alreadyOptimised(path) {
             guard path.exists else {
                 throw IntentError.message("Couldn't find file at \(path)")
             }
@@ -67,7 +69,7 @@ struct OptimizeFileIntent: AppIntent {
         }
 
         guard let result else {
-            throw IntentError.message("Couldn't optimize item")
+            throw IntentError.message("Couldn't optimise item")
         }
 
         switch result {
@@ -78,7 +80,7 @@ struct OptimizeFileIntent: AppIntent {
             let file = IntentFile(fileURL: img.path.url, filename: img.path.name.string, type: img.type)
             return .result(value: file)
         default:
-            throw IntentError.message("Bad optimization result")
+            throw IntentError.message("Bad optimisation result")
         }
     }
 }

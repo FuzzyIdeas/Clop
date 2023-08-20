@@ -1,7 +1,7 @@
 <p align="center">
     <a href="https://lowtechguys.com/clop"><img width="128" height="128" src="Clop/Assets.xcassets/clop.imageset/clop_256.png" style="filter: drop-shadow(0px 2px 4px rgba(80, 50, 6, 0.2));"></a>
     <h1 align="center"><code style="text-shadow: 0px 3px 10px rgba(8, 0, 6, 0.35); font-size: 3rem; font-family: ui-monospace, Menlo, monospace; font-weight: 800; background: transparent; color: #4d3e56; padding: 0.2rem 0.2rem; border-radius: 6px">Clop</code></h1>
-    <h4 align="center" style="padding: 0; margin: 0; font-family: ui-monospace, monospace;">Image, video and clipboard optimizer</h4>
+    <h4 align="center" style="padding: 0; margin: 0; font-family: ui-monospace, monospace;">Image, video and clipboard optimiser</h4>
     <h6 align="center" style="padding: 0; margin: 0; font-family: ui-monospace, monospace; font-weight: 400;">Copy large, paste small, send fast</h6>
 </p>
 
@@ -11,15 +11,15 @@
     </a>
 </p>
 
-## Optimize images as soon as you copy them
+## Optimise images as soon as you copy them
 
-As long as the Clop app is running, every time you copy an image to your **clipboard**, Clop will **optimize** it to the **smallest possible size**.
+As long as the Clop app is running, every time you copy an image to your **clipboard**, Clop will **optimise** it to the **smallest possible size**.
 
-The optimized image will have minimal to zero loss in quality, and will be **ready to paste** in any app.
+The optimised image will have minimal to zero loss in quality, and will be **ready to paste** in any app.
 
 ## Screen recordings as small as screenshots
 
-Sending screen recordings becomes 10x faster with Clop. The app will optimize the video as soon as you stop recording.
+Sending screen recordings becomes 10x faster with Clop. The app will optimise the video as soon as you stop recording.
 
 The video will be available as a **floating thumbnail**, ready for you to **drag and drop** in any app.
 
@@ -88,7 +88,7 @@ After the **14-day trial**, the app will continue to work with the free features
 
 ## Technical details
 
-Clop uses the following open source tools for optimizing files, images and videos:
+Clop uses the following open source tools for optimising files, images and videos:
 
 * `pngquant` for PNG
 * `jpegoptim` for JPEG
