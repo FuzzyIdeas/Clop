@@ -1,5 +1,5 @@
 //
-//  OptimizationUtils.swift
+//  OptimisationUtils.swift
 //  Clop
 //
 //  Created by Alin Panaitiu on 12.07.2023.
@@ -101,23 +101,23 @@ enum ItemType {
     }
 }
 
-var hoveredOptimizerID: String?
+var hoveredOptimiserID: String?
 
 @MainActor
-class OptimizerProgressDelegate: NSObject, URLSessionDataDelegate {
-    init(optimizer: Optimizer) {
-        self.optimizer = optimizer
+class OptimiserProgressDelegate: NSObject, URLSessionDataDelegate {
+    init(optimiser: Optimiser) {
+        self.optimiser = optimiser
     }
 
-    let optimizer: Optimizer
+    let optimiser: Optimiser
 
     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         debug("Finished downloading \(location.path)")
     }
 
     func handleTask(_ task: URLSessionTask) {
-        optimizer.progress = task.progress
-        if !optimizer.running || optimizer.inRemoval {
+        optimiser.progress = task.progress
+        if !optimiser.running || optimiser.inRemoval {
             task.cancel()
         }
     }
@@ -169,11 +169,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
     }
 }
 
-// MARK: - Optimizer
+// MARK: - Optimiser
 
 @MainActor
-final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, CustomStringConvertible {
-    init(id: String, type: ItemType, running: Bool = true, oldBytes: Int = 0, newBytes: Int = 0, oldSize: CGSize? = nil, newSize: CGSize? = nil, progress: Progress? = nil, operation: String = "Optimizing") {
+final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, CustomStringConvertible {
+    init(id: String, type: ItemType, running: Bool = true, oldBytes: Int = 0, newBytes: Int = 0, oldSize: CGSize? = nil, newSize: CGSize? = nil, progress: Progress? = nil, operation: String = "Optimising") {
         self.id = id
         self.type = type
         self.running = running
@@ -245,7 +245,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
             }
         }
     }
-    @Published var operation = "Optimizing" { didSet {
+    @Published var operation = "Optimising" { didSet {
         if !progress.isIndeterminate {
             progress.localizedDescription = operation
         }
@@ -257,16 +257,19 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
     var remover: DispatchWorkItem? { didSet {
         oldValue?.cancel()
     }}
+    var deleter: DispatchWorkItem? { didSet {
+        oldValue?.cancel()
+    }}
 
-    nonisolated static func == (lhs: Optimizer, rhs: Optimizer) -> Bool {
+    nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {
         lhs.id == rhs.id
     }
 
     func quicklook() {
         resetRemover()
-        OM.quicklook(optimizer: self)
+        OM.quicklook(optimiser: self)
     }
-    func downscale(toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimization: Bool? = nil) {
+    func downscale(toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval else { return }
 
         remover = nil
@@ -274,11 +277,11 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         error = nil
         notice = nil
 
-        var shouldUseAggressiveOptimization = aggressiveOptimization
-        if let aggressiveOptimization {
-            aggresive = aggressiveOptimization
+        var shouldUseAggressiveOptimisation = aggressiveOptimisation
+        if let aggressiveOptimisation {
+            aggresive = aggressiveOptimisation
         } else if aggresive {
-            shouldUseAggressiveOptimization = true
+            shouldUseAggressiveOptimisation = true
         }
 
         Task.init {
@@ -293,7 +296,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     image, toFactor: factor, saveTo: self.path,
                     copyToClipboard: id == IDs.clipboardImage, id: self.id,
                     hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimization: shouldUseAggressiveOptimization
+                    aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
             }
             if type.isVideo, let path = originalURL?.filePath ?? path {
@@ -314,7 +317,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     video,
                     originalPath: (path.backupPath?.exists ?? false) ? path.backupPath : nil,
                     id: self.id, toFactor: factor, hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimization: shouldUseAggressiveOptimization
+                    aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
             }
         }
@@ -323,7 +326,9 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
     func stop(remove: Bool = true, animateRemoval: Bool = true) {
         if running {
             for process in processes {
-                mainAsync { processTerminated.insert(process.processIdentifier) }
+                let pid = process.processIdentifier
+                mainAsync { processTerminated.insert(pid) }
+
                 (process.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
                 (process.standardError as? Pipe)?.fileHandleForReading.readabilityHandler = nil
                 process.terminate()
@@ -334,14 +339,14 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
     }
 
-    func optimize(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimization: Bool? = nil, fromOriginal: Bool = false) {
+    func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
         guard let url else { return }
         remover = nil
         error = nil
         notice = nil
 
         var path = url.filePath
-        if fromOriginal, path.hasOptimizationStatusXattr() {
+        if fromOriginal, path.hasOptimisationStatusXattr() {
             if let backup = path.backupPath, backup.exists {
                 path.restore(force: true)
             } else if let startingPath = startingURL?.existingFilePath, let originalPath = originalURL?.existingFilePath, originalPath != startingPath {
@@ -353,19 +358,19 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
 
         isOriginal = false
-        var shouldUseAggressiveOptimization = aggressiveOptimization
-        if let aggressiveOptimization {
-            aggresive = aggressiveOptimization
+        var shouldUseAggressiveOptimisation = aggressiveOptimisation
+        if let aggressiveOptimisation {
+            aggresive = aggressiveOptimisation
         } else if aggresive {
-            shouldUseAggressiveOptimization = true
+            shouldUseAggressiveOptimisation = true
         }
         if type.isImage, let img = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
-            Task.init { try? await optimizeImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimization: shouldUseAggressiveOptimization) }
+            Task.init { try? await optimiseImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
             return
         }
         if type.isVideo, path.exists {
             let video = Video(path: path, metadata: VideoMetadata(resolution: oldSize!, fps: 0), fileSize: oldBytes, thumb: false)
-            Task.init { try? await optimizeVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimization: shouldUseAggressiveOptimization) }
+            Task.init { try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
         }
     }
 
@@ -443,8 +448,8 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func resetRemover() {
-        mainAsync {
-            guard !self.inRemoval, self.remover != nil, let lastRemoveAfterMs = self.lastRemoveAfterMs else {
+        mainAsync { [weak self] in
+            guard let self, !self.inRemoval, self.remover != nil, let lastRemoveAfterMs = self.lastRemoveAfterMs else {
                 return
             }
 
@@ -457,7 +462,7 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
             self.remover = nil
             self.inRemoval = false
             self.lastRemoveAfterMs = nil
-            OM.optimizers = OM.optimizers.with(self)
+            OM.optimisers = OM.optimisers.with(self)
         }
     }
 
@@ -467,15 +472,26 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
         mainAsync {
 //            self.isOriginal = false
             self.lastRemoveAfterMs = ms
-            self.remover = mainAsyncAfter(ms: ms) {
-                guard hoveredOptimizerID != self.id else {
+            self.remover = mainAsyncAfter(ms: ms) { [weak self] in
+                guard let self else { return }
+
+                guard hoveredOptimiserID == nil, !DM.dragging else {
                     self.resetRemover()
                     return
                 }
-                OM.optimizers = OM.optimizers.filter { $0.id != self.id }
-                OM.removedOptimizers = OM.removedOptimizers.without(self).with(self)
+                OM.optimisers = OM.optimisers.filter { $0.id != self.id }
+                OM.removedOptimisers = OM.removedOptimisers.without(self).with(self)
+
+                self.deleter = mainAsyncAfter(ms: 600_000) { [weak self] in
+                    guard let self else { return }
+
+                    if OM.removedOptimisers.contains(self) {
+                        OM.removedOptimisers = OM.removedOptimisers.without(self)
+                    }
+                }
             }
-            if withAnimation, hoveredOptimizerID != self.id {
+
+            if withAnimation, hoveredOptimiserID == nil, !DM.dragging {
                 self.inRemoval = true
             }
         }
@@ -483,68 +499,68 @@ final class Optimizer: ObservableObject, Identifiable, Hashable, Equatable, Cust
 }
 
 @MainActor
-class OptimizationManager: ObservableObject, QLPreviewPanelDataSource {
-    @Published var current: Optimizer?
+class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
+    @Published var current: Optimiser?
     @Published var skippedBecauseNotPro: [URL] = []
     @Published var ignoreProErrorBadge = false
 
-    @Published var removedOptimizers: [Optimizer] = []
+    @Published var removedOptimisers: [Optimiser] = []
 
-    @Published var optimizers: Set<Optimizer> = [] {
+    @Published var optimisers: Set<Optimiser> = [] {
         didSet {
-            print("Removed optimizers: \(oldValue.subtracting(optimizers))")
-            print("Added optimizers: \(optimizers.subtracting(oldValue))")
+            print("Removed optimisers: \(oldValue.subtracting(optimisers))")
+            print("Added optimisers: \(optimisers.subtracting(oldValue))")
         }
     }
 
-    var optimizersWithURLs: [Optimizer] {
-        optimizers.filter { $0.url != nil }
+    var optimisersWithURLs: [Optimiser] {
+        optimisers.filter { $0.url != nil }
     }
 
-    var clipboardImageOptimizer: Optimizer? { optimizers.first(where: { $0.id == Optimizer.IDs.clipboardImage }) }
+    var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id == Optimiser.IDs.clipboardImage }) }
 
-    func optimizer(id: String, type: ItemType, operation: String, hidden: Bool = false) -> Optimizer {
-        let optimizer = (
-            OM.optimizers.first(where: { $0.id == id }) ??
+    func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false) -> Optimiser {
+        let optimiser = (
+            OM.optimisers.first(where: { $0.id == id }) ??
                 (current?.id == id ? current : nil) ??
-                Optimizer(id: id, type: type, operation: operation)
+                Optimiser(id: id, type: type, operation: operation)
         )
 
-        optimizer.operation = operation
-        optimizer.running = true
-        optimizer.hidden = hidden
-        optimizer.progress.completedUnitCount = 0
+        optimiser.operation = operation
+        optimiser.running = true
+        optimiser.hidden = hidden
+        optimiser.progress.completedUnitCount = 0
 
-        if !OM.optimizers.contains(optimizer) {
-            OM.optimizers = OM.optimizers.with(optimizer)
+        if !OM.optimisers.contains(optimiser) {
+            OM.optimisers = OM.optimisers.with(optimiser)
         }
-        if id == Optimizer.IDs.clipboardImage || id == Optimizer.IDs.clipboard {
-            OM.current = optimizer
+        if id == Optimiser.IDs.clipboardImage || id == Optimiser.IDs.clipboard {
+            OM.current = optimiser
         }
 
-        showFloatingThumbnails()
-        return optimizer
+        showFloatingThumbnails(force: true)
+        return optimiser
     }
 
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
-        optimizersWithURLs.count
+        optimisersWithURLs.count
     }
 
     func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
-        guard let opt = optimizersWithURLs[safe: index] else {
+        guard let opt = optimisersWithURLs[safe: index] else {
             return nil
         }
         return (opt.url ?? opt.originalURL) as NSURL?
     }
 
-    func quicklook(optimizer: Optimizer? = nil) {
+    func quicklook(optimiser: Optimiser? = nil) {
         guard let ql = QLPreviewPanel.shared() else { return }
 
         NSApp.activate(ignoringOtherApps: true)
         ql.makeKeyAndOrderFront(nil)
         ql.dataSource = self
-        if let optimizer {
-            ql.currentPreviewItemIndex = optimizersWithURLs.firstIndex(of: optimizer) ?? 0
+        if let optimiser {
+            ql.currentPreviewItemIndex = optimisersWithURLs.firstIndex(of: optimiser) ?? 0
         } else {
             ql.currentPreviewItemIndex = 0
         }
@@ -552,26 +568,37 @@ class OptimizationManager: ObservableObject, QLPreviewPanelDataSource {
     }
 
 }
+
+func tryAsync(_ action: @escaping () async throws -> Void) {
+    Task.init {
+        do {
+            try await action()
+        } catch {
+            print(error)
+        }
+    }
+}
+
 func mainActor(_ action: @escaping @MainActor () -> Void) {
     Task.init { await MainActor.run { action() }}
 }
-@MainActor let OM = OptimizationManager()
+@MainActor let OM = OptimisationManager()
 
-let optimizationQueue = DispatchQueue(label: "optimization.queue")
-let imageOptimizationQueue: OperationQueue = {
+let optimisationQueue = DispatchQueue(label: "optimisation.queue")
+let imageOptimisationQueue: OperationQueue = {
     let q = OperationQueue()
     q.maxConcurrentOperationCount = ProcessInfo.processInfo.activeProcessorCount
     q.underlyingQueue = DispatchQueue.global()
     return q
 }()
-let videoOptimizationQueue: OperationQueue = {
+let videoOptimisationQueue: OperationQueue = {
     let q = OperationQueue()
     q.maxConcurrentOperationCount = 4
     q.underlyingQueue = DispatchQueue.global()
     return q
 }()
-var videoOptimizeDebouncers: [String: DispatchWorkItem] = [:]
-var imageOptimizeDebouncers: [String: DispatchWorkItem] = [:]
+var videoOptimiseDebouncers: [String: DispatchWorkItem] = [:]
+var imageOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 var imageResizeDebouncers: [String: DispatchWorkItem] = [:]
 var scalingFactor = 1.0
 
@@ -615,31 +642,31 @@ extension ReversedCollection<Slice<ReversedCollection<String>>> {
 }
 
 @MainActor
-func optimizeURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimization: Bool? = nil) async throws -> ClipboardType? {
-    showFloatingThumbnails()
+func optimiseURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws -> ClipboardType? {
+    showFloatingThumbnails(force: true)
 
     do {
-        guard let (downloadPath, type, optimizer) = try await getFile(from: url, hideFloatingResult: hideFloatingResult) else {
+        guard let (downloadPath, type, optimiser) = try await getFile(from: url, hideFloatingResult: hideFloatingResult) else {
             return nil
         }
         let downloadURL = downloadPath.url
 
-        optimizer.operation = "Optimizing" + (aggressiveOptimization ?? false ? " (aggressive)" : "")
-        optimizer.originalURL = downloadURL
-        optimizer.url = downloadURL
-        optimizer.type = type
+        optimiser.operation = "Optimising" + (aggressiveOptimisation ?? false ? " (aggressive)" : "")
+        optimiser.originalURL = downloadURL
+        optimiser.url = downloadURL
+        optimiser.type = type
 
         switch type {
         case .image:
-            guard let img = Image(path: downloadPath, retinaDownscaled: optimizer.retinaDownscaled) else {
+            guard let img = Image(path: downloadPath, retinaDownscaled: optimiser.retinaDownscaled) else {
                 throw ClopError.downloadError("invalid image")
             }
 
             let result: Image?
             if let scalingFactor, scalingFactor < 1 {
-                result = try await downscaleImage(img, toFactor: scalingFactor, id: optimizer.id, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                result = try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             } else {
-                result = try await optimizeImage(img, copyToClipboard: copyToClipboard, id: optimizer.id, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                result = try await optimiseImage(img, copyToClipboard: copyToClipboard, id: optimiser.id, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
 
             guard let result else { return nil }
@@ -647,10 +674,10 @@ func optimizeURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: 
 
         case .video:
             let result: Video?
-            if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimizer.id) {
-                result = try await downscaleVideo(video, id: optimizer.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+            if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
+                result = try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             } else {
-                result = try await optimizeVideo(Video(path: downloadPath, id: optimizer.id), id: optimizer.id, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                result = try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
 
             guard let result else { return nil }
@@ -667,14 +694,8 @@ func optimizeURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: 
     }
 }
 
-extension String {
-    var trimmedPath: String {
-        trimmingCharacters(in: ["\"", "'", "\n", "\t", " ", "(", ")"])
-    }
-}
-
-@MainActor func opt(_ optimizerID: String) -> Optimizer? {
-    OM.optimizers.first(where: { $0.id == optimizerID })
+@MainActor func opt(_ optimiserID: String) -> Optimiser? {
+    OM.optimisers.first(where: { $0.id == optimiserID })
 }
 
 let BASE64_PREFIX = #/(url\()?data:image/[^;]+;base64,/#
@@ -684,6 +705,15 @@ enum ClipboardType {
     case file(FilePath)
     case url(URL)
     case unknown
+
+    var id: String {
+        switch self {
+        case let .image(img): return img.path.string
+        case let .file(path): return path.string
+        case let .url(url): return url.path
+        case .unknown: return ""
+        }
+    }
 
     static func fromString(_ str: String) -> ClipboardType {
         if let data = Data(base64Encoded: str.replacing(BASE64_PREFIX, with: "").trimmedPath), let img = Image(data: data, retinaDownscaled: false) {
@@ -741,27 +771,27 @@ import LowtechPro
     return result
 }
 
-var manualOptimizationCount = 0
+var manualOptimisationCount = 0
 
-@MainActor func getFile(from url: URL, optimizer: Optimizer? = nil, hideFloatingResult: Bool = false) async throws -> (FilePath, ItemType, Optimizer)? {
-    var optimizer: Optimizer?
-    if optimizer == nil {
-        optimizer = OM.optimizer(id: url.absoluteString, type: .url, operation: "Fetching", hidden: hideFloatingResult)
-        optimizer!.url = url
+@MainActor func getFile(from url: URL, optimiser: Optimiser? = nil, hideFloatingResult: Bool = false) async throws -> (FilePath, ItemType, Optimiser)? {
+    var optimiser: Optimiser?
+    if optimiser == nil {
+        optimiser = OM.optimiser(id: url.absoluteString, type: .url, operation: "Fetching", hidden: hideFloatingResult)
+        optimiser!.url = url
     }
-    guard let optimizer else { return nil }
+    guard let optimiser else { return nil }
 
-    let progressDelegate = OptimizerProgressDelegate(optimizer: optimizer)
+    let progressDelegate = OptimiserProgressDelegate(optimiser: optimiser)
     var type = try await fetchType(from: url, progressDelegate: progressDelegate)
 
-    optimizer.operation = "Downloading"
+    optimiser.operation = "Downloading"
     let fileURL = try await url.download(type: type?.utType, delegate: progressDelegate)
 
     type = type ?? ItemType.from(filePath: fileURL.filePath)
     guard let type, type.isImage || type.isVideo, let ext = type.ext else {
         throw ClopError.downloadError("invalid file type")
     }
-    guard optimizer.running, !optimizer.inRemoval else {
+    guard optimiser.running, !optimiser.inRemoval else {
         return nil
     }
 
@@ -770,10 +800,10 @@ var manualOptimizationCount = 0
     let downloadPath = FilePath.downloads.appending("\(name).\(ext)")
     try fileURL.filePath.move(to: downloadPath, force: true)
 
-    guard optimizer.running, !optimizer.inRemoval else {
+    guard optimiser.running, !optimiser.inRemoval else {
         return nil
     }
-    return (downloadPath, type, optimizer)
+    return (downloadPath, type, optimiser)
 }
 
 @MainActor func quickLookLastClipboardItem() async throws {
@@ -785,10 +815,10 @@ var manualOptimizationCount = 0
     case let .file(filePath):
         QuickLooker.quicklook(url: filePath.url)
     case let .url(url):
-        guard let (downloadPath, _, optimizer) = try await getFile(from: url) else {
+        guard let (downloadPath, _, optimiser) = try await getFile(from: url) else {
             return
         }
-        optimizer.stop()
+        optimiser.stop()
 
         QuickLooker.quicklook(url: downloadPath.url)
     case .unknown:
@@ -796,80 +826,80 @@ var manualOptimizationCount = 0
     }
 }
 
-@MainActor func optimizeLastClipboardItem(hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimization: Bool? = nil) async throws {
+@MainActor func optimiseLastClipboardItem(hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws {
     let item = ClipboardType.lastItem()
-    try await optimizeItem(item, id: Optimizer.IDs.clipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimization: aggressiveOptimization)
+    try await optimiseItem(item, id: Optimiser.IDs.clipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimisation: aggressiveOptimisation, optimisationCount: &manualOptimisationCount)
 }
 
 @MainActor func showNotice(_ notice: String) {
-    let optimizer = OM.optimizer(id: "notice", type: .unknown, operation: "")
-    optimizer.finish(notice: notice)
+    let optimiser = OM.optimiser(id: "notice", type: .unknown, operation: "")
+    optimiser.finish(notice: notice)
 }
 
 @discardableResult
-@MainActor func optimizeItem(_ item: ClipboardType, id: String, hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimization: Bool? = nil) async throws -> ClipboardType? {
+@MainActor func optimiseItem(_ item: ClipboardType, id: String, hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimisation: Bool? = nil, optimisationCount: inout Int) async throws -> ClipboardType? {
     let nope = { (notice: String) in
-        let optimizer = OM.optimizer(id: id, type: .unknown, operation: "", hidden: hideFloatingResult)
-        optimizer.finish(notice: notice)
+        let optimiser = OM.optimiser(id: id, type: .unknown, operation: "", hidden: hideFloatingResult)
+        optimiser.finish(notice: notice)
     }
 
     switch item {
     case let .image(img):
-        let result = try await proGuard(count: &manualOptimizationCount, limit: 2, url: img.path.url) {
+        let result = try await proGuard(count: &optimisationCount, limit: 2, url: img.path.url) {
             if let scalingFactor, scalingFactor < 1 {
-                return try await downscaleImage(img, toFactor: scalingFactor, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                return try await downscaleImage(img, toFactor: scalingFactor, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             } else {
-                return try await optimizeImage(img, copyToClipboard: true, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                return try await optimiseImage(img, copyToClipboard: true, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
         }
         guard let result else { return nil }
         return .image(result)
     case let .file(path):
         if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
-            guard !path.hasOptimizationStatusXattr() else {
-                nope("Image already optimized")
-                throw ClopError.alreadyOptimized(path)
+            guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
+                nope("Already optimised")
+                throw ClopError.alreadyOptimised(path)
             }
-            let result = try await proGuard(count: &manualOptimizationCount, limit: 2, url: path.url) {
+            let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
                 if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleImage(img, toFactor: scalingFactor, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                    return try await downscaleImage(img, toFactor: scalingFactor, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 } else {
-                    return try await optimizeImage(img, copyToClipboard: true, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                    return try await optimiseImage(img, copyToClipboard: true, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 }
             }
             guard let result else { return nil }
             return .image(result)
         } else if path.isVideo {
-            guard !path.hasOptimizationStatusXattr() else {
-                nope("Video already optimized")
-                throw ClopError.alreadyOptimized(path)
+            guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
+                nope("Already optimised")
+                throw ClopError.alreadyOptimised(path)
             }
-            let result = try await proGuard(count: &manualOptimizationCount, limit: 2, url: path.url) {
+            let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
                 if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: path) {
-                    return try await downscaleVideo(video, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                    return try await downscaleVideo(video, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 } else {
-                    return try await optimizeVideo(Video(path: path), allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimization: aggressiveOptimization)
+                    return try await optimiseVideo(Video(path: path), allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 }
             }
             guard let result else { return nil }
             return .file(result.path)
         } else {
-            nope("Clipboard contents can't be optimized")
+            nope("Clipboard contents can't be optimised")
             throw ClopError.unknownType
         }
     case let .url(url):
-        let result = try await proGuard(count: &manualOptimizationCount, limit: 2, url: url) {
-            try await optimizeURL(url, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimization: aggressiveOptimization)
+        let result = try await proGuard(count: &optimisationCount, limit: 2, url: url) {
+            try await optimiseURL(url, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimisation: aggressiveOptimisation)
         }
         return result
     default:
-        nope("Clipboard contents can't be optimized")
+        nope("Clipboard contents can't be optimised")
         throw ClopError.unknownType
     }
 }
 
-@MainActor func showFloatingThumbnails() {
-    guard Defaults[.enableFloatingResults] else {
+@MainActor func showFloatingThumbnails(force: Bool = false) {
+    guard Defaults[.enableFloatingResults], !sizeNotificationWindow.isVisible || force else {
         return
     }
     sizeNotificationWindow.show(closeAfter: 0, fadeAfter: 0, fadeDuration: 0.2, corner: Defaults[.floatingResultsCorner], margin: FLOAT_MARGIN, marginHorizontal: 0)

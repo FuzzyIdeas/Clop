@@ -22,10 +22,10 @@ struct MenuView: View {
     @Environment(\.openWindow) var openWindow
 
     @Default(.keyComboModifiers) var keyComboModifiers
-    @Default(.useAggresiveOptimizationGIF) var useAggresiveOptimizationGIF
-    @Default(.useAggresiveOptimizationJPEG) var useAggresiveOptimizationJPEG
-    @Default(.useAggresiveOptimizationPNG) var useAggresiveOptimizationPNG
-    @Default(.useAggresiveOptimizationMP4) var useAggresiveOptimizationMP4
+    @Default(.useAggresiveOptimisationGIF) var useAggresiveOptimisationGIF
+    @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
+    @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
+    @Default(.useAggresiveOptimisationMP4) var useAggresiveOptimisationMP4
 
     @ViewBuilder var proErrors: some View {
         Section("Skipped items because of free version limits") {
@@ -55,23 +55,23 @@ struct MenuView: View {
         Divider()
 
         Section("Clipboard actions") {
-            Button("Optimize") {
-                Task.init { try? await optimizeLastClipboardItem() }
+            Button("Optimise") {
+                Task.init { try? await optimiseLastClipboardItem() }
             }.keyboardShortcut("c", modifiers: keyComboModifiers.eventModifiers)
 
-            if !useAggresiveOptimizationGIF ||
-                !useAggresiveOptimizationJPEG ||
-                !useAggresiveOptimizationPNG ||
-                !useAggresiveOptimizationMP4
+            if !useAggresiveOptimisationGIF ||
+                !useAggresiveOptimisationJPEG ||
+                !useAggresiveOptimisationPNG ||
+                !useAggresiveOptimisationMP4
             {
-                Button("Optimize (aggresive)") {
-                    Task.init { try? await optimizeLastClipboardItem(aggressiveOptimization: true) }
+                Button("Optimise (aggresive)") {
+                    Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
                 }.keyboardShortcut("a", modifiers: keyComboModifiers.eventModifiers)
             }
 
             Button("Downscale") {
                 scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
-                Task.init { try? await optimizeLastClipboardItem(downscaleTo: scalingFactor) }
+                Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
             }.keyboardShortcut("-", modifiers: keyComboModifiers.eventModifiers)
             Button("Quicklook") {
                 Task.init { try? await quickLookLastClipboardItem() }
@@ -84,19 +84,19 @@ struct MenuView: View {
                 NSWorkspace.shared.open(FilePath.backups.url)
             }
 
-            Button("Revert last optimizations") {
-                om.clipboardImageOptimizer?.restoreOriginal()
+            Button("Revert last optimisations") {
+                om.clipboardImageOptimiser?.restoreOriginal()
             }
             .keyboardShortcut("z", modifiers: keyComboModifiers.eventModifiers)
-            .disabled(om.clipboardImageOptimizer?.isOriginal ?? true)
+            .disabled(om.clipboardImageOptimiser?.isOriginal ?? true)
             Button("Bring back last result") {
-                guard let last = om.removedOptimizers.popLast() else {
+                guard let last = om.removedOptimisers.popLast() else {
                     return
                 }
-                om.optimizers = om.optimizers.without(last).with(last)
+                om.optimisers = om.optimisers.without(last).with(last)
             }
             .keyboardShortcut("=", modifiers: keyComboModifiers.eventModifiers)
-            .disabled(om.removedOptimizers.isEmpty)
+            .disabled(om.removedOptimisers.isEmpty)
         }
 
         if let pro = pm.pro, !pro.active, !om.skippedBecauseNotPro.isEmpty {
