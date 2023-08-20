@@ -137,6 +137,7 @@ class AppDelegate: LowtechProAppDelegate {
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
             print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
+            shouldRestartOnCrash = true
 
             NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
                 .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
@@ -157,7 +158,7 @@ class AppDelegate: LowtechProAppDelegate {
 
         if !SWIFTUI_PREVIEW {
             sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
-            configureSentry()
+            configureSentry(restartOnHang: true)
 
             KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
@@ -538,17 +539,19 @@ struct ClopApp: App {
 import ObjectiveC.runtime
 
 extension NSFilePromiseReceiver {
-    static let swizzleReceivePromisedFiles: () = {
+    static let swizzleReceivePromisedFiles: String = {
         let originalSelector = #selector(receivePromisedFiles(atDestination:options:operationQueue:reader:))
         let swizzledSelector = #selector(swizzledReceivePromisedFiles(atDestination:options:operationQueue:reader:))
 
         guard let originalMethod = class_getInstanceMethod(NSFilePromiseReceiver.self, originalSelector),
               let swizzledMethod = class_getInstanceMethod(NSFilePromiseReceiver.self, swizzledSelector)
         else {
-            return
+            return "Swizzling NSFilePromiseReceiver.receivePromisedFiles() failed"
+
         }
 
         method_exchangeImplementations(originalMethod, swizzledMethod)
+        return "Swizzled NSFilePromiseReceiver.receivePromisedFiles()"
     }()
 
     @objc private func swizzledReceivePromisedFiles(atDestination destinationDir: URL, options: [AnyHashable: Any] = [:], operationQueue: OperationQueue, reader: @escaping (URL, Error?) -> Void) {
@@ -559,8 +562,8 @@ extension NSFilePromiseReceiver {
             return
         }
         print(exc)
-        Task.init {
-            await showNotice("Pasteboard error in retrieving file")
-        }
+//        Task.init {
+//            await showNotice("Pasteboard error in retrieving file")
+//        }
     }
 }
