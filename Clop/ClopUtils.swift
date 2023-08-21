@@ -56,7 +56,7 @@ func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: 
     do {
         try task.run()
     } catch {
-        print("Error running \(launchPath) \(args): \(error)")
+        log.error("Error running \(launchPath) \(args): \(error)")
         return nil
     }
 
@@ -222,17 +222,17 @@ extension FilePath {
         shell("/usr/bin/file", args: ["-b", "--mime-type", string]).o
     }
 
-    func copyExif(from source: FilePath, excludeTags: [String]? = []) {
+    func copyExif(from source: FilePath, excludeTags: [String]? = nil) {
         var additionalArgs: [String] = []
-        if let excludeTags {
+        if let excludeTags, excludeTags.isNotEmpty {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
-        let args = [EXIFTOOL, "-overwrite_original", "-XResolution=72", "-YResolution=72"] + additionalArgs + ["-TagsFromFile", source.string, string]
+        let args = [EXIFTOOL, "-overwrite_original", "-XResolution=72", "-YResolution=72"] + additionalArgs + ["-tagsFromFile", source.string, string]
         let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
 
         #if DEBUG
-            debug(args.joined(separator: " "))
-            debug("\tout=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
+            log.debug(args.joined(separator: " "))
+            log.debug("\tout=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
         #endif
     }
 
@@ -286,7 +286,7 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
     var outPipes = procs.dict { ($0, Pipe()) }
     var errPipes = procs.dict { ($0, Pipe()) }
 
-    print("Starting\n\t\(procs.map(\.cmdline).joined(separator: "\n\t"))")
+    log.debug("Starting\n\t\(procs.map(\.cmdline).joined(separator: "\n\t"))")
     var processes: [Proc: Process] = procs.dict { proc in
         guard let p = shellProc(proc.cmd, args: proc.args, out: outPipes[proc]!, err: errPipes[proc]!)
         else { return nil }
@@ -306,7 +306,7 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
                 return (p, proc)
             }
 
-            print("Retry \(tryNum): \(p.cmdline)")
+            log.debug("Retry \(tryNum): \(p.cmdline)")
             outPipes[p]!.fileHandleForReading.readabilityHandler = nil
             errPipes[p]!.fileHandleForReading.readabilityHandler = nil
             outPipes[p] = Pipe()
@@ -329,7 +329,7 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
     var errPipe = Pipe()
 
     let cmdline = "\(cmd) \(args.joined(separator: " "))"
-    print("Starting \(cmdline)")
+    log.debug("Starting \(cmdline)")
     guard var proc = shellProc(cmd, args: args, out: outPipe, err: errPipe) else {
         throw ClopError.noProcess(cmd)
     }
@@ -342,7 +342,7 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
             break
         }
 
-        print("Retry \(tryNum): \(cmdline)")
+        log.debug("Retry \(tryNum): \(cmdline)")
         outPipe.fileHandleForReading.readabilityHandler = nil
         errPipe.fileHandleForReading.readabilityHandler = nil
         outPipe = Pipe()

@@ -611,7 +611,7 @@ class Image: CustomStringConvertible {
 
     }
 
-    print("\(event.path): \(flag)")
+    log.debug("\(event.path): \(flag)")
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
@@ -646,31 +646,39 @@ class Image: CustomStringConvertible {
     var pathString = path.string
 
     guard img.type != .tiff || (allowTiff ?? Defaults[.optimiseTIFF]) else {
-        print("Skipping image \(pathString) because TIFF optimisation is disabled")
+        log.debug("Skipping image \(pathString) because TIFF optimisation is disabled")
         throw ClopError.skippedType("TIFF optimisation is disabled")
     }
 
     if id == Optimiser.IDs.clipboardImage, pauseForNextClipboardEvent {
-        print("Skipping image \(pathString) because it was paused")
+        log.debug("Skipping image \(pathString) because it was paused")
         pauseForNextClipboardEvent = false
         throw ClopError.optimisationPaused(path)
     }
 
     var allowLarger = allowLarger
+    var originalPath: FilePath?
+    let applyConversionBehaviour: (Image, Image) throws -> Image = { img, converted in
+        let behaviour = Defaults[.convertedImageBehaviour]
+        if behaviour == .inPlace {
+            img.path.backup(force: true, operation: .move)
+        }
+        if behaviour != .temporary {
+            try converted.path.setOptimisationStatusXattr("pending")
+            let path = try converted.path.copy(to: img.path.dir)
+            originalPath = img.path
+            return Image(data: converted.data, path: path, nsImage: converted.image, type: converted.type, optimised: converted.optimised, retinaDownscaled: converted.retinaDownscaled)
+        }
+        return converted
+    }
 
-    switch img.type {
-    case Defaults[.formatsToConvertToJPEG]:
-        let converted = try img.convert(to: .jpeg)
-        img = converted
+    let conversionFormat: UTType? = Defaults[.formatsToConvertToJPEG].contains(img.type) ? .jpeg : (Defaults[.formatsToConvertToPNG].contains(img.type) ? .png : nil)
+    if let conversionFormat {
+        let converted = try img.convert(to: conversionFormat)
+
+        img = try applyConversionBehaviour(img, converted)
         pathString = img.path.string
         allowLarger = true
-    case Defaults[.formatsToConvertToPNG]:
-        let converted = try img.convert(to: .png)
-        img = converted
-        pathString = img.path.string
-        allowLarger = true
-    default:
-        break
     }
 
     let optimiser = OM.optimiser(
@@ -681,6 +689,9 @@ class Image: CustomStringConvertible {
     optimiser.downscaleFactor = 1.0
     optimiser.newSize = nil
     optimiser.newBytes = -1
+    if let url = originalPath?.url {
+        optimiser.convertedFromURL = url
+    }
 
     var done = false
     var result: Image?
@@ -712,7 +723,7 @@ class Image: CustomStringConvertible {
             let shouldDownscale = Defaults[.downscaleRetinaImages] && img.pixelScale > 1
             var optimisedImage: Image?
             do {
-                print("Optimising image \(pathString)")
+                log.debug("Optimising image \(pathString)")
                 if shouldDownscale {
                     img.retinaDownscaled = true
                     mainActor { optimiser.retinaDownscaled = true }
@@ -728,16 +739,16 @@ class Image: CustomStringConvertible {
                 }
             } catch let ClopError.processError(proc) {
                 if proc.terminated {
-                    debug("Process terminated by us: \(proc.commandLine)")
+                    log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
-                    err("Error optimising image \(pathString): \(proc.commandLine)")
+                    log.error("Error optimising image \(pathString): \(proc.commandLine)")
                     optimiser.finish(error: "Optimisation failed")
                 }
             } catch let error as ClopError {
-                err("Error optimising image \(pathString): \(error.description)")
+                log.error("Error optimising image \(pathString): \(error.description)")
                 optimiser.finish(error: error.humanDescription)
             } catch {
-                err("Error optimising image \(pathString): \(error)")
+                log.error("Error optimising image \(pathString): \(error)")
                 optimiser.finish(error: "Optimisation failed")
             }
 
@@ -835,16 +846,16 @@ class Image: CustomStringConvertible {
             }
         } catch let ClopError.processError(proc) {
             if proc.terminated {
-                debug("Process terminated by us: \(proc.commandLine)")
+                log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
-                err("Error downscaling image \(img.path.string): \(proc.commandLine)")
+                log.error("Error downscaling image \(img.path.string): \(proc.commandLine)")
                 mainActor { optimiser.finish(error: "Downscaling failed") }
             }
         } catch let error as ClopError {
-            err("Error downscaling image \(img.path.string): \(error.description)")
+            log.error("Error downscaling image \(img.path.string): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }
         } catch {
-            err("Error downscaling image \(img.path.string): \(error)")
+            log.error("Error downscaling image \(img.path.string): \(error)")
             mainActor { optimiser.finish(error: "Optimisation failed") }
         }
     }

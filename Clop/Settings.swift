@@ -47,11 +47,13 @@ public extension Defaults.Keys {
     static let enableClipboardOptimiser = Key<Bool>("enableClipboardOptimiser", default: true)
     static let optimiseVideoClipboard = Key<Bool>("optimiseVideoClipboard", default: false)
     static let optimiseImagePathClipboard = Key<Bool>("optimiseImagePathClipboard", default: false)
-    static let convertInPlace = Key<Bool>("convertInPlace", default: false)
 
     static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
     static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
+    static let convertedImageBehaviour = Key<ConvertedFileBehaviour>("convertedImageBehaviour", default: .sameFolder)
+    static let convertedVideoBehaviour = Key<ConvertedFileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
+
     static let capVideoFPS = Key<Bool>("capVideoFPS", default: true)
     static let targetVideoFPS = Key<Float>("targetVideoFPS", default: 60)
     static let minVideoFPS = Key<Float>("minVideoFPS", default: 30)
@@ -87,4 +89,10 @@ public extension Defaults.Keys {
     static let keyComboModifiers = Key<[TriggerKey]>("keyComboModifiers", default: [.lctrl, .lshift])
     static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [.five, .three])
     static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: [.minus, .equal, .delete, .space, .z, .p, .c, .a])
+}
+
+public enum ConvertedFileBehaviour: String, Defaults.Serializable {
+    case temporary
+    case inPlace
+    case sameFolder
 }

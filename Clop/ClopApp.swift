@@ -51,7 +51,6 @@ class AppDelegate: LowtechProAppDelegate {
 
         let drag = NSPasteboard(name: .drag)
         guard self.lastDragChangeCount != drag.changeCount else {
-//            print("Drag ignored: \(self.lastDragChangeCount) \(drag.changeCount) \(DM.dropped)")
             return
         }
         DM.dropped = false
@@ -561,7 +560,7 @@ extension NSFilePromiseReceiver {
         guard let exc else {
             return
         }
-        print(exc)
+        log.error(exc.description)
 //        Task.init {
 //            await showNotice("Pasteboard error in retrieving file")
 //        }

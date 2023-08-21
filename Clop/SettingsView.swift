@@ -10,10 +10,13 @@ import Foundation
 import LaunchAtLogin
 import Lowtech
 import SwiftUI
+import System
 
 extension String: Identifiable {
     public var id: String { self }
 }
+
+let NOT_ALLOWED_TO_WATCH = [FilePath.backups.string, FilePath.images.string, FilePath.videos.string, FilePath.forResize.string, FilePath.conversions.string, FilePath.downloads.string]
 
 struct DirListView: View {
     @Binding var dirs: [String]
@@ -35,9 +38,9 @@ struct DirListView: View {
                         onCompletion: { result in
                             switch result {
                             case let .success(success):
-                                dirs = (dirs + success.map(\.path)).uniqued
+                                dirs = (dirs + success.map(\.path)).uniqued.without(NOT_ALLOWED_TO_WATCH)
                             case let .failure(failure):
-                                print(failure)
+                                log.error(failure.localizedDescription)
                             }
                         }
                     )
@@ -63,6 +66,7 @@ struct VideoSettingsView: View {
     @Default(.capVideoFPS) var capVideoFPS
     @Default(.targetVideoFPS) var targetVideoFPS
     @Default(.minVideoFPS) var minVideoFPS
+    @Default(.convertedVideoBehaviour) var convertedVideoBehaviour
 
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
@@ -160,6 +164,18 @@ struct VideoSettingsView: View {
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToMP4.contains(format) }))
                     }
                 }
+                HStack {
+                    Text("Converted video location").regular(13).padding(.trailing, 10)
+                    Button("Temporary folder") {
+                        convertedVideoBehaviour = .temporary
+                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .temporary }))
+                    Button("In-place (replace original)") {
+                        convertedVideoBehaviour = .inPlace
+                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .inPlace }))
+                    Button("Same folder (as original)") {
+                        convertedVideoBehaviour = .sameFolder
+                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .sameFolder }))
+                }
             }
         }.padding(4)
     }
@@ -183,6 +199,7 @@ struct ImagesSettingsView: View {
     @Default(.imageFormatsToSkip) var imageFormatsToSkip
     @Default(.adaptiveImageSize) var adaptiveImageSize
     @Default(.downscaleRetinaImages) var downscaleRetinaImages
+    @Default(.convertedImageBehaviour) var convertedImageBehaviour
 
     @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
     @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
@@ -255,6 +272,19 @@ struct ImagesSettingsView: View {
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToPNG.contains(format) }))
                     }
                 }
+                HStack {
+                    Text("Converted image location").regular(13).padding(.trailing, 10)
+                    Button("Temporary folder") {
+                        convertedImageBehaviour = .temporary
+                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .temporary }))
+                    Button("In-place (replace original)") {
+                        convertedImageBehaviour = .inPlace
+                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .inPlace }))
+                    Button("Same folder (as original)") {
+                        convertedImageBehaviour = .sameFolder
+                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .sameFolder }))
+                }
+
             }
 
         }.padding(4)
