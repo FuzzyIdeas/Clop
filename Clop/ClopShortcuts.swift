@@ -7,6 +7,7 @@
 
 import AppIntents
 import Foundation
+import Lowtech
 
 enum IntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
     case general
@@ -64,7 +65,7 @@ struct OptimiseFileIntent: AppIntent {
         } catch let error as ClopError {
             throw IntentError.message(error.description)
         } catch {
-            print(error)
+            log.error(error.localizedDescription)
             throw IntentError.message(error.localizedDescription)
         }
 
