@@ -101,10 +101,10 @@ extension NSPasteboard.PasteboardType {
 // MARK: - Image
 
 class Image: CustomStringConvertible {
-    init(data: Data, path: FilePath, type: UTType? = nil, optimised: Bool? = nil, retinaDownscaled: Bool) {
+    init(data: Data, path: FilePath, nsImage: NSImage? = nil, type: UTType? = nil, optimised: Bool? = nil, retinaDownscaled: Bool) {
         self.path = path
         self.data = data
-        image = NSImage(data: data)!
+        image = nsImage ?? NSImage(data: data)!
         self.type = type ?? image.type ?? UTType(filenameExtension: path.extension ?? "") ?? UTType(mimeType: path.fetchFileType() ?? "") ?? .png
         self.retinaDownscaled = retinaDownscaled
 
@@ -149,8 +149,8 @@ class Image: CustomStringConvertible {
         self.init(nsImage: nsImage, data: data, retinaDownscaled: retinaDownscaled)
     }
 
-    init?(nsImage: NSImage, data: Data? = nil, optimised: Bool? = nil, retinaDownscaled: Bool) {
-        guard let type = nsImage.type, let ext = type.preferredFilenameExtension,
+    init?(nsImage: NSImage, data: Data? = nil, type: UTType? = nil, optimised: Bool? = nil, retinaDownscaled: Bool) {
+        guard let type = type ?? nsImage.type, let ext = type.preferredFilenameExtension,
               let data = data ?? nsImage.data
         else { return nil }
 
@@ -272,26 +272,25 @@ class Image: CustomStringConvertible {
             throw ClopError.noClipboardImage(item.filePath ?? .init())
         }
 
-        if let imgURLString = item.string(forType: .fileURL),
-           let imgURL = URL(string: imgURLString), fm.fileExists(atPath: imgURL.path),
-           let img = Image(path: FilePath(imgURL.path), optimised: item.string(forType: .optimisationStatus) == "true", retinaDownscaled: false)
+        let optimised = item.string(forType: .optimisationStatus) == "true"
+        let (data, type): (Data?, UTType?) = [NSPasteboard.PasteboardType.png, .jpeg, .gif, .tiff].lazy.compactMap { t in
+            guard let d = item.data(forType: t) else {
+                return nil
+            }
+            return (d, UTType(t.rawValue))
+        }.first ?? (nil, nil)
+
+        if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: .images, force: true),
+           let img = Image(path: path, data: data, nsImage: nsImage, type: type, optimised: optimised, retinaDownscaled: false)
         {
             return img
         }
 
-        guard let img = Image(nsImage: nsImage, optimised: item.string(forType: .optimisationStatus) == "true", retinaDownscaled: false) else {
+        guard let img = Image(nsImage: nsImage, data: data, type: type, optimised: optimised, retinaDownscaled: false) else {
             throw ClopError.noClipboardImage(item.filePath ?? .init())
         }
 
         return img
-    }
-
-    func addExif(fromPath path: FilePath) {
-        let _ = shell(args: [EXIFTOOL, "-overwrite_original", "-TagsFromFile", path.string, self.path.string], wait: true)
-    }
-
-    func addExif(fromImage image: Image) {
-        let _ = shell(args: [EXIFTOOL, "-overwrite_original", "-TagsFromFile", image.path.string, path.string], wait: true)
     }
 
     func optimiseGIF(optimiser: Optimiser, resizeTo newSize: CGSize? = nil, scaleTo scaleFactor: Double? = nil, fromSize: CGSize? = nil, aggressiveOptimisation: Bool? = nil) throws -> Image {
@@ -524,7 +523,7 @@ class Image: CustomStringConvertible {
             guard let pbImage = Image(path: pathForResize.withSize(size), optimised: false, retinaDownscaled: retinaDownscaled) else {
                 throw ClopError.downscaleFailed(pathForResize)
             }
-            return try pbImage.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+            return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
         }
 
         guard let resized = image.resize(to: size), let data = resized.data(using: type.imgType)
@@ -535,7 +534,7 @@ class Image: CustomStringConvertible {
         fm.createFile(atPath: path.string, contents: data)
         let pbImage = Image(data: data, path: path, type: type, optimised: false, retinaDownscaled: retinaDownscaled)
 
-        return try pbImage.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+        return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
     }
 
     func optimise(optimiser: Optimiser, allowLarger: Bool = false, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
@@ -679,6 +678,9 @@ class Image: CustomStringConvertible {
         operation: "Optimising" + (aggressiveOptimisation ?? false ? " (aggressive)" : ""),
         hidden: hideFloatingResult
     )
+    optimiser.downscaleFactor = 1.0
+    optimiser.newSize = nil
+    optimiser.newBytes = -1
 
     var done = false
     var result: Image?

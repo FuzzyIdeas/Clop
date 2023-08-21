@@ -480,13 +480,15 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     return
                 }
                 OM.optimisers = OM.optimisers.filter { $0.id != self.id }
-                OM.removedOptimisers = OM.removedOptimisers.without(self).with(self)
+                if url != nil {
+                    OM.removedOptimisers = OM.removedOptimisers.without(self).with(self)
 
-                self.deleter = mainAsyncAfter(ms: 600_000) { [weak self] in
-                    guard let self else { return }
+                    self.deleter = mainAsyncAfter(ms: 600_000) { [weak self] in
+                        guard let self else { return }
 
-                    if OM.removedOptimisers.contains(self) {
-                        OM.removedOptimisers = OM.removedOptimisers.without(self)
+                        if OM.removedOptimisers.contains(self) {
+                            OM.removedOptimisers = OM.removedOptimisers.without(self)
+                        }
                     }
                 }
             }
