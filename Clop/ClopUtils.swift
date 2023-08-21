@@ -227,10 +227,12 @@ extension FilePath {
         if let excludeTags {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
-        let exifProc = shell("/usr/bin/perl5.30", args: [EXIFTOOL, "-overwrite_original"] + additionalArgs + ["-TagsFromFile", source.string, string], wait: true)
+        let args = [EXIFTOOL, "-overwrite_original", "-XResolution=72", "-YResolution=72"] + additionalArgs + ["-TagsFromFile", source.string, string]
+        let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
 
         #if DEBUG
-            debug("EXIFTOOL: out=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
+            debug(args.joined(separator: " "))
+            debug("\tout=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
         #endif
     }
 
