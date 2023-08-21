@@ -1,5 +1,5 @@
-Releases/Clop 2.0.0.dmg
 Clop/bin/ffmpeg
 *.dmg
 *.delta
 *.bkp
+Releases/*.html
