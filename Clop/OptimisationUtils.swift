@@ -112,7 +112,7 @@ class OptimiserProgressDelegate: NSObject, URLSessionDataDelegate {
     let optimiser: Optimiser
 
     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        debug("Finished downloading \(location.path)")
+        log.debug("Finished downloading \(location.path)")
     }
 
     func handleTask(_ task: URLSessionTask) {
@@ -211,6 +211,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     @Published var thumbnail: NSImage?
     @Published var originalURL: URL?
     @Published var startingURL: URL?
+    @Published var convertedFromURL: URL?
 
     @Published var downscaleFactor = 1.0
     @Published var aggresive = false
@@ -239,7 +240,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
     @Published var url: URL? {
         didSet {
-            print("URL set to \(url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
+            log.debug("URL set to \(url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
             if startingURL == nil {
                 startingURL = url
             }
@@ -381,18 +382,36 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         aggresive = false
         resetRemover()
 
+        let restore: (FilePath) -> Void = { path in
+            try? path.backupPath?.setOptimisationStatusXattr("original")
+            path.restore()
+        }
+
         let path: FilePath
-        if let startingURL, let startingPath = startingURL.existingFilePath, startingPath.backupPath?.exists ?? false {
+        if let convertedFromURL {
+            self.url = convertedFromURL
+            path = convertedFromURL.filePath
+
+            if path.backupPath?.exists ?? false {
+                restore(path)
+            }
+
+            if let startingPath = startingURL?.existingFilePath, startingPath != path, startingPath.stem == path.stem, startingPath.dir == path.dir {
+                try? startingPath.delete()
+            }
+        } else if let startingURL, startingURL.filePath.backupPath?.exists ?? false {
+            path = startingURL.filePath
             self.url = startingURL
-            startingPath.restore(force: true)
-            path = startingPath
+
+            restore(path)
         } else if let originalURL {
             self.url = originalURL
             path = originalURL.filePath
         } else {
-            url.filePath.restore()
             path = url.filePath
+            restore(path)
         }
+        self.oldBytes = path.fileSize() ?? self.oldBytes
         self.newBytes = -1
         self.newSize = nil
 
@@ -510,8 +529,14 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     @Published var optimisers: Set<Optimiser> = [] {
         didSet {
-            print("Removed optimisers: \(oldValue.subtracting(optimisers))")
-            print("Added optimisers: \(optimisers.subtracting(oldValue))")
+            let removed = oldValue.subtracting(optimisers)
+            let added = optimisers.subtracting(oldValue)
+            if !removed.isEmpty {
+                log.debug("Removed optimisers: \(removed)")
+            }
+            if !added.isEmpty {
+                log.debug("Added optimisers: \(added)")
+            }
         }
     }
 
@@ -532,6 +557,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         optimiser.running = true
         optimiser.hidden = hidden
         optimiser.progress.completedUnitCount = 0
+        optimiser.isOriginal = false
 
         if !OM.optimisers.contains(optimiser) {
             OM.optimisers = OM.optimisers.with(optimiser)
@@ -576,7 +602,7 @@ func tryAsync(_ action: @escaping () async throws -> Void) {
         do {
             try await action()
         } catch {
-            print(error)
+            log.error(error.localizedDescription)
         }
     }
 }

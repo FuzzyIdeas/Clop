@@ -87,18 +87,17 @@ class Video {
     }
 
     func optimise(optimiser: Optimiser, forceMP4: Bool = false, backup: Bool = true, resizeTo newSize: CGSize? = nil, originalPath: FilePath? = nil, aggressiveOptimisation: Bool? = nil) throws -> Video {
-        print("Optimising video \(path.string)")
+        log.debug("Optimising video \(path.string)")
         guard let name = path.lastComponent else {
-            err("No file name for path: \(path)")
+            log.error("No file name for path: \(path)")
             throw ClopError.fileNotFound(path)
         }
 
         path.waitForFile(for: 3)
         try path.setOptimisationStatusXattr("pending")
 
-        let outputPath = forceMP4 ? path.removingLastComponent().appending("\(name.stem).mp4") : path
+        let outputPath = forceMP4 ? FilePath.videos.appending("\(name.stem).mp4") : path
         var inputPath = originalPath ?? ((path == outputPath && backup) ? (path.backup(operation: .copy) ?? path) : path)
-        let tmpPath = FilePath.videos.appending(outputPath.name)
 
         var additionalArgs = [String]()
         if let size = newSize {
@@ -130,7 +129,7 @@ class Video {
         #else
             let encoderArgs = ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "20"] : [])
         #endif
-        let args = ["-y", "-i", inputPath.string] + encoderArgs + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", tmpPath.string]
+        let args = ["-y", "-i", inputPath.string] + encoderArgs + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         let proc = try tryProc(FFMPEG, args: args, tries: 3, captureOutput: true) { proc in
             mainActor {
@@ -142,16 +141,35 @@ class Video {
             throw ClopError.processError(proc)
         }
 
-        tmpPath.waitForFile(for: 2)
-        tmpPath.copyExif(from: path)
-        try? tmpPath.setOptimisationStatusXattr("true")
-        try tmpPath.move(to: outputPath, force: true)
+        outputPath.waitForFile(for: 2)
+        outputPath.copyExif(from: path)
+        try? outputPath.setOptimisationStatusXattr("true")
 
         if Defaults[.capVideoFPS], let fps, let new = newFPS, new > fps {
             newFPS = fps
         }
         let metadata = VideoMetadata(resolution: newSize ?? size ?? .zero, fps: newFPS ?? fps ?? 0)
-        return Video(path: outputPath, metadata: metadata, convertedFrom: forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil)
+        let convertedFrom = forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil
+        var newVideo = Video(path: outputPath, metadata: metadata, convertedFrom: convertedFrom)
+
+        if let convertedFrom {
+            let behaviour = Defaults[.convertedVideoBehaviour]
+            if behaviour == .inPlace {
+                convertedFrom.path.backup(force: true, operation: .move)
+            }
+            if behaviour != .temporary {
+                let path = try newVideo.path.copy(to: convertedFrom.path.dir, force: true)
+                mainActor {
+                    optimiser.convertedFromURL = convertedFrom.path.url
+                }
+                newVideo = Video(path: path, metadata: metadata, convertedFrom: convertedFrom)
+            }
+        }
+        mainActor {
+            optimiser.url = newVideo.path.url
+        }
+
+        return newVideo
     }
 }
 
@@ -246,7 +264,7 @@ var processTerminated = Set<pid_t>()
 
     }
 
-    print("\(event.path): \(flag)")
+    log.debug("\(event.path): \(flag)")
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
@@ -308,16 +326,16 @@ var processTerminated = Set<pid_t>()
                 }
             } catch let ClopError.processError(proc) {
                 if proc.terminated {
-                    debug("Process terminated by us: \(proc.commandLine)")
+                    log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
-                    err("Error optimising video \(pathString): \(proc.commandLine)")
+                    log.error("Error optimising video \(pathString): \(proc.commandLine)")
                     optimiser.finish(error: "Optimisation failed")
                 }
             } catch let error as ClopError {
-                err("Error optimising video \(pathString): \(error.description)")
+                log.error("Error optimising video \(pathString): \(error.description)")
                 mainActor { optimiser.finish(error: error.humanDescription) }
             } catch {
-                err("Error optimising video \(pathString): \(error)")
+                log.error("Error optimising video \(pathString): \(error)")
                 mainActor { optimiser.finish(error: "Optimisation failed") }
             }
         }
@@ -385,24 +403,25 @@ var processTerminated = Set<pid_t>()
             }
 
             mainActor {
+                optimiser.url = optimisedVideo.path.url
                 OM.current = optimiser
                 optimiser.finish(oldBytes: oldFileSize, newBytes: optimisedVideo.fileSize, oldSize: resolution, newSize: newSize, removeAfterMs: hideFilesAfter)
                 result = optimisedVideo
             }
         } catch let ClopError.processError(proc) {
             if proc.terminated {
-                debug("Process terminated by us: \(proc.commandLine)")
+                log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
-                err("Error downscaling video \(pathString): \(proc.commandLine)")
+                log.error("Error downscaling video \(pathString): \(proc.commandLine)")
                 mainActor {
                     optimiser.finish(error: "Downscaling failed")
                 }
             }
         } catch let error as ClopError {
-            err("Error downscaling video \(pathString): \(error.description)")
+            log.error("Error downscaling video \(pathString): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }
         } catch {
-            err("Error downscaling video \(pathString): \(error)")
+            log.error("Error downscaling video \(pathString): \(error)")
             mainActor { optimiser.finish(error: "Optimisation failed") }
         }
     }

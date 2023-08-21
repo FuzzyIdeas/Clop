@@ -157,7 +157,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
     let itemsToOptimise = DM.itemsToOptimise
     let itemProvidersCount = itemProviders.count
     itemProviders.forEach { itemProvider in
-        print("itemProvider", itemProvider.registeredTypeIdentifiers)
+        log.debug("Dropped itemProvider types: \(itemProvider.registeredTypeIdentifiers)")
 
         for identifier in itemProvider.registeredTypeIdentifiers {
             switch identifier {
