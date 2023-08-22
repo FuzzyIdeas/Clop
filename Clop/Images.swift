@@ -231,18 +231,6 @@ class Image: CustomStringConvertible {
         pasteboardItem.types.contains(where: { $0.rawValue.contains("raw-image") })
     }
 
-    class func fromCommandLine() throws -> Image {
-        let impath = CommandLine.arguments[1]
-        guard fm.fileExists(atPath: impath) else {
-            throw ClopError.fileNotFound(FilePath(impath))
-        }
-
-        guard let data = fm.contents(atPath: impath), NSImage(data: data) != nil else {
-            throw ClopError.fileNotImage(FilePath(impath))
-        }
-        return Image(data: data, path: FilePath(impath), retinaDownscaled: false)
-    }
-
     class func fromPasteboard(item: NSPasteboardItem? = nil, anyType: Bool = false) throws -> Image {
         let pb = NSPasteboard.general
         guard let item = item ?? pb.pasteboardItems?.first else {
@@ -659,6 +647,10 @@ class Image: CustomStringConvertible {
     var allowLarger = allowLarger
     var originalPath: FilePath?
     let applyConversionBehaviour: (Image, Image) throws -> Image = { img, converted in
+        guard img.path.dir != FilePath.images else {
+            return converted
+        }
+
         let behaviour = Defaults[.convertedImageBehaviour]
         if behaviour == .inPlace {
             img.path.backup(force: true, operation: .move)
@@ -727,10 +719,10 @@ class Image: CustomStringConvertible {
                 if shouldDownscale {
                     img.retinaDownscaled = true
                     mainActor { optimiser.retinaDownscaled = true }
-                    optimisedImage = try img.resize(toFraction: (1.0 / img.pixelScale).d, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: id == Optimiser.IDs.clipboardImage)
+                    optimisedImage = try img.resize(toFraction: (1.0 / img.pixelScale).d, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])
                     mainActor { optimiser.downscaleFactor = (1.0 / img.pixelScale).d }
                 } else {
-                    optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: id == Optimiser.IDs.clipboardImage)
+                    optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])
                 }
                 if optimisedImage!.type == img.type {
                     try optimisedImage!.path.copy(to: img.path, force: true)
@@ -826,7 +818,7 @@ class Image: CustomStringConvertible {
             OM.current = optimiser
         }
         do {
-            let resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: id == Optimiser.IDs.clipboardImage)
+            let resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
             if id != Optimiser.IDs.clipboardImage, resized.type == img.type {
                 try resized.path.copy(to: savePath ?? img.path, force: true)
             } else {
