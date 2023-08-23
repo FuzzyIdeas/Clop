@@ -11,7 +11,7 @@ ifeq (, $(VERSION))
 VERSION=$(shell rg -o --no-filename 'MARKETING_VERSION = ([^;]+).+' -r '$$1' *.xcodeproj/project.pbxproj | head -1)
 endif
 
-ifeq (beta, $(BETA))
+ifneq (, $(BETA))
 FULL_VERSION:=$(VERSION)b$(BETA)
 else
 FULL_VERSION:=$(VERSION)
