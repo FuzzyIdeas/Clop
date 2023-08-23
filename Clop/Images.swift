@@ -261,20 +261,17 @@ class Image: CustomStringConvertible {
         }
 
         let optimised = item.string(forType: .optimisationStatus) == "true"
-        let (data, type): (Data?, UTType?) = [NSPasteboard.PasteboardType.png, .jpeg, .gif, .tiff].lazy.compactMap { t in
-            guard let d = item.data(forType: t) else {
-                return nil
-            }
-            return (d, UTType(t.rawValue))
-        }.first ?? (nil, nil)
+        let data: Data? = [NSPasteboard.PasteboardType.png, .jpeg, .gif, .tiff].lazy.compactMap { t in
+            item.data(forType: t)
+        }.first
 
         if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: .images, force: true),
-           let img = Image(path: path, data: data, nsImage: nsImage, type: type, optimised: optimised, retinaDownscaled: false)
+           let img = Image(path: path, data: data, nsImage: nsImage, optimised: optimised, retinaDownscaled: false)
         {
             return img
         }
 
-        guard let img = Image(nsImage: nsImage, data: data, type: type, optimised: optimised, retinaDownscaled: false) else {
+        guard let img = Image(nsImage: nsImage, data: data, optimised: optimised, retinaDownscaled: false) else {
             throw ClopError.noClipboardImage(item.filePath ?? .init())
         }
 
