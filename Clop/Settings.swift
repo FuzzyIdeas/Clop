@@ -65,12 +65,18 @@ public extension Defaults.Keys {
     static let useAggresiveOptimisationJPEG = Key<Bool>("useAggresiveOptimisationJPEG", default: false)
     static let useAggresiveOptimisationPNG = Key<Bool>("useAggresiveOptimisationPNG", default: false)
     static let useAggresiveOptimisationGIF = Key<Bool>("useAggresiveOptimisationGIF", default: false)
+    static let useAggresiveOptimisationPDF = Key<Bool>("useAggresiveOptimisationPDF", default: true)
 
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
+    static let pdfDirs = Key<[String]>("pdfDirs", default: [])
 
     static let maxVideoSizeMB = Key<Int>("maxVideoSizeMB", default: 500)
     static let maxImageSizeMB = Key<Int>("maxImageSizeMB", default: 50)
+    static let maxPDFSizeMB = Key<Int>("maxPDFSizeMB", default: 100)
+    static let maxVideoFileCount = Key<Int>("maxVideoFileCount", default: 1)
+    static let maxImageFileCount = Key<Int>("maxImageFileCount", default: 4)
+    static let maxPDFFileCount = Key<Int>("maxPDFFileCount", default: 2)
     static let imageFormatsToSkip = Key<Set<UTType>>("imageFormatsToSkip", default: [.tiff])
     static let videoFormatsToSkip = Key<Set<UTType>>("videoFormatsToSkip", default: [UTType.mkv, UTType.m4v].compactMap { $0 }.set)
     static let adaptiveVideoSize = Key<Bool>("adaptiveVideoSize", default: true)

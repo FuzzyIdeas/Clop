@@ -62,3 +62,8 @@ ifneq (, $(BETA))
 else
 	pandoc -f gfm -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css ReleaseNotes/$(VERSION).md
 endif
+
+Clop/bin-%.tar.xz: $(wildcard Clop/bin-%/*)
+	cd Clop/bin-$*/; tar acvf ../bin-$*.tar.xz *
+	sha256sum Clop/bin-$*.tar.xz | cut -d' ' -f1 > Clop/bin-$*.tar.xz.sha256
+bin: Clop/bin-arm64.tar.xz Clop/bin-x86.tar.xz

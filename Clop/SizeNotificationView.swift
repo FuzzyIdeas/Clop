@@ -129,7 +129,7 @@ struct DropZoneView: View {
         .padding()
         .fixedSize()
         .if(enableDragAndDrop) {
-            $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile], isTargeted: $dragManager.dragHovering.animation(.jumpySpring)) { itemProviders in
+            $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], isTargeted: $dragManager.dragHovering.animation(.jumpySpring)) { itemProviders in
                 dragManager.dropped = true
                 if dragManager.optimisationCount == 2 {
                     dragManager.optimisationCount += 1
@@ -168,6 +168,13 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                     }
                     try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive)
                 }
+            case UTType.pdf.identifier:
+                tryAsync {
+                    guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
+                        return
+                    }
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive)
+                }
             case IMAGE_FORMATS.map(\.identifier):
                 tryAsync {
                     let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier)
@@ -175,7 +182,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                     let data = item as? Data
                     let nsImage = item as? NSImage ?? (data != nil ? NSImage(data: data!) : nil)
 
-                    if path == nil, data == nil, nsImage == nil, itemProvidersCount == 1, let item = itemsToOptimise.first {
+                    if path == nil, data == nil, nsImage == nil, itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
                         try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
                         return
                     }
@@ -192,7 +199,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
             case VIDEO_FORMATS.map(\.identifier):
                 tryAsync {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
-                        if itemProvidersCount == 1, let item = itemsToOptimise.first {
+                        if itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
                             try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
                         }
                         return
@@ -239,7 +246,7 @@ extension NSSecureCoding {
 
 @MainActor
 func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil) async throws {
-    guard let path = item?.existingFilePath, path.isImage || path.isVideo else {
+    guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF else {
         return
     }
     try await proGuard(count: &DM.optimisationCount, limit: 2, url: path.url) {
@@ -258,14 +265,14 @@ struct SizeNotificationContainer: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            if dragManager.dragging {
+            ForEach(om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse).prefix(9)) { optimiser in
+                SizeNotificationView(optimiser: optimiser, isPreview: isPreview, linear: om.optimisers.count > 1)
+            }
+            if !isPreview, dragManager.dragging {
                 DropZoneView()
                     .transition(
                         .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
                     )
-            }
-            ForEach(om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse).prefix(9)) { optimiser in
-                SizeNotificationView(optimiser: optimiser, isPreview: isPreview, linear: om.optimisers.count > 1)
             }
         }.onHover { hovering in
             if !hovering {
@@ -403,7 +410,11 @@ struct SizeNotificationView: View {
                 SwiftUI.Image(systemName: "arrow.right")
                 Text(optimiser.newBytes.humanSize)
                     .mono(13, weight: .semibold)
-                    .foregroundColor(optimiser.newBytes < optimiser.oldBytes ? paleYellow : Color.red)
+                    .foregroundColor(
+                        optimiser.newBytes < optimiser.oldBytes
+                            ? (optimiser.thumbnail != nil && showImages ? paleYellow : Color.blue)
+                            : Color.red
+                    )
             }
         }
         .lineLimit(1)
@@ -500,7 +511,7 @@ struct SizeNotificationView: View {
                             .minimumScaleFactor(0.8)
                             .frame(maxWidth: 200, alignment: .leading)
                         Spacer(minLength: 20)
-                        SwiftUI.Image(systemName: optimiser.type.isVideo ? "video" : "photo")
+                        SwiftUI.Image(systemName: optimiser.type.isVideo ? "video" : (optimiser.type.isPDF ? "doc" : "photo"))
                     }
                     .font(.semibold(14)).lineLimit(1).fixedSize().opacity(0.8)
                     .padding(.bottom, 4)
@@ -606,7 +617,7 @@ struct SizeNotificationView: View {
             HStack {
                 closeStopButton
                 Spacer()
-                SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : "photo.fill")
+                SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
                     .font(.bold(11))
                     .foregroundColor(.grayMauve)
                     .padding(3)

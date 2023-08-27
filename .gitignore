@@ -1,4 +1,5 @@
-Clop/bin/ffmpeg
+Clop/bin/*
+Clop/bin-*/*
 *.dmg
 *.delta
 *.bkp

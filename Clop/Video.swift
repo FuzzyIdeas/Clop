@@ -8,14 +8,12 @@ import Lowtech
 import System
 import UniformTypeIdentifiers
 
-let FFMPEG = Bundle.main.url(forResource: "ffmpeg", withExtension: nil)!.path
-// let MEDIAINFO = Bundle.main.url(forResource: "mediainfo", withExtension: nil)!.path
+let FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").existingFilePath!
 
-class Video {
+class Video: Optimisable {
     init(path: FilePath, metadata: VideoMetadata? = nil, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) {
-        self.path = path
+        super.init(path, thumb: thumb, id: id)
         self.convertedFrom = convertedFrom
-        self.id = id
 
         if let fileSize {
             self.fileSize = fileSize
@@ -29,16 +27,9 @@ class Video {
                 await MainActor.run { optimiser?.oldSize = self.size }
             }
         }
-        if thumb {
-            mainActor { self.fetchThumbnail() }
-        }
     }
 
-    let path: FilePath
-    lazy var fileSize: Int = path.fileSize() ?? 0
     var convertedFrom: Video?
-    let id: String?
-
     var metadata: VideoMetadata?
 
     var size: CGSize? { metadata?.resolution }
@@ -46,10 +37,6 @@ class Video {
     var fps: Float? {
         guard let fps = metadata?.fps, fps > 0 else { return nil }
         return fps
-    }
-
-    @MainActor var optimiser: Optimiser? {
-        OM.optimisers.first(where: { $0.id == id ?? path.string })
     }
 
     static func byFetchingMetadata(path: FilePath, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) async throws -> Video? {
@@ -75,16 +62,6 @@ class Video {
             return (size?.area.i ?? Int.max) < (1920 * 1080) || (metadata?.duration ?? 999_999) < 10 || fileSize < 5_000_000
         }
     #endif
-
-    @MainActor
-    func fetchThumbnail() {
-        generateThumbnail(for: path.url, size: THUMB_SIZE) { [weak self] thumb in
-            guard let self, let optimiser else {
-                return
-            }
-            optimiser.thumbnail = NSImage(cgImage: thumb.cgImage, size: .zero)
-        }
-    }
 
     func optimise(optimiser: Optimiser, forceMP4: Bool = false, backup: Bool = true, resizeTo newSize: CGSize? = nil, originalPath: FilePath? = nil, aggressiveOptimisation: Bool? = nil) throws -> Video {
         log.debug("Optimising video \(path.string)")
@@ -131,7 +108,7 @@ class Video {
         #endif
         let args = ["-y", "-i", inputPath.string] + encoderArgs + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
-        let proc = try tryProc(FFMPEG, args: args, tries: 3, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 3, captureOutput: true) { proc in
             mainActor {
                 optimiser.processes = [proc]
                 updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: inputPath.url, optimiser: optimiser)
@@ -255,6 +232,13 @@ extension Int64 {
 
 var processTerminated = Set<pid_t>()
 
+@MainActor func cancelVideoOptimisation(path: FilePath) {
+    videoOptimiseDebouncers[path.string]?.cancel()
+    videoOptimiseDebouncers.removeValue(forKey: path.string)
+
+    opt(path.string)?.stop(animateRemoval: false)
+}
+
 @MainActor func shouldHandleVideo(event: EonilFSEventsEvent) -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
@@ -264,7 +248,7 @@ var processTerminated = Set<pid_t>()
 
     }
 
-    log.debug("\(event.path): \(flag)")
+    log.debug("\(path.shellString): \(flag)")
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
@@ -308,7 +292,7 @@ var processTerminated = Set<pid_t>()
 
                 let oldFileSize = video.fileSize
                 let optimisedVideo = try video.optimise(optimiser: optimiser, forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie), aggressiveOptimisation: aggressiveOptimisation)
-                if optimisedVideo.convertedFrom == nil, optimisedVideo.fileSize > video.fileSize, !allowLarger {
+                if optimisedVideo.convertedFrom == nil, optimisedVideo.fileSize >= video.fileSize, !allowLarger {
                     video.path.restore(force: true)
                     mainAsync {
                         optimiser.oldBytes = oldFileSize

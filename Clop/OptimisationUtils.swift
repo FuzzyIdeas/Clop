@@ -15,6 +15,7 @@ import System
 enum ItemType {
     case image(UTType)
     case video(UTType)
+    case pdf
     case url
     case unknown
 
@@ -24,6 +25,8 @@ enum ItemType {
             return uTType.preferredFilenameExtension
         case let .video(uTType):
             return uTType.preferredFilenameExtension
+        case .pdf:
+            return "pdf"
         case .url:
             return nil
         case .unknown:
@@ -49,6 +52,15 @@ enum ItemType {
         }
     }
 
+    var isPDF: Bool {
+        switch self {
+        case .pdf:
+            return true
+        default:
+            return false
+        }
+    }
+
     var isURL: Bool {
         switch self {
         case .url:
@@ -64,6 +76,8 @@ enum ItemType {
             return utType
         case let .video(utType):
             return utType
+        case .pdf:
+            return .pdf
         case .url:
             return nil
         case .unknown:
@@ -77,6 +91,8 @@ enum ItemType {
             return .image(UTType(mimeType: mimeType)!)
         case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg":
             return .video(UTType(mimeType: mimeType)!)
+        case "application/pdf":
+            return .pdf
         case "text/html":
             return .url
         default:
@@ -93,6 +109,8 @@ enum ItemType {
             return .image(UTType(mimeType: fileType)!)
         case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg":
             return .video(UTType(mimeType: fileType)!)
+        case "application/pdf":
+            return .pdf
         case "text/html":
             return .url
         default:
@@ -625,6 +643,13 @@ let videoOptimisationQueue: OperationQueue = {
     q.underlyingQueue = DispatchQueue.global()
     return q
 }()
+let pdfOptimisationQueue: OperationQueue = {
+    let q = OperationQueue()
+    q.maxConcurrentOperationCount = 4
+    q.underlyingQueue = DispatchQueue.global()
+    return q
+}()
+var pdfOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 var videoOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 var imageOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 var imageResizeDebouncers: [String: DispatchWorkItem] = [:]
@@ -710,6 +735,13 @@ func optimiseURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: 
 
             guard let result else { return nil }
             return .file(result.path)
+
+        case .pdf:
+            let result: PDF? = try await optimisePDF(PDF(downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+
+            guard let result else { return nil }
+            return .file(result.path)
+
         default:
             return nil
         }
@@ -728,7 +760,7 @@ func optimiseURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: 
 
 let BASE64_PREFIX = #/(url\()?data:image/[^;]+;base64,/#
 
-enum ClipboardType {
+enum ClipboardType: Equatable {
     case image(Image)
     case file(FilePath)
     case url(URL)
@@ -741,6 +773,10 @@ enum ClipboardType {
         case let .url(url): return url.path
         case .unknown: return ""
         }
+    }
+
+    static func == (lhs: ClipboardType, rhs: ClipboardType) -> Bool {
+        lhs.id == rhs.id
     }
 
     static func fromString(_ str: String) -> ClipboardType {
@@ -764,6 +800,10 @@ enum ClipboardType {
     static func lastItem() -> ClipboardType {
         guard let item = NSPasteboard.general.pasteboardItems?.first else {
             return .unknown
+        }
+
+        if let path = item.string(forType: .fileURL)?.trimmedPath.url?.filePath ?? item.string(forType: .string)?.trimmedPath.existingFilePath, path.isPDF || path.isVideo {
+            return .file(path)
         }
 
         if let img = try? Image.fromPasteboard(anyType: true) {
@@ -908,6 +948,16 @@ var manualOptimisationCount = 0
                 } else {
                     return try await optimiseVideo(Video(path: path), allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 }
+            }
+            guard let result else { return nil }
+            return .file(result.path)
+        } else if path.isPDF {
+            guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
+                nope("Already optimised")
+                throw ClopError.alreadyOptimised(path)
+            }
+            let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
+                try await optimisePDF(PDF(path), allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
             guard let result else { return nil }
             return .file(result.path)
