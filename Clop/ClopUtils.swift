@@ -76,6 +76,7 @@ enum ClopError: Error, CustomStringConvertible {
     case skippedType(String)
     case imageSizeLarger(FilePath)
     case videoSizeLarger(FilePath)
+    case pdfSizeLarger(FilePath)
     case videoError(String)
     case downloadError(String)
     case optimisationPaused(FilePath)
@@ -102,6 +103,8 @@ enum ClopError: Error, CustomStringConvertible {
             return "Optimised image size is larger: \(p)"
         case let .videoSizeLarger(p):
             return "Optimised video size is larger: \(p)"
+        case let .pdfSizeLarger(p):
+            return "Optimised PDF size is larger: \(p)"
         case let .unknownImageType(p):
             return "Unknown image type: \(p)"
         case let .videoError(string):
@@ -150,6 +153,8 @@ enum ClopError: Error, CustomStringConvertible {
             return "Already optimised"
         case .videoSizeLarger:
             return "Already optimised"
+        case .pdfSizeLarger:
+            return "Already optimised"
         case .unknownImageType:
             return "Unknown image type"
         case .processError:
@@ -190,6 +195,7 @@ extension URL {
 
     var isImage: Bool { hasExtension(from: IMAGE_EXTENSIONS) }
     var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
+    var isPDF: Bool { hasExtension(from: ["pdf"]) }
 
     func hasExtension(from exts: [String]) -> Bool {
         exts.contains((pathExtension.split(separator: "@").last?.s ?? pathExtension).lowercased())
@@ -200,9 +206,11 @@ extension URL {
 extension FilePath {
     var isImage: Bool { hasExtension(from: IMAGE_EXTENSIONS) }
     var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
+    var isPDF: Bool { hasExtension(from: ["pdf"]) }
 
     static var videos = FilePath.dir("/tmp/clop/videos")
     static var images = FilePath.dir("/tmp/clop/images")
+    static var pdfs = FilePath.dir("/tmp/clop/pdfs")
     static var conversions = FilePath.dir("/tmp/clop/conversions")
     static var downloads = FilePath.dir("/tmp/clop/downloads")
     static var forResize = FilePath.dir("/tmp/clop/for-resize")
@@ -227,7 +235,7 @@ extension FilePath {
         if let excludeTags, excludeTags.isNotEmpty {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
-        let args = [EXIFTOOL, "-overwrite_original", "-XResolution=72", "-YResolution=72"] + additionalArgs + ["-tagsFromFile", source.string, string]
+        let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"] + additionalArgs + ["-tagsFromFile", source.string, string]
         let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
 
         #if DEBUG
@@ -356,4 +364,21 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
         proc.waitUntilExit()
     }
     return proc
+}
+
+let ARCH = NSRunningApplication.current.executableArchitecture == NSBundleExecutableArchitectureARM64 ? "arm64" : "x86"
+let BIN_ARCHIVE = Bundle.main.url(forResource: "bin-\(ARCH)", withExtension: "tar.xz")! // /Applications/Clop.app/Contents/Resources/bin-arm64.tar.xz
+let BIN_ARCHIVE_HASH_PATH = Bundle.main.url(forResource: "bin-\(ARCH)", withExtension: "tar.xz.sha256")! // /Applications/Clop.app/Contents/Resources/bin-arm64.tar.xz.sha256
+let BIN_DIR = fm.urls(for: .cachesDirectory, in: .userDomainMask).first!.appendingPathComponent("Clop/bin-\(ARCH)") // ~/Library/Caches/Clop/bin-arm64
+let BIN_ARCHIVE_HASH = fm.contents(atPath: BIN_ARCHIVE_HASH_PATH.path)! // f62955f10479b7df4d516f8a714290f2402faaf8960c6c44cae3dfc68f45aabd
+let BIN_HASH_FILE = BIN_DIR.appendingPathComponent("sha256hash") // ~/Library/Caches/Clop/bin-arm64/sha256hash
+
+func unarchiveBinaries() {
+    if !fm.fileExists(atPath: BIN_DIR.path) {
+        try! fm.createDirectory(at: BIN_DIR, withIntermediateDirectories: true, attributes: nil)
+    }
+    if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
+        let _ = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", BIN_DIR.path], wait: true)
+        fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
+    }
 }

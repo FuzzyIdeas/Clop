@@ -28,6 +28,7 @@ class AppDelegate: LowtechProAppDelegate {
 
     var videoWatcher: FileOptimisationWatcher?
     var imageWatcher: FileOptimisationWatcher?
+    var pdfWatcher: FileOptimisationWatcher?
 
     @MainActor var swipeEnded = true
 
@@ -38,6 +39,8 @@ class AppDelegate: LowtechProAppDelegate {
             DM.dragging = dragging
             if !dragging {
                 DM.dropped = true
+            } else {
+                showFloatingThumbnails(force: true)
             }
         }
     }
@@ -56,58 +59,46 @@ class AppDelegate: LowtechProAppDelegate {
         DM.dropped = false
         self.lastDragChangeCount = drag.changeCount
 
+        guard let items = drag.pasteboardItems, !items.contains(where: { $0.types.set.hasElements(from: [.promise, .promisedFileName, .promisedFileURL, .promisedSuggestedFileName, .promisedMetadata]) }) else {
+            DM.itemsToOptimise = []
+            self.draggingSet.send(true)
+            return
+        }
+
         #if DEBUG
-            drag.pasteboardItems?.forEach { item in
+            items.forEach { item in
                 item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
                     print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
                 }
             }
         #endif
 
-        let toOptimise: [ClipboardType] = drag.pasteboardItems?.compactMap { item -> ClipboardType? in
+        let toOptimise: [ClipboardType] = items.compactMap { item -> ClipboardType? in
             let types = item.types
             if types.contains(.fileURL), let url = item.string(forType: .fileURL)?.url,
-               let path = url.existingFilePath, path.isImage || path.isVideo
+               let path = url.existingFilePath, path.isImage || path.isVideo || path.isPDF
             {
                 return .file(path)
             }
 
-            if let str = item.string(forType: .string), let path = str.existingFilePath, path.isImage || path.isVideo {
+            if let str = item.string(forType: .string), let path = str.existingFilePath, path.isImage || path.isVideo || path.isPDF {
                 return .file(path)
             }
 
-            if types.contains(.promise), let type = item.string(forType: .promise), let utType = UTType(type), IMAGE_VIDEO_FORMATS.contains(utType) {
-                if let url = item.string(forType: .URL)?.url {
-                    return .url(url)
-                }
-                if let path = item.string(forType: .fileURL)?.url?.existingFilePath ?? item.string(forType: .promisedFileURL)?.url?.filePath {
-                    return .file(path)
-                }
-                if let fileName = item.string(forType: .promisedFileName) ?? item.string(forType: .promisedSuggestedFileName), fileName.isNotEmpty {
-                    return .file(fm.temporaryDirectory.appendingPathComponent("_promise_\(fileName)", conformingTo: utType).filePath)
-                }
-                return .file(FilePath.tmp)
-            }
-
-            if types.contains(.URL), let url = item.string(forType: .URL)?.url ?? item.string(forType: .string)?.url, url.isImage || url.isVideo {
+            if types.contains(.URL), let url = item.string(forType: .URL)?.url ?? item.string(forType: .string)?.url, url.isImage || url.isVideo || url.isPDF {
                 return .url(url)
             }
 
-            if types.set.hasElements(from: IMAGE_VIDEO_PASTEBOARD_TYPES) {
-                for type in IMAGE_VIDEO_PASTEBOARD_TYPES {
-                    guard let data = item.data(forType: type), let image = Image(data: data, retinaDownscaled: false) else {
-                        continue
-                    }
-                    return .image(image)
-                }
+            if types.set.hasElements(from: IMAGE_VIDEO_PASTEBOARD_TYPES) || types.contains(.pdf) {
+                return .file(FilePath.tmp)
             }
 
-            if let str = item.string(forType: .string), let url = str.url, url.isImage || url.isVideo {
+            if let str = item.string(forType: .string), let url = str.url, url.isImage || url.isVideo || url.isPDF {
                 return .url(url)
             }
 
             return nil
-        } ?? []
+        }
 
         guard toOptimise.isNotEmpty else {
             DM.itemsToOptimise = []
@@ -116,7 +107,6 @@ class AppDelegate: LowtechProAppDelegate {
 
         DM.itemsToOptimise = toOptimise
         self.draggingSet.send(true)
-        showFloatingThumbnails()
     }
     @MainActor lazy var mouseUpMonitor = GlobalEventMonitor(mask: [.leftMouseUp]) { event in
         self.draggingSet.send(false)
@@ -135,6 +125,7 @@ class AppDelegate: LowtechProAppDelegate {
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
+            unarchiveBinaries()
             print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
             shouldRestartOnCrash = true
 
@@ -333,16 +324,22 @@ class AppDelegate: LowtechProAppDelegate {
     }
 
     @MainActor func initOptimisers() {
-        videoWatcher = FileOptimisationWatcher(paths: Defaults[.videoDirs], key: .videoDirs, shouldHandle: shouldHandleVideo(event:)) { event in
+        videoWatcher = FileOptimisationWatcher(pathsKey: .videoDirs, maxFilesToHandleKey: .maxVideoFileCount, shouldHandle: shouldHandleVideo(event:), cancel: cancelImageOptimisation(path:)) { event in
             let video = Video(path: FilePath(event.path))
             Task.init {
                 try? await optimiseVideo(video, debounceMS: 200)
             }
         }
-        imageWatcher = FileOptimisationWatcher(paths: Defaults[.imageDirs], key: .imageDirs, shouldHandle: shouldHandleImage(event:)) { event in
+        imageWatcher = FileOptimisationWatcher(pathsKey: .imageDirs, maxFilesToHandleKey: .maxImageFileCount, shouldHandle: shouldHandleImage(event:), cancel: cancelVideoOptimisation(path:)) { event in
             guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
                 try? await optimiseImage(img, debounceMS: 200)
+            }
+        }
+        pdfWatcher = FileOptimisationWatcher(pathsKey: .pdfDirs, maxFilesToHandleKey: .maxPDFFileCount, shouldHandle: shouldHandlePDF(event:), cancel: cancelPDFOptimisation(path:)) { event in
+            guard let path = event.path.existingFilePath else { return }
+            Task.init {
+                try? await optimisePDF(PDF(path), debounceMS: 200)
             }
         }
 
@@ -413,28 +410,61 @@ var statusItem: NSStatusItem? {
 
 @MainActor
 class FileOptimisationWatcher {
-    init(paths: [String], key: Defaults.Key<[String]>? = nil, shouldHandle: @escaping (EonilFSEventsEvent) -> Bool, handler: @escaping (EonilFSEventsEvent) -> Void) {
-        self.paths = paths
-        self.key = key
+    init(pathsKey: Defaults.Key<[String]>, maxFilesToHandleKey: Defaults.Key<Int>, shouldHandle: @escaping (EonilFSEventsEvent) -> Bool, cancel: @escaping (FilePath) -> Void, handler: @escaping (EonilFSEventsEvent) -> Void) {
+        self.pathsKey = pathsKey
+        self.maxFilesToHandleKey = maxFilesToHandleKey
         self.shouldHandle = shouldHandle
+        self.cancel = cancel
         self.handler = handler
 
-        guard let key else { return }
-        pub(key).sink { change in
-            self.paths = change.newValue
-            self.startWatching()
+        pub(pathsKey).sink { [weak self] change in
+            self?.paths = change.newValue
+            self?.startWatching()
+        }.store(in: &observers)
+        pub(maxFilesToHandleKey).sink { [weak self] change in
+            self?.maxFilesToHandle = change.newValue
         }.store(in: &observers)
 
         startWatching()
     }
 
+    deinit {
+        guard watching else { return }
+        EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+    }
+
     var watching = false
-    var paths: [String] = []
-    var key: Defaults.Key<[String]>?
-    var handler: (EonilFSEventsEvent) -> Void = { _ in }
-    var shouldHandle: (EonilFSEventsEvent) -> Bool = { _ in false }
+
+    var pathsKey: Defaults.Key<[String]>
+    lazy var paths: [String] = Defaults[pathsKey]
+
+    var maxFilesToHandleKey: Defaults.Key<Int>
+    lazy var maxFilesToHandle: Int = Defaults[maxFilesToHandleKey]
+
+    var handler: (EonilFSEventsEvent) -> Void
+    var cancel: (FilePath) -> Void
+    var shouldHandle: (EonilFSEventsEvent) -> Bool
 
     var observers = Set<AnyCancellable>()
+    var justAddedFiles = Set<FilePath>()
+    var cancelledFiles = Set<FilePath>()
+    var addedFileRemovers = [FilePath: DispatchWorkItem]()
+
+    var addedFilesCleaner: DispatchWorkItem? {
+        didSet {
+            oldValue?.cancel()
+        }
+    }
+
+    func isAddedFile(event: EonilFSEventsEvent) -> Bool {
+        guard let flag = event.flag, let path = event.path.existingFilePath, let stem = path.stem, !stem.starts(with: ".") else {
+            return false
+        }
+
+        return flag.isDisjoint(with: [.historyDone, .itemRemoved]) &&
+            flag.contains(.itemIsFile) &&
+            flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified])
+    }
 
     func startWatching() {
         if watching {
@@ -447,9 +477,41 @@ class FileOptimisationWatcher {
         try! EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
             guard !SWIFTUI_PREVIEW else { return }
 
-            mainActor {
+            mainAsync { [weak self] in
+                guard let self, self.isAddedFile(event: event), let path = event.path.existingFilePath else {
+                    return
+                }
+
+                justAddedFiles.insert(path)
+                addedFileRemovers[path]?.cancel()
+                addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
+                    self?.justAddedFiles.remove(path)
+                    self?.addedFileRemovers.removeValue(forKey: path)
+                }
+            }
+
+            mainActor { [weak self] in
+                guard let self else { return }
                 guard self.shouldHandle(event) else { return }
-                Task.init {
+
+                guard self.justAddedFiles.count <= self.maxFilesToHandle else {
+                    log.debug("More than \(self.maxFilesToHandle) files dropped (\(self.justAddedFiles.count))")
+                    for path in self.justAddedFiles.subtracting(self.cancelledFiles) {
+                        log.debug("Cancelling optimisation on \(path)")
+                        self.cancel(path)
+                        self.cancelledFiles.insert(path)
+                    }
+                    self.addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
+                        self?.cancelledFiles.removeAll()
+                        self?.justAddedFiles.removeAll()
+                    }
+
+                    return
+                }
+
+                Task.init { [weak self] in
+                    guard let self else { return }
+
                     var count = self.optimisedCount
                     try? await proGuard(count: &count, limit: 2, url: event.path.fileURL) {
                         self.handler(event)

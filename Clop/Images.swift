@@ -13,11 +13,11 @@ import Lowtech
 import System
 import UniformTypeIdentifiers
 
-let PNGQUANT = Bundle.main.url(forResource: "pngquant", withExtension: nil)!.path
-let JPEGOPTIM = Bundle.main.url(forResource: "jpegoptim", withExtension: nil)!.path
-let GIFSICLE = Bundle.main.url(forResource: "gifsicle", withExtension: nil)!.path
-let EXIFTOOL = Bundle.main.url(forResource: "exiftool", withExtension: nil)!.path
-let VIPSTHUMBNAIL = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin", "/opt/sw/bin"].map { "\($0)/vipsthumbnail" }.first(where: { fm.fileExists(atPath: $0) })
+let PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").existingFilePath!
+let JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").existingFilePath!
+let GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").existingFilePath!
+let EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").existingFilePath!
+let VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").existingFilePath!
 
 extension NSPasteboard.PasteboardType {
     static let jpeg = NSPasteboard.PasteboardType(rawValue: "public.jpeg")
@@ -40,6 +40,7 @@ extension NSPasteboard.PasteboardType {
     static let promisedFileURL = NSPasteboard.PasteboardType(rawValue: "com.apple.pasteboard.promised-file-url")
     static let promisedSuggestedFileName = NSPasteboard.PasteboardType(rawValue: "com.apple.pasteboard.promised-suggested-file-name")
     static let promisedMetadata = NSPasteboard.PasteboardType(rawValue: "com.apple.NSFilePromiseItemMetaData")
+    static let filenames = NSPasteboard.PasteboardType(rawValue: "NSFilenamesPboardType")
 }
 
 extension UTType {
@@ -171,7 +172,7 @@ class Image: CustomStringConvertible {
 
     static var NOT_IMAGE_TYPE_PATTERN =
         try! Regex(
-            "com.microsoft.ole.source|com.microsoft.Art|com.microsoft.PowerPoint|com.microsoft.image-svg-xml|com.microsoft.DataObject|IBPasteboardType|IBDocument|com.pixelmator"
+            #"com\.microsoft\.ole\.source|com\.microsoft\.Art|com\.microsoft\.PowerPoint|com\.microsoft\.image-svg-xml|com\.microsoft\.DataObject|IBPasteboardType|IBDocument|com\.pixelmator|com\.adobe\.[^.]+\.local-private-clipboard-marker"#
         )
     static var NOT_IMAGE_TYPES: Set<NSPasteboard.PasteboardType> = [
         .init("com.apple.icns"),
@@ -233,7 +234,15 @@ class Image: CustomStringConvertible {
 
     class func fromPasteboard(item: NSPasteboardItem? = nil, anyType: Bool = false) throws -> Image {
         let pb = NSPasteboard.general
-        guard let item = item ?? pb.pasteboardItems?.first else {
+        guard let items = pb.pasteboardItems, items.count == 1, let item = item ?? items.first else {
+            #if DEBUG
+                pb.pasteboardItems?.forEach { item in
+                    item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
+                        print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
+                    }
+                }
+            #endif
+
             throw ClopError.noClipboardImage(.init())
 
         }
@@ -242,7 +251,6 @@ class Image: CustomStringConvertible {
             !typeSet.intersectsSet(NOT_IMAGE_TYPES) &&
                 !isRaw(pasteboardItem: item) &&
                 (NOT_IMAGE_TYPE_PATTERN.firstMatch(in: item.types.map(\.rawValue).joined(separator: " "))) == nil
-
         )
         let nsImageFromPath: () -> NSImage? = {
             guard Defaults[.optimiseImagePathClipboard], let path = item.existingFilePath, path.isImage else {
@@ -294,7 +302,7 @@ class Image: CustomStringConvertible {
         if resizeArgs.isNotEmpty {
             resizedFile = FilePath.forResize.appending(path.nameWithoutSize).withSize(size)
             let resizeProc = try tryProc(
-                GIFSICLE,
+                GIFSICLE.string,
                 args: ["--unoptimise", "--threads=\(ProcessInfo.processInfo.activeProcessorCount)", "--resize-method=box", "--resize-colors=256"] +
                     resizeArgs +
                     ["--output", resizedFile!.string, path.string],
@@ -310,12 +318,21 @@ class Image: CustomStringConvertible {
         let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationGIF]
         mainActor { optimiser.aggresive = aggressiveOptimisation }
 
-        let proc = try tryProc(GIFSICLE, args: [
-            "--optimise=\(aggressiveOptimisation ? 3 : 2)",
-            "--lossy=\(aggressiveOptimisation ? 80 : 30)",
-            "--threads=\(ProcessInfo.processInfo.activeProcessorCount)",
-            "--output", tempFile.string, (resizedFile ?? path).string,
-        ], tries: 3) { proc in
+        let proc = try tryProc(
+            GIFSICLE.string,
+            args: [
+                "-O\(aggressiveOptimisation ? 3 : 2)",
+                "--lossy=\(aggressiveOptimisation ? 80 : 30)",
+                "--threads=\(ProcessInfo.processInfo.activeProcessorCount)",
+            ] +
+                (aggressiveOptimisation ? ["--colors=256"] : []) +
+                [
+                    "--output",
+                    tempFile.string,
+                    (resizedFile ?? path).string,
+                ],
+            tries: 3
+        ) { proc in
             mainActor { optimiser.processes = [proc] }
         }
         guard proc.terminationStatus == 0 else {
@@ -338,7 +355,7 @@ class Image: CustomStringConvertible {
         let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationJPEG]
         mainActor { optimiser.aggresive = aggressive }
 
-        let jpegProc = Proc(cmd: JPEGOPTIM, args: [
+        let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
             "--strip-all", "--force", "--max", aggressive ? "70" : "90",
             "--all-progressive", "--overwrite",
             "--dest", FilePath.images.string, path.string,
@@ -352,7 +369,7 @@ class Image: CustomStringConvertible {
             if pngOutFile != png.path {
                 try? pngOutFile!.delete()
             }
-            let pngProc = Proc(cmd: PNGQUANT, args: [
+            let pngProc = Proc(cmd: PNGQUANT.string, args: [
                 "--strip", "--force",
                 "--speed", aggressive ? "1" : "3",
                 "--quality", aggressive ? "0-90" : "0-100",
@@ -435,7 +452,7 @@ class Image: CustomStringConvertible {
         let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationPNG]
         mainActor { optimiser.aggresive = aggressive }
 
-        let pngProc = Proc(cmd: PNGQUANT, args: [
+        let pngProc = Proc(cmd: PNGQUANT.string, args: [
             "--strip", "--force",
             "--speed", aggressive ? "1" : "3",
             "--quality", aggressive ? "0-90" : "0-100",
@@ -446,7 +463,7 @@ class Image: CustomStringConvertible {
         if testJPEG, let jpeg = try? convert(to: .jpeg) {
             let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationJPEG]
 
-            let jpegProc = Proc(cmd: JPEGOPTIM, args: [
+            let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
                 "--strip-all", "--force", "--max", aggressive ? "70" : "90",
                 "--all-progressive", "--overwrite",
                 "--dest", FilePath.images.string, jpeg.path.string,
@@ -495,30 +512,18 @@ class Image: CustomStringConvertible {
             return try gif.optimiseGIF(optimiser: optimiser, scaleTo: fraction, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
         }
 
-        if let VIPSTHUMBNAIL {
-            let sizeStr = "\(size.width.i)x\(size.height.i)"
-            let proc = try tryProc(VIPSTHUMBNAIL, args: ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", "attention", pathForResize.string], tries: 3) { proc in
-                mainActor { optimiser.processes = [proc] }
-            }
-            guard proc.terminationStatus == 0 else {
-                throw ClopError.processError(proc)
-            }
-            pathForResize.waitForFile(for: 2.0)
-
-            guard let pbImage = Image(path: pathForResize.withSize(size), optimised: false, retinaDownscaled: retinaDownscaled) else {
-                throw ClopError.downscaleFailed(pathForResize)
-            }
-            return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+        let sizeStr = "\(size.width.i)x\(size.height.i)"
+        let proc = try tryProc(VIPSTHUMBNAIL.string, args: ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", "attention", pathForResize.string], tries: 3) { proc in
+            mainActor { optimiser.processes = [proc] }
         }
-
-        guard let resized = image.resize(to: size), let data = resized.data(using: type.imgType)
-        else {
-            throw ClopError.fileNotImage(path)
+        guard proc.terminationStatus == 0 else {
+            throw ClopError.processError(proc)
         }
-        let path = pathForResize.withSize(size)
-        fm.createFile(atPath: path.string, contents: data)
-        let pbImage = Image(data: data, path: path, type: type, optimised: false, retinaDownscaled: retinaDownscaled)
+        pathForResize.waitForFile(for: 2.0)
 
+        guard let pbImage = Image(path: pathForResize.withSize(size), optimised: false, retinaDownscaled: retinaDownscaled) else {
+            throw ClopError.downscaleFailed(pathForResize)
+        }
         return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
     }
 
@@ -587,6 +592,13 @@ class Image: CustomStringConvertible {
     Task.init { try? await optimiseImage(img, copyToClipboard: true, id: Optimiser.IDs.clipboardImage) }
 }
 
+@MainActor func cancelImageOptimisation(path: FilePath) {
+    imageOptimiseDebouncers[path.string]?.cancel()
+    imageOptimiseDebouncers.removeValue(forKey: path.string)
+
+    opt(path.string)?.stop(animateRemoval: false)
+}
+
 @MainActor func shouldHandleImage(event: EonilFSEventsEvent) -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
@@ -596,7 +608,7 @@ class Image: CustomStringConvertible {
 
     }
 
-    log.debug("\(event.path): \(flag)")
+    log.debug("\(path.shellString): \(flag)")
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
