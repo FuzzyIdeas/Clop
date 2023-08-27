@@ -25,7 +25,7 @@ struct DirListView: View {
 
     var body: some View {
         VStack(alignment: .leading) {
-            Table(dirs, selection: $selectedDirs) {
+            Table(dirs.sorted(), selection: $selectedDirs) {
                 TableColumn("Path", content: { dir in Text(dir.replacingOccurrences(of: HOME.string, with: "~")).mono(12) })
             }
 
@@ -57,6 +57,44 @@ struct DirListView: View {
     }
 }
 
+struct PDFSettingsView: View {
+    @Default(.pdfDirs) var pdfDirs
+    @Default(.maxPDFSizeMB) var maxPDFSizeMB
+    @Default(.maxPDFFileCount) var maxPDFFileCount
+    @Default(.useAggresiveOptimisationPDF) var useAggresiveOptimisationPDF
+
+    var body: some View {
+        Form {
+            Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise PDFs as they appear in these folders")) {
+                DirListView(dirs: $pdfDirs)
+            }
+            Section(header: SectionHeader(title: "Optimisation rules")) {
+                HStack {
+                    Text("Skip PDFs larger than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $maxPDFSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                    Text("MB").mono(13)
+                }
+                HStack {
+                    Text("Skip when more than").regular(13)
+                    TextField("", value: $maxPDFFileCount, formatter: BoundFormatter(min: 1, max: 100))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 50)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                    Text(maxPDFFileCount == 1 ? "PDF is dropped" : "PDFs are dropped").regular(13)
+                }
+
+                Toggle(isOn: $useAggresiveOptimisationPDF) {
+                    Text("Use more aggressive optimisation").regular(13)
+                        + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular)
+                }
+            }
+        }.padding(4)
+    }
+}
+
 struct VideoSettingsView: View {
     @Default(.videoDirs) var videoDirs
     @Default(.formatsToConvertToMP4) var formatsToConvertToMP4
@@ -67,6 +105,7 @@ struct VideoSettingsView: View {
     @Default(.targetVideoFPS) var targetVideoFPS
     @Default(.minVideoFPS) var minVideoFPS
     @Default(.convertedVideoBehaviour) var convertedVideoBehaviour
+    @Default(.maxVideoFileCount) var maxVideoFileCount
 
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
@@ -86,6 +125,14 @@ struct VideoSettingsView: View {
                         .frame(width: 70)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
                     Text("MB").mono(13)
+                }
+                HStack {
+                    Text("Skip when more than").regular(13)
+                    TextField("", value: $maxVideoFileCount, formatter: BoundFormatter(min: 1, max: 100))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 50)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                    Text(maxVideoFileCount == 1 ? "video is dropped" : "videos are dropped").regular(13)
                 }
                 HStack {
                     Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
@@ -200,6 +247,7 @@ struct ImagesSettingsView: View {
     @Default(.adaptiveImageSize) var adaptiveImageSize
     @Default(.downscaleRetinaImages) var downscaleRetinaImages
     @Default(.convertedImageBehaviour) var convertedImageBehaviour
+    @Default(.maxImageFileCount) var maxImageFileCount
 
     @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
     @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
@@ -219,6 +267,15 @@ struct ImagesSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
                     Text("MB").mono(13)
                 }
+                HStack {
+                    Text("Skip when more than").regular(13)
+                    TextField("", value: $maxImageFileCount, formatter: BoundFormatter(min: 1, max: 100))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 50)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                    Text(maxImageFileCount == 1 ? "image is dropped" : "images are dropped").regular(13)
+                }
+
                 HStack {
                     Text("Ignore images with extension").regular(13).padding(.trailing, 10)
                     ForEach(IMAGE_FORMATS, id: \.identifier) { format in
@@ -579,7 +636,7 @@ let settingsViewManager = SettingsViewManager()
 
 struct SettingsView: View {
     enum Tabs: Hashable {
-        case general, advanced, video, images, floating, keys, about
+        case general, advanced, video, images, floating, keys, about, pdf
 
         var next: Tabs {
             switch self {
@@ -588,6 +645,8 @@ struct SettingsView: View {
             case .video:
                 return .images
             case .images:
+                return .pdf
+            case .pdf:
                 return .floating
             case .floating:
                 return .keys
@@ -604,8 +663,10 @@ struct SettingsView: View {
                 return .general
             case .images:
                 return .video
-            case .floating:
+            case .pdf:
                 return .images
+            case .floating:
+                return .pdf
             case .keys:
                 return .floating
             case .about:
@@ -639,6 +700,12 @@ struct SettingsView: View {
                         Label("Images", systemImage: "photo")
                     }
                     .tag(Tabs.images)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                PDFSettingsView()
+                    .tabItem {
+                        Label("PDF", systemImage: "doc")
+                    }
+                    .tag(Tabs.pdf)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 FloatingSettingsView()
                     .tabItem {
@@ -703,10 +770,12 @@ struct SettingsView: View {
         case .three:
             settingsViewManager.tab = .images
         case .four:
-            settingsViewManager.tab = .floating
+            settingsViewManager.tab = .pdf
         case .five:
-            settingsViewManager.tab = .keys
+            settingsViewManager.tab = .floating
         case .six:
+            settingsViewManager.tab = .keys
+        case .seven:
             settingsViewManager.tab = .about
         default:
             return event
