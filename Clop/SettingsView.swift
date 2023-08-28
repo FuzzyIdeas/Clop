@@ -593,6 +593,7 @@ struct GeneralSettingsView: View {
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
     @Default(.enableDragAndDrop) var enableDragAndDrop
+    @Default(.stripMetadata) var stripMetadata
 
     var body: some View {
         Form {
@@ -620,6 +621,12 @@ struct GeneralSettingsView: View {
                 Toggle(isOn: $enableDragAndDrop) {
                     Text("Enable drop zone").regular(13)
                         + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular)
+                }
+            }
+            Section(header: SectionHeader(title: "Optimisation")) {
+                Toggle(isOn: $stripMetadata) {
+                    Text("Strip EXIF Metadata").regular(13)
+                        + Text("\nDeleted identifiable metadata from files (e.g. camera that took the photo, location, date and time etc.)").round(11, weight: .regular)
                 }
             }
         }
