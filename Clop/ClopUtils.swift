@@ -230,12 +230,17 @@ extension FilePath {
         shell("/usr/bin/file", args: ["-b", "--mime-type", string]).o
     }
 
-    func copyExif(from source: FilePath, excludeTags: [String]? = nil) {
+    func copyExif(from source: FilePath, excludeTags: [String]? = nil, stripMetadata: Bool = true) {
         var additionalArgs: [String] = []
         if let excludeTags, excludeTags.isNotEmpty {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
-        let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"] + additionalArgs + ["-tagsFromFile", source.string, string]
+
+        let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
+            + additionalArgs
+            + ["-tagsFromFile", source.string]
+            + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : [])
+            + [string]
         let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
 
         #if DEBUG

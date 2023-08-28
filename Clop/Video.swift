@@ -119,7 +119,7 @@ class Video: Optimisable {
         }
 
         outputPath.waitForFile(for: 2)
-        outputPath.copyExif(from: path)
+        outputPath.copyExif(from: path, stripMetadata: Defaults[.stripMetadata])
         try? outputPath.setOptimisationStatusXattr("true")
 
         if Defaults[.capVideoFPS], let fps, let new = newFPS, new > fps {
