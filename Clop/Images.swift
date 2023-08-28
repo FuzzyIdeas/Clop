@@ -273,7 +273,7 @@ class Image: CustomStringConvertible {
             item.data(forType: t)
         }.first
 
-        if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: .images, force: true),
+        if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: URL.temporaryDirectory.filePath, force: true),
            let img = Image(path: path, data: data, nsImage: nsImage, optimised: optimised, retinaDownscaled: false)
         {
             return img
@@ -318,6 +318,7 @@ class Image: CustomStringConvertible {
         let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationGIF]
         mainActor { optimiser.aggresive = aggressiveOptimisation }
 
+        let backup = path.backup(operation: .copy)
         let proc = try tryProc(
             GIFSICLE.string,
             args: [
@@ -338,9 +339,8 @@ class Image: CustomStringConvertible {
         guard proc.terminationStatus == 0 else {
             throw ClopError.processError(proc)
         }
-        path.backup(operation: .copy)
 
-        tempFile.copyExif(from: path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil)
+        tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
@@ -378,6 +378,7 @@ class Image: CustomStringConvertible {
             procs.append(pngProc)
         }
 
+        let backup = path.backup(operation: .copy)
         let procMaps = try tryProcs(procs, tries: 3) { procMap in
             mainActor { optimiser.processes = procMap.values.map { $0 } }
         }
@@ -389,8 +390,6 @@ class Image: CustomStringConvertible {
             throw ClopError.processError(proc)
         }
 
-        path.backup(operation: .copy)
-
         var type = UTType.jpeg
         if let pngOutFile, pngOutFile.exists,
            let pngSize = pngOutFile.fileSize(), pngSize > 0,
@@ -401,7 +400,7 @@ class Image: CustomStringConvertible {
             type = .png
         }
 
-        tempFile.copyExif(from: path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil)
+        tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
@@ -476,13 +475,13 @@ class Image: CustomStringConvertible {
             mainActor { optimiser.processes = procMap.values.map { $0 } }
         }
 
+        let backup = path.backup(operation: .copy)
         guard let proc = procMaps[pngProc] else {
             throw ClopError.noProcess(pngProc.cmdline)
         }
         guard proc.terminationStatus == 0 else {
             throw ClopError.processError(proc)
         }
-        path.backup(operation: .copy)
 
         var type = UTType.png
         if let jpegOutFile, jpegOutFile.exists,
@@ -494,7 +493,7 @@ class Image: CustomStringConvertible {
             type = .jpeg
         }
 
-        tempFile.copyExif(from: path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil)
+        tempFile.copyExif(from: path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
