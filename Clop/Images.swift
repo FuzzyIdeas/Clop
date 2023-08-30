@@ -65,6 +65,8 @@ extension UTType {
             return .jpeg
         case .gif:
             return .gif
+        case .pdf:
+            return .pdf
         default:
             return .png
         }
@@ -398,6 +400,14 @@ class Image: CustomStringConvertible {
         {
             tempFile = pngOutFile
             type = .png
+
+            if Defaults[.convertedImageBehaviour] != .temporary {
+                justTry {
+                    try pngOutFile.setOptimisationStatusXattr("true")
+                    let newPath = try pngOutFile.copy(to: path.dir)
+                    tempFile = newPath
+                }
+            }
         }
 
         tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
@@ -491,6 +501,14 @@ class Image: CustomStringConvertible {
         {
             tempFile = jpegOutFile
             type = .jpeg
+
+            if Defaults[.convertedImageBehaviour] != .temporary {
+                justTry {
+                    try jpegOutFile.setOptimisationStatusXattr("true")
+                    let newPath = try jpegOutFile.copy(to: path.dir)
+                    tempFile = newPath
+                }
+            }
         }
 
         tempFile.copyExif(from: path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
@@ -572,10 +590,13 @@ class Image: CustomStringConvertible {
         return img
     }
 
-    func copyToClipboard() {
+    func copyToClipboard(withPath: Bool = true) {
         let item = NSPasteboardItem()
         item.setData(data, forType: type.pasteboardType)
-        item.setString(URL(fileURLWithPath: path.string, isDirectory: false).absoluteString, forType: .fileURL)
+        if withPath {
+            item.setString(path.string, forType: .string)
+            item.setString(URL(fileURLWithPath: path.string, isDirectory: false).absoluteString, forType: .fileURL)
+        }
         item.setString("true", forType: .optimisationStatus)
 
         let pb = NSPasteboard.general

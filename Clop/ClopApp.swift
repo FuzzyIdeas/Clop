@@ -123,6 +123,98 @@ class AppDelegate: LowtechProAppDelegate {
 
     @Setting(.optimiseVideoClipboard) var optimiseVideoClipboard
 
+    @MainActor
+    func handleCommandHotkey(_ key: SauceKey) {
+        guard let opt = OM.hovered else {
+            return
+        }
+
+        switch key {
+        case .minus where opt.downscaleFactor > 0.1:
+            opt.downscale()
+        case .delete:
+            hoveredOptimiserID = nil
+            opt.stop(animateRemoval: true)
+        case .space:
+            opt.quicklook()
+        case .z where !opt.isOriginal:
+            opt.restoreOriginal()
+        case .c:
+            opt.copyToClipboard()
+            opt.hotkeyMessage = "Copied"
+        case .s:
+            opt.save()
+            opt.hotkeyMessage = "Saved"
+        case .a where !opt.aggresive:
+            if opt.downscaleFactor < 1 {
+                opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
+            } else {
+                opt.optimise(allowLarger: true, aggressiveOptimisation: true, fromOriginal: true)
+            }
+        default:
+            break
+        }
+    }
+
+    @MainActor
+    func handleHotkey(_ key: SauceKey) {
+        switch key {
+        case .minus:
+            if let opt = OM.current {
+                guard opt.downscaleFactor > 0.1 else { return }
+                opt.downscale()
+            } else {
+                guard scalingFactor > 0.1 else { return }
+                scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
+                Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
+            }
+        case .delete:
+            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+                hoveredOptimiserID = nil
+                opt.stop(animateRemoval: true)
+            }
+        case .equal:
+            if let opt = OM.removedOptimisers.popLast() {
+                opt.bringBack()
+            }
+        case .space:
+            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+                opt.quicklook()
+            } else {
+                Task.init { try? await quickLookLastClipboardItem() }
+            }
+        case .z:
+            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.isOriginal {
+                opt.restoreOriginal()
+            }
+        case .p:
+            pauseForNextClipboardEvent = true
+            showNotice("**Paused**\nNext clipboard event will be ignored")
+        case .c:
+            Task.init { try? await optimiseLastClipboardItem() }
+        case .a:
+            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.aggresive {
+                if opt.downscaleFactor < 1 {
+                    opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
+                } else {
+                    opt.optimise(allowLarger: true, aggressiveOptimisation: true, fromOriginal: true)
+                }
+            } else {
+                Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
+            }
+        case SauceKey.NUMBER_KEYS.suffix(from: 1).arr:
+            guard let number = key.QWERTYCharacter.d else { break }
+
+            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+                opt.downscale(toFactor: number / 10.0)
+            } else {
+                Task.init { try? await optimiseLastClipboardItem(downscaleTo: number / 10.0) }
+            }
+        default:
+            break
+        }
+    }
+
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
             unarchiveBinaries()
@@ -134,6 +226,18 @@ class AppDelegate: LowtechProAppDelegate {
                 .forEach {
                     $0.forceTerminate()
                 }
+            signal(SIGTERM) { _ in
+                (OM.optimisers + OM.removedOptimisers).forEach { opt in
+                    opt.stop(animateRemoval: false)
+                }
+                exit(0)
+            }
+            signal(SIGKILL) { _ in
+                (OM.optimisers + OM.removedOptimisers).forEach { opt in
+                    opt.stop(animateRemoval: false)
+                }
+                exit(0)
+            }
         }
 
         paddleVendorID = "122873"
@@ -153,61 +257,12 @@ class AppDelegate: LowtechProAppDelegate {
             KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
             KM.onPrimaryHotkey = { key in
-                switch key {
-                case .minus:
-                    if let opt = OM.current {
-                        guard opt.downscaleFactor > 0.1 else { return }
-                        opt.downscale()
-                    } else {
-                        guard scalingFactor > 0.1 else { return }
-                        scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
-                        Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
-                    }
-                case .delete:
-                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
-                        hoveredOptimiserID = nil
-                        opt.stop(animateRemoval: true)
-                    }
-                case .equal:
-                    if let opt = OM.removedOptimisers.popLast() {
-                        opt.bringBack()
-                    }
-                case .space:
-                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
-                        opt.quicklook()
-                    } else {
-                        Task.init { try? await quickLookLastClipboardItem() }
-                    }
-                case .z:
-                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.isOriginal {
-                        opt.restoreOriginal()
-                    }
-                case .p:
-                    pauseForNextClipboardEvent = true
-                    showNotice("**Paused**\nNext clipboard event will be ignored")
-                case .c:
-                    Task.init { try? await optimiseLastClipboardItem() }
-                case .a:
-                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.aggresive {
-                        if opt.downscaleFactor < 1 {
-                            opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
-                        } else {
-                            opt.optimise(allowLarger: true, aggressiveOptimisation: true, fromOriginal: true)
-                        }
-                    } else {
-                        Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
-                    }
-                case SauceKey.NUMBER_KEYS.suffix(from: 1).arr:
-                    guard let number = key.QWERTYCharacter.d else { break }
+                self.handleHotkey(key)
+            }
 
-                    if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
-                        opt.downscale(toFactor: number / 10.0)
-                    } else {
-                        Task.init { try? await optimiseLastClipboardItem(downscaleTo: number / 10.0) }
-                    }
-                default:
-                    break
-                }
+            KM.secondaryKeyModifiers = [.lcmd]
+            KM.onSecondaryHotkey = { key in
+                self.handleCommandHotkey(key)
             }
         }
         super.applicationDidFinishLaunching(_: notification)
