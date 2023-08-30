@@ -101,10 +101,10 @@ class Video: Optimisable {
         mainActor { optimiser.aggresive = aggressive }
         #if arch(arm64)
             let encoderArgs = useAggressiveOptimisation(aggressiveSetting: aggressiveOptimisation ?? false)
-                ? ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "20"] : [])
+                ? ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "26"] : [])
                 : ["-vcodec", "h264_videotoolbox", "-q:v", "50", "-tag:v", "avc1"]
         #else
-            let encoderArgs = ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "20"] : [])
+            let encoderArgs = ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "26"] : [])
         #endif
         let args = ["-y", "-i", inputPath.string] + encoderArgs + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
@@ -280,6 +280,9 @@ var processTerminated = Set<pid_t>()
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
         showFloatingThumbnails()
 
+        var optimisedVideo: Video?
+        let fileSize = video.fileSize
+
         videoOptimisationQueue.addOperation {
             defer {
                 mainActor {
@@ -290,26 +293,15 @@ var processTerminated = Set<pid_t>()
             do {
                 mainAsync { OM.current = optimiser }
 
-                let oldFileSize = video.fileSize
-                let optimisedVideo = try video.optimise(optimiser: optimiser, forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie), aggressiveOptimisation: aggressiveOptimisation)
-                if optimisedVideo.convertedFrom == nil, optimisedVideo.fileSize >= video.fileSize, !allowLarger {
+                optimisedVideo = try video.optimise(optimiser: optimiser, forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie), aggressiveOptimisation: aggressiveOptimisation)
+                if optimisedVideo!.convertedFrom == nil, optimisedVideo!.fileSize >= fileSize, !allowLarger {
                     video.path.restore(force: true)
                     mainAsync {
-                        optimiser.oldBytes = oldFileSize
+                        optimiser.oldBytes = fileSize
                         optimiser.url = video.path.url
                     }
 
                     throw ClopError.videoSizeLarger(path)
-                }
-                mainActor {
-                    result = optimisedVideo
-                }
-                mainAsync {
-                    optimiser.url = optimisedVideo.path.url
-                    optimiser.finish(oldBytes: oldFileSize, newBytes: optimisedVideo.fileSize, removeAfterMs: hideFilesAfter)
-                    if copyToClipboard {
-                        optimiser.copyToClipboard()
-                    }
                 }
             } catch let ClopError.processError(proc) {
                 if proc.terminated {
@@ -318,12 +310,26 @@ var processTerminated = Set<pid_t>()
                     log.error("Error optimising video \(pathString): \(proc.commandLine)")
                     optimiser.finish(error: "Optimisation failed")
                 }
+            } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
+                optimisedVideo = video
             } catch let error as ClopError {
                 log.error("Error optimising video \(pathString): \(error.description)")
                 mainActor { optimiser.finish(error: error.humanDescription) }
             } catch {
                 log.error("Error optimising video \(pathString): \(error)")
                 mainActor { optimiser.finish(error: "Optimisation failed") }
+            }
+
+            guard let optimisedVideo else { return }
+            mainActor {
+                result = optimisedVideo
+            }
+            mainAsync {
+                optimiser.url = optimisedVideo.path.url
+                optimiser.finish(oldBytes: fileSize, newBytes: optimisedVideo.fileSize, removeAfterMs: hideFilesAfter)
+                if copyToClipboard {
+                    optimiser.copyToClipboard()
+                }
             }
         }
     }
@@ -381,11 +387,12 @@ var processTerminated = Set<pid_t>()
                 done = true
             }
         }
-        do {
-            let newSize = resolution.scaled(by: scalingFactor)
-            let oldFileSize = video.fileSize
 
-            let optimisedVideo = try video.optimise(
+        var optimisedVideo: Video?
+        let newSize = resolution.scaled(by: scalingFactor)
+        let fileSize = video.fileSize
+        do {
+            optimisedVideo = try video.optimise(
                 optimiser: optimiser,
                 forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
                 backup: false,
@@ -393,18 +400,8 @@ var processTerminated = Set<pid_t>()
                 originalPath: originalPath,
                 aggressiveOptimisation: aggressive
             )
-            if optimisedVideo.path.extension == video.path.extension, optimisedVideo.path != video.path {
-                try optimisedVideo.path.move(to: video.path, force: true)
-            }
-
-            mainActor {
-                optimiser.url = optimisedVideo.path.url
-                OM.current = optimiser
-                optimiser.finish(oldBytes: oldFileSize, newBytes: optimisedVideo.fileSize, oldSize: resolution, newSize: newSize, removeAfterMs: hideFilesAfter)
-                result = optimisedVideo
-                if copyToClipboard {
-                    optimiser.copyToClipboard()
-                }
+            if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
+                try optimisedVideo!.path.move(to: video.path, force: true)
             }
         } catch let ClopError.processError(proc) {
             if proc.terminated {
@@ -415,12 +412,25 @@ var processTerminated = Set<pid_t>()
                     optimiser.finish(error: "Downscaling failed")
                 }
             }
+        } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
+            optimisedVideo = video
         } catch let error as ClopError {
             log.error("Error downscaling video \(pathString): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }
         } catch {
             log.error("Error downscaling video \(pathString): \(error)")
             mainActor { optimiser.finish(error: "Optimisation failed") }
+        }
+
+        guard let optimisedVideo else { return }
+        mainActor {
+            optimiser.url = optimisedVideo.path.url
+            OM.current = optimiser
+            optimiser.finish(oldBytes: fileSize, newBytes: optimisedVideo.fileSize, oldSize: resolution, newSize: newSize, removeAfterMs: hideFilesAfter)
+            result = optimisedVideo
+            if copyToClipboard {
+                optimiser.copyToClipboard()
+            }
         }
     }
     videoOptimiseDebouncers[pathString] = workItem

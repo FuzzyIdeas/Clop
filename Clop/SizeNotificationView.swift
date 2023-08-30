@@ -374,7 +374,7 @@ struct SizeNotificationView: View {
         if let oldSize = optimiser.oldSize {
             HStack(spacing: 3) {
                 Text("\(oldSize.width.i)×\(oldSize.height.i)")
-                if let newSize = optimiser.newSize {
+                if let newSize = optimiser.newSize, newSize != oldSize {
                     SwiftUI.Image(systemName: "arrow.right")
                     Text("\(newSize.width.i)×\(newSize.height.i)")
                 }
@@ -391,7 +391,7 @@ struct SizeNotificationView: View {
             Text(optimiser.oldBytes.humanSize)
                 .mono(13, weight: .semibold)
                 .foregroundColor(Color.red)
-            if optimiser.newBytes >= 0 {
+            if optimiser.newBytes >= 0, optimiser.newBytes < optimiser.oldBytes {
                 SwiftUI.Image(systemName: "arrow.right")
                 Text(optimiser.newBytes.humanSize)
                     .mono(13, weight: .semibold)
@@ -429,7 +429,7 @@ struct SizeNotificationView: View {
         if optimiser.url != nil, !optimiser.running {
             if optimiser.isOriginal {
                 Button(
-                    action: { if !isPreview { optimiser.optimise(allowLarger: true) } },
+                    action: { if !isPreview { optimiser.optimise(allowLarger: false) } },
                     label: { SwiftUI.Image(systemName: "goforward.plus").font(.heavy(9)) }
                 )
                 .help("Optimise")
@@ -467,7 +467,7 @@ struct SizeNotificationView: View {
                         if optimiser.downscaleFactor < 1 {
                             optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
                         } else {
-                            optimiser.optimise(allowLarger: true, aggressiveOptimisation: true, fromOriginal: true)
+                            optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
                         }
                     },
                     label: { SwiftUI.Image(systemName: "bolt").font(.heavy(9)) }

@@ -278,6 +278,9 @@ class PDF: Optimisable {
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
         showFloatingThumbnails()
 
+        var optimisedPDF: PDF?
+        let fileSize = pdf.fileSize
+
         pdfOptimisationQueue.addOperation {
             defer {
                 mainActor {
@@ -288,27 +291,15 @@ class PDF: Optimisable {
             do {
                 mainAsync { OM.current = optimiser }
 
-                let oldFileSize = pdf.fileSize
-
-                let optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
-                if optimisedPDF.fileSize >= oldFileSize, !allowLarger {
+                optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
+                if optimisedPDF!.fileSize >= fileSize, !allowLarger {
                     pdf.path.restore(force: true)
                     mainAsync {
-                        optimiser.oldBytes = oldFileSize
+                        optimiser.oldBytes = fileSize
                         optimiser.url = pdf.path.url
                     }
 
                     throw ClopError.pdfSizeLarger(path)
-                }
-                mainActor {
-                    result = optimisedPDF
-                }
-                mainAsync {
-                    optimiser.url = optimisedPDF.path.url
-                    optimiser.finish(oldBytes: oldFileSize, newBytes: optimisedPDF.fileSize, removeAfterMs: hideFilesAfter)
-                    if copyToClipboard {
-                        optimiser.copyToClipboard()
-                    }
                 }
             } catch let ClopError.processError(proc) {
                 if proc.terminated {
@@ -317,12 +308,26 @@ class PDF: Optimisable {
                     log.error("Error optimising PDF \(pathString): \(proc.commandLine)")
                     optimiser.finish(error: "Optimisation failed")
                 }
+            } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
+                optimisedPDF = pdf
             } catch let error as ClopError {
                 log.error("Error optimising PDF \(pathString): \(error.description)")
                 mainActor { optimiser.finish(error: error.humanDescription) }
             } catch {
                 log.error("Error optimising PDF \(pathString): \(error)")
                 mainActor { optimiser.finish(error: "Optimisation failed") }
+            }
+
+            guard let optimisedPDF else { return }
+            mainActor {
+                result = optimisedPDF
+            }
+            mainAsync {
+                optimiser.url = optimisedPDF.path.url
+                optimiser.finish(oldBytes: fileSize, newBytes: optimisedPDF.fileSize, removeAfterMs: hideFilesAfter)
+                if copyToClipboard {
+                    optimiser.copyToClipboard()
+                }
             }
         }
     }

@@ -148,7 +148,7 @@ class AppDelegate: LowtechProAppDelegate {
             if opt.downscaleFactor < 1 {
                 opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
             } else {
-                opt.optimise(allowLarger: true, aggressiveOptimisation: true, fromOriginal: true)
+                opt.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
             }
         default:
             break
@@ -196,7 +196,7 @@ class AppDelegate: LowtechProAppDelegate {
                 if opt.downscaleFactor < 1 {
                     opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
                 } else {
-                    opt.optimise(allowLarger: true, aggressiveOptimisation: true, fromOriginal: true)
+                    opt.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
                 }
             } else {
                 Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
@@ -225,6 +225,7 @@ class AppDelegate: LowtechProAppDelegate {
                 .forEach {
                     $0.forceTerminate()
                 }
+            let _ = shell("/usr/bin/pkill", args: ["-fl", "Clop/bin-(arm64|x86)/.+"], wait: false)
             signal(SIGTERM) { _ in
                 (OM.optimisers + OM.removedOptimisers).forEach { opt in
                     opt.stop(animateRemoval: false)
