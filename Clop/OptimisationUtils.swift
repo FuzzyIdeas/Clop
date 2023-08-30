@@ -85,6 +85,21 @@ enum ItemType {
         }
     }
 
+    var pasteboardType: NSPasteboard.PasteboardType? {
+        switch self {
+        case let .image(utType):
+            return utType.pasteboardType
+        case let .video(utType):
+            return utType.pasteboardType
+        case .pdf:
+            return .pdf
+        case .url:
+            return .URL
+        case .unknown:
+            return nil
+        }
+    }
+
     static func from(mimeType: String) -> ItemType {
         switch mimeType {
         case "image/jpeg", "image/png", "image/gif", "image/tiff", "image/webp", "image/heic", "image/heif", "image/avif":
@@ -119,7 +134,23 @@ enum ItemType {
     }
 }
 
-var hoveredOptimiserID: String?
+var hoveredOptimiserID: String? {
+    didSet {
+        mainAsync {
+            guard hoveredOptimiserID != oldValue else {
+                return
+            }
+            guard hoveredOptimiserID != nil else {
+                KM.secondaryKeys = []
+                KM.reinitHotkeys()
+                return
+            }
+
+            KM.secondaryKeys = [.minus, .delete, .space, .z, .c, .a, .s]
+            KM.reinitHotkeys()
+        }
+    }
+}
 
 @MainActor
 class OptimiserProgressDelegate: NSObject, URLSessionDataDelegate {
@@ -246,6 +277,19 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     @Published var inRemoval = false
 
     @Atomic var retinaDownscaled = false
+
+    @Published var hotkeyMessage = "" {
+        didSet {
+            hotkeyMessageResetter = mainAsyncAfter(ms: 1500) { [weak self] in
+                self?.hotkeyMessage = ""
+            }
+        }
+    }
+    var hotkeyMessageResetter: DispatchWorkItem? {
+        didSet {
+            oldValue?.cancel()
+        }
+    }
 
     @Published var running = true {
         didSet {
@@ -443,6 +487,45 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         hasher.combine(id)
     }
 
+    func copyToClipboard(withPath: Bool = true) {
+        guard let url, let path else { return }
+        if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
+            image.copyToClipboard(withPath: withPath)
+            return
+        }
+
+        let item = NSPasteboardItem()
+        if withPath {
+            item.setString(url.path, forType: .string)
+            item.setString(url.absoluteString, forType: .fileURL)
+        }
+        item.setString("true", forType: .optimisationStatus)
+        if type.isPDF, let data = fm.contents(atPath: path.string), data.isNotEmpty {
+            item.setData(data, forType: .pdf)
+        }
+
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects([item])
+
+    }
+
+    func save() {
+        guard let url, let path = url.existingFilePath else { return }
+
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = path.name.string
+        // panel.directoryURL = path.dir.url
+        // panel.allowedFileTypes = [path.ext]
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.level = .modalPanel
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            try? path.copy(to: url.filePath, force: true)
+        }
+    }
+
     func finish(error: String, notice: String? = nil, keepFor removeAfterMs: Int = 2500) {
         mainAsync { [weak self] in
             guard let self else { return }
@@ -545,6 +628,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     @Published var removedOptimisers: [Optimiser] = []
 
+    var hovered: Optimiser? {
+        guard let hoveredOptimiserID else { return nil }
+        return opt(hoveredOptimiserID)
+    }
     @Published var optimisers: Set<Optimiser> = [] {
         didSet {
             let removed = oldValue.subtracting(optimisers)
@@ -622,6 +709,14 @@ func tryAsync(_ action: @escaping () async throws -> Void) {
         } catch {
             log.error(error.localizedDescription)
         }
+    }
+}
+
+func justTry(_ action: () throws -> Void) {
+    do {
+        try action()
+    } catch {
+        log.error(error.localizedDescription)
     }
 }
 
