@@ -154,15 +154,6 @@
       }
     },
     {
-      "identity" : "swiftui-introspect",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/siteline/SwiftUI-Introspect",
-      "state" : {
-        "revision" : "1136c9a348329887844de9353107c787becc675b",
-        "version" : "0.11.0"
-      }
-    },
-    {
       "identity" : "swiftui-system-colors",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/diniska/swiftui-system-colors",

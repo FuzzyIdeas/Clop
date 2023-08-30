@@ -592,6 +592,7 @@ struct GeneralSettingsView: View {
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
+    @Default(.autoCopyToClipboard) var autoCopyToClipboard
     @Default(.enableDragAndDrop) var enableDragAndDrop
     @Default(.stripMetadata) var stripMetadata
 
@@ -621,6 +622,10 @@ struct GeneralSettingsView: View {
                 Toggle(isOn: $enableDragAndDrop) {
                     Text("Enable drop zone").regular(13)
                         + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular)
+                }
+                Toggle(isOn: $autoCopyToClipboard) {
+                    Text("Auto Copy files to clipboard").regular(13)
+                        + Text("\nCopy files resulting from drop zone or file watch optimisation so they can be pasted right after optimisation ends").round(11, weight: .regular)
                 }
             }
             Section(header: SectionHeader(title: "Optimisation")) {
