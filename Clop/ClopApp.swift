@@ -144,7 +144,6 @@ class AppDelegate: LowtechProAppDelegate {
             opt.hotkeyMessage = "Copied"
         case .s:
             opt.save()
-            opt.hotkeyMessage = "Saved"
         case .a where !opt.aggresive:
             if opt.downscaleFactor < 1 {
                 opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)

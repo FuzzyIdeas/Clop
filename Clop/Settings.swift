@@ -93,8 +93,7 @@ public extension Defaults.Keys {
     static let floatingResultsCorner = Key<ScreenCorner>("floatingResultsCorner", default: .bottomRight)
     static let neverShowProError = Key<Bool>("neverShowProError", default: false)
 
-    static let autoCopyToClipboardOnFileWatch = Key<Bool>("autoCopyToClipboardOnFileWatch", default: true)
-    static let autoCopyToClipboardOnDropZone = Key<Bool>("autoCopyToClipboardOnDropZone", default: true)
+    static let autoCopyToClipboard = Key<Bool>("autoCopyToClipboard", default: true)
 
     static let keyComboModifiers = Key<[TriggerKey]>("keyComboModifiers", default: [.lctrl, .lshift])
     static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [.five, .three])

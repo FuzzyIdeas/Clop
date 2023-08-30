@@ -34,6 +34,7 @@ struct OptimiseFileIntent: AppIntent {
             \.$hideFloatingResult
             \.$aggressiveOptimisation
             \.$downscaleFactor
+            \.$copyToClipboard
         }
     }
 
@@ -46,6 +47,9 @@ struct OptimiseFileIntent: AppIntent {
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
 
+    @Parameter(title: "Copy to clipboard")
+    var copyToClipboard: Bool
+
     @Parameter(title: "Downscale fraction", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 1.0, controlStyle: .field, inclusiveRange: (0.1, 1.0))
     var downscaleFactor: Double
 
@@ -55,7 +59,15 @@ struct OptimiseFileIntent: AppIntent {
 
         let result: ClipboardType?
         do {
-            result = try await optimiseItem(clip, id: item, hideFloatingResult: hideFloatingResult, downscaleTo: downscaleFactor, aggressiveOptimisation: aggressiveOptimisation, optimisationCount: &shortcutsOptimisationCount)
+            result = try await optimiseItem(
+                clip,
+                id: item,
+                hideFloatingResult: hideFloatingResult,
+                downscaleTo: downscaleFactor,
+                aggressiveOptimisation: aggressiveOptimisation,
+                optimisationCount: &shortcutsOptimisationCount,
+                copyToClipboard: copyToClipboard
+            )
         } catch let ClopError.alreadyOptimised(path) {
             guard path.exists else {
                 throw IntentError.message("Couldn't find file at \(path)")
