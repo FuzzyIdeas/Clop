@@ -595,11 +595,13 @@ struct GeneralSettingsView: View {
     @Default(.autoCopyToClipboard) var autoCopyToClipboard
     @Default(.enableDragAndDrop) var enableDragAndDrop
     @Default(.stripMetadata) var stripMetadata
+    @Default(.syncSettingsCloud) var syncSettingsCloud
 
     var body: some View {
         Form {
             Toggle("Show menubar icon", isOn: $showMenubarIcon)
             LaunchAtLogin.Toggle()
+            Toggle("Sync settings with other Macs via iCloud", isOn: $syncSettingsCloud)
             Section(header: SectionHeader(title: "Clipboard")) {
                 Toggle(isOn: $enableClipboardOptimiser) {
                     Text("Enable clipboard optimiser").regular(13)
