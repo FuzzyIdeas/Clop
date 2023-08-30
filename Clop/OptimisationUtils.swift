@@ -280,7 +280,8 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     @Published var hotkeyMessage = "" {
         didSet {
-            hotkeyMessageResetter = mainAsyncAfter(ms: 1500) { [weak self] in
+            guard !SWIFTUI_PREVIEW, hotkeyMessage.isNotEmpty else { return }
+            hotkeyMessageResetter = mainAsyncAfter(ms: 1000) { [weak self] in
                 self?.hotkeyMessage = ""
             }
         }
@@ -520,9 +521,14 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.level = .modalPanel
-        panel.begin { response in
+        panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            try? path.copy(to: url.filePath, force: true)
+            if let savedPath = try? path.copy(to: url.filePath, force: true) {
+                self?.hotkeyMessage = "Saved"
+                self?.path = savedPath
+            } else {
+                self?.hotkeyMessage = "Error saving"
+            }
         }
     }
 
@@ -991,7 +997,15 @@ var manualOptimisationCount = 0
 
 @MainActor func optimiseLastClipboardItem(hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws {
     let item = ClipboardType.lastItem()
-    try await optimiseItem(item, id: Optimiser.IDs.clipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimisation: aggressiveOptimisation, optimisationCount: &manualOptimisationCount)
+    try await optimiseItem(
+        item,
+        id: Optimiser.IDs.clipboard,
+        hideFloatingResult: hideFloatingResult,
+        downscaleTo: scalingFactor,
+        aggressiveOptimisation: aggressiveOptimisation,
+        optimisationCount: &manualOptimisationCount,
+        copyToClipboard: true
+    )
 }
 
 @MainActor func showNotice(_ notice: String) {
@@ -1000,7 +1014,15 @@ var manualOptimisationCount = 0
 }
 
 @discardableResult
-@MainActor func optimiseItem(_ item: ClipboardType, id: String, hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimisation: Bool? = nil, optimisationCount: inout Int) async throws -> ClipboardType? {
+@MainActor func optimiseItem(
+    _ item: ClipboardType,
+    id: String,
+    hideFloatingResult: Bool = false,
+    downscaleTo scalingFactor: Double? = nil,
+    aggressiveOptimisation: Bool? = nil,
+    optimisationCount: inout Int,
+    copyToClipboard: Bool
+) async throws -> ClipboardType? {
     let nope = { (notice: String) in
         let optimiser = OM.optimiser(id: id, type: .unknown, operation: "", hidden: hideFloatingResult)
         optimiser.finish(notice: notice)
@@ -1010,9 +1032,9 @@ var manualOptimisationCount = 0
     case let .image(img):
         let result = try await proGuard(count: &optimisationCount, limit: 2, url: img.path.url) {
             if let scalingFactor, scalingFactor < 1 {
-                return try await downscaleImage(img, toFactor: scalingFactor, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             } else {
-                return try await optimiseImage(img, copyToClipboard: true, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                return try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
         }
         guard let result else { return nil }
@@ -1025,9 +1047,9 @@ var manualOptimisationCount = 0
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
                 if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleImage(img, toFactor: scalingFactor, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 } else {
-                    return try await optimiseImage(img, copyToClipboard: true, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 }
             }
             guard let result else { return nil }
@@ -1039,9 +1061,9 @@ var manualOptimisationCount = 0
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
                 if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: path) {
-                    return try await downscaleVideo(video, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await downscaleVideo(video, copyToClipboard: copyToClipboard, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 } else {
-                    return try await optimiseVideo(Video(path: path), allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await optimiseVideo(Video(path: path), copyToClipboard: copyToClipboard, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 }
             }
             guard let result else { return nil }
@@ -1052,7 +1074,7 @@ var manualOptimisationCount = 0
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
-                try await optimisePDF(PDF(path), allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                try await optimisePDF(PDF(path), copyToClipboard: copyToClipboard, allowLarger: true, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
             guard let result else { return nil }
             return .file(result.path)
@@ -1062,7 +1084,7 @@ var manualOptimisationCount = 0
         }
     case let .url(url):
         let result = try await proGuard(count: &optimisationCount, limit: 2, url: url) {
-            try await optimiseURL(url, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimisation: aggressiveOptimisation)
+            try await optimiseURL(url, copyToClipboard: copyToClipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimisation: aggressiveOptimisation)
         }
         return result
     default:

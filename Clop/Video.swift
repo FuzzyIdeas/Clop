@@ -264,7 +264,7 @@ var processTerminated = Set<pid_t>()
 }
 
 @discardableResult
-@MainActor func optimiseVideo(_ video: Video, id: String? = nil, debounceMS: Int = 0, allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) async throws -> Video? {
+@MainActor func optimiseVideo(_ video: Video, copyToClipboard: Bool = false, id: String? = nil, debounceMS: Int = 0, allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) async throws -> Video? {
     let path = video.path
     let pathString = path.string
     let itemType = ItemType.from(filePath: path)
@@ -307,6 +307,9 @@ var processTerminated = Set<pid_t>()
                 mainAsync {
                     optimiser.url = optimisedVideo.path.url
                     optimiser.finish(oldBytes: oldFileSize, newBytes: optimisedVideo.fileSize, removeAfterMs: hideFilesAfter)
+                    if copyToClipboard {
+                        optimiser.copyToClipboard()
+                    }
                 }
             } catch let ClopError.processError(proc) {
                 if proc.terminated {
@@ -333,7 +336,15 @@ var processTerminated = Set<pid_t>()
 }
 
 @discardableResult
-@MainActor func downscaleVideo(_ video: Video, originalPath: FilePath? = nil, id: String? = nil, toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) async throws -> Video? {
+@MainActor func downscaleVideo(
+    _ video: Video,
+    originalPath: FilePath? = nil,
+    copyToClipboard: Bool = false,
+    id: String? = nil,
+    toFactor factor: Double? = nil,
+    hideFloatingResult: Bool = false,
+    aggressiveOptimisation: Bool? = nil
+) async throws -> Video? {
     guard let resolution = video.size else {
         throw ClopError.videoError("Error getting resolution for \(video.path.string)")
     }
@@ -391,6 +402,9 @@ var processTerminated = Set<pid_t>()
                 OM.current = optimiser
                 optimiser.finish(oldBytes: oldFileSize, newBytes: optimisedVideo.fileSize, oldSize: resolution, newSize: newSize, removeAfterMs: hideFilesAfter)
                 result = optimisedVideo
+                if copyToClipboard {
+                    optimiser.copyToClipboard()
+                }
             }
         } catch let ClopError.processError(proc) {
             if proc.terminated {
