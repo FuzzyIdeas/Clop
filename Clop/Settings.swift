@@ -83,6 +83,7 @@ public extension Defaults.Keys {
     static let adaptiveVideoSize = Key<Bool>("adaptiveVideoSize", default: true)
     static let adaptiveImageSize = Key<Bool>("adaptiveImageSize", default: true)
     static let downscaleRetinaImages = Key<Bool>("downscaleRetinaImages", default: false)
+    static let copyImageFilePath = Key<Bool>("copyImageFilePath", default: true)
 
     static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
@@ -156,4 +157,5 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .keyComboModifiers,
     .quickResizeKeys,
     .enabledKeys,
+    .copyImageFilePath,
 ]

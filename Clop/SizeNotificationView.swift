@@ -447,7 +447,18 @@ struct SizeNotificationView: View {
             Button(
                 action: { if !isPreview { optimiser.downscale() }},
                 label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) }
-            ).help("Downscale (\(keyComboModifiers.str)-)")
+            )
+            .help("Downscale (\(keyComboModifiers.str)-)")
+            .contextMenu {
+                let factors = Array(stride(from: 1.0, to: 0.0, by: -0.1))
+                ForEach(factors, id: \.self) { factor in
+                    if factor < optimiser.downscaleFactor {
+                        Button("\((factor * 100).intround)%") { optimiser.downscale(toFactor: factor) }
+                    }
+                }
+            }
+            .onLongPressGesture {}
+
             Button(
                 action: { if !isPreview { optimiser.quicklook() }},
                 label: { SwiftUI.Image(systemName: "eye").font(.heavy(9)) }
