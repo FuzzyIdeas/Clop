@@ -248,6 +248,7 @@ struct ImagesSettingsView: View {
     @Default(.downscaleRetinaImages) var downscaleRetinaImages
     @Default(.convertedImageBehaviour) var convertedImageBehaviour
     @Default(.maxImageFileCount) var maxImageFileCount
+    @Default(.copyImageFilePath) var copyImageFilePath
 
     @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
     @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
@@ -258,6 +259,11 @@ struct ImagesSettingsView: View {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
                 DirListView(dirs: $imageDirs)
             }
+            Toggle(isOn: $copyImageFilePath) {
+                Text("Copy image paths").regular(13)
+                    + Text("\nWhen copying optimised image data, also copy the path of the image file").round(11, weight: .regular)
+            }
+
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack {
                     Text("Skip images larger than").regular(13).padding(.trailing, 10)

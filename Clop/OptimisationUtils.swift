@@ -488,7 +488,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         hasher.combine(id)
     }
 
-    func copyToClipboard(withPath: Bool = true) {
+    func copyToClipboard(withPath: Bool? = nil) {
         guard let url, let path else { return }
         if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
             image.copyToClipboard(withPath: withPath)
@@ -496,7 +496,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
 
         let item = NSPasteboardItem()
-        if withPath {
+        if withPath ?? true {
             item.setString(url.path, forType: .string)
             item.setString(url.absoluteString, forType: .fileURL)
         }

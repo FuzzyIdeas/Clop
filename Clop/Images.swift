@@ -590,10 +590,10 @@ class Image: CustomStringConvertible {
         return img
     }
 
-    func copyToClipboard(withPath: Bool = true) {
+    func copyToClipboard(withPath: Bool? = nil) {
         let item = NSPasteboardItem()
         item.setData(data, forType: type.pasteboardType)
-        if withPath {
+        if withPath ?? Defaults[.copyImageFilePath] {
             item.setString(path.string, forType: .string)
             item.setString(URL(fileURLWithPath: path.string, isDirectory: false).absoluteString, forType: .fileURL)
         }
