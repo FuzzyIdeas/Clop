@@ -108,7 +108,7 @@ struct DropZoneView: View {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)
                 .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 3).any
                 .overlay(Color.calmGreen.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         )
     }
 
@@ -136,14 +136,9 @@ struct DropZoneView: View {
                 }
                 return optimiseDroppedItems(itemProviders)
             }
-            .introspect(.view, on: .macOS(.v13, .v14), customize: { view in
-                view.registerForDraggedTypes(NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
-            })
         }
     }
 }
-
-import SwiftUIIntrospect
 
 @MainActor
 func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
@@ -156,6 +151,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
 
     let itemsToOptimise = DM.itemsToOptimise
     let itemProvidersCount = itemProviders.count
+    let copyToClipboard = Defaults[.autoCopyToClipboard]
     itemProviders.forEach { itemProvider in
         log.debug("Dropped itemProvider types: \(itemProvider.registeredTypeIdentifiers)")
 
@@ -183,7 +179,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                     let nsImage = item as? NSImage ?? (data != nil ? NSImage(data: data!) : nil)
 
                     if path == nil, data == nil, nsImage == nil, itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                        try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
+                        try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
                         return
                     }
 
@@ -194,13 +190,13 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                         return
                     }
 
-                    try await optimiseItem(.image(image), id: image.path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
+                    try await optimiseItem(.image(image), id: image.path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
                 }
             case VIDEO_FORMATS.map(\.identifier):
                 tryAsync {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         if itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                            try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
+                            try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
                         }
                         return
                     }
@@ -210,10 +206,10 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                 tryAsync {
                     let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier)
                     if let path = item?.existingFilePath, path.isImage || path.isVideo {
-                        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
+                        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
                     }
                     if let url = item?.url, url.isImage || url.isVideo {
-                        try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
+                        try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
                     }
                 }
             case UTType.url.identifier:
@@ -221,7 +217,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                     guard let url = try await itemProvider.loadItem(forTypeIdentifier: identifier) as? URL, url.isImage || url.isVideo else {
                         return
                     }
-                    try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount)
+                    try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
                 }
             default:
                 break
@@ -250,7 +246,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
         return
     }
     try await proGuard(count: &DM.optimisationCount, limit: 2, url: path.url) {
-        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount)
+        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: Defaults[.autoCopyToClipboard])
     }
 }
 
@@ -289,28 +285,16 @@ struct FloatingPreview: View {
     static var om: OptimisationManager = {
         let o = OptimisationManager()
         let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
-//        let thumbSizeAfter = THUMB_SIZE.applying(.init(scaleX: 2, y: 2))
 
         let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.operation = Defaults[.showImages] ? "Optimising" : "Optimising \(videoOpt.filename)"
         videoOpt.thumbnail = NSImage(named: "sonoma-video")
-//        videoOpt.finish(error: "Optimised image is larger")
-//        videoOpt.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize, newSize: thumbSizeAfter, remove: false)
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.thumbnail = NSImage(named: "sonoma-shot")
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
-//        let proOpt = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
-//        proOpt.finish(error: "Free version limits reached", notice: "Only 2 file optimisations per session\nare included in the free version")
-
-//        let url = "https://files.lunar.fyi/software-vs-hardware.png".url!
-//        let urlOpt = Optimiser(id: url.absoluteString, type: .url, operation: "Fetching")
-//        urlOpt.url = url
-
         o.optimisers = [
-            //            urlOpt,
-//            proOpt,
             videoOpt,
             clipEnd,
         ]
@@ -319,7 +303,6 @@ struct FloatingPreview: View {
 
     static var videoProgress: Progress = {
         let p = Progress(totalUnitCount: 103_021_021)
-//        p.kind = .file
         p.fileOperationKind = .optimising
         p.completedUnitCount = 32_473_200
         p.localizedAdditionalDescription = "\(p.completedUnitCount.hmsString) of \(p.totalUnitCount.hmsString)"
@@ -351,6 +334,8 @@ struct SizeNotificationView: View {
     @Environment(\.openWindow) var openWindow
 
     let paleYellow = Color(hue: 0.13, saturation: 0.43, brightness: 0.89, opacity: 1.00)
+
+    @State var hotkeyMessageOpacity = 1.0
 
     var showsThumbnail: Bool {
         optimiser.thumbnail != nil && showImages
@@ -529,7 +514,7 @@ struct SizeNotificationView: View {
             VisualEffectBlur(material: optimiser.error == nil ? .sidebar : .hudWindow, blendingMode: .behindWindow, state: .active)
                 .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 3).any
                 .overlay(optimiser.error == nil ? .clear : .red.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         )
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
     }
@@ -613,42 +598,61 @@ struct SizeNotificationView: View {
 
     }
     @ViewBuilder var thumbnailView: some View {
-        VStack {
-            HStack {
-                closeStopButton
+        ZStack {
+            VStack {
+                HStack {
+                    closeStopButton
+                    Spacer()
+                    SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
+                        .font(.bold(11))
+                        .foregroundColor(.grayMauve)
+                        .padding(3)
+                        .padding(.top, 2)
+                        .padding(.trailing, 2)
+                        .background(
+                            VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantLight)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        )
+                        .offset(x: 6, y: -8)
+                }.hfill(.leading)
                 Spacer()
-                SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
-                    .font(.bold(11))
-                    .foregroundColor(.grayMauve)
-                    .padding(3)
-                    .padding(.top, 2)
-                    .padding(.trailing, 2)
-                    .background(
-                        VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantLight)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    )
-                    .offset(x: 6, y: -8)
-            }.hfill(.leading)
-            Spacer()
 
-            if optimiser.running {
-                progressView
-                    .controlSize(.small)
-                    .lineLimit(1)
-                    .padding(.horizontal, 10)
-            } else if optimiser.error != nil {
-                errorView
-            } else if optimiser.notice != nil {
-                noticeView
-                    .foregroundColor(.white)
-            } else {
-                VStack(spacing: 4) {
-                    fileSizeDiff
-                    sizeDiff
+                if optimiser.running {
+                    progressView
+                        .controlSize(.small)
+                        .lineLimit(1)
+                        .padding(.horizontal, 10)
+                } else if optimiser.error != nil {
+                    errorView
+                } else if optimiser.notice != nil {
+                    noticeView
+                        .foregroundColor(.white)
+                } else {
+                    VStack(spacing: 4) {
+                        fileSizeDiff
+                        sizeDiff
+                    }
                 }
             }
+            .hfill(.leading)
+            if optimiser.hotkeyMessage.isNotEmpty {
+                Text(optimiser.hotkeyMessage)
+                    .roundbg(radius: 12, padding: 6, color: .black)
+                    .fill()
+                    .background(
+                        VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark).scaleEffect(1.1)
+                    )
+                    .opacity(hotkeyMessageOpacity)
+                    .onAppear {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            hotkeyMessageOpacity = 1.0
+                        }
+                        withAnimation(.easeIn(duration: 0.5).delay(0.3)) {
+                            hotkeyMessageOpacity = 0.0
+                        }
+                    }
+            }
         }
-        .hfill(.leading)
         .frame(
             width: THUMB_SIZE.width / 2,
             height: THUMB_SIZE.height / 2,
@@ -681,6 +685,7 @@ struct SizeNotificationView: View {
         })
         .foregroundColor(.white)
         .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 8)
+
     }
 
     var body: some View {

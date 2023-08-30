@@ -263,7 +263,7 @@ class PDF: Optimisable {
 }
 
 @discardableResult
-@MainActor func optimisePDF(_ pdf: PDF, id: String? = nil, debounceMS: Int = 0, allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) async throws -> PDF? {
+@MainActor func optimisePDF(_ pdf: PDF, copyToClipboard: Bool = false, id: String? = nil, debounceMS: Int = 0, allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) async throws -> PDF? {
     let path = pdf.path
     let pathString = path.string
     let optimiser = OM.optimiser(id: id ?? pathString, type: .pdf, operation: debounceMS > 0 ? "Waiting for PDF to be ready" : "Optimising", hidden: hideFloatingResult)
@@ -306,6 +306,9 @@ class PDF: Optimisable {
                 mainAsync {
                     optimiser.url = optimisedPDF.path.url
                     optimiser.finish(oldBytes: oldFileSize, newBytes: optimisedPDF.fileSize, removeAfterMs: hideFilesAfter)
+                    if copyToClipboard {
+                        optimiser.copyToClipboard()
+                    }
                 }
             } catch let ClopError.processError(proc) {
                 if proc.terminated {
