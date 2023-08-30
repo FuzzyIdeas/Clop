@@ -511,7 +511,7 @@ class Image: CustomStringConvertible {
             }
         }
 
-        tempFile.copyExif(from: path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
@@ -541,7 +541,7 @@ class Image: CustomStringConvertible {
         guard let pbImage = Image(path: pathForResize.withSize(size), optimised: false, retinaDownscaled: retinaDownscaled) else {
             throw ClopError.downscaleFailed(pathForResize)
         }
-        return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+        return try pbImage.optimise(optimiser: optimiser, allowLarger: false, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
     }
 
     func optimise(optimiser: Optimiser, allowLarger: Bool = false, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
@@ -765,6 +765,8 @@ class Image: CustomStringConvertible {
                     log.error("Error optimising image \(pathString): \(proc.commandLine)")
                     optimiser.finish(error: "Optimisation failed")
                 }
+            } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
+                optimisedImage = img
             } catch let error as ClopError {
                 log.error("Error optimising image \(pathString): \(error.description)")
                 optimiser.finish(error: error.humanDescription)
@@ -836,6 +838,7 @@ class Image: CustomStringConvertible {
     var done = false
 
     let workItem = optimisationQueue.asyncAfter(ms: 500) {
+        var resized: Image?
         defer {
             mainActor {
                 imageResizeDebouncers[img.path.string]?.cancel()
@@ -847,23 +850,12 @@ class Image: CustomStringConvertible {
             OM.current = optimiser
         }
         do {
-            let resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
-            if id != Optimiser.IDs.clipboardImage, resized.type == img.type {
-                try resized.path.copy(to: savePath ?? img.path, force: true)
-            } else {
-                mainActor { optimiser.url = resized.path.url }
-            }
+            resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
 
-            mainActor {
-                optimiser.finish(
-                    oldBytes: img.data.count, newBytes: resized.data.count,
-                    oldSize: img.size, newSize: resized.size,
-                    removeAfterMs: id == Optimiser.IDs.clipboardImage ? hideClipboardAfter : hideFilesAfter
-                )
-                if copyToClipboard {
-                    resized.copyToClipboard()
-                }
-                result = resized
+            if id != Optimiser.IDs.clipboardImage, resized!.type == img.type {
+                try resized!.path.copy(to: savePath ?? img.path, force: true)
+            } else {
+                mainActor { optimiser.url = resized!.path.url }
             }
         } catch let ClopError.processError(proc) {
             if proc.terminated {
@@ -872,12 +864,28 @@ class Image: CustomStringConvertible {
                 log.error("Error downscaling image \(img.path.string): \(proc.commandLine)")
                 mainActor { optimiser.finish(error: "Downscaling failed") }
             }
+        } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
+            resized = img
         } catch let error as ClopError {
             log.error("Error downscaling image \(img.path.string): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }
         } catch {
             log.error("Error downscaling image \(img.path.string): \(error)")
             mainActor { optimiser.finish(error: "Optimisation failed") }
+        }
+
+        guard let resized else { return }
+
+        mainActor {
+            optimiser.finish(
+                oldBytes: img.data.count, newBytes: resized.data.count,
+                oldSize: img.size, newSize: resized.size,
+                removeAfterMs: id == Optimiser.IDs.clipboardImage ? hideClipboardAfter : hideFilesAfter
+            )
+            if copyToClipboard {
+                resized.copyToClipboard()
+            }
+            result = resized
         }
     }
 
