@@ -98,6 +98,8 @@ public extension Defaults.Keys {
     static let keyComboModifiers = Key<[TriggerKey]>("keyComboModifiers", default: [.lctrl, .lshift])
     static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [.five, .three])
     static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: [.minus, .equal, .delete, .space, .z, .p, .c, .a])
+
+    static let syncSettingsCloud = Key<Bool>("syncSettingsCloud", default: true)
 }
 
 public enum ConvertedFileBehaviour: String, Defaults.Serializable {
@@ -105,3 +107,53 @@ public enum ConvertedFileBehaviour: String, Defaults.Serializable {
     case inPlace
     case sameFolder
 }
+
+let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
+    Defaults.Keys.showMenubarIcon,
+    .enableFloatingResults,
+    .optimiseTIFF,
+    .enableClipboardOptimiser,
+    .optimiseVideoClipboard,
+    .optimiseImagePathClipboard,
+    .stripMetadata,
+    .formatsToConvertToJPEG,
+    .formatsToConvertToPNG,
+    .formatsToConvertToMP4,
+    .convertedImageBehaviour,
+    .convertedVideoBehaviour,
+    .capVideoFPS,
+    .targetVideoFPS,
+    .minVideoFPS,
+    .useCPUIntensiveEncoder,
+    .useAggresiveOptimisationMP4,
+    .useAggresiveOptimisationJPEG,
+    .useAggresiveOptimisationPNG,
+    .useAggresiveOptimisationGIF,
+    .useAggresiveOptimisationPDF,
+    .videoDirs,
+    .imageDirs,
+    .pdfDirs,
+    .maxVideoSizeMB,
+    .maxImageSizeMB,
+    .maxPDFSizeMB,
+    .maxVideoFileCount,
+    .maxImageFileCount,
+    .maxPDFFileCount,
+    .imageFormatsToSkip,
+    .videoFormatsToSkip,
+    .adaptiveVideoSize,
+    .adaptiveImageSize,
+    .downscaleRetinaImages,
+    .showFloatingHatIcon,
+    .enableDragAndDrop,
+    .showImages,
+    .autoHideFloatingResults,
+    .autoHideFloatingResultsAfter,
+    .autoHideClipboardResultAfter,
+    .floatingResultsCorner,
+    .neverShowProError,
+    .autoCopyToClipboard,
+    .keyComboModifiers,
+    .quickResizeKeys,
+    .enabledKeys,
+]

@@ -214,6 +214,21 @@ class AppDelegate: LowtechProAppDelegate {
         }
     }
 
+    func syncSettings() {
+        UserDefaults.standard.register(defaults: UserDefaults.standard.dictionaryRepresentation())
+        if Defaults[.syncSettingsCloud] {
+            Zephyr.observe(keys: SETTINGS_TO_SYNC)
+        }
+        pub(.syncSettingsCloud)
+            .sink { change in
+                if change.newValue {
+                    Zephyr.observe(keys: SETTINGS_TO_SYNC)
+                } else {
+                    Zephyr.stopObserving(keys: SETTINGS_TO_SYNC)
+                }
+            }.store(in: &observers)
+    }
+
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
             unarchiveBinaries()
@@ -238,6 +253,7 @@ class AppDelegate: LowtechProAppDelegate {
                 }
                 exit(0)
             }
+            syncSettings()
         }
 
         paddleVendorID = "122873"
