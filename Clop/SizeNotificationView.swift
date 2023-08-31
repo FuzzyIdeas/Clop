@@ -699,6 +699,52 @@ struct SizeNotificationView: View {
 
     }
 
+    @ViewBuilder var rightClickMenu: some View {
+        Button("Save as...") {
+            optimiser.save()
+        }
+        .keyboardShortcut("s")
+
+        Button("Copy to clipboard") {
+            optimiser.copyToClipboard()
+            optimiser.hotkeyMessage = "Copied"
+        }
+        .keyboardShortcut("c")
+
+        Button("Restore original") {
+            optimiser.restoreOriginal()
+        }
+        .keyboardShortcut("z")
+        .disabled(optimiser.isOriginal)
+
+        Button("QuickLook") {
+            optimiser.quicklook()
+        }
+        .keyboardShortcut(" ")
+
+        Button(optimiser.running ? "Stop" : "Close") {
+            hoveredOptimiserID = nil
+            optimiser.stop(animateRemoval: true)
+        }
+        .keyboardShortcut(.delete)
+
+        Button("Downscale") {
+            optimiser.downscale()
+        }
+        .keyboardShortcut("-")
+        .disabled(optimiser.downscaleFactor <= 0.1)
+
+        Button("Aggressive optimisation") {
+            if optimiser.downscaleFactor < 1 {
+                optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
+            } else {
+                optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+            }
+        }
+        .keyboardShortcut("a")
+        .disabled(optimiser.aggresive)
+    }
+
     var body: some View {
         let hasThumbnail = optimiser.thumbnail != nil
         HStack {
@@ -707,10 +753,16 @@ struct SizeNotificationView: View {
                     thumbnailView
                         .contentShape(Rectangle())
                         .onHover(perform: updateHover(_:))
+                        .contextMenu {
+                            rightClickMenu
+                        }
                 } else {
                     noThumbnailView
                         .contentShape(Rectangle())
                         .onHover(perform: updateHover(_:))
+                        .contextMenu {
+                            rightClickMenu
+                        }
                 }
 
                 if hasThumbnail, hovering {
