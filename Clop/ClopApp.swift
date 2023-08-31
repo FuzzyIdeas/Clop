@@ -22,9 +22,17 @@ import UniformTypeIdentifiers
 
 var pauseForNextClipboardEvent = false
 
+class WindowManager: ObservableObject {
+    @Published var windowToOpen: String? = nil
+
+    func open(_ window: String) {
+        windowToOpen = window
+    }
+}
+let WM = WindowManager()
+
 class AppDelegate: LowtechProAppDelegate {
     var didBecomeActiveAtLeastOnce = false
-    var openWindow: OpenWindowAction?
 
     var videoWatcher: FileOptimisationWatcher?
     var imageWatcher: FileOptimisationWatcher?
@@ -375,7 +383,7 @@ class AppDelegate: LowtechProAppDelegate {
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
         if !Defaults[.showMenubarIcon] {
-            openWindow?(id: "settings")
+            WM.open("settings")
             NSApp.activate(ignoringOtherApps: true)
         }
 
@@ -384,7 +392,7 @@ class AppDelegate: LowtechProAppDelegate {
 
     override func applicationDidBecomeActive(_: Notification) {
         if didBecomeActiveAtLeastOnce, !Defaults[.showMenubarIcon] {
-            openWindow?(id: "settings")
+            WM.open("settings")
             NSApp.activate(ignoringOtherApps: true)
         }
         didBecomeActiveAtLeastOnce = true
@@ -627,10 +635,6 @@ let THUMB_SIZE = CGSize(width: 300, height: 220)
 
 @main
 struct ClopApp: App {
-    init() {
-        appDelegate.openWindow = openWindow
-    }
-
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     @Environment(\.openWindow) var openWindow
@@ -640,6 +644,7 @@ struct ClopApp: App {
     @AppStorage("showMenubarIcon") var showMenubarIcon = Defaults[.showMenubarIcon]
 
     @ObservedObject var om = OM
+    @ObservedObject var wm = WM
 
     var body: some Scene {
         Window("Settings", id: "settings") {
@@ -663,6 +668,11 @@ struct ClopApp: App {
                 } else {
                     NSApplication.shared.keyWindow?.close()
                 }
+            }
+            .onChange(of: wm.windowToOpen) { window in
+                guard let window else { return }
+                openWindow(id: window)
+                wm.windowToOpen = nil
             }
 
     }
@@ -694,8 +704,5 @@ extension NSFilePromiseReceiver {
             return
         }
         log.error(exc.description)
-//        Task.init {
-//            await showNotice("Pasteboard error in retrieving file")
-//        }
     }
 }
