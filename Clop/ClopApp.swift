@@ -140,6 +140,8 @@ class AppDelegate: LowtechProAppDelegate {
         switch key {
         case .minus where opt.downscaleFactor > 0.1:
             opt.downscale()
+        case .x where opt.speedUpFactor < 10 && opt.canSpeedUp():
+            opt.speedUp()
         case .delete:
             hoveredOptimiserID = nil
             opt.stop(animateRemoval: true)
@@ -174,6 +176,11 @@ class AppDelegate: LowtechProAppDelegate {
                 guard scalingFactor > 0.1 else { return }
                 scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
                 Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
+            }
+        case .x:
+            if let opt = OM.current {
+                guard opt.speedUpFactor < 10, opt.canSpeedUp() else { return }
+                opt.speedUp()
             }
         case .delete:
             if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
@@ -269,7 +276,7 @@ class AppDelegate: LowtechProAppDelegate {
         paddleProductID = "841006"
         trialDays = 14
         trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
-        price = 8
+        price = 15
         productName = "Clop Pro"
         vendorName = "Panaitiu Alin Valentin PFA"
         hasFreeFeatures = true
