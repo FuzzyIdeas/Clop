@@ -289,6 +289,7 @@ struct FloatingPreview: View {
         let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.operation = Defaults[.showImages] ? "Optimising" : "Optimising \(videoOpt.filename)"
         videoOpt.thumbnail = NSImage(named: "sonoma-video")
+        videoOpt.speedUpFactor = 2.50
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.thumbnail = NSImage(named: "sonoma-shot")
@@ -450,14 +451,7 @@ struct SizeNotificationView: View {
             )
             .help("Downscale (\(keyComboModifiers.str)-)")
             .contextMenu {
-                let factors = Array(stride(from: 0.9, to: 0.0, by: -0.1))
-                ForEach(factors, id: \.self) { factor in
-                    if factor < optimiser.downscaleFactor {
-                        Button("\((factor * 100).intround)%") {
-                            optimiser.downscale(toFactor: factor)
-                        }
-                    }
-                }
+                downscaleMenu
             }
 
             Button(
@@ -609,23 +603,81 @@ struct SizeNotificationView: View {
         return LinearGradient(colors: [color, color.opacity(0)], startPoint: .init(x: 0.5, y: 0.95), endPoint: .top)
 
     }
+
+    @ViewBuilder var topRightButton: some View {
+        if optimiser.speedUpFactor != 1 {
+            Button("\(optimiser.speedUpFactor < 2 ? String(format: "%.2f", optimiser.speedUpFactor) : optimiser.speedUpFactor.i.s)x") {
+                optimiser.speedUp()
+            }
+            .help("Speed up" + " (\(keyComboModifiers.str)X)")
+            .buttonStyle(FlatButton(color: .clear, textColor: .white, circle: optimiser.speedUpFactor >= 2))
+            .font(.round(11, weight: .bold))
+            .background(
+                VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .shadow(radius: 2)
+            )
+            .contextMenu {
+                speedUpMenu
+            }
+        } else {
+            SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
+                .font(.bold(11))
+                .foregroundColor(.grayMauve)
+                .padding(3)
+                .padding(.top, 2)
+                .padding(.trailing, 2)
+                .background(
+                    VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantLight)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                )
+                .offset(x: 6, y: -8)
+        }
+    }
+
+    @ViewBuilder var downscaleMenu: some View {
+        let factors = Array(stride(from: 0.9, to: 0.0, by: -0.1))
+        Button("Restore original size (100%)") {
+            optimiser.downscale(toFactor: 1)
+        }.disabled(optimiser.downscaleFactor == 1)
+        Section("Downscale resolution to") {
+            ForEach(factors, id: \.self) { factor in
+                Button("\((factor * 100).intround)%") {
+                    optimiser.downscale(toFactor: factor)
+                }.disabled(factor == optimiser.downscaleFactor)
+            }
+        }
+    }
+
+    @ViewBuilder var speedUpMenu: some View {
+        let speedUpFactors = [1.25, 1.5, 1.75] + Array(stride(from: 2.0, to: 10.1, by: 1.0))
+        let slowDownFactors = [0.25, 0.5, 0.75]
+
+        Button("Restore normal playback speed (1x)") {
+            optimiser.speedUp(byFactor: 1)
+        }.disabled(optimiser.speedUpFactor == 1)
+        Section("Playback speed up") {
+            ForEach(speedUpFactors, id: \.self) { factor in
+                Button("\(factor < 2 ? String(format: "%.2f", factor) : factor.i.s)x") {
+                    optimiser.speedUp(byFactor: factor)
+                }.disabled(factor == optimiser.speedUpFactor)
+            }
+        }
+        Section("Playback slow down") {
+            ForEach(slowDownFactors, id: \.self) { factor in
+                Button("\(String(format: "%.2f", factor))x") {
+                    optimiser.speedUp(byFactor: factor)
+                }.disabled(factor == optimiser.speedUpFactor)
+            }
+        }
+    }
     @ViewBuilder var thumbnailView: some View {
         ZStack {
             VStack {
                 HStack {
                     closeStopButton
                     Spacer()
-                    SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
-                        .font(.bold(11))
-                        .foregroundColor(.grayMauve)
-                        .padding(3)
-                        .padding(.top, 2)
-                        .padding(.trailing, 2)
-                        .background(
-                            VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantLight)
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        )
-                        .offset(x: 6, y: -8)
+                    topRightButton
                 }.hfill(.leading)
                 Spacer()
 
@@ -735,12 +787,20 @@ struct SizeNotificationView: View {
         .keyboardShortcut("-")
         .disabled(optimiser.downscaleFactor <= 0.1)
 
+        Menu("    to specific factor") {
+            downscaleMenu
+        }
+
         if optimiser.canSpeedUp() {
             Button("Speed up") {
                 optimiser.speedUp()
             }
             .keyboardShortcut("x")
             .disabled(optimiser.speedUpFactor >= 10)
+
+            Menu("    by specific factor") {
+                speedUpMenu
+            }
         }
 
         Button("Aggressive optimisation") {
