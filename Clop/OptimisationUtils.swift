@@ -146,7 +146,7 @@ var hoveredOptimiserID: String? {
                 return
             }
 
-            KM.secondaryKeys = [.minus, .delete, .space, .z, .c, .a, .s]
+            KM.secondaryKeys = DEFAULT_HOVER_KEYS
             KM.reinitHotkeys()
         }
     }
@@ -334,8 +334,9 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         resetRemover()
         OM.quicklook(optimiser: self)
     }
+
     func canSpeedUp() -> Bool {
-        type.isVideo
+        type.isVideo && !inRemoval
     }
 
     func speedUp(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
@@ -362,12 +363,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
 
         Task.init {
-            guard let video = try await (
-                oldSize == nil
-                    ? Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id)
-                    : Video(path: path, metadata: VideoMetadata(resolution: oldSize!, fps: 0), fileSize: oldBytes, id: self.id)
-            )
-            else {
+            guard let video = try await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id) else {
                 return
             }
 
@@ -858,7 +854,14 @@ extension ReversedCollection<Slice<ReversedCollection<String>>> {
 }
 
 @MainActor
-func optimiseURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws -> ClipboardType? {
+func optimiseURL(
+    _ url: URL,
+    copyToClipboard: Bool = false,
+    hideFloatingResult: Bool = false,
+    downscaleTo scalingFactor: Double? = nil,
+    speedUpBy speedUpFactor: Double? = nil,
+    aggressiveOptimisation: Bool? = nil
+) async throws -> ClipboardType? {
     showFloatingThumbnails(force: true)
 
     var clipResult: ClipboardType?
@@ -896,6 +899,8 @@ func optimiseURL(_ url: URL, copyToClipboard: Bool = false, hideFloatingResult: 
             let result: Video?
             if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
                 result = try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+            } else if let speedUpFactor, speedUpFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
+                result = try await speedUpVideo(video, copyToClipboard: copyToClipboard, id: optimiser.id, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             } else {
                 result = try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
@@ -1067,13 +1072,14 @@ var manualOptimisationCount = 0
     }
 }
 
-@MainActor func optimiseLastClipboardItem(hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws {
+@MainActor func optimiseLastClipboardItem(hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, speedUpBy speedUpFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws {
     let item = ClipboardType.lastItem()
     try await optimiseItem(
         item,
         id: Optimiser.IDs.clipboard,
         hideFloatingResult: hideFloatingResult,
         downscaleTo: scalingFactor,
+        speedUpBy: speedUpFactor,
         aggressiveOptimisation: aggressiveOptimisation,
         optimisationCount: &manualOptimisationCount,
         copyToClipboard: true
@@ -1091,6 +1097,7 @@ var manualOptimisationCount = 0
     id: String,
     hideFloatingResult: Bool = false,
     downscaleTo scalingFactor: Double? = nil,
+    speedUpBy speedUpFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     optimisationCount: inout Int,
     copyToClipboard: Bool
@@ -1127,15 +1134,19 @@ var manualOptimisationCount = 0
             guard let result else { return nil }
             return .image(result)
         } else if path.isVideo {
-            guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
+            guard aggressiveOptimisation == true || speedUpFactor != nil || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
                 nope("Already optimised")
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
-                if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: path) {
+                let video = await (try? Video.byFetchingMetadata(path: path)) ?? Video(path: path)
+
+                if let scalingFactor, scalingFactor < 1 {
                     return try await downscaleVideo(video, copyToClipboard: copyToClipboard, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                } else if let speedUpFactor, speedUpFactor != 1, speedUpFactor != 0 {
+                    return try await speedUpVideo(video, copyToClipboard: copyToClipboard, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 } else {
-                    return try await optimiseVideo(Video(path: path), copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await optimiseVideo(video, copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 }
             }
             guard let result else { return nil }
@@ -1156,7 +1167,7 @@ var manualOptimisationCount = 0
         }
     case let .url(url):
         let result = try await proGuard(count: &optimisationCount, limit: 2, url: url) {
-            try await optimiseURL(url, copyToClipboard: copyToClipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, aggressiveOptimisation: aggressiveOptimisation)
+            try await optimiseURL(url, copyToClipboard: copyToClipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, speedUpBy: speedUpFactor, aggressiveOptimisation: aggressiveOptimisation)
         }
         return result
     default:
