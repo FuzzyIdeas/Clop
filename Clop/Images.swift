@@ -735,10 +735,7 @@ class Image: CustomStringConvertible {
 
         imageOptimisationQueue.addOperation {
             defer {
-                mainActor {
-                    imageOptimiseDebouncers.removeValue(forKey: pathString)
-                    done = true
-                }
+                mainActor { done = true }
             }
 
             let shouldDownscale = Defaults[.downscaleRetinaImages] && img.pixelScale > 1
@@ -840,12 +837,9 @@ class Image: CustomStringConvertible {
     let workItem = optimisationQueue.asyncAfter(ms: 500) {
         var resized: Image?
         defer {
-            mainActor {
-                imageResizeDebouncers[img.path.string]?.cancel()
-                imageResizeDebouncers.removeValue(forKey: img.path.string)
-                done = true
-            }
+            mainActor { done = true }
         }
+
         mainActor {
             OM.current = optimiser
         }
