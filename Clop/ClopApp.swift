@@ -178,9 +178,11 @@ class AppDelegate: LowtechProAppDelegate {
                 Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
             }
         case .x:
-            if let opt = OM.current {
-                guard opt.speedUpFactor < 10, opt.canSpeedUp() else { return }
+            if let opt = OM.current, opt.canSpeedUp() {
+                guard opt.speedUpFactor < 10 else { return }
                 opt.speedUp()
+            } else {
+                Task.init { try? await optimiseLastClipboardItem(speedUpBy: 1.25) }
             }
         case .delete:
             if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
