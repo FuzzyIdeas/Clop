@@ -98,7 +98,7 @@ public extension Defaults.Keys {
 
     static let keyComboModifiers = Key<[TriggerKey]>("keyComboModifiers", default: [.lctrl, .lshift])
     static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [.five, .three])
-    static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: [.minus, .equal, .delete, .space, .z, .p, .c, .a])
+    static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x])
 
     static let syncSettingsCloud = Key<Bool>("syncSettingsCloud", default: true)
 }

@@ -214,6 +214,7 @@ extension FilePath {
     static var conversions = FilePath.dir("/tmp/clop/conversions")
     static var downloads = FilePath.dir("/tmp/clop/downloads")
     static var forResize = FilePath.dir("/tmp/clop/for-resize")
+    static var forFilters = FilePath.dir("/tmp/clop/for-filters")
 
     func setOptimisationStatusXattr(_ value: String) throws {
         try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)
