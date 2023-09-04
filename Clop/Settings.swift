@@ -40,6 +40,9 @@ let VIDEO_PASTEBOARD_TYPES = VIDEO_FORMATS.compactMap { NSPasteboard.PasteboardT
 let IMAGE_PASTEBOARD_TYPES = IMAGE_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
 let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PASTEBOARD_TYPES + VIDEO_PASTEBOARD_TYPES + [.fileContents]).set
 
+let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x]
+let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x]
+
 public extension Defaults.Keys {
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
@@ -98,7 +101,7 @@ public extension Defaults.Keys {
 
     static let keyComboModifiers = Key<[TriggerKey]>("keyComboModifiers", default: [.lctrl, .lshift])
     static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [.five, .three])
-    static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x])
+    static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: DEFAULT_GLOBAL_KEYS)
 
     static let syncSettingsCloud = Key<Bool>("syncSettingsCloud", default: true)
 }

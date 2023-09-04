@@ -33,7 +33,7 @@ class Video: Optimisable {
     var metadata: VideoMetadata?
 
     var size: CGSize? { metadata?.resolution }
-    var duration: Double? { metadata?.duration }
+    var duration: TimeInterval? { metadata?.duration }
     var fps: Float? {
         guard let fps = metadata?.fps, fps > 0 else { return nil }
         return fps
@@ -83,23 +83,7 @@ class Video: Optimisable {
 
         let outputPath = forceMP4 ? FilePath.videos.appending("\(name.stem).mp4") : path
         var inputPath = originalPath ?? ((path == outputPath && backup) ? (path.backup(operation: .copy) ?? path) : path)
-
         var additionalArgs = [String]()
-        var filters = [String]()
-        if let size = newSize {
-            filters.append("scale=w=\(size.width.i.s):h=\(size.height.i.s)")
-        }
-
-        if let speedUpFactor, speedUpFactor != 1, speedUpFactor > 0 {
-            filters.append("setpts=PTS/\(String(format: "%.2f", speedUpFactor))")
-        }
-
-        if filters.isNotEmpty {
-            let pathForFilters = FilePath.forFilters.appending(path.nameWithoutFilters)
-            try inputPath.copy(to: pathForFilters, force: true)
-            inputPath = pathForFilters
-            additionalArgs += ["-vf", filters.joined(separator: ",")]
-        }
 
         var newFPS = fps
         if Defaults[.capVideoFPS] {
@@ -114,6 +98,25 @@ class Video: Optimisable {
             additionalArgs += ["-fpsmax", "\(newFPS!)"]
         }
 
+        var filters = [String]()
+        if let size = newSize {
+            filters.append("scale=w=\(size.width.i.s):h=\(size.height.i.s)")
+        }
+
+        if let speedUpFactor, speedUpFactor != 1, speedUpFactor > 0 {
+//            if speedUpFactor < 1, let fps, let newFPS {
+//                filters.append("minterpolate='fps=\(min(fps, newFPS).d * speedUpFactor)'")
+//            }
+            filters.append("setpts=PTS/\(String(format: "%.2f", speedUpFactor))")
+        }
+
+        if filters.isNotEmpty {
+            let pathForFilters = FilePath.forFilters.appending(path.nameWithoutFilters)
+            try inputPath.copy(to: pathForFilters, force: true)
+            inputPath = pathForFilters
+            additionalArgs += ["-vf", filters.joined(separator: ",")]
+        }
+
         let duration = duration
         let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationMP4]
         mainActor { optimiser.aggresive = aggressive }
@@ -126,10 +129,17 @@ class Video: Optimisable {
         #endif
         let args = ["-y", "-i", inputPath.string] + encoderArgs + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
+        var realDuration: Int64?
+        if let duration {
+            realDuration = ((duration * 1_000_000) / (speedUpFactor ?? 1)).intround.i64
+            mainActor {
+                optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(realDuration!.hmsString)"
+            }
+        }
         let proc = try tryProc(FFMPEG.string, args: args, tries: 3, captureOutput: true) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: inputPath.url, optimiser: optimiser, duration: duration)
+                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: inputPath.url, optimiser: optimiser, duration: realDuration)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -171,7 +181,7 @@ class Video: Optimisable {
 struct VideoMetadata {
     let resolution: CGSize
     let fps: Float
-    var duration: Double?
+    var duration: TimeInterval?
 }
 
 func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
@@ -183,19 +193,21 @@ func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
         size = size.applying(transform)
     }
     let fps = try await track.load(.nominalFrameRate)
-    let duration = try await track.asset?.load(.duration)
-    return VideoMetadata(resolution: CGSize(width: abs(size.width), height: abs(size.height)), fps: fps, duration: duration?.seconds)
+    let duration = try await track.load(.timeRange).duration
+    return VideoMetadata(resolution: CGSize(width: abs(size.width), height: abs(size.height)), fps: fps, duration: duration.seconds)
 }
 
 let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}).(\d{2})"#, as: (Substring, Substring, Substring, Substring, Substring).self).anchorsMatchLineEndings(true)
 
-@MainActor func updateProgressFFmpeg(pipe: Pipe, url: URL, optimiser: Optimiser, duration: Double? = nil) {
+@MainActor func updateProgressFFmpeg(pipe: Pipe, url: URL, optimiser: Optimiser, duration: Int64? = nil) {
     mainActor {
-        optimiser.progress = Progress(totalUnitCount: duration?.intround.i64 ?? 100)
+        optimiser.progress = Progress(totalUnitCount: duration ?? 100)
         optimiser.progress.fileURL = url
         optimiser.progress.localizedDescription = optimiser.operation
-        if !optimiser.progress.localizedAdditionalDescription.contains(" of ") {
+        if optimiser.progress.totalUnitCount == 100 {
             optimiser.progress.localizedAdditionalDescription = "Calculating duration"
+        } else {
+            optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(optimiser.progress.totalUnitCount.hmsString)"
         }
     }
 
@@ -482,7 +494,18 @@ var processTerminated = Set<pid_t>()
     }
 
     let itemType = ItemType.from(filePath: video.path)
-    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Speeding up by \(speedUpFactor.str(decimals: 2))x", hidden: hideFloatingResult)
+    let optimiser = OM.optimiser(
+        id: id ?? pathString,
+        type: itemType,
+        operation: speedUpFactor > 1
+            ? "Speeding up by \(speedUpFactor < 2 ? speedUpFactor.str(decimals: 2) : speedUpFactor.i.s)x"
+            : (
+                speedUpFactor == 1
+                    ? "Reverting to original speed"
+                    : "Slowing down by \(speedUpFactor < 2 ? speedUpFactor.str(decimals: 2) : speedUpFactor.i.s)x"
+            ),
+        hidden: hideFloatingResult
+    )
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {
         optimiser.operation += " (aggressive)"
