@@ -263,6 +263,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     @Published var convertedFromURL: URL?
 
     @Published var downscaleFactor = 1.0
+    @Published var speedUpFactor = 1.0
     @Published var aggresive = false
 
     lazy var path: FilePath? = {
@@ -333,6 +334,56 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         resetRemover()
         OM.quicklook(optimiser: self)
     }
+    func canSpeedUp() -> Bool {
+        type.isVideo
+    }
+
+    func speedUp(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
+        guard !inRemoval else { return }
+
+        remover = nil
+        isOriginal = false
+        error = nil
+        notice = nil
+
+        var shouldUseAggressiveOptimisation = aggressiveOptimisation
+        if let aggressiveOptimisation {
+            aggresive = aggressiveOptimisation
+        } else if aggresive {
+            shouldUseAggressiveOptimisation = true
+        }
+
+        guard let path = originalURL?.filePath ?? path else {
+            return
+        }
+        let originalPath = (path.backupPath?.exists ?? false) ? path.backupPath : nil
+        if !path.exists, let originalPath {
+            let _ = try? originalPath.copy(to: path)
+        }
+
+        Task.init {
+            guard let video = try await (
+                oldSize == nil
+                    ? Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id)
+                    : Video(path: path, metadata: VideoMetadata(resolution: oldSize!, fps: 0), fileSize: oldBytes, id: self.id)
+            )
+            else {
+                return
+            }
+
+            if let factor {
+                speedUpFactor = factor
+            }
+
+            let _ = try? await speedUpVideo(
+                video,
+                originalPath: originalPath,
+                id: self.id, byFactor: factor, hideFloatingResult: hideFloatingResult,
+                aggressiveOptimisation: shouldUseAggressiveOptimisation
+            )
+        }
+    }
+
     func downscale(toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval else { return }
 
@@ -348,8 +399,16 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             shouldUseAggressiveOptimisation = true
         }
 
+        guard let path = originalURL?.filePath ?? path else {
+            return
+        }
+        let originalPath = (path.backupPath?.exists ?? false) ? path.backupPath : nil
+        if !path.exists, let originalPath {
+            let _ = try? originalPath.copy(to: path)
+        }
+
         Task.init {
-            if type.isImage, let path = originalURL?.filePath ?? path, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
+            if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
                 if thumbnail == nil {
                     thumbnail = image.image
                 }
@@ -363,7 +422,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
             }
-            if type.isVideo, let path = originalURL?.filePath ?? path {
+            if type.isVideo {
                 guard let video = try await (
                     oldSize == nil
                         ? Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id)
@@ -442,6 +501,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         guard let url else { return }
         scalingFactor = 1.0
         downscaleFactor = 1.0
+        speedUpFactor = 1.0
         aggresive = false
         resetRemover()
 
@@ -525,7 +585,9 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             guard response == .OK, let url = panel.url else { return }
             if let savedPath = try? path.copy(to: url.filePath, force: true) {
                 self?.hotkeyMessage = "Saved"
+                self?.url = url
                 self?.path = savedPath
+                self?.filename = savedPath.name.string
             } else {
                 self?.hotkeyMessage = "Error saving"
             }

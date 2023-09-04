@@ -450,14 +450,15 @@ struct SizeNotificationView: View {
             )
             .help("Downscale (\(keyComboModifiers.str)-)")
             .contextMenu {
-                let factors = Array(stride(from: 1.0, to: 0.0, by: -0.1))
+                let factors = Array(stride(from: 0.9, to: 0.0, by: -0.1))
                 ForEach(factors, id: \.self) { factor in
                     if factor < optimiser.downscaleFactor {
-                        Button("\((factor * 100).intround)%") { optimiser.downscale(toFactor: factor) }
+                        Button("\((factor * 100).intround)%") {
+                            optimiser.downscale(toFactor: factor)
+                        }
                     }
                 }
             }
-            .onLongPressGesture {}
 
             Button(
                 action: { if !isPreview { optimiser.quicklook() }},
@@ -733,6 +734,14 @@ struct SizeNotificationView: View {
         }
         .keyboardShortcut("-")
         .disabled(optimiser.downscaleFactor <= 0.1)
+
+        if optimiser.canSpeedUp() {
+            Button("Speed up") {
+                optimiser.speedUp()
+            }
+            .keyboardShortcut("x")
+            .disabled(optimiser.speedUpFactor >= 10)
+        }
 
         Button("Aggressive optimisation") {
             if optimiser.downscaleFactor < 1 {

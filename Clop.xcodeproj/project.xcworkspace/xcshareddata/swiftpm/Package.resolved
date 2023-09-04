@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/Defaults",
       "state" : {
-        "revision" : "0f5a23fcbd83eb72f6d405aa85bbfacaffb99b03",
-        "version" : "7.2.0"
+        "revision" : "11b6adbfcb784a71bc9076c0e83ecd67952060e8",
+        "version" : "7.3.0"
       }
     },
     {
@@ -78,7 +78,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "cc787e18728f41b30abe7649c929d845a65fcb7c"
+        "revision" : "b6ef0be8b60d4801e7137b2fdd7e26584864e83b"
       }
     },
     {
