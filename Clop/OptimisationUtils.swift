@@ -279,6 +279,22 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     @Atomic var retinaDownscaled = false
 
+    @Published var editingFilename = false {
+        didSet {
+            guard editingFilename != oldValue else {
+                return
+            }
+
+            if editingFilename {
+                KM.secondaryKeys = []
+                KM.reinitHotkeys()
+            } else if hoveredOptimiserID != nil {
+                KM.secondaryKeys = DEFAULT_HOVER_KEYS
+                KM.reinitHotkeys()
+
+            }
+        }
+    }
     @Published var hotkeyMessage = "" {
         didSet {
             guard !SWIFTUI_PREVIEW, hotkeyMessage.isNotEmpty else { return }
@@ -340,7 +356,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func speedUp(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
-        guard !inRemoval else { return }
+        guard !inRemoval, !SWIFTUI_PREVIEW else { return }
 
         remover = nil
         isOriginal = false
@@ -654,7 +670,6 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         guard !inRemoval else { return }
 
         mainAsync {
-//            self.isOriginal = false
             self.lastRemoveAfterMs = ms
             self.remover = mainAsyncAfter(ms: ms) { [weak self] in
                 guard let self else { return }
@@ -663,6 +678,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     self.resetRemover()
                     return
                 }
+                self.editingFilename = false
                 OM.optimisers = OM.optimisers.filter { $0.id != self.id }
                 if url != nil {
                     OM.removedOptimisers = OM.removedOptimisers.without(self).with(self)

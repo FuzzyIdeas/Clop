@@ -287,11 +287,13 @@ struct FloatingPreview: View {
         let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
 
         let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
+        videoOpt.url = "/Users/user/Movies/meeting-recording-video.mov".fileURL
         videoOpt.operation = Defaults[.showImages] ? "Optimising" : "Optimising \(videoOpt.filename)"
         videoOpt.thumbnail = NSImage(named: "sonoma-video")
-        videoOpt.speedUpFactor = 2.50
+        videoOpt.speedUpFactor = 2.0
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
+        clipEnd.url = "/Users/user/Desktop/sonoma-shot.png".fileURL
         clipEnd.thumbnail = NSImage(named: "sonoma-shot")
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
@@ -656,6 +658,7 @@ struct SizeNotificationView: View {
         Button("Restore normal playback speed (1x)") {
             optimiser.speedUp(byFactor: 1)
         }.disabled(optimiser.speedUpFactor == 1)
+
         Section("Playback speed up") {
             ForEach(speedUpFactors, id: \.self) { factor in
                 Button("\(factor < 2 ? String(format: "%.2f", factor) : factor.i.s)x") {
@@ -819,12 +822,15 @@ struct SizeNotificationView: View {
         HStack {
             FlipGroup(if: !floatingResultsCorner.isTrailing) {
                 if hasThumbnail, showImages {
-                    thumbnailView
-                        .contentShape(Rectangle())
-                        .onHover(perform: updateHover(_:))
-                        .contextMenu {
-                            rightClickMenu
-                        }
+                    VStack(alignment: .leading, spacing: 0) {
+                        FileNameField(optimiser: optimiser)
+                        thumbnailView
+                            .contentShape(Rectangle())
+                            .onHover(perform: updateHover(_:))
+                            .contextMenu {
+                                rightClickMenu
+                            }
+                    }
                 } else {
                     noThumbnailView
                         .contentShape(Rectangle())
@@ -867,6 +873,99 @@ struct SizeNotificationView: View {
         }
     }
 
+}
+import SwiftUIIntrospect
+
+func printResponderChain(_ responder: NSResponder?) {
+    guard let responder else { return }
+
+    print(responder)
+    printResponderChain(responder.nextResponder)
+}
+
+struct FileNameField: View {
+    @ObservedObject var optimiser: Optimiser
+    @State var tempName = ""
+    @FocusState var focused: Bool
+
+    var viewer: some View {
+        HStack {
+            Text(tempName)
+                .frame(width: THUMB_SIZE.width / 2 - 15, height: 20, alignment: .leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Button(action: {
+                optimiser.editingFilename = true
+                NSApp.activate(ignoringOtherApps: true)
+            }, label: { SwiftUI.Image(systemName: "pencil") })
+                .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
+                .font(.bold(9))
+                .frame(width: 15)
+                .contentShape(Rectangle())
+                .focusable(false)
+        }
+        .font(.regular(9))
+        .foregroundColor(.white)
+        .shadow(radius: 2)
+    }
+
+    var editor: some View {
+        HStack {
+            TextField("", text: $tempName)
+                .textFieldStyle(PlainTextFieldStyle())
+                .frame(width: THUMB_SIZE.width / 2 - 15, height: 20, alignment: .leading)
+                .onSubmit {
+                    let tempName = tempName.safeFilename
+
+                    if !tempName.isEmpty, let path = optimiser.url?.existingFilePath, path.stem != tempName {
+                        if let newPath = try? path.move(to: path.dir / "\(tempName).\(path.extension ?? "")") {
+                            optimiser.url = newPath.url
+                            optimiser.path = newPath
+                            optimiser.filename = newPath.name.string
+
+                            if let items = NSPasteboard.general.pasteboardItems, items.count == 1, let item = items.first, item.filePath?.name == path.name {
+                                optimiser.copyToClipboard()
+                            }
+                        }
+                    }
+
+                    optimiser.editingFilename = false
+                }
+                .focused($focused)
+                .defaultFocus($focused, true)
+                .onAppear {
+                    focused = true
+                    NSApp.activate(ignoringOtherApps: true)
+                    sizeNotificationWindow.becomeFirstResponder()
+                    sizeNotificationWindow.makeKeyAndOrderFront(nil)
+                    sizeNotificationWindow.orderFrontRegardless()
+                }
+
+            Button(action: { optimiser.editingFilename = false }, label: { SwiftUI.Image(systemName: "xmark") })
+                .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
+                .font(.bold(9))
+                .frame(width: 15)
+                .contentShape(Rectangle())
+                .keyboardShortcut(.escape, modifiers: [])
+        }
+        .font(.regular(9))
+        .foregroundColor(.white)
+        .shadow(radius: 2)
+    }
+
+    var body: some View {
+        if optimiser.editingFilename {
+            editor
+        } else {
+            viewer
+                .onAppear {
+                    tempName = optimiser.url?.filePath.stem ?? "filename"
+                }
+                .onChange(of: optimiser.url) { url in
+                    tempName = url?.filePath.stem ?? "filename"
+                }
+        }
+    }
 }
 
 @ViewBuilder
