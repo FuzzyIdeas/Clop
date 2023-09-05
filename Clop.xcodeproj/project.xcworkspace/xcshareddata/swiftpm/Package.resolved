@@ -78,7 +78,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "b6ef0be8b60d4801e7137b2fdd7e26584864e83b"
+        "revision" : "ab18daf9d0acc352e63b9d15bf57054bf523ef52"
       }
     },
     {
@@ -113,8 +113,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "d062d9b31ccabdec706134f2216476d1996caf11",
-        "version" : "8.10.0"
+        "revision" : "12998398eb51e2e8ff7098163fa97d305eee6d87",
+        "version" : "8.11.0"
       }
     },
     {
