@@ -149,6 +149,8 @@ class AppDelegate: LowtechProAppDelegate {
             opt.quicklook()
         case .z where !opt.isOriginal:
             opt.restoreOriginal()
+        case .r:
+            opt.editingFilename.toggle()
         case .c:
             opt.copyToClipboard()
             opt.hotkeyMessage = "Copied"

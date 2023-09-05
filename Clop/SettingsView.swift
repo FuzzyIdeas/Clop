@@ -748,11 +748,19 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .padding(.top, 20)
-            .onAppear {
-                tabKeyMonitor.start()
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
+                guard let window = notif.object as? NSWindow else { return }
+                if window.title == "Settings" {
+                    log.debug("Starting settings tab key monitor")
+                    tabKeyMonitor.start()
+                }
             }
-            .onDisappear {
-                tabKeyMonitor.stop()
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notif in
+                guard let window = notif.object as? NSWindow else { return }
+                if window.title == "Settings" {
+                    log.debug("Stopping settings tab key monitor")
+                    tabKeyMonitor.stop()
+                }
             }
 
             Button("Quit", role: .destructive) { NSApp.terminate(nil) }
@@ -768,6 +776,7 @@ struct SettingsView: View {
 }
 
 @MainActor var tabKeyMonitor = LocalEventMonitor(mask: .keyDown) { event in
+    print("tabKeyMonitor", event)
     guard let combo = event.keyCombo else { return event }
 
     if combo.modifierFlags == [.command, .shift] {
