@@ -149,8 +149,8 @@ class AppDelegate: LowtechProAppDelegate {
             opt.quicklook()
         case .z where !opt.isOriginal:
             opt.restoreOriginal()
-        case .r:
-            opt.editingFilename.toggle()
+        case .r where !opt.running:
+            opt.editingFilename = true
         case .c:
             opt.copyToClipboard()
             opt.hotkeyMessage = "Copied"
@@ -185,6 +185,10 @@ class AppDelegate: LowtechProAppDelegate {
                 opt.speedUp()
             } else {
                 Task.init { try? await optimiseLastClipboardItem(speedUpBy: 1.25) }
+            }
+        case .r:
+            if let opt = OM.current, !opt.running {
+                opt.editingFilename = true
             }
         case .delete:
             if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
