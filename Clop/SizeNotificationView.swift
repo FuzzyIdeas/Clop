@@ -286,6 +286,10 @@ struct FloatingPreview: View {
         let o = OptimisationManager()
         let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
 
+        let noThumb = Optimiser(id: "pages.pdf", type: .pdf)
+        noThumb.url = "/Users/user/Documents/pages.pdf".fileURL
+        noThumb.finish(oldBytes: 12_250_190, newBytes: 5_211_932)
+
         let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.url = "/Users/user/Movies/meeting-recording-video.mov".fileURL
         videoOpt.operation = Defaults[.showImages] ? "Optimising" : "Optimising \(videoOpt.filename)"
@@ -298,8 +302,9 @@ struct FloatingPreview: View {
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
         o.optimisers = [
-            videoOpt,
             clipEnd,
+            videoOpt,
+            noThumb,
         ]
         return o
     }()
@@ -339,6 +344,8 @@ struct SizeNotificationView: View {
     let paleYellow = Color(hue: 0.13, saturation: 0.43, brightness: 0.89, opacity: 1.00)
 
     @State var hotkeyMessageOpacity = 1.0
+
+    @State var editingFilename = false
 
     var showsThumbnail: Bool {
         optimiser.thumbnail != nil && showImages
@@ -498,16 +505,10 @@ struct SizeNotificationView: View {
                 noticeView
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text(optimiser.filename)
-                            .scaledToFit()
-                            .minimumScaleFactor(0.8)
-                            .frame(maxWidth: 200, alignment: .leading)
-                        Spacer(minLength: 20)
-                        SwiftUI.Image(systemName: optimiser.type.isVideo ? "video" : (optimiser.type.isPDF ? "doc" : "photo"))
-                    }
-                    .font(.semibold(14)).lineLimit(1).fixedSize().opacity(0.8)
-                    .padding(.bottom, 4)
+                    FileNameField(optimiser: optimiser)
+                        .foregroundColor(.primary)
+                        .font(.semibold(14)).lineLimit(1).fixedSize().opacity(0.8)
+                        .padding(.bottom, 4)
 
                     fileSizeDiff
                     sizeDiff
@@ -816,14 +817,25 @@ struct SizeNotificationView: View {
         .keyboardShortcut("a")
         .disabled(optimiser.aggresive)
     }
-
     var body: some View {
         let hasThumbnail = optimiser.thumbnail != nil
         HStack {
             FlipGroup(if: !floatingResultsCorner.isTrailing) {
                 if hasThumbnail, showImages {
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 2) {
                         FileNameField(optimiser: optimiser)
+                            .font(.regular(9))
+                            .foregroundColor(.primary)
+                            .padding(.leading, 5)
+                            .background(
+                                VisualEffectBlur(material: .sidebar, blendingMode: .withinWindow, state: .active)
+                                    .clipShape(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    )
+                            )
+                            .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
+                            .padding(.horizontal, 5)
+                            .offset(y: hovering || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
                         thumbnailView
                             .contentShape(Rectangle())
                             .onHover(perform: updateHover(_:))
@@ -862,6 +874,24 @@ struct SizeNotificationView: View {
         .opacity(optimiser.inRemoval ? 0 : 1)
         .offset(x: optimiser.inRemoval ? (floatingResultsCorner.isTrailing ? 500 : -500) : 0)
         .animation(.easeOut(duration: 0.5), value: optimiser.inRemoval)
+        .onAppear {
+            if optimiser.editingFilename {
+                editingFilename = true
+            } else {
+                withAnimation(.spring().delay(2)) {
+                    editingFilename = false
+                }
+            }
+        }
+        .onChange(of: optimiser.editingFilename) { newEditing in
+            if newEditing {
+                editingFilename = true
+            } else {
+                withAnimation(.spring().delay(2)) {
+                    editingFilename = false
+                }
+            }
+        }
     }
 
     func updateHover(_ hovering: Bool) {
@@ -874,46 +904,41 @@ struct SizeNotificationView: View {
     }
 
 }
-import SwiftUIIntrospect
-
-func printResponderChain(_ responder: NSResponder?) {
-    guard let responder else { return }
-
-    print(responder)
-    printResponderChain(responder.nextResponder)
-}
 
 struct FileNameField: View {
     @ObservedObject var optimiser: Optimiser
-    @State var tempName = ""
     @FocusState var focused: Bool
+    @State var tempName = ""
 
-    var viewer: some View {
+    @ViewBuilder var viewer: some View {
+        let ext = optimiser.url?.filePath.extension ?? optimiser.originalURL?.filePath.extension ?? ""
         HStack {
-            Text(tempName)
-                .frame(width: THUMB_SIZE.width / 2 - 15, height: 20, alignment: .leading)
+            (Text(tempName) + Text(".\(ext)").fontDesign(.monospaced))
+                .hfill(.leading)
+                .frame(height: 16)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            Button(action: {
-                optimiser.editingFilename = true
-                NSApp.activate(ignoringOtherApps: true)
-            }, label: { SwiftUI.Image(systemName: "pencil") })
-                .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
-                .font(.bold(9))
-                .frame(width: 15)
-                .contentShape(Rectangle())
-                .focusable(false)
+
+            if !optimiser.running {
+                Button(action: {
+                    optimiser.editingFilename = true
+                    NSApp.activate(ignoringOtherApps: true)
+                }, label: { SwiftUI.Image(systemName: "pencil").foregroundColor(.primary) })
+                    .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
+                    .fontWeight(.bold)
+                    .frame(width: 18)
+                    .contentShape(Rectangle())
+                    .focusable(false)
+            }
         }
-        .font(.regular(9))
-        .foregroundColor(.white)
-        .shadow(radius: 2)
     }
 
     var editor: some View {
         HStack {
             TextField("", text: $tempName)
                 .textFieldStyle(PlainTextFieldStyle())
-                .frame(width: THUMB_SIZE.width / 2 - 15, height: 20, alignment: .leading)
+                .hfill(.leading)
+                .frame(height: 16)
                 .onSubmit {
                     let tempName = tempName.safeFilename
 
@@ -941,30 +966,44 @@ struct FileNameField: View {
                     sizeNotificationWindow.orderFrontRegardless()
                 }
 
-            Button(action: { optimiser.editingFilename = false }, label: { SwiftUI.Image(systemName: "xmark") })
+            Button(action: {
+                optimiser.editingFilename = false
+            }, label: { SwiftUI.Image(systemName: "xmark").foregroundColor(.primary) })
                 .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
-                .font(.bold(9))
-                .frame(width: 15)
+                .fontWeight(.bold)
+                .frame(width: 18)
                 .contentShape(Rectangle())
                 .keyboardShortcut(.escape, modifiers: [])
         }
-        .font(.regular(9))
-        .foregroundColor(.white)
-        .shadow(radius: 2)
     }
 
-    var body: some View {
+    @ViewBuilder var editorViewer: some View {
         if optimiser.editingFilename {
             editor
         } else {
             viewer
                 .onAppear {
-                    tempName = optimiser.url?.filePath.stem ?? "filename"
+                    tempName = optimiser.url?.filePath.stem ?? optimiser.originalURL?.filePath.stem ?? "filename"
                 }
                 .onChange(of: optimiser.url) { url in
                     tempName = url?.filePath.stem ?? "filename"
                 }
         }
+    }
+
+    var body: some View {
+        editorViewer
+            .onChange(of: optimiser.running) { running in
+                if running {
+                    optimiser.editingFilename = false
+                }
+            }
+    }
+}
+
+var editingSetter: DispatchWorkItem? {
+    didSet {
+        oldValue?.cancel()
     }
 }
 
@@ -984,6 +1023,8 @@ func FlipGroup(
 struct SizeNotificationContainer_Previews: PreviewProvider {
     static var previews: some View {
         FloatingPreview()
+//                        .background(.white)
+//            .background(SwiftUI.Image("sonoma-video"))
             .background(LinearGradient(colors: [Color.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
 
     }

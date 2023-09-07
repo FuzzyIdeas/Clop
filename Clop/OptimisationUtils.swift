@@ -291,7 +291,11 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             } else if hoveredOptimiserID != nil {
                 KM.secondaryKeys = DEFAULT_HOVER_KEYS
                 KM.reinitHotkeys()
+            }
 
+            if let lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
+                self.lastRemoveAfterMs = 1000 * 120
+                resetRemover()
             }
         }
     }
@@ -331,6 +335,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             progress.localizedDescription = operation
         }
     }}
+
     var description: String {
         "\(operation) \(id) [\(running ? "RUNNING" : "FINISHED")]"
     }
@@ -669,12 +674,17 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     func remove(after ms: Int, withAnimation: Bool = false) {
         guard !inRemoval else { return }
 
-        mainAsync {
+        mainAsync { [weak self] in
+            guard let self else { return }
+
             self.lastRemoveAfterMs = ms
             self.remover = mainAsyncAfter(ms: ms) { [weak self] in
                 guard let self else { return }
 
-                guard hoveredOptimiserID == nil, !DM.dragging else {
+                guard hoveredOptimiserID == nil, !DM.dragging, !editingFilename else {
+                    if editingFilename, let lastRemoveAfterMs = self.lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
+                        self.lastRemoveAfterMs = 1000 * 120
+                    }
                     self.resetRemover()
                     return
                 }
