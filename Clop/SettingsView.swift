@@ -18,16 +18,122 @@ extension String: Identifiable {
 
 let NOT_ALLOWED_TO_WATCH = [FilePath.backups.string, FilePath.images.string, FilePath.videos.string, FilePath.forResize.string, FilePath.conversions.string, FilePath.downloads.string]
 
+import Combine
+
+class TextDebounce: ObservableObject {
+    init(for time: DispatchQueue.SchedulerTimeType.Stride) {
+        $text
+            .debounce(for: time, scheduler: DispatchQueue.main)
+            .sink { [weak self] value in
+                guard let self, value != debouncedText else {
+                    return
+                }
+                DirListView.shouldSave = true
+                debouncedText = value
+            }
+            .store(in: &subscriptions)
+    }
+
+    @Published var debouncedText = ""
+    @Published var text = ""
+
+    private var subscriptions = Set<AnyCancellable>()
+}
+
 struct DirListView: View {
+    static var shouldSave = false
+
+    @StateObject var textDebounce = TextDebounce(for: .seconds(2))
+
     @Binding var dirs: [String]
     @State var selectedDirs: Set<String> = []
     @State var chooseFile = false
+    @State var clopignoreHelpVisible = false
+
+    @ViewBuilder var ignoreRulesView: some View {
+        if selectedDirs.count == 1, let dir = selectedDirs.first {
+            HStack {
+                Text("Ignore rules").semibold(12).fixedSize()
+                Spacer()
+                Text("\(dir.replacingOccurrences(of: HOME.string, with: "~"))/.clopignore")
+                    .mono(11)
+                    .truncationMode(.middle)
+                    .lineLimit(1)
+                    .frame(maxWidth: 400, alignment: .trailing)
+            }.padding(.top, 2).opacity(0.8)
+            TextEditor(text: $textDebounce.text)
+                .frame(minHeight: 100)
+                .onChange(of: textDebounce.debouncedText, perform: { value in
+                    guard Self.shouldSave else { return }
+                    saveIgnoreRules(text: value)
+                })
+                .frame(height: 100)
+            HStack {
+                Text("Follows the standard .gitignore rules.").regular(10)
+                Button("\(SwiftUI.Image(systemName: "arrowtriangle.down.square")) Click for more info") {
+                    clopignoreHelpVisible.toggle()
+                }
+                .buttonStyle(.plain)
+                .font(.semibold(10))
+            }
+            .opacity(0.8)
+
+            if clopignoreHelpVisible {
+                ScrollView {
+                    Text("""
+                    **Pattern syntax:**
+
+                    1. **Wildcards**: You can use asterisks (`*`) as wildcards to match multiple characters or directories at any level. For example, `*.jpg` will match all files with the .jpg extension, such as `image.jpg` or `photo.jpg`. Similarly, `*.pdf` will match any PDF files.
+
+                    2. **Directory names**: You can specify directories in patterns by ending the pattern with a slash (/). For instance, `images/` will match all files or directories named "images" or residing within an "images" directory.
+
+                    3. **Negation**: Prefixing a pattern with an exclamation mark (!) negates the pattern, instructing the app to include files that would otherwise be excluded. For example, `!important.pdf` would include a file named "important.pdf" even if it satisfies other exclusion patterns.
+
+                    4. **Comments**: You can include comments by adding a hash symbol (`#`) at the beginning of the line. These comments are ignored by the app and serve as helpful annotations for humans.
+
+                    *More complex patterns can be found in the [gitignore documentation](https://git-scm.com/docs/gitignore#_pattern_format).*
+
+                    **Examples:**
+
+                    `# Ignore all files with the .jpg extension`
+                    `*.jpg`
+                    ` `
+                    `# Exclude all files in an "images" directory`
+                    `images/`
+                    ` `
+                    `# Exclude all MKV video files`
+                    `*.mkv`
+                    ` `
+                    `# Exclude invoices (PDF files starting with "invoice-")`
+                    `invoice-*.pdf`
+                    ` `
+                    `# Exclude a specific file named "confidential.pdf"`
+                    `confidential.pdf`
+                    ` `
+                    `# Include a specific file named "important.pdf" even if it matches other patterns`
+                    `!important.pdf`
+                    """)
+                    .foregroundColor(.secondary)
+                }
+                .roundbg(color: .black.opacity(0.05))
+            }
+        } else {
+            (Text("Select a single path to edit its ") + Text("Ignore rules").bold())
+                .padding(.top, 6)
+                .opacity(0.8)
+        }
+
+    }
 
     var body: some View {
-        VStack(alignment: .leading) {
-            Table(dirs.sorted(), selection: $selectedDirs) {
-                TableColumn("Path", content: { dir in Text(dir.replacingOccurrences(of: HOME.string, with: "~")).mono(12) })
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            ScrollView {
+                Table(dirs.sorted(), selection: $selectedDirs) {
+                    TableColumn("Path", content: { dir in Text(dir.replacingOccurrences(of: HOME.string, with: "~")).mono(12) })
+                }
+                .tableStyle(.bordered)
+                .frame(height: 150)
+            }.frame(height: 150)
 
             HStack(spacing: 2) {
                 Button(action: { chooseFile = true }, label: { SwiftUI.Image(systemName: "plus").font(.bold(12)) })
@@ -51,9 +157,39 @@ struct DirListView: View {
                 )
                 .disabled(selectedDirs.isEmpty)
             }
+
+            ignoreRulesView
         }
         .padding(4)
-        .frame(minHeight: 150)
+        .onChange(of: selectedDirs) { [selectedDirs] newSelectedDirs in
+            Self.shouldSave = false
+            guard newSelectedDirs.count == 1, let dir = newSelectedDirs.first else {
+                return
+            }
+            if textDebounce.text != textDebounce.debouncedText {
+                saveIgnoreRules(text: textDebounce.text, dir: selectedDirs.first)
+            }
+
+            textDebounce.debouncedText = (try? String(contentsOfFile: "\(dir)/.clopignore")) ?? ""
+            textDebounce.text = textDebounce.debouncedText
+        }
+    }
+
+    func saveIgnoreRules(text: String, dir: String? = nil) {
+        guard let dir = dir ?? selectedDirs.first else { return }
+
+        let clopIgnore = "\(dir)/.clopignore"
+        guard text.isNotEmpty else {
+            log.debug("Deleting \(clopIgnore)")
+            try? fm.removeItem(atPath: clopIgnore)
+            return
+        }
+        do {
+            log.debug("Saving \(clopIgnore)")
+            try text.write(toFile: clopIgnore, atomically: false, encoding: .utf8)
+        } catch {
+            log.error(error.localizedDescription)
+        }
     }
 }
 
@@ -651,7 +787,7 @@ struct GeneralSettingsView: View {
 }
 
 class SettingsViewManager: ObservableObject {
-    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .about : .general
+    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .video : .general
 }
 
 let settingsViewManager = SettingsViewManager()
