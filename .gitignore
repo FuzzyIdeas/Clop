@@ -4,3 +4,4 @@ Clop/bin-*/*
 *.delta
 *.bkp
 Releases/*.html
+required.swift

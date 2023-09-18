@@ -297,11 +297,21 @@ class AppDelegate: LowtechProAppDelegate {
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
             KM.onPrimaryHotkey = { key in
                 self.handleHotkey(key)
+                #if !DEBUG
+                    if let product {
+                        _ = checkInternalRequirements([product], nil)
+                    }
+                #endif
             }
 
             KM.secondaryKeyModifiers = [.lcmd]
             KM.onSecondaryHotkey = { key in
                 self.handleCommandHotkey(key)
+                #if !DEBUG
+                    if let product {
+                        _ = checkInternalRequirements([product], nil)
+                    }
+                #endif
             }
         }
         super.applicationDidFinishLaunching(_: notification)
@@ -368,6 +378,12 @@ class AppDelegate: LowtechProAppDelegate {
                 }
             }
             .store(in: &observers)
+
+        #if !DEBUG
+            if let product {
+                _ = checkInternalRequirements([product], nil)
+            }
+        #endif
     }
 
     func trackScrollWheel() {
@@ -440,6 +456,12 @@ class AppDelegate: LowtechProAppDelegate {
         if Defaults[.enableClipboardOptimiser] {
             initClipboardOptimiser()
         }
+
+        #if !DEBUG
+            if let product {
+                _ = checkInternalRequirements([product], nil)
+            }
+        #endif
     }
 
     @MainActor func initClipboardOptimiser() {
@@ -572,7 +594,7 @@ class FileOptimisationWatcher {
             guard !SWIFTUI_PREVIEW else { return }
 
             mainAsync { [weak self] in
-                guard let self, self.isAddedFile(event: event), let path = event.path.existingFilePath else {
+                guard let self, isAddedFile(event: event), let path = event.path.existingFilePath else {
                     return
                 }
 
@@ -586,16 +608,16 @@ class FileOptimisationWatcher {
 
             mainActor { [weak self] in
                 guard let self else { return }
-                guard self.shouldHandle(event) else { return }
+                guard shouldHandle(event) else { return }
 
-                guard self.justAddedFiles.count <= self.maxFilesToHandle else {
-                    log.debug("More than \(self.maxFilesToHandle) files dropped (\(self.justAddedFiles.count))")
-                    for path in self.justAddedFiles.subtracting(self.cancelledFiles) {
+                guard justAddedFiles.count <= maxFilesToHandle else {
+                    log.debug("More than \(maxFilesToHandle) files dropped (\(justAddedFiles.count))")
+                    for path in justAddedFiles.subtracting(cancelledFiles) {
                         log.debug("Cancelling optimisation on \(path)")
-                        self.cancel(path)
-                        self.cancelledFiles.insert(path)
+                        cancel(path)
+                        cancelledFiles.insert(path)
                     }
-                    self.addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
+                    addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
                         self?.cancelledFiles.removeAll()
                         self?.justAddedFiles.removeAll()
                     }
@@ -606,11 +628,11 @@ class FileOptimisationWatcher {
                 Task.init { [weak self] in
                     guard let self else { return }
 
-                    var count = self.optimisedCount
+                    var count = optimisedCount
                     try? await proGuard(count: &count, limit: 2, url: event.path.fileURL) {
                         self.handler(event)
                     }
-                    self.optimisedCount = count
+                    optimisedCount = count
                 }
             }
         }

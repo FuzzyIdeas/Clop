@@ -663,38 +663,38 @@ struct SettingsView: View {
         var next: Tabs {
             switch self {
             case .general:
-                return .video
+                .video
             case .video:
-                return .images
+                .images
             case .images:
-                return .pdf
+                .pdf
             case .pdf:
-                return .floating
+                .floating
             case .floating:
-                return .keys
+                .keys
             case .keys:
-                return .about
+                .about
             default:
-                return self
+                self
             }
         }
 
         var previous: Tabs {
             switch self {
             case .video:
-                return .general
+                .general
             case .images:
-                return .video
+                .video
             case .pdf:
-                return .images
+                .images
             case .floating:
-                return .pdf
+                .pdf
             case .keys:
-                return .floating
+                .floating
             case .about:
-                return .keys
+                .keys
             default:
-                return self
+                self
             }
         }
 

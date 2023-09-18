@@ -213,7 +213,7 @@ class PDF: Optimisable {
             mainActor { [weak self] in
                 guard let self else { return }
                 optimiser.processes = [proc]
-                updateProgressGS(pipe: proc.standardOutput as! Pipe, url: self.path.url, optimiser: optimiser, pageCount: document?.pageCount)
+                updateProgressGS(pipe: proc.standardOutput as! Pipe, url: path.url, optimiser: optimiser, pageCount: document?.pageCount)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -278,10 +278,10 @@ class PDF: Optimisable {
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
         showFloatingThumbnails()
 
-        var optimisedPDF: PDF?
         let fileSize = pdf.fileSize
 
         pdfOptimisationQueue.addOperation {
+            var optimisedPDF: PDF?
             defer {
                 mainActor {
                     pdfOptimiseDebouncers.removeValue(forKey: pathString)
@@ -289,12 +289,12 @@ class PDF: Optimisable {
                 }
             }
             do {
-                mainAsync { OM.current = optimiser }
+                mainActor { OM.current = optimiser }
 
                 optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
                 if optimisedPDF!.fileSize >= fileSize, !allowLarger {
                     pdf.path.restore(force: true)
-                    mainAsync {
+                    mainActor {
                         optimiser.oldBytes = fileSize
                         optimiser.url = pdf.path.url
                     }
@@ -306,7 +306,7 @@ class PDF: Optimisable {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
                     log.error("Error optimising PDF \(pathString): \(proc.commandLine)")
-                    optimiser.finish(error: "Optimisation failed")
+                    mainActor { optimiser.finish(error: "Optimisation failed") }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedPDF = pdf
@@ -321,8 +321,6 @@ class PDF: Optimisable {
             guard let optimisedPDF else { return }
             mainActor {
                 result = optimisedPDF
-            }
-            mainAsync {
                 optimiser.url = optimisedPDF.path.url
                 optimiser.finish(oldBytes: fileSize, newBytes: optimisedPDF.fileSize, removeAfterMs: hideFilesAfter)
                 if copyToClipboard {

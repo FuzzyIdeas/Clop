@@ -313,21 +313,21 @@ var processTerminated = Set<pid_t>()
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
         showFloatingThumbnails()
 
-        var optimisedVideo: Video?
         let fileSize = video.fileSize
 
         videoOptimisationQueue.addOperation {
+            var optimisedVideo: Video?
             defer {
                 mainActor { done = true }
             }
 
             do {
-                mainAsync { OM.current = optimiser }
+                mainActor { OM.current = optimiser }
 
                 optimisedVideo = try video.optimise(optimiser: optimiser, forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie), aggressiveOptimisation: aggressiveOptimisation)
                 if optimisedVideo!.convertedFrom == nil, optimisedVideo!.fileSize >= fileSize, !allowLarger {
                     video.path.restore(force: true)
-                    mainAsync {
+                    mainActor {
                         optimiser.oldBytes = fileSize
                         optimiser.url = video.path.url
                     }
@@ -339,7 +339,7 @@ var processTerminated = Set<pid_t>()
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
                     log.error("Error optimising video \(pathString): \(proc.commandLine)")
-                    optimiser.finish(error: "Optimisation failed")
+                    mainActor { optimiser.finish(error: "Optimisation failed") }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedVideo = video
@@ -354,8 +354,6 @@ var processTerminated = Set<pid_t>()
             guard let optimisedVideo else { return }
             mainActor {
                 result = optimisedVideo
-            }
-            mainAsync {
                 optimiser.url = optimisedVideo.path.url
                 optimiser.finish(oldBytes: fileSize, newBytes: optimisedVideo.fileSize, removeAfterMs: hideFilesAfter)
                 if copyToClipboard {

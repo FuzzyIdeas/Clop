@@ -323,6 +323,28 @@ struct FloatingPreview: View {
 
 }
 
+struct OpenWithMenuView: View {
+    let fileURL: URL
+
+    var body: some View {
+        Menu("Open with...") {
+            let apps = NSWorkspace.shared.urlsForApplications(toOpen: fileURL).compactMap { Bundle(url: $0) }
+            ForEach(apps, id: \.bundleURL) { app in
+                Button(action: {
+                    NSWorkspace.shared.open([fileURL], withApplicationAt: app.bundleURL, configuration: .init(), completionHandler: { _, _ in })
+                }) {
+                    SwiftUI.Image(nsImage: NSWorkspace.shared.icon(forFile: app.bundlePath))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+                    Text(app.name)
+                }
+            }
+        }
+    }
+
+}
+
 // MARK: - SizeNotificationView
 
 struct SizeNotificationView: View {
@@ -768,6 +790,12 @@ struct SizeNotificationView: View {
         }
         .keyboardShortcut("c")
 
+        if let url = optimiser.url {
+            OpenWithMenuView(fileURL: url)
+        }
+
+        Divider()
+
         Button("Restore original") {
             optimiser.restoreOriginal()
         }
@@ -785,6 +813,7 @@ struct SizeNotificationView: View {
         }
         .keyboardShortcut(.delete)
 
+        Divider()
         Button("Downscale") {
             optimiser.downscale()
         }
@@ -943,7 +972,15 @@ struct FileNameField: View {
                     let tempName = tempName.safeFilename
 
                     if !tempName.isEmpty, let path = optimiser.url?.existingFilePath, path.stem != tempName {
-                        if let newPath = try? path.move(to: path.dir / "\(tempName).\(path.extension ?? "")") {
+                        var pathToMoveTo = path.dir / "\(tempName).\(path.extension ?? "")"
+                        if pathToMoveTo.exists {
+                            var i = 2
+                            while pathToMoveTo.exists {
+                                pathToMoveTo = path.dir / "\(tempName)_\(i).\(path.extension ?? "")"
+                                i += 1
+                            }
+                        }
+                        if let newPath = try? path.move(to: pathToMoveTo) {
                             optimiser.url = newPath.url
                             optimiser.path = newPath
                             optimiser.filename = newPath.name.string
