@@ -198,13 +198,13 @@ extension NSImage {
     func data(using type: NSBitmapImageRep.FileType) -> Data? {
         switch type {
         case .png:
-            return pngData
+            pngData
         case .jpeg:
-            return jpegData
+            jpegData
         case .gif:
-            return gifData
+            gifData
         default:
-            return pngData
+            pngData
         }
     }
 }

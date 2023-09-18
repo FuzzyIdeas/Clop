@@ -22,96 +22,96 @@ enum ItemType {
     var ext: String? {
         switch self {
         case let .image(uTType):
-            return uTType.preferredFilenameExtension
+            uTType.preferredFilenameExtension
         case let .video(uTType):
-            return uTType.preferredFilenameExtension
+            uTType.preferredFilenameExtension
         case .pdf:
-            return "pdf"
+            "pdf"
         case .url:
-            return nil
+            nil
         case .unknown:
-            return nil
+            nil
         }
     }
 
     var isImage: Bool {
         switch self {
         case .image:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
     var isVideo: Bool {
         switch self {
         case .video:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
     var isPDF: Bool {
         switch self {
         case .pdf:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
     var isURL: Bool {
         switch self {
         case .url:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
     var utType: UTType? {
         switch self {
         case let .image(utType):
-            return utType
+            utType
         case let .video(utType):
-            return utType
+            utType
         case .pdf:
-            return .pdf
+            .pdf
         case .url:
-            return nil
+            nil
         case .unknown:
-            return nil
+            nil
         }
     }
 
     var pasteboardType: NSPasteboard.PasteboardType? {
         switch self {
         case let .image(utType):
-            return utType.pasteboardType
+            utType.pasteboardType
         case let .video(utType):
-            return utType.pasteboardType
+            utType.pasteboardType
         case .pdf:
-            return .pdf
+            .pdf
         case .url:
-            return .URL
+            .URL
         case .unknown:
-            return nil
+            nil
         }
     }
 
     static func from(mimeType: String) -> ItemType {
         switch mimeType {
         case "image/jpeg", "image/png", "image/gif", "image/tiff", "image/webp", "image/heic", "image/heif", "image/avif":
-            return .image(UTType(mimeType: mimeType)!)
+            .image(UTType(mimeType: mimeType)!)
         case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg":
-            return .video(UTType(mimeType: mimeType)!)
+            .video(UTType(mimeType: mimeType)!)
         case "application/pdf":
-            return .pdf
+            .pdf
         case "text/html":
-            return .url
+            .url
         default:
-            return .unknown
+            .unknown
         }
     }
     static func from(filePath: FilePath) -> ItemType {
@@ -972,10 +972,10 @@ enum ClipboardType: Equatable {
 
     var id: String {
         switch self {
-        case let .image(img): return img.path.string
-        case let .file(path): return path.string
-        case let .url(url): return url.path
-        case .unknown: return ""
+        case let .image(img): img.path.string
+        case let .file(path): path.string
+        case let .url(url): url.path
+        case .unknown: ""
         }
     }
 
@@ -1137,9 +1137,9 @@ var manualOptimisationCount = 0
     case let .image(img):
         let result = try await proGuard(count: &optimisationCount, limit: 2, url: img.path.url) {
             if let scalingFactor, scalingFactor < 1 {
-                return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             } else {
-                return try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
             }
         }
         guard let result else { return nil }
@@ -1152,9 +1152,9 @@ var manualOptimisationCount = 0
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
                 if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 } else {
-                    return try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
                 }
             }
             guard let result else { return nil }

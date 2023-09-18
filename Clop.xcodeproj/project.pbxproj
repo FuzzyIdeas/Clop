@@ -29,6 +29,7 @@
 		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */; };
+		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +57,7 @@
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizeNotificationView.swift; sourceTree = "<group>"; };
+		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,6 +93,7 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C7DF1A212AB6F6A200AF8EDC /* required.swift */,
 				C7333E462A98C90500B1D5BE /* PDF.swift */,
 				C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */,
 				C7333E402A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 */,
@@ -229,6 +232,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */,
 				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,
 				C7760AB62A5C4EE500851F8C /* Images.swift in Sources */,
 				C7333E472A98C90500B1D5BE /* PDF.swift in Sources */,
