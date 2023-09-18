@@ -47,28 +47,28 @@ extension UTType {
     var imgType: NSBitmapImageRep.FileType {
         switch self {
         case .png:
-            return .png
+            .png
         case .jpeg:
-            return .jpeg
+            .jpeg
         case .gif:
-            return .gif
+            .gif
         default:
-            return .png
+            .png
         }
     }
 
     var pasteboardType: NSPasteboard.PasteboardType {
         switch self {
         case .png:
-            return .png
+            .png
         case .jpeg:
-            return .jpeg
+            .jpeg
         case .gif:
-            return .gif
+            .gif
         case .pdf:
-            return .pdf
+            .pdf
         default:
-            return .png
+            .png
         }
     }
 }
@@ -206,18 +206,16 @@ class Image: CustomStringConvertible {
     let path: FilePath
     var image: NSImage
 
-    lazy var optimised: Bool = {
-        switch type {
-        case .png:
-            return path.string.hasSuffix(".clop.png")
-        case .jpeg:
-            return path.string.hasSuffix(".clop.jpg")
-        case .gif:
-            return path.string.hasSuffix(".clop.gif")
-        default:
-            return false
-        }
-    }()
+    lazy var optimised: Bool = switch type {
+    case .png:
+        path.string.hasSuffix(".clop.png")
+    case .jpeg:
+        path.string.hasSuffix(".clop.jpg")
+    case .gif:
+        path.string.hasSuffix(".clop.gif")
+    default:
+        false
+    }
 
     var type: UTType
     @Atomic var retinaDownscaled: Bool
@@ -733,6 +731,10 @@ class Image: CustomStringConvertible {
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
         showFloatingThumbnails()
 
+        let img = img
+        let pathString = pathString
+        let allowLarger = allowLarger
+
         imageOptimisationQueue.addOperation {
             defer {
                 mainActor { done = true }
@@ -760,20 +762,20 @@ class Image: CustomStringConvertible {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
                     log.error("Error optimising image \(pathString): \(proc.commandLine)")
-                    optimiser.finish(error: "Optimisation failed")
+                    mainActor { optimiser.finish(error: "Optimisation failed") }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedImage = img
             } catch let error as ClopError {
                 log.error("Error optimising image \(pathString): \(error.description)")
-                optimiser.finish(error: error.humanDescription)
+                mainActor { optimiser.finish(error: error.humanDescription) }
             } catch {
                 log.error("Error optimising image \(pathString): \(error)")
-                optimiser.finish(error: "Optimisation failed")
+                mainActor { optimiser.finish(error: "Optimisation failed") }
             }
 
             guard let optimisedImage else { return }
-            mainAsync {
+            mainActor {
                 OM.current = optimiser
                 optimiser.finish(
                     oldBytes: img.data.count, newBytes: optimisedImage.data.count,

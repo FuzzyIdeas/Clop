@@ -15,8 +15,8 @@ enum IntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
-        case let .message(message): return "Error: \(message)"
-        case .general: return "Error"
+        case let .message(message): "Error: \(message)"
+        case .general: "Error"
         }
     }
 }

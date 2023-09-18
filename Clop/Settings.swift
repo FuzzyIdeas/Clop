@@ -128,7 +128,6 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .capVideoFPS,
     .targetVideoFPS,
     .minVideoFPS,
-    .useCPUIntensiveEncoder,
     .useAggresiveOptimisationMP4,
     .useAggresiveOptimisationJPEG,
     .useAggresiveOptimisationPNG,
@@ -161,4 +160,10 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .quickResizeKeys,
     .enabledKeys,
     .copyImageFilePath,
-]
+] + ARM64_SPECIFIC_SETTINGS
+
+#if arch(arm64)
+    let ARM64_SPECIFIC_SETTINGS: [Defaults._AnyKey] = [Defaults.Keys.useCPUIntensiveEncoder]
+#else
+    let ARM64_SPECIFIC_SETTINGS: [Defaults._AnyKey] = []
+#endif
