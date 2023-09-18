@@ -140,41 +140,41 @@ enum ClopError: Error, CustomStringConvertible {
     var humanDescription: String {
         switch self {
         case .fileNotFound:
-            return "File not found"
+            "File not found"
         case .fileNotImage:
-            return "Not an image"
+            "Not an image"
         case .noClipboardImage:
-            return "No image in clipboard"
+            "No image in clipboard"
         case .noProcess:
-            return "Can't start process"
+            "Can't start process"
         case .alreadyOptimised:
-            return "Already optimised"
+            "Already optimised"
         case .imageSizeLarger:
-            return "Already optimised"
+            "Already optimised"
         case .videoSizeLarger:
-            return "Already optimised"
+            "Already optimised"
         case .pdfSizeLarger:
-            return "Already optimised"
+            "Already optimised"
         case .unknownImageType:
-            return "Unknown image type"
+            "Unknown image type"
         case .processError:
-            return "Process error"
+            "Process error"
         case .videoError:
-            return "Video error"
+            "Video error"
         case .downloadError:
-            return "Download failed"
+            "Download failed"
         case .skippedType:
-            return "Type is skipped"
+            "Type is skipped"
         case .optimisationPaused:
-            return "Optimisation paused"
+            "Optimisation paused"
         case .conversionFailed:
-            return "Conversion failed"
+            "Conversion failed"
         case .proError:
-            return "Pro error"
+            "Pro error"
         case .downscaleFailed:
-            return "Downscale failed"
+            "Downscale failed"
         case .unknownType:
-            return "Unknown type"
+            "Unknown type"
         }
     }
 }

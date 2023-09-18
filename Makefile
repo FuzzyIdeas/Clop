@@ -23,6 +23,10 @@ DERIVED_DATA_DIR=$(shell ls -td $$HOME/Library/Developer/Xcode/DerivedData/Clop-
 
 print-%  : ; @echo $* = $($*)
 
+build:
+	make-app --build --devid --dmg -s Clop -c Release --version $(VERSION) \
+		&& xcp /tmp/apps/Clop-$(VERSION).dmg Releases/
+
 upload:
 	rsync -avzP Releases/*.{delta,dmg} hetzner:/static/lowtechguys/releases/ || true
 	rsync -avz Releases/*.html hetzner:/static/lowtechguys/ReleaseNotes/
