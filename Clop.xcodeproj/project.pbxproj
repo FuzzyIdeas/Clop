@@ -30,6 +30,7 @@
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */; };
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
+		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -67,6 +68,7 @@
 			files = (
 				C78211022A59E371008DB106 /* Lowtech in Frameworks */,
 				C78211042A59E371008DB106 /* LowtechIndie in Frameworks */,
+				C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */,
 				C78211062A59E371008DB106 /* LowtechPro in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -150,6 +152,7 @@
 				C78211012A59E371008DB106 /* Lowtech */,
 				C78211032A59E371008DB106 /* LowtechIndie */,
 				C78211052A59E371008DB106 /* LowtechPro */,
+				C7DF1A272AB8885600AF8EDC /* Ignore */,
 			);
 			productName = Clop;
 			productReference = C7AB6621288301590041BEC8 /* Clop.app */;
@@ -181,6 +184,7 @@
 			mainGroup = C7AB6618288301590041BEC8;
 			packageReferences = (
 				C78211002A59E371008DB106 /* XCRemoteSwiftPackageReference "Lowtech" */,
+				C7DF1A262AB8885500AF8EDC /* XCRemoteSwiftPackageReference "swift-ignore" */,
 			);
 			productRefGroup = C7AB6622288301590041BEC8 /* Products */;
 			projectDirPath = "";
@@ -474,6 +478,14 @@
 				kind = branch;
 			};
 		};
+		C7DF1A262AB8885500AF8EDC /* XCRemoteSwiftPackageReference "swift-ignore" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/alin23/swift-ignore";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -491,6 +503,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C78211002A59E371008DB106 /* XCRemoteSwiftPackageReference "Lowtech" */;
 			productName = LowtechPro;
+		};
+		C7DF1A272AB8885600AF8EDC /* Ignore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C7DF1A262AB8885500AF8EDC /* XCRemoteSwiftPackageReference "swift-ignore" */;
+			productName = Ignore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
