@@ -524,6 +524,8 @@ var statusItem: NSStatusItem? {
     }.first
 }
 
+import Ignore
+
 @MainActor
 class FileOptimisationWatcher {
     init(pathsKey: Defaults.Key<[String]>, maxFilesToHandleKey: Defaults.Key<Int>, shouldHandle: @escaping (EonilFSEventsEvent) -> Bool, cancel: @escaping (FilePath) -> Void, handler: @escaping (EonilFSEventsEvent) -> Void) {
@@ -622,6 +624,11 @@ class FileOptimisationWatcher {
                         self?.justAddedFiles.removeAll()
                     }
 
+                    return
+                }
+
+                if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/.clopignore".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
+                    log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
                     return
                 }
 

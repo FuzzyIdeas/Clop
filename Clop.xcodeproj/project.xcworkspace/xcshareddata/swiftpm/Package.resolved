@@ -55,15 +55,6 @@
       }
     },
     {
-      "identity" : "fuzzymatcher",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/alin23/FuzzyMatcher",
-      "state" : {
-        "branch" : "main",
-        "revision" : "b97b7b900faf2a3881b5536be0f50b5c904c2798"
-      }
-    },
-    {
       "identity" : "launchatlogin-modern",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/LaunchAtLogin-Modern",
@@ -78,7 +69,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "9ff3b95f3e22a156719b44ad18e41627beea0a16"
+        "revision" : "3421739058700f66ae840b7a5556c5632f7f31b0"
       }
     },
     {
@@ -142,6 +133,15 @@
       "state" : {
         "revision" : "ddb07e896a2a8af79512543b1c7eb9797f8898a5",
         "version" : "1.1.7"
+      }
+    },
+    {
+      "identity" : "swift-ignore",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/alin23/swift-ignore",
+      "state" : {
+        "revision" : "b995e1750f13a61e9e25e7deddf5fea7e48f62de",
+        "version" : "0.1.1"
       }
     },
     {
