@@ -62,7 +62,7 @@ struct DirListView: View {
                     .frame(maxWidth: 400, alignment: .trailing)
             }.padding(.top, 2).opacity(0.8)
             TextEditor(text: $textDebounce.text)
-                .frame(minHeight: 100)
+                .font(.mono(12))
                 .onChange(of: textDebounce.debouncedText, perform: { value in
                     guard Self.shouldSave else { return }
                     saveIgnoreRules(text: value)
@@ -98,8 +98,8 @@ struct DirListView: View {
                     `# Ignore all files with the .jpg extension`
                     `*.jpg`
                     ` `
-                    `# Exclude all files in an "images" directory`
-                    `images/`
+                    `# Exclude all files in a "DontOptimise" directory`
+                    `DontOptimise/`
                     ` `
                     `# Exclude all MKV video files`
                     `*.mkv`
@@ -770,7 +770,7 @@ struct GeneralSettingsView: View {
                         + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular)
                 }
                 Toggle(isOn: $autoCopyToClipboard) {
-                    Text("Auto Copy files to clipboard").regular(13)
+                    Text("Auto Copy optimised files to clipboard").regular(13)
                         + Text("\nCopy files resulting from drop zone or file watch optimisation so they can be pasted right after optimisation ends").round(11, weight: .regular)
                 }
             }
@@ -787,7 +787,7 @@ struct GeneralSettingsView: View {
 }
 
 class SettingsViewManager: ObservableObject {
-    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .video : .general
+    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .general : .general
 }
 
 let settingsViewManager = SettingsViewManager()
