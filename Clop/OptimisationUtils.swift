@@ -351,6 +351,33 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         lhs.id == rhs.id
     }
 
+    func rename(to newFileName: String) {
+        let newFileName = newFileName.safeFilename
+        guard !newFileName.isEmpty, let currentPath = url?.existingFilePath, currentPath.stem != newFileName else {
+            return
+        }
+
+        var pathToMoveTo = currentPath.dir / "\(newFileName).\(currentPath.extension ?? "")"
+        if pathToMoveTo.exists {
+            var i = 2
+            while pathToMoveTo.exists {
+                pathToMoveTo = currentPath.dir / "\(newFileName)_\(i).\(currentPath.extension ?? "")"
+                i += 1
+            }
+        }
+        guard let newPath = try? currentPath.move(to: pathToMoveTo) else {
+            return
+        }
+
+        url = newPath.url
+        path = newPath
+        filename = newPath.name.string
+
+        if let items = NSPasteboard.general.pasteboardItems, items.count == 1, let item = items.first, item.filePath?.name == currentPath.name {
+            copyToClipboard()
+        }
+    }
+
     func quicklook() {
         resetRemover()
         OM.quicklook(optimiser: self)

@@ -54,7 +54,7 @@ struct OptimiseFileIntent: AppIntent {
     var downscaleFactor: Double
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
         let clip = ClipboardType.fromString(item)
 
         let result: ClipboardType?
