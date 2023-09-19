@@ -969,28 +969,7 @@ struct FileNameField: View {
                 .hfill(.leading)
                 .frame(height: 16)
                 .onSubmit {
-                    let tempName = tempName.safeFilename
-
-                    if !tempName.isEmpty, let path = optimiser.url?.existingFilePath, path.stem != tempName {
-                        var pathToMoveTo = path.dir / "\(tempName).\(path.extension ?? "")"
-                        if pathToMoveTo.exists {
-                            var i = 2
-                            while pathToMoveTo.exists {
-                                pathToMoveTo = path.dir / "\(tempName)_\(i).\(path.extension ?? "")"
-                                i += 1
-                            }
-                        }
-                        if let newPath = try? path.move(to: pathToMoveTo) {
-                            optimiser.url = newPath.url
-                            optimiser.path = newPath
-                            optimiser.filename = newPath.name.string
-
-                            if let items = NSPasteboard.general.pasteboardItems, items.count == 1, let item = items.first, item.filePath?.name == path.name {
-                                optimiser.copyToClipboard()
-                            }
-                        }
-                    }
-
+                    optimiser.rename(to: tempName)
                     optimiser.editingFilename = false
                 }
                 .focused($focused)
