@@ -273,7 +273,7 @@ class Image: CustomStringConvertible {
             item.data(forType: t)
         }.first
 
-        if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: URL.temporaryDirectory.filePath, force: true),
+        if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: FilePath.images, force: true),
            let img = Image(path: path, data: data, nsImage: nsImage, optimised: optimised, retinaDownscaled: false)
         {
             return img
@@ -774,7 +774,7 @@ class Image: CustomStringConvertible {
                 mainActor { optimiser.finish(error: "Optimisation failed") }
             }
 
-            guard let optimisedImage else { return }
+            guard var optimisedImage else { return }
             mainActor {
                 OM.current = optimiser
                 optimiser.finish(
@@ -782,12 +782,18 @@ class Image: CustomStringConvertible {
                     oldSize: img.size, newSize: shouldDownscale ? optimisedImage.size : nil,
                     removeAfterMs: id == Optimiser.IDs.clipboardImage ? hideClipboardAfter : hideFilesAfter
                 )
-            }
 
-            if copyToClipboard {
-                optimisedImage.copyToClipboard()
-            }
-            mainActor {
+                if id == Optimiser.IDs.clipboardImage, Defaults[.copyImageFilePath], Defaults[.useCustomNameTemplateForClipboardImages] {
+                    optimiser.rename(to: generateFileName(template: Defaults[.customNameTemplateForClipboardImages] ?! DEFAULT_NAME_TEMPLATE))
+                    if let path = optimiser.path {
+                        optimisedImage = Image(data: optimisedImage.data, path: path, nsImage: optimisedImage.image, type: optimisedImage.type, optimised: optimisedImage.optimised, retinaDownscaled: optimisedImage.retinaDownscaled)
+                    }
+                }
+
+                if copyToClipboard {
+                    optimisedImage.copyToClipboard()
+                }
+
                 result = optimisedImage
             }
         }

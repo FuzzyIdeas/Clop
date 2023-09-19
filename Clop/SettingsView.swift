@@ -374,6 +374,48 @@ struct SectionHeader: View {
     }
 }
 
+enum FileNameToken: String {
+    case year = "%y"
+    case monthNumeric = "%m"
+    case monthName = "%n"
+    case day = "%d"
+    case weekday = "%w"
+    case hour = "%H"
+    case minutes = "%M"
+    case seconds = "%S"
+    case amPm = "%p"
+    case randomCharacters = "%r"
+    case autoIncrementingNumber = "%i"
+}
+func generateFileName(template: String) -> String {
+    var name = template
+    let date = Date()
+    let calendar = Calendar.current
+    let components = calendar.dateComponents([.year, .month, .day, .weekday, .hour, .minute, .second], from: date)
+    let num = Defaults[.lastAutoIncrementingNumber] + 1
+
+    name = name.replacingOccurrences(of: FileNameToken.year.rawValue, with: String(format: "%04d", components.year!))
+        .replacingOccurrences(of: FileNameToken.monthNumeric.rawValue, with: String(format: "%02d", components.month!))
+        .replacingOccurrences(of: FileNameToken.monthName.rawValue, with: calendar.monthSymbols[components.month! - 1])
+        .replacingOccurrences(of: FileNameToken.day.rawValue, with: String(format: "%02d", components.day!))
+        .replacingOccurrences(of: FileNameToken.weekday.rawValue, with: String(components.weekday!))
+        .replacingOccurrences(of: FileNameToken.hour.rawValue, with: String(format: "%02d", components.hour!))
+        .replacingOccurrences(of: FileNameToken.minutes.rawValue, with: String(format: "%02d", components.minute!))
+        .replacingOccurrences(of: FileNameToken.seconds.rawValue, with: String(format: "%02d", components.second!))
+        .replacingOccurrences(of: FileNameToken.amPm.rawValue, with: components.hour! > 12 ? "PM" : "AM")
+        .replacingOccurrences(of: FileNameToken.randomCharacters.rawValue, with: NanoID.new(alphabet: .lowercasedLatinLetters, size: 5))
+        .replacingOccurrences(of: FileNameToken.autoIncrementingNumber.rawValue, with: num.s)
+        .safeFilename
+
+    if !SWIFTUI_PREVIEW, template.contains(FileNameToken.autoIncrementingNumber.rawValue) {
+        Defaults[.lastAutoIncrementingNumber] = num
+    }
+
+    return name
+}
+
+let DEFAULT_NAME_TEMPLATE = "screenshot_%y-%m-%d_%i"
+
 struct ImagesSettingsView: View {
     @Default(.imageDirs) var imageDirs
     @Default(.formatsToConvertToJPEG) var formatsToConvertToJPEG
@@ -385,6 +427,8 @@ struct ImagesSettingsView: View {
     @Default(.convertedImageBehaviour) var convertedImageBehaviour
     @Default(.maxImageFileCount) var maxImageFileCount
     @Default(.copyImageFilePath) var copyImageFilePath
+    @Default(.customNameTemplateForClipboardImages) var customNameTemplateForClipboardImages
+    @Default(.useCustomNameTemplateForClipboardImages) var useCustomNameTemplateForClipboardImages
 
     @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
     @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
@@ -395,9 +439,52 @@ struct ImagesSettingsView: View {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
                 DirListView(dirs: $imageDirs)
             }
-            Toggle(isOn: $copyImageFilePath) {
-                Text("Copy image paths").regular(13)
-                    + Text("\nWhen copying optimised image data, also copy the path of the image file").round(11, weight: .regular)
+            Section(header: SectionHeader(title: "File name handling")) {
+                Toggle(isOn: $copyImageFilePath) {
+                    Text("Copy image paths").regular(13)
+                        + Text("\nWhen copying optimised image data, also copy the path of the image file").round(11, weight: .regular)
+                }
+                Toggle(isOn: $useCustomNameTemplateForClipboardImages.animation(.default)) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Custom name template").regular(13)
+                            + Text("\nRename the file using this template before copying the path to the clipboard").round(11, weight: .regular)
+
+                        HStack {
+                            TextField("", text: $customNameTemplateForClipboardImages, prompt: Text(DEFAULT_NAME_TEMPLATE))
+                                .frame(width: 400, height: 18, alignment: .leading)
+                                .padding(6)
+                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray.opacity(useCustomNameTemplateForClipboardImages ? 1 : 0.35), lineWidth: 1))
+                                .disabled(!useCustomNameTemplateForClipboardImages)
+                            if useCustomNameTemplateForClipboardImages {
+                                Spacer(minLength: 20)
+                                Text(generateFileName(template: customNameTemplateForClipboardImages ?! DEFAULT_NAME_TEMPLATE))
+                                    .round(12)
+                                    .lineLimit(1)
+                                    .allowsTightening(true)
+                                    .truncationMode(.middle)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        if useCustomNameTemplateForClipboardImages {
+                            Text("""
+                            **Date**                | **Time**
+                            --------------------|-----------------
+                            Year             **%y** | Hour     **%H**
+                            Month (numeric)  **%m** | Minutes  **%M**
+                            Month (name)     **%n** | Seconds  **%S**
+                            Day              **%d** | AM/PM    **%p**
+                            Weekday          **%w** |
+
+                            Random characters **%r**
+                            Auto-incrementing number **%i**
+                            """)
+                            .mono(12, weight: .light)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 6)
+                        }
+                    }
+
+                }.disabled(!copyImageFilePath)
             }
 
             Section(header: SectionHeader(title: "Optimisation rules")) {
@@ -787,7 +874,7 @@ struct GeneralSettingsView: View {
 }
 
 class SettingsViewManager: ObservableObject {
-    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .general : .general
+    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .images : .general
 }
 
 let settingsViewManager = SettingsViewManager()

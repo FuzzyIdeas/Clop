@@ -87,6 +87,9 @@ public extension Defaults.Keys {
     static let adaptiveImageSize = Key<Bool>("adaptiveImageSize", default: true)
     static let downscaleRetinaImages = Key<Bool>("downscaleRetinaImages", default: false)
     static let copyImageFilePath = Key<Bool>("copyImageFilePath", default: true)
+    static let useCustomNameTemplateForClipboardImages = Key<Bool>("useCustomNameTemplateForClipboardImages", default: false)
+    static let customNameTemplateForClipboardImages = Key<String>("customNameTemplateForClipboardImages", default: "")
+    static let lastAutoIncrementingNumber = Key<Int>("lastAutoIncrementingNumber", default: 0)
 
     static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
