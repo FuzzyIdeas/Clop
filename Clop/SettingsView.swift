@@ -881,7 +881,7 @@ let settingsViewManager = SettingsViewManager()
 
 struct SettingsView: View {
     enum Tabs: Hashable {
-        case general, advanced, video, images, floating, keys, about, pdf
+        case general, advanced, video, images, floating, keys, about, pdf, automation
 
         var next: Tabs {
             switch self {
@@ -896,6 +896,8 @@ struct SettingsView: View {
             case .floating:
                 .keys
             case .keys:
+                .automation
+            case .automation:
                 .about
             default:
                 self
@@ -914,8 +916,10 @@ struct SettingsView: View {
                 .pdf
             case .keys:
                 .floating
-            case .about:
+            case .automation:
                 .keys
+            case .about:
+                .automation
             default:
                 self
             }
@@ -964,6 +968,12 @@ struct SettingsView: View {
                     }
                     .tag(Tabs.keys)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                AutomationSettingsView()
+                    .tabItem {
+                        Label("Automation", systemImage: "hammer")
+                    }
+                    .tag(Tabs.automation)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 AboutSettingsView()
                     .tabItem {
                         Label("About", systemImage: "info.circle")
@@ -973,14 +983,14 @@ struct SettingsView: View {
             }
             .padding(.top, 20)
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
-                guard let window = notif.object as? NSWindow else { return }
+                guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
                 if window.title == "Settings" {
                     log.debug("Starting settings tab key monitor")
                     tabKeyMonitor.start()
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notif in
-                guard let window = notif.object as? NSWindow else { return }
+                guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
                 if window.title == "Settings" {
                     log.debug("Stopping settings tab key monitor")
                     tabKeyMonitor.stop()
@@ -1030,6 +1040,8 @@ struct SettingsView: View {
         case .six:
             settingsViewManager.tab = .keys
         case .seven:
+            settingsViewManager.tab = .automation
+        case .eight:
             settingsViewManager.tab = .about
         default:
             return event
