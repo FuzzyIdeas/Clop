@@ -66,7 +66,8 @@ struct OptimiseFileIntent: AppIntent {
                 downscaleTo: downscaleFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
-                copyToClipboard: copyToClipboard
+                copyToClipboard: copyToClipboard,
+                source: "shortcuts"
             )
         } catch let ClopError.alreadyOptimised(path) {
             guard path.exists else {

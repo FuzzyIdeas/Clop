@@ -4,32 +4,43 @@ import Lowtech
 import SwiftUI
 
 extension Defaults.Keys {
-    static let shortcutToRunOnImage = Key<[String: String]>("shortcutToRunOnImage", default: [:])
-    static let shortcutToRunOnVideo = Key<[String: String]>("shortcutToRunOnVideo", default: [:])
-    static let shortcutToRunOnPdf = Key<[String: String]>("shortcutToRunOnPdf", default: [:])
+    static let shortcutToRunOnImage = Key<[String: Shortcut]>("shortcutToRunOnImage", default: [:])
+    static let shortcutToRunOnVideo = Key<[String: Shortcut]>("shortcutToRunOnVideo", default: [:])
+    static let shortcutToRunOnPdf = Key<[String: Shortcut]>("shortcutToRunOnPdf", default: [:])
 }
 
-func getShortcuts() -> [String: String]? {
+struct Shortcut: Codable, Hashable, Defaults.Serializable, Identifiable {
+    var name: String
+    var identifier: String
+
+    var id: String { identifier }
+}
+
+func getShortcuts() -> [Shortcut]? {
     guard let output = shell("/usr/bin/shortcuts", args: ["list", "--show-identifiers"], timeout: 2).o else {
         return nil
     }
 
     let lines = output.split(separator: "\n")
-    var shortcuts: [String: String] = [:]
+    var shortcuts: [Shortcut] = []
     for line in lines {
         let parts = line.split(separator: " ")
         guard let identifier = parts.last?.trimmingCharacters(in: ["(", ")"]) else {
             continue
         }
         let name = parts.dropLast().joined(separator: " ")
-        shortcuts[identifier] = name
+        shortcuts.append(Shortcut(name: name, identifier: identifier))
     }
-    return shortcuts.isEmpty ? nil : shortcuts
+
+    guard shortcuts.count > 0 else {
+        return nil
+    }
+
+    return shortcuts
 }
 
-func runShortcut(_ shortcut: String, _ file: String) -> Process? {
-    let proc = shellProc("/usr/bin/shortcuts", args: ["run", shortcut, "--input-path", file])
-    return proc
+func runShortcut(_ shortcut: Shortcut, _ file: String) -> Process? {
+    shellProc("/usr/bin/shortcuts", args: ["run", shortcut.identifier, "--input-path", file])
 }
 
 struct ShortcutsIcon: View {
@@ -62,9 +73,9 @@ struct ShortcutsIcon: View {
 }
 
 struct AutomationRowView: View {
-    @Binding var shortcuts: [String: String]
+    @Binding var shortcuts: [String: Shortcut]
 
-    var shortcutsList: [[String: String].Element]
+    var shortcutsList: [Shortcut]
     var icon: String
     var type: String
     var color: Color
@@ -99,7 +110,7 @@ struct AutomationRowView: View {
 
     @ViewBuilder
     func picker(source: String) -> some View {
-        let binding = Binding<String?>(
+        let binding = Binding<Shortcut?>(
             get: { shortcuts[source] },
             set: {
                 if let shortcut = $0 {
@@ -114,15 +125,15 @@ struct AutomationRowView: View {
             Picker(
                 selection: binding,
                 content: {
-                    Text("do nothing").tag(nil as String?)
+                    Text("do nothing").tag(nil as Shortcut?)
                     Divider()
-                    ForEach(shortcutsList, id: \.key) { el in
-                        if el.value.count > 30 {
-                            Text("\(el.value)").tag(el.key as String?)
+                    ForEach(shortcutsList) { sh in
+                        if sh.name.count > 30 {
+                            Text("\(sh.name)").tag(sh as Shortcut?)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         } else {
-                            Text("run the \"\(el.value)\" Shortcut").tag(el.key as String?)
+                            Text("run the \"\(sh.name)\" Shortcut").tag(sh as Shortcut?)
                         }
                     }
                 },
@@ -154,10 +165,9 @@ struct AutomationSettingsView: View {
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
 
-    @State var shortcuts: [String: String] = [:]
+    @State var shortcuts: [Shortcut] = []
 
     var body: some View {
-        let shortcutsList = shortcuts.map { $0 }.sorted(by: \.1)
         let imageSources = ((enableClipboardOptimiser || optimiseImagePathClipboard) ? ["clipboard"] : []) + (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.imageDirs]
         let videoSources = (optimiseVideoClipboard ? ["clipboard"] : []) + (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.videoDirs]
         let pdfSources = (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.pdfDirs]
@@ -167,7 +177,7 @@ struct AutomationSettingsView: View {
                 if imageSources.isNotEmpty {
                     AutomationRowView(
                         shortcuts: $shortcutToRunOnImage,
-                        shortcutsList: shortcutsList,
+                        shortcutsList: shortcuts,
                         icon: "photo", type: "image",
                         color: .calmBlue,
                         sources: imageSources
@@ -176,7 +186,7 @@ struct AutomationSettingsView: View {
                 if videoSources.isNotEmpty {
                     AutomationRowView(
                         shortcuts: $shortcutToRunOnVideo,
-                        shortcutsList: shortcutsList,
+                        shortcutsList: shortcuts,
                         icon: "video", type: "video",
                         color: .red,
                         sources: videoSources
@@ -185,7 +195,7 @@ struct AutomationSettingsView: View {
                 if pdfSources.isNotEmpty {
                     AutomationRowView(
                         shortcuts: $shortcutToRunOnPdf,
-                        shortcutsList: shortcutsList,
+                        shortcutsList: shortcuts,
                         icon: "doc.text.magnifyingglass", type: "PDF",
                         color: .burntSienna,
                         sources: pdfSources
