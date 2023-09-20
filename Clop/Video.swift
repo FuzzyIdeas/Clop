@@ -297,11 +297,20 @@ var processTerminated = Set<pid_t>()
 }
 
 @discardableResult
-@MainActor func optimiseVideo(_ video: Video, copyToClipboard: Bool = false, id: String? = nil, debounceMS: Int = 0, allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) async throws -> Video? {
+@MainActor func optimiseVideo(
+    _ video: Video,
+    copyToClipboard: Bool = false,
+    id: String? = nil,
+    debounceMS: Int = 0,
+    allowLarger: Bool = false,
+    hideFloatingResult: Bool = false,
+    aggressiveOptimisation: Bool? = nil,
+    source: String? = nil
+) async throws -> Video? {
     let path = video.path
     let pathString = path.string
     let itemType = ItemType.from(filePath: path)
-    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: debounceMS > 0 ? "Waiting for video to be ready" : "Optimising", hidden: hideFloatingResult)
+    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: debounceMS > 0 ? "Waiting for video to be ready" : "Optimising", hidden: hideFloatingResult, source: source)
 
     var done = false
     var result: Video?
@@ -378,7 +387,8 @@ var processTerminated = Set<pid_t>()
     id: String? = nil,
     toFactor factor: Double? = nil,
     hideFloatingResult: Bool = false,
-    aggressiveOptimisation: Bool? = nil
+    aggressiveOptimisation: Bool? = nil,
+    source: String? = nil
 ) async throws -> Video? {
     guard let resolution = video.size else {
         throw ClopError.videoError("Error getting resolution for \(video.path.string)")
@@ -395,7 +405,7 @@ var processTerminated = Set<pid_t>()
     }
 
     let itemType = ItemType.from(filePath: video.path)
-    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Scaling to \((scalingFactor * 100).intround)%", hidden: hideFloatingResult)
+    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Scaling to \((scalingFactor * 100).intround)%", hidden: hideFloatingResult, source: source)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {
         optimiser.operation += " (aggressive)"
@@ -477,7 +487,8 @@ var processTerminated = Set<pid_t>()
     id: String? = nil,
     byFactor factor: Double? = nil,
     hideFloatingResult: Bool = false,
-    aggressiveOptimisation: Bool? = nil
+    aggressiveOptimisation: Bool? = nil,
+    source: String? = nil
 ) async throws -> Video? {
     let pathString = video.path.string
     videoOptimiseDebouncers[pathString]?.cancel()
@@ -502,7 +513,7 @@ var processTerminated = Set<pid_t>()
                     ? "Reverting to original speed"
                     : "Slowing down by \(speedUpFactor < 2 ? speedUpFactor.str(decimals: 2) : speedUpFactor.i.s)x"
             ),
-        hidden: hideFloatingResult
+        hidden: hideFloatingResult, source: source
     )
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {

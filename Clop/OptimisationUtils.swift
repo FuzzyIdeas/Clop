@@ -85,6 +85,21 @@ enum ItemType {
         }
     }
 
+    var shortcutKey: Defaults.Key<[String: Shortcut]>? {
+        switch self {
+        case let .image:
+            .shortcutToRunOnImage
+        case let .video:
+            .shortcutToRunOnVideo
+        case .pdf:
+            .shortcutToRunOnPdf
+        case .url:
+            nil
+        case .unknown:
+            nil
+        }
+    }
+
     var pasteboardType: NSPasteboard.PasteboardType? {
         switch self {
         case let .image(utType):
@@ -210,7 +225,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func quicklook() {
         guard let ql = QLPreviewPanel.shared() else { return }
 
-        NSApp.activate(ignoringOtherApps: true)
+        focus()
         ql.makeKeyAndOrderFront(nil)
         ql.dataSource = self
         ql.currentPreviewItemIndex = 0
@@ -278,6 +293,8 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     @Published var inRemoval = false
 
     @Atomic var retinaDownscaled = false
+
+    var source: String?
 
     @Published var editingFilename = false {
         didSet {
@@ -387,6 +404,22 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         type.isVideo && !inRemoval
     }
 
+    func runAutomation() -> Process? {
+        guard !inRemoval, !SWIFTUI_PREVIEW, let source, let url else {
+            return nil
+        }
+
+        guard let key = type.shortcutKey, let shortcut = Defaults[key][source], let proc = runShortcut(shortcut, url.path) else {
+            return nil
+        }
+
+        mainActor { [weak self] in
+            self?.progress = Progress()
+            self?.operation = "Running \"\(shortcut.name)\""
+            self?.processes = [proc]
+        }
+        return proc
+    }
     func speedUp(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval, !SWIFTUI_PREVIEW else { return }
 
@@ -768,7 +801,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id == Optimiser.IDs.clipboardImage }) }
 
-    func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false) -> Optimiser {
+    func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false, source: String? = nil) -> Optimiser {
         let optimiser = (
             OM.optimisers.first(where: { $0.id == id }) ??
                 (current?.id == id ? current : nil) ??
@@ -780,6 +813,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         optimiser.hidden = hidden
         optimiser.progress.completedUnitCount = 0
         optimiser.isOriginal = false
+
+        if let source {
+            optimiser.source = source
+        }
 
         if !OM.optimisers.contains(optimiser) {
             OM.optimisers = OM.optimisers.with(optimiser)
@@ -806,7 +843,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     func quicklook(optimiser: Optimiser? = nil) {
         guard let ql = QLPreviewPanel.shared() else { return }
 
-        NSApp.activate(ignoringOtherApps: true)
+        focus()
         ql.makeKeyAndOrderFront(nil)
         ql.dataSource = self
         if let optimiser {
@@ -913,13 +950,14 @@ func optimiseURL(
     hideFloatingResult: Bool = false,
     downscaleTo scalingFactor: Double? = nil,
     speedUpBy speedUpFactor: Double? = nil,
-    aggressiveOptimisation: Bool? = nil
+    aggressiveOptimisation: Bool? = nil,
+    source: String? = nil
 ) async throws -> ClipboardType? {
     showFloatingThumbnails(force: true)
 
     var clipResult: ClipboardType?
     do {
-        guard let (downloadPath, type, optimiser) = try await getFile(from: url, hideFloatingResult: hideFloatingResult) else {
+        guard let (downloadPath, type, optimiser) = try await downloadFile(from: url, hideFloatingResult: hideFloatingResult) else {
             return nil
         }
         let downloadURL = downloadPath.url
@@ -928,6 +966,9 @@ func optimiseURL(
         optimiser.originalURL = downloadURL
         optimiser.url = downloadURL
         optimiser.type = type
+        if let source {
+            optimiser.source = source
+        }
 
         switch type {
         case .image:
@@ -938,9 +979,18 @@ func optimiseURL(
 
             let result: Image?
             if let scalingFactor, scalingFactor < 1 {
-                result = try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                result = try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
-                result = try await optimiseImage(img, copyToClipboard: copyToClipboard, id: optimiser.id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                result = try await optimiseImage(
+                    img,
+                    copyToClipboard: copyToClipboard,
+                    id: optimiser.id,
+                    allowTiff: true,
+                    allowLarger: false,
+                    hideFloatingResult: hideFloatingResult,
+                    aggressiveOptimisation: aggressiveOptimisation,
+                    source: source
+                )
             }
 
             if let result {
@@ -951,11 +1001,11 @@ func optimiseURL(
 
             let result: Video?
             if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                result = try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                result = try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let speedUpFactor, speedUpFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                result = try await speedUpVideo(video, copyToClipboard: copyToClipboard, id: optimiser.id, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                result = try await speedUpVideo(video, copyToClipboard: copyToClipboard, id: optimiser.id, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
-                result = try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                result = try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
 
             if let result {
@@ -964,7 +1014,7 @@ func optimiseURL(
         case .pdf:
             clipResult = .file(downloadPath)
 
-            let result: PDF? = try await optimisePDF(PDF(downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+            let result: PDF? = try await optimisePDF(PDF(downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
 
             if let result {
                 clipResult = .file(result.path)
@@ -1072,7 +1122,7 @@ import LowtechPro
 
 var manualOptimisationCount = 0
 
-@MainActor func getFile(from url: URL, optimiser: Optimiser? = nil, hideFloatingResult: Bool = false) async throws -> (FilePath, ItemType, Optimiser)? {
+@MainActor func downloadFile(from url: URL, optimiser: Optimiser? = nil, hideFloatingResult: Bool = false) async throws -> (FilePath, ItemType, Optimiser)? {
     var optimiser: Optimiser?
     if optimiser == nil {
         optimiser = OM.optimiser(id: url.absoluteString, type: .url, operation: "Fetching", hidden: hideFloatingResult)
@@ -1114,7 +1164,7 @@ var manualOptimisationCount = 0
     case let .file(filePath):
         QuickLooker.quicklook(url: filePath.url)
     case let .url(url):
-        guard let (downloadPath, _, optimiser) = try await getFile(from: url) else {
+        guard let (downloadPath, _, optimiser) = try await downloadFile(from: url) else {
             return
         }
         optimiser.stop()
@@ -1135,7 +1185,8 @@ var manualOptimisationCount = 0
         speedUpBy: speedUpFactor,
         aggressiveOptimisation: aggressiveOptimisation,
         optimisationCount: &manualOptimisationCount,
-        copyToClipboard: true
+        copyToClipboard: true,
+        source: "clipboard"
     )
 }
 
@@ -1153,7 +1204,8 @@ var manualOptimisationCount = 0
     speedUpBy speedUpFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     optimisationCount: inout Int,
-    copyToClipboard: Bool
+    copyToClipboard: Bool,
+    source: String? = nil
 ) async throws -> ClipboardType? {
     let nope = { (notice: String) in
         let optimiser = OM.optimiser(id: id, type: .unknown, operation: "", hidden: hideFloatingResult)
@@ -1164,9 +1216,9 @@ var manualOptimisationCount = 0
     case let .image(img):
         let result = try await proGuard(count: &optimisationCount, limit: 2, url: img.path.url) {
             if let scalingFactor, scalingFactor < 1 {
-                try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
-                try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
         }
         guard let result else { return nil }
@@ -1179,9 +1231,9 @@ var manualOptimisationCount = 0
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
                 if let scalingFactor, scalingFactor < 1 {
-                    try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else {
-                    try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 }
             }
             guard let result else { return nil }
@@ -1195,11 +1247,11 @@ var manualOptimisationCount = 0
                 let video = await (try? Video.byFetchingMetadata(path: path)) ?? Video(path: path)
 
                 if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleVideo(video, copyToClipboard: copyToClipboard, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await downscaleVideo(video, copyToClipboard: copyToClipboard, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else if let speedUpFactor, speedUpFactor != 1, speedUpFactor != 0 {
-                    return try await speedUpVideo(video, copyToClipboard: copyToClipboard, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await speedUpVideo(video, copyToClipboard: copyToClipboard, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else {
-                    return try await optimiseVideo(video, copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                    return try await optimiseVideo(video, copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 }
             }
             guard let result else { return nil }
@@ -1210,7 +1262,7 @@ var manualOptimisationCount = 0
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
-                try await optimisePDF(PDF(path), copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation)
+                try await optimisePDF(PDF(path), copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
             guard let result else { return nil }
             return .file(result.path)
@@ -1220,7 +1272,7 @@ var manualOptimisationCount = 0
         }
     case let .url(url):
         let result = try await proGuard(count: &optimisationCount, limit: 2, url: url) {
-            try await optimiseURL(url, copyToClipboard: copyToClipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, speedUpBy: speedUpFactor, aggressiveOptimisation: aggressiveOptimisation)
+            try await optimiseURL(url, copyToClipboard: copyToClipboard, hideFloatingResult: hideFloatingResult, downscaleTo: scalingFactor, speedUpBy: speedUpFactor, aggressiveOptimisation: aggressiveOptimisation, source: source)
         }
         return result
     default:

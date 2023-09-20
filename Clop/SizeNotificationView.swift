@@ -162,14 +162,14 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: "drop zone")
                 }
             case UTType.pdf.identifier:
                 tryAsync {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: "drop zone")
                 }
             case IMAGE_FORMATS.map(\.identifier):
                 tryAsync {
@@ -179,7 +179,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                     let nsImage = item as? NSImage ?? (data != nil ? NSImage(data: data!) : nil)
 
                     if path == nil, data == nil, nsImage == nil, itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                        try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
+                        try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone")
                         return
                     }
 
@@ -190,26 +190,26 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                         return
                     }
 
-                    try await optimiseItem(.image(image), id: image.path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
+                    try await optimiseItem(.image(image), id: image.path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone")
                 }
             case VIDEO_FORMATS.map(\.identifier):
                 tryAsync {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         if itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                            try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
+                            try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone")
                         }
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: "drop zone")
                 }
             case [UTType.plainText.identifier, UTType.utf8PlainText.identifier]:
                 tryAsync {
                     let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier)
                     if let path = item?.existingFilePath, path.isImage || path.isVideo {
-                        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
+                        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone")
                     }
                     if let url = item?.url, url.isImage || url.isVideo {
-                        try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
+                        try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone")
                     }
                 }
             case UTType.url.identifier:
@@ -217,7 +217,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
                     guard let url = try await itemProvider.loadItem(forTypeIdentifier: identifier) as? URL, url.isImage || url.isVideo else {
                         return
                     }
-                    try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard)
+                    try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone")
                 }
             default:
                 break
@@ -241,12 +241,12 @@ extension NSSecureCoding {
 }
 
 @MainActor
-func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil) async throws {
+func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: String? = nil) async throws {
     guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF else {
         return
     }
     try await proGuard(count: &DM.optimisationCount, limit: 2, url: path.url) {
-        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: Defaults[.autoCopyToClipboard])
+        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: Defaults[.autoCopyToClipboard], source: source)
     }
 }
 
@@ -560,7 +560,7 @@ struct SizeNotificationView: View {
                         openWindow(id: "settings")
 
                         PRO?.manageLicence()
-                        NSApp.activate(ignoringOtherApps: true)
+                        focus()
                     }
                     .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish))
                     .font(.round(20, weight: .black))
@@ -951,7 +951,7 @@ struct FileNameField: View {
             if !optimiser.running {
                 Button(action: {
                     optimiser.editingFilename = true
-                    NSApp.activate(ignoringOtherApps: true)
+                    focus()
                 }, label: { SwiftUI.Image(systemName: "pencil").foregroundColor(.primary) })
                     .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
                     .fontWeight(.bold)
@@ -976,7 +976,7 @@ struct FileNameField: View {
                 .defaultFocus($focused, true)
                 .onAppear {
                     focused = true
-                    NSApp.activate(ignoringOtherApps: true)
+                    focus()
                     sizeNotificationWindow.becomeFirstResponder()
                     sizeNotificationWindow.makeKeyAndOrderFront(nil)
                     sizeNotificationWindow.orderFrontRegardless()

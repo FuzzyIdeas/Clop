@@ -40,7 +40,7 @@ struct MenuView: View {
                 openWindow(id: "settings")
 
                 PRO?.manageLicence()
-                NSApp.activate(ignoringOtherApps: true)
+                focus()
             }
         }
     }
@@ -48,7 +48,7 @@ struct MenuView: View {
     var body: some View {
         Button("Settings") {
             openWindow(id: "settings")
-            NSApp.activate(ignoringOtherApps: true)
+            focus()
         }.keyboardShortcut(",")
         LaunchAtLogin.Toggle()
 
@@ -118,7 +118,7 @@ struct MenuView: View {
             openWindow(id: "settings")
 
             PRO?.manageLicence()
-            NSApp.activate(ignoringOtherApps: true)
+            focus()
         }
 
         Button(um.newVersion != nil ? "v\(um.newVersion!) available" : "Check for updates") {

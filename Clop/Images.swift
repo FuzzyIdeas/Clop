@@ -609,7 +609,7 @@ class Image: CustomStringConvertible {
     guard let img = image ?? (try? Image.fromPasteboard(item: item)) else {
         return
     }
-    Task.init { try? await optimiseImage(img, copyToClipboard: true, id: Optimiser.IDs.clipboardImage) }
+    Task.init { try? await optimiseImage(img, copyToClipboard: true, id: Optimiser.IDs.clipboardImage, source: "clipboard") }
 }
 
 @MainActor func cancelImageOptimisation(path: FilePath) {
@@ -653,7 +653,8 @@ class Image: CustomStringConvertible {
     allowTiff: Bool? = nil,
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
-    aggressiveOptimisation: Bool? = nil
+    aggressiveOptimisation: Bool? = nil,
+    source: String? = nil
 ) async throws -> Image? {
     let path = img.path
     var img = img
@@ -705,7 +706,7 @@ class Image: CustomStringConvertible {
     let optimiser = OM.optimiser(
         id: id ?? pathString, type: .image(img.type),
         operation: "Optimising" + (aggressiveOptimisation ?? false ? " (aggressive)" : ""),
-        hidden: hideFloatingResult
+        hidden: hideFloatingResult, source: source
     )
     optimiser.downscaleFactor = 1.0
     optimiser.newSize = nil
@@ -777,6 +778,10 @@ class Image: CustomStringConvertible {
             }
 
             guard var optimisedImage else { return }
+            if let proc = optimiser.runAutomation() {
+                proc.waitUntilExit()
+            }
+
             mainActor {
                 OM.current = optimiser
                 optimiser.finish(
@@ -816,7 +821,8 @@ class Image: CustomStringConvertible {
     copyToClipboard: Bool = false,
     id: String? = nil,
     hideFloatingResult: Bool = false,
-    aggressiveOptimisation: Bool? = nil
+    aggressiveOptimisation: Bool? = nil,
+    source: String? = nil
 ) async throws -> Image? {
     imageResizeDebouncers[img.path.string]?.cancel()
     if let factor {
@@ -830,7 +836,7 @@ class Image: CustomStringConvertible {
         scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
     }
 
-    let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \((scalingFactor * 100).intround)%", hidden: hideFloatingResult)
+    let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \((scalingFactor * 100).intround)%", hidden: hideFloatingResult, source: source)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {
         optimiser.operation += " (aggressive)"
