@@ -43,7 +43,7 @@ let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PAST
 let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x, .r]
 let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x, .r]
 
-public extension Defaults.Keys {
+extension Defaults.Keys {
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
     static let optimiseTIFF = Key<Bool>("optimiseTIFF", default: true)
@@ -71,8 +71,8 @@ public extension Defaults.Keys {
     static let useAggresiveOptimisationGIF = Key<Bool>("useAggresiveOptimisationGIF", default: false)
     static let useAggresiveOptimisationPDF = Key<Bool>("useAggresiveOptimisationPDF", default: true)
 
-    static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
+    static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
     static let pdfDirs = Key<[String]>("pdfDirs", default: [])
 
     static let maxVideoSizeMB = Key<Int>("maxVideoSizeMB", default: 500)
@@ -163,6 +163,11 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .quickResizeKeys,
     .enabledKeys,
     .copyImageFilePath,
+    .useCustomNameTemplateForClipboardImages,
+    .customNameTemplateForClipboardImages,
+    .shortcutToRunOnImage,
+    .shortcutToRunOnVideo,
+    .shortcutToRunOnPdf,
 ] + ARM64_SPECIFIC_SETTINGS
 
 #if arch(arm64)

@@ -131,10 +131,11 @@ class Image: CustomStringConvertible {
         } else {
             guard let ext = type?.preferredFilenameExtension else { return nil }
 
-            let tempPath = fm.temporaryDirectory.appendingPathComponent("\(Int.random(in: 100 ... 100_000)).\(ext)").path
-            guard fm.createFile(atPath: tempPath, contents: data) else { return nil }
+            let tempPath = FilePath.images / "\(Int.random(in: 100 ... 100_000)).\(ext)"
+//            let tempPath = fm.temporaryDirectory.appendingPathComponent("\(Int.random(in: 100 ... 100_000)).\(ext)").path
+            guard fm.createFile(atPath: tempPath.string, contents: data) else { return nil }
 
-            self.path = FilePath(tempPath)
+            self.path = tempPath
         }
         type = type ?? UTType(filenameExtension: self.path.extension ?? "") ?? UTType(mimeType: self.path.fetchFileType() ?? "") ?? .png
         self.data = data
@@ -159,10 +160,11 @@ class Image: CustomStringConvertible {
 
         image = nsImage
         self.data = data
-        let tempPath = fm.temporaryDirectory.appendingPathComponent("\(Int.random(in: 100 ... 100_000)).\(ext)").path
-        guard fm.createFile(atPath: tempPath, contents: data) else { return nil }
+        let tempPath = FilePath.images / "\(Int.random(in: 100 ... 100_000)).\(ext)"
+//        let tempPath = fm.temporaryDirectory.appendingPathComponent("\(Int.random(in: 100 ... 100_000)).\(ext)").path
+        guard fm.createFile(atPath: tempPath.string, contents: data) else { return nil }
 
-        path = FilePath(tempPath)
+        path = tempPath
         self.type = type
         self.retinaDownscaled = retinaDownscaled
         self.optimised = optimised ?? false
