@@ -415,7 +415,7 @@ class AppDelegate: LowtechProAppDelegate {
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
         if !Defaults[.showMenubarIcon] {
             WM.open("settings")
-            NSApp.activate(ignoringOtherApps: true)
+            focus()
         }
 
         return true
@@ -424,7 +424,7 @@ class AppDelegate: LowtechProAppDelegate {
     override func applicationDidBecomeActive(_: Notification) {
         if didBecomeActiveAtLeastOnce, !Defaults[.showMenubarIcon] {
             WM.open("settings")
-            NSApp.activate(ignoringOtherApps: true)
+            focus()
         }
         didBecomeActiveAtLeastOnce = true
     }
@@ -437,19 +437,19 @@ class AppDelegate: LowtechProAppDelegate {
         videoWatcher = FileOptimisationWatcher(pathsKey: .videoDirs, maxFilesToHandleKey: .maxVideoFileCount, shouldHandle: shouldHandleVideo(event:), cancel: cancelImageOptimisation(path:)) { event in
             let video = Video(path: FilePath(event.path))
             Task.init {
-                try? await optimiseVideo(video, debounceMS: 200)
+                try? await optimiseVideo(video, debounceMS: 200, source: Defaults[.videoDirs].first(where: { event.path.starts(with: $0) }))
             }
         }
         imageWatcher = FileOptimisationWatcher(pathsKey: .imageDirs, maxFilesToHandleKey: .maxImageFileCount, shouldHandle: shouldHandleImage(event:), cancel: cancelVideoOptimisation(path:)) { event in
             guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
-                try? await optimiseImage(img, debounceMS: 200)
+                try? await optimiseImage(img, debounceMS: 200, source: Defaults[.imageDirs].first(where: { event.path.starts(with: $0) }))
             }
         }
         pdfWatcher = FileOptimisationWatcher(pathsKey: .pdfDirs, maxFilesToHandleKey: .maxPDFFileCount, shouldHandle: shouldHandlePDF(event:), cancel: cancelPDFOptimisation(path:)) { event in
             guard let path = event.path.existingFilePath else { return }
             Task.init {
-                try? await optimisePDF(PDF(path), debounceMS: 200)
+                try? await optimisePDF(PDF(path), debounceMS: 200, source: Defaults[.pdfDirs].first(where: { event.path.starts(with: $0) }))
             }
         }
 
@@ -483,7 +483,7 @@ class AppDelegate: LowtechProAppDelegate {
             mainActor {
                 if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo {
                     Task.init {
-                        try? await optimiseVideo(Video(path: path))
+                        try? await optimiseVideo(Video(path: path), source: "clipboard")
                     }
                     return
                 }
@@ -708,7 +708,7 @@ struct ClopApp: App {
             .onChange(of: showMenubarIcon) { show in
                 if !show {
                     openWindow(id: "settings")
-                    NSApp.activate(ignoringOtherApps: true)
+                    focus()
                 } else {
                     NSApplication.shared.keyWindow?.close()
                 }
