@@ -31,6 +31,7 @@
 		C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */; };
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
+		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizeNotificationView.swift; sourceTree = "<group>"; };
 		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
+		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
 				C7DF1A212AB6F6A200AF8EDC /* required.swift */,
 				C7333E462A98C90500B1D5BE /* PDF.swift */,
 				C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */,
@@ -239,6 +242,7 @@
 				C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */,
 				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,
 				C7760AB62A5C4EE500851F8C /* Images.swift in Sources */,
+				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
 				C7333E472A98C90500B1D5BE /* PDF.swift in Sources */,
 				C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */,
 				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
