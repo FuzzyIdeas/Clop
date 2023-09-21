@@ -778,15 +778,19 @@ class Image: CustomStringConvertible {
             }
 
             guard var optimisedImage else { return }
-            if let proc = optimiser.runAutomation() {
+            let shortcutOutFile = FilePath.images.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(optimisedImage.path.name.string)")
+            if let proc = optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: optimisedImage.path.url, type: .image(optimisedImage.type)) {
                 proc.waitUntilExit()
+                if shortcutOutFile.exists, let image = Image(path: shortcutOutFile, retinaDownscaled: optimisedImage.retinaDownscaled) {
+                    optimisedImage = (try? image.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? image
+                }
             }
 
             mainActor {
                 OM.current = optimiser
                 optimiser.finish(
                     oldBytes: img.data.count, newBytes: optimisedImage.data.count,
-                    oldSize: img.size, newSize: shouldDownscale ? optimisedImage.size : nil,
+                    oldSize: img.size, newSize: optimisedImage.size,
                     removeAfterMs: id == Optimiser.IDs.clipboardImage ? hideClipboardAfter : hideFilesAfter
                 )
 
