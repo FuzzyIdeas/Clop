@@ -375,9 +375,9 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
 let ARCH = NSRunningApplication.current.executableArchitecture == NSBundleExecutableArchitectureARM64 ? "arm64" : "x86"
 let BIN_ARCHIVE = Bundle.main.url(forResource: "bin-\(ARCH)", withExtension: "tar.xz")! // /Applications/Clop.app/Contents/Resources/bin-arm64.tar.xz
 let BIN_ARCHIVE_HASH_PATH = Bundle.main.url(forResource: "bin-\(ARCH)", withExtension: "tar.xz.sha256")! // /Applications/Clop.app/Contents/Resources/bin-arm64.tar.xz.sha256
-let BIN_DIR = fm.urls(for: .cachesDirectory, in: .userDomainMask).first!.appendingPathComponent("Clop/bin-\(ARCH)") // ~/Library/Caches/Clop/bin-arm64
+let BIN_DIR = fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("com.lowtechguys.Clop/bin-\(ARCH)") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-arm64
 let BIN_ARCHIVE_HASH = fm.contents(atPath: BIN_ARCHIVE_HASH_PATH.path)! // f62955f10479b7df4d516f8a714290f2402faaf8960c6c44cae3dfc68f45aabd
-let BIN_HASH_FILE = BIN_DIR.appendingPathComponent("sha256hash") // ~/Library/Caches/Clop/bin-arm64/sha256hash
+let BIN_HASH_FILE = BIN_DIR.appendingPathComponent("sha256hash") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-arm64/sha256hash
 
 func unarchiveBinaries() {
     if !fm.fileExists(atPath: BIN_DIR.path) {

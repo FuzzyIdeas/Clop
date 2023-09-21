@@ -39,8 +39,8 @@ func getShortcuts() -> [Shortcut]? {
     return shortcuts
 }
 
-func runShortcut(_ shortcut: Shortcut, _ file: String) -> Process? {
-    shellProc("/usr/bin/shortcuts", args: ["run", shortcut.identifier, "--input-path", file])
+func runShortcut(_ shortcut: Shortcut, _ file: String, outFile: String) -> Process? {
+    shellProc("/usr/bin/shortcuts", args: ["run", shortcut.identifier, "--input-path", file, "--output-path", outFile])
 }
 
 struct ShortcutsIcon: View {
@@ -90,7 +90,11 @@ struct AutomationRowView: View {
                     Text(type)
                 }.roundbg(radius: 6, color: color.opacity(0.1), noFG: true)
                 Spacer()
-                Link(destination: "shortcuts://create-shortcut".url!, label: {
+                Button(action: {
+                    NSWorkspace.shared.open(
+                        Bundle.main.url(forResource: "Clop - \(type)", withExtension: "shortcut")!
+                    )
+                }, label: {
                     HStack {
                         ShortcutsIcon(size: 12)
                         Text("New Shortcut")
@@ -173,7 +177,10 @@ struct AutomationSettingsView: View {
         let pdfSources = (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.pdfDirs]
 
         Form {
-            Section(header: SectionHeader(title: "Shortcuts")) {
+            Section(header: SectionHeader(
+                title: "Shortcuts",
+                subtitle: "Run macOS Shortcuts on files for further processing after optimisation\nThe shortcuts need to receive files as input and may output a modified file that Clop will use for the result"
+            )) {
                 if imageSources.isNotEmpty {
                     AutomationRowView(
                         shortcuts: $shortcutToRunOnImage,

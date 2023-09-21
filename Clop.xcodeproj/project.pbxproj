@@ -28,6 +28,9 @@
 		C7AB6627288301590041BEC8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6626288301590041BEC8 /* ContentView.swift */; };
 		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
+		C7C8AD5E2ABC78CF003ECDE6 /* Clop - video.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5B2ABC78CF003ECDE6 /* Clop - video.shortcut */; };
+		C7C8AD5F2ABC78CF003ECDE6 /* Clop - PDF.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */; };
+		C7C8AD602ABC78CF003ECDE6 /* Clop - image.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */; };
 		C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */; };
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
@@ -58,6 +61,9 @@
 		C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C7C8AD5B2ABC78CF003ECDE6 /* Clop - video.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - video.shortcut"; sourceTree = "<group>"; };
+		C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - PDF.shortcut"; sourceTree = "<group>"; };
+		C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - image.shortcut"; sourceTree = "<group>"; };
 		C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizeNotificationView.swift; sourceTree = "<group>"; };
 		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
 		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
@@ -97,6 +103,7 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */,
 				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
 				C7DF1A212AB6F6A200AF8EDC /* required.swift */,
 				C7333E462A98C90500B1D5BE /* PDF.swift */,
@@ -132,6 +139,16 @@
 				C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */ = {
+			isa = PBXGroup;
+			children = (
+				C7C8AD5B2ABC78CF003ECDE6 /* Clop - video.shortcut */,
+				C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */,
+				C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */,
+			);
+			path = Shortcuts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -205,9 +222,12 @@
 			files = (
 				C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */,
 				C7333E452A98A1D400B1D5BE /* bin-x86.tar.xz in Resources */,
+				C7C8AD5F2ABC78CF003ECDE6 /* Clop - PDF.shortcut in Resources */,
 				C7333E442A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 in Resources */,
 				C7333E432A98A1D400B1D5BE /* bin-arm64.tar.xz in Resources */,
 				C7333E422A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 in Resources */,
+				C7C8AD602ABC78CF003ECDE6 /* Clop - image.shortcut in Resources */,
+				C7C8AD5E2ABC78CF003ECDE6 /* Clop - video.shortcut in Resources */,
 				C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
