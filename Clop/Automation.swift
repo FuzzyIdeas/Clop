@@ -90,10 +90,20 @@ struct AutomationRowView: View {
                     Text(type)
                 }.roundbg(radius: 6, color: color.opacity(0.1), noFG: true)
                 Spacer()
-                Button(action: {
-                    NSWorkspace.shared.open(
-                        Bundle.main.url(forResource: "Clop - \(type)", withExtension: "shortcut")!
-                    )
+                Menu(content: {
+                    Button("From scratch") {
+                        NSWorkspace.shared.open(
+                            Bundle.main.url(forResource: "Clop - \(type)", withExtension: "shortcut")!
+                        )
+                    }
+                    Section("Templates") {
+                        ForEach(CLOP_SHORTCUTS, id: \.self) { url in
+                            Button(url.deletingPathExtension().lastPathComponent) {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+
                 }, label: {
                     HStack {
                         ShortcutsIcon(size: 12)
@@ -101,7 +111,6 @@ struct AutomationRowView: View {
                     }
                 })
                 .buttonStyle(FlatButton(color: .mauve.opacity(0.8), textColor: .white))
-                .help("Opens the Shortcuts app to create a new shortcut")
                 .font(.medium(12))
                 .saturation(1.5)
             }
@@ -132,19 +141,17 @@ struct AutomationRowView: View {
                     Text("do nothing").tag(nil as Shortcut?)
                     Divider()
                     ForEach(shortcutsList) { sh in
-                        if sh.name.count > 30 {
-                            Text("\(sh.name)").tag(sh as Shortcut?)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        } else {
-                            Text("run the \"\(sh.name)\" Shortcut").tag(sh as Shortcut?)
-                        }
+                        Text("\(sh.name)").tag(sh as Shortcut?)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
                 },
                 label: {
-                    (Text("from  ").round(12, weight: .regular).foregroundColor(.secondary) + Text(source.replacingOccurrences(of: HOME.string, with: "~")).mono(12))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    HStack {
+                        (Text("from  ").round(12, weight: .regular).foregroundColor(.secondary) + Text(source.replacingOccurrences(of: HOME.string, with: "~")).mono(12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
             )
             Button("\(SwiftUI.Image(systemName: binding.wrappedValue == nil ? "hammer" : "hammer.fill"))") {
@@ -158,6 +165,10 @@ struct AutomationRowView: View {
         }
     }
 }
+
+let CLOP_SHORTCUTS = Bundle.main
+    .urls(forResourcesWithExtension: "shortcut", subdirectory: nil)!
+    .filter { !$0.lastPathComponent.hasPrefix("Clop - ") }
 
 struct AutomationSettingsView: View {
     @Default(.shortcutToRunOnImage) var shortcutToRunOnImage
