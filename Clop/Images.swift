@@ -204,6 +204,7 @@ class Image: CustomStringConvertible {
         .init("com.adobe.pdf"),
     ]
 
+    lazy var hash: String = data.sha256
     let data: Data
     let path: FilePath
     var image: NSImage
@@ -609,6 +610,7 @@ class Image: CustomStringConvertible {
     guard let img = image ?? (try? Image.fromPasteboard(item: item)) else {
         return
     }
+
     Task.init { try? await optimiseImage(img, copyToClipboard: true, id: Optimiser.IDs.clipboardImage, source: "clipboard") }
 }
 
@@ -642,6 +644,32 @@ class Image: CustomStringConvertible {
     }
 
     return true
+}
+
+extension FilePath {
+    var fileContentsHash: String? {
+        fm.contents(atPath: string)?.sha256
+    }
+}
+
+@MainActor func getCachedOptimisedImage(img: Image, id: String?, retinaDownscaled: Bool) throws -> Image? {
+    guard id != Optimiser.IDs.clipboard, let path = OM.optimisedFilesByHash[img.hash], path.exists,
+          let clipOpt = OM.clipboardImageOptimiser, let clipOptHash = clipOpt.originalURL?.existingFilePath?.fileContentsHash,
+          clipOptHash == img.hash, let optImg = Image(path: path, optimised: true, retinaDownscaled: retinaDownscaled)
+    else {
+        return nil
+    }
+
+    guard optImg.path != img.path else {
+        return optImg
+    }
+
+    if optImg.type == img.type {
+        try optImg.path.copy(to: img.path, force: true)
+    } else {
+        try optImg.path.copy(to: img.path.dir, force: true)
+    }
+    return optImg
 }
 
 @discardableResult
@@ -694,6 +722,8 @@ class Image: CustomStringConvertible {
         return converted
     }
 
+    let shouldDownscale = Defaults[.downscaleRetinaImages] && img.pixelScale > 1
+
     let conversionFormat: UTType? = Defaults[.formatsToConvertToJPEG].contains(img.type) ? .jpeg : (Defaults[.formatsToConvertToPNG].contains(img.type) ? .png : nil)
     if let conversionFormat {
         let converted = try img.convert(to: conversionFormat)
@@ -701,6 +731,9 @@ class Image: CustomStringConvertible {
         img = try applyConversionBehaviour(img, converted)
         pathString = img.path.string
         allowLarger = true
+    } else if let optImg = try getCachedOptimisedImage(img: img, id: id, retinaDownscaled: shouldDownscale) {
+        log.debug("Using cached optimised image \(optImg.path)")
+        return optImg
     }
 
     let optimiser = OM.optimiser(
@@ -737,13 +770,13 @@ class Image: CustomStringConvertible {
         let img = img
         let pathString = pathString
         let allowLarger = allowLarger
+        var previouslyCached = true
 
         imageOptimisationQueue.addOperation {
             defer {
                 mainActor { done = true }
             }
 
-            let shouldDownscale = Defaults[.downscaleRetinaImages] && img.pixelScale > 1
             var optimisedImage: Image?
             do {
                 log.debug("Optimising image \(pathString)")
@@ -760,6 +793,15 @@ class Image: CustomStringConvertible {
                 } else {
                     mainActor { optimiser.url = optimisedImage!.path.url }
                 }
+
+                // Save optimised image path to cache to avoid re-optimising it after it is saved to file
+                mainActor {
+                    if OM.optimisedFilesByHash[img.hash] == nil {
+                        previouslyCached = false
+                        OM.optimisedFilesByHash[img.hash] = optimisedImage!.path
+                    }
+                }
+
             } catch let ClopError.processError(proc) {
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
@@ -778,11 +820,14 @@ class Image: CustomStringConvertible {
             }
 
             guard var optimisedImage else { return }
+
+            var shortcutChangedImage = false
             let shortcutOutFile = FilePath.images.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(optimisedImage.path.name.string)")
             if let proc = optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: optimisedImage.path.url, type: .image(optimisedImage.type)) {
                 proc.waitUntilExit()
                 if shortcutOutFile.exists, let image = Image(path: shortcutOutFile, retinaDownscaled: optimisedImage.retinaDownscaled) {
                     optimisedImage = (try? image.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? image
+                    shortcutChangedImage = true
                 }
             }
 
@@ -803,6 +848,9 @@ class Image: CustomStringConvertible {
 
                 if copyToClipboard {
                     optimisedImage.copyToClipboard()
+                }
+                if !shortcutChangedImage, !previouslyCached {
+                    OM.optimisedFilesByHash[img.hash] = optimisedImage.path
                 }
 
                 result = optimisedImage
