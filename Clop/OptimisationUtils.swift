@@ -796,6 +796,8 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     @Published var removedOptimisers: [Optimiser] = []
 
+    var optimisedFilesByHash: [String: FilePath] = [:]
+
     var hovered: Optimiser? {
         guard let hoveredOptimiserID else { return nil }
         return opt(hoveredOptimiserID)
