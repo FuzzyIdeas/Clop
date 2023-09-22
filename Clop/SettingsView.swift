@@ -414,7 +414,7 @@ func generateFileName(template: String) -> String {
     return name
 }
 
-let DEFAULT_NAME_TEMPLATE = "screenshot_%y-%m-%d_%i"
+let DEFAULT_NAME_TEMPLATE = "clop_%y-%m-%d_%i"
 
 struct ImagesSettingsView: View {
     @Default(.imageDirs) var imageDirs
