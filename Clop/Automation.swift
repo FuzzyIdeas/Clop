@@ -2,11 +2,48 @@ import Defaults
 import Foundation
 import Lowtech
 import SwiftUI
+import System
 
 extension Defaults.Keys {
     static let shortcutToRunOnImage = Key<[String: Shortcut]>("shortcutToRunOnImage", default: [:])
     static let shortcutToRunOnVideo = Key<[String: Shortcut]>("shortcutToRunOnVideo", default: [:])
     static let shortcutToRunOnPdf = Key<[String: Shortcut]>("shortcutToRunOnPdf", default: [:])
+}
+
+extension Optimiser {
+    func runAutomation(outFile: FilePath) -> Process? {
+        guard !inRemoval, !SWIFTUI_PREVIEW, let source, let url else {
+            return nil
+        }
+
+        guard let key = type.shortcutKey, let shortcut = Defaults[key][source], let proc = runShortcut(shortcut, url.path, outFile: outFile.string) else {
+            return nil
+        }
+
+        mainActor { [weak self] in
+            self?.progress = Progress()
+            self?.operation = "Running \"\(shortcut.name)\""
+            self?.processes = [proc]
+        }
+        return proc
+    }
+
+    nonisolated func runAutomation(outFile: FilePath, source: String?, url: URL?, type: ItemType) -> Process? {
+        guard let source, let url, let key = type.shortcutKey else {
+            return nil
+        }
+
+        guard let shortcut = Defaults[key][source], let proc = runShortcut(shortcut, url.path, outFile: outFile.string) else {
+            return nil
+        }
+
+        mainActor { [weak self] in
+            self?.progress = Progress()
+            self?.operation = "Running \"\(shortcut.name)\""
+            self?.processes = [proc]
+        }
+        return proc
+    }
 }
 
 struct Shortcut: Codable, Hashable, Defaults.Serializable, Identifiable {
