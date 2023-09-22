@@ -825,9 +825,21 @@ extension FilePath {
             let shortcutOutFile = FilePath.images.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(optimisedImage.path.name.string)")
             if let proc = optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: optimisedImage.path.url, type: .image(optimisedImage.type)) {
                 proc.waitUntilExit()
-                if shortcutOutFile.exists, let image = Image(path: shortcutOutFile, retinaDownscaled: optimisedImage.retinaDownscaled) {
-                    optimisedImage = (try? image.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? image
-                    shortcutChangedImage = true
+                if shortcutOutFile.exists, let size = shortcutOutFile.fileSize() {
+                    var outImg: Image?
+
+                    if size > 4096 {
+                        outImg = Image(path: shortcutOutFile, retinaDownscaled: optimisedImage.retinaDownscaled)
+                    } else {
+                        if let path = (try? String(contentsOfFile: shortcutOutFile.string))?.existingFilePath {
+                            outImg = path == optimisedImage.path ? nil : Image(path: path, retinaDownscaled: optimisedImage.retinaDownscaled)
+                        }
+                    }
+
+                    if let outImg, outImg.hash != optimisedImage.hash {
+                        optimisedImage = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? outImg
+                        shortcutChangedImage = true
+                    }
                 }
             }
 
