@@ -129,35 +129,6 @@ let FONT_PATH: String = [
     "/Library/Application Support/Adobe/Fonts/",
 ].filter { FileManager.default.fileExists(atPath: $0) }.joined(separator: ":")
 
-class Optimisable {
-    init(_ path: FilePath, thumb: Bool = true, id: String? = nil) {
-        self.path = path
-        self.id = id
-
-        if thumb {
-            mainActor { self.fetchThumbnail() }
-        }
-    }
-
-    let path: FilePath
-    let id: String?
-
-    lazy var fileSize: Int = path.fileSize() ?? 0
-
-    @MainActor var optimiser: Optimiser? {
-        OM.optimisers.first(where: { $0.id == id ?? path.string })
-    }
-
-    @MainActor func fetchThumbnail() {
-        generateThumbnail(for: path.url, size: THUMB_SIZE) { [weak self] thumb in
-            guard let self, let optimiser else {
-                return
-            }
-            optimiser.thumbnail = NSImage(cgImage: thumb.cgImage, size: .zero)
-        }
-    }
-}
-
 let GS_PAGE_REGEX = try! Regex(#"^\s*Processing pages \d+ through (\d+)."#, as: (Substring, Substring).self).anchorsMatchLineEndings(true)
 
 @MainActor func updateProgressGS(pipe: Pipe, url: URL, optimiser: Optimiser, pageCount: Int? = nil) {
@@ -200,6 +171,8 @@ let GS_PAGE_REGEX = try! Regex(#"^\s*Processing pages \d+ through (\d+)."#, as: 
 }
 
 class PDF: Optimisable {
+    override class var dir: FilePath { .pdfs }
+
     lazy var document: PDFDocument? = PDFDocument(url: path.url)
 
     func optimise(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil) throws -> PDF {
@@ -209,7 +182,7 @@ class PDF: Optimisable {
         mainActor { optimiser.aggresive = aggressiveOptimisation }
 
         let args = gsArgs(path.string, tempFile.string, lossy: aggressiveOptimisation)
-        let proc = try tryProc(GS.string, args: args, tries: 3, captureOutput: true) { proc in
+        let proc = try tryProc(GS.string, args: args, tries: 3, captureOutput: true, env: GHOSTSCRIPT_ENV) { proc in
             mainActor { [weak self] in
                 guard let self else { return }
                 optimiser.processes = [proc]
@@ -217,7 +190,7 @@ class PDF: Optimisable {
             }
         }
         guard proc.terminationStatus == 0 else {
-            throw ClopError.processError(proc)
+            throw ClopProcError.processError(proc)
         }
         path.backup(operation: .copy)
 
@@ -262,6 +235,8 @@ class PDF: Optimisable {
     return true
 }
 
+let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.02.0/Resource/Init").path]
+
 @discardableResult
 @MainActor func optimisePDF(
     _ pdf: PDF,
@@ -270,6 +245,7 @@ class PDF: Optimisable {
     debounceMS: Int = 0,
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
+    cropTo cropSize: NSSize? = nil,
     aggressiveOptimisation: Bool? = nil,
     source: String? = nil
 ) async throws -> PDF? {
@@ -310,7 +286,7 @@ class PDF: Optimisable {
 
                     throw ClopError.pdfSizeLarger(path)
                 }
-            } catch let ClopError.processError(proc) {
+            } catch let ClopProcError.processError(proc) {
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
