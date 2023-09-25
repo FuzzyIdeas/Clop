@@ -29,6 +29,12 @@ class Video: Optimisable {
         }
     }
 
+    required convenience init(_ path: FilePath, thumb: Bool = true, id: String? = nil) {
+        self.init(path: path, thumb: thumb, id: id)
+    }
+
+    override class var dir: FilePath { .videos }
+
     var convertedFrom: Video?
     var metadata: VideoMetadata?
 
@@ -48,6 +54,9 @@ class Video: Optimisable {
         return video
     }
 
+    override func copyWithPath(_ path: FilePath) -> Self {
+        Video(path: path, metadata: metadata, fileSize: fileSize, convertedFrom: convertedFrom, thumb: true, id: id) as! Self
+    }
     #if arch(arm64)
         func useAggressiveOptimisation(aggressiveSetting: Bool) -> Bool {
             if Defaults[.useCPUIntensiveEncoder] || aggressiveSetting {
@@ -68,6 +77,7 @@ class Video: Optimisable {
         forceMP4: Bool = false,
         backup: Bool = true,
         resizeTo newSize: CGSize? = nil,
+        cropTo cropSize: NSSize? = nil,
         speedUpBy speedUpFactor: Double? = nil,
         originalPath: FilePath? = nil,
         aggressiveOptimisation: Bool? = nil
@@ -101,6 +111,19 @@ class Video: Optimisable {
         var filters = [String]()
         if let size = newSize {
             filters.append("scale=w=\(size.width.i.s):h=\(size.height.i.s)")
+        } else if let cropSize, let fromSize = size {
+            let cropString: String
+            if cropSize.width < cropSize.height {
+                let newAspectRatio = cropSize.width / cropSize.height
+                let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
+                cropString = "in_w-\(widthDiff * 2):in_h:\(widthDiff):0"
+            } else {
+                let newAspectRatio = cropSize.height / cropSize.width
+                let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
+                cropString = "in_w:in_h-\(heightDiff * 2):0:\(heightDiff)"
+            }
+
+            filters += ["crop=\(cropString)", "scale=w=\(cropSize.width.i.s):h=\(cropSize.height.i.s)"]
         }
 
         if let speedUpFactor, speedUpFactor != 1, speedUpFactor > 0 {
@@ -143,7 +166,7 @@ class Video: Optimisable {
             }
         }
         guard proc.terminationStatus == 0 else {
-            throw ClopError.processError(proc)
+            throw ClopProcError.processError(proc)
         }
 
         outputPath.waitForFile(for: 2)
@@ -153,7 +176,7 @@ class Video: Optimisable {
         if Defaults[.capVideoFPS], let fps, let new = newFPS, new > fps {
             newFPS = fps
         }
-        let metadata = VideoMetadata(resolution: newSize ?? size ?? .zero, fps: newFPS ?? fps ?? 0)
+        let metadata = VideoMetadata(resolution: cropSize ?? newSize ?? size ?? .zero, fps: newFPS ?? fps ?? 0)
         let convertedFrom = forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil
         var newVideo = Video(path: outputPath, metadata: metadata, convertedFrom: convertedFrom)
 
@@ -343,7 +366,7 @@ var processTerminated = Set<pid_t>()
 
                     throw ClopError.videoSizeLarger(path)
                 }
-            } catch let ClopError.processError(proc) {
+            } catch let ClopProcError.processError(proc) {
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
@@ -386,6 +409,7 @@ var processTerminated = Set<pid_t>()
     copyToClipboard: Bool = false,
     id: String? = nil,
     toFactor factor: Double? = nil,
+    cropTo cropSize: NSSize? = nil,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     source: String? = nil
@@ -405,7 +429,8 @@ var processTerminated = Set<pid_t>()
     }
 
     let itemType = ItemType.from(filePath: video.path)
-    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Scaling to \((scalingFactor * 100).intround)%", hidden: hideFloatingResult, source: source)
+    let scaleString = cropSize != nil ? "\(cropSize!.width.i)x\(cropSize!.height.i)" : "\((scalingFactor * 100).intround)%"
+    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {
         optimiser.operation += " (aggressive)"
@@ -433,14 +458,16 @@ var processTerminated = Set<pid_t>()
                 forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
                 backup: false,
                 resizeTo: newSize,
+                cropTo: cropSize,
                 speedUpBy: speedUpFactor,
                 originalPath: originalPath,
                 aggressiveOptimisation: aggressive
             )
             if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
-                try optimisedVideo!.path.move(to: video.path, force: true)
+                let path = try optimisedVideo!.path.move(to: video.path, force: true)
+                optimisedVideo = optimisedVideo?.copyWithPath(path)
             }
-        } catch let ClopError.processError(proc) {
+        } catch let ClopProcError.processError(proc) {
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
@@ -546,9 +573,10 @@ var processTerminated = Set<pid_t>()
                 aggressiveOptimisation: aggressive
             )
             if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
-                try optimisedVideo!.path.move(to: video.path, force: true)
+                let path = try optimisedVideo!.path.move(to: video.path, force: true)
+                optimisedVideo = optimisedVideo?.copyWithPath(path)
             }
-        } catch let ClopError.processError(proc) {
+        } catch let ClopProcError.processError(proc) {
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
             } else {

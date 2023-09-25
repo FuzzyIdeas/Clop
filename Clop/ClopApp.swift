@@ -131,6 +131,8 @@ class AppDelegate: LowtechProAppDelegate {
 
     @Setting(.optimiseVideoClipboard) var optimiseVideoClipboard
 
+    var machPortThread: Thread?
+
     @MainActor
     func handleCommandHotkey(_ key: SauceKey) {
         guard let opt = OM.hovered else {
@@ -250,6 +252,38 @@ class AppDelegate: LowtechProAppDelegate {
                     Zephyr.stopObserving(keys: SETTINGS_TO_SYNC)
                 }
             }.store(in: &observers)
+    }
+
+    func initMachPortListener() {
+        machPortThread = Thread {
+            OPTIMISATION_PORT.listen { data in
+                guard let data else {
+                    return nil
+                }
+
+                let req: OptimisationRequest
+                do {
+                    req = try JSONDecoder().decode(OptimisationRequest.self, from: data)
+                } catch {
+                    log.error(error.localizedDescription)
+                    return nil
+                }
+
+                let sem = DispatchSemaphore(value: 0)
+                var resp: OptimisationResponse?
+                tryAsync {
+                    resp = try await processOptimisationRequest(req)
+                    sem.signal()
+                }
+                sem.wait()
+                guard let resp, let respData = try? JSONEncoder().encode(resp) else {
+                    return nil
+                }
+                return Unmanaged.passRetained(respData as CFData)
+            }
+            RunLoop.current.run()
+        }
+        machPortThread?.start()
     }
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
@@ -378,6 +412,7 @@ class AppDelegate: LowtechProAppDelegate {
                 }
             }
             .store(in: &observers)
+        initMachPortListener()
 
         #if !DEBUG
             if let product {
@@ -437,19 +472,19 @@ class AppDelegate: LowtechProAppDelegate {
         videoWatcher = FileOptimisationWatcher(pathsKey: .videoDirs, maxFilesToHandleKey: .maxVideoFileCount, shouldHandle: shouldHandleVideo(event:), cancel: cancelImageOptimisation(path:)) { event in
             let video = Video(path: FilePath(event.path))
             Task.init {
-                try? await optimiseVideo(video, debounceMS: 200, source: Defaults[.videoDirs].first(where: { event.path.starts(with: $0) }))
+                try? await optimiseVideo(video, debounceMS: 200, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
         imageWatcher = FileOptimisationWatcher(pathsKey: .imageDirs, maxFilesToHandleKey: .maxImageFileCount, shouldHandle: shouldHandleImage(event:), cancel: cancelVideoOptimisation(path:)) { event in
             guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
-                try? await optimiseImage(img, debounceMS: 200, source: Defaults[.imageDirs].first(where: { event.path.starts(with: $0) }))
+                try? await optimiseImage(img, debounceMS: 200, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
         pdfWatcher = FileOptimisationWatcher(pathsKey: .pdfDirs, maxFilesToHandleKey: .maxPDFFileCount, shouldHandle: shouldHandlePDF(event:), cancel: cancelPDFOptimisation(path:)) { event in
             guard let path = event.path.existingFilePath else { return }
             Task.init {
-                try? await optimisePDF(PDF(path), debounceMS: 200, source: Defaults[.pdfDirs].first(where: { event.path.starts(with: $0) }))
+                try? await optimisePDF(PDF(path), debounceMS: 200, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
 

@@ -41,6 +41,7 @@ extension NSPasteboard.PasteboardType {
     static let promisedSuggestedFileName = NSPasteboard.PasteboardType(rawValue: "com.apple.pasteboard.promised-suggested-file-name")
     static let promisedMetadata = NSPasteboard.PasteboardType(rawValue: "com.apple.NSFilePromiseItemMetaData")
     static let filenames = NSPasteboard.PasteboardType(rawValue: "NSFilenamesPboardType")
+    static let finderNode = NSPasteboard.PasteboardType(rawValue: "com.apple.finder.noderef")
 }
 
 extension UTType {
@@ -70,6 +71,26 @@ extension UTType {
         default:
             .png
         }
+    }
+
+    var aggressiveOptimisation: Bool {
+        switch self {
+        case .png:
+            return Defaults[.useAggresiveOptimisationPNG]
+        case .jpeg:
+            return Defaults[.useAggresiveOptimisationJPEG]
+        case .gif:
+            return Defaults[.useAggresiveOptimisationGIF]
+        default:
+            return false
+        }
+    }
+
+    static func from(filePath: FilePath) -> UTType? {
+        guard let fileType = filePath.fetchFileType()?.split(separator: ";").first?.s else {
+            return nil
+        }
+        return UTType(mimeType: fileType)
     }
 }
 
@@ -179,7 +200,7 @@ class Image: CustomStringConvertible {
             #"com\.microsoft\.ole\.source|com\.microsoft\.Art|com\.microsoft\.PowerPoint|com\.microsoft\.image-svg-xml|com\.microsoft\.DataObject|IBPasteboardType|IBDocument|com\.pixelmator|com\.adobe\.[^.]+\.local-private-clipboard-marker"#
         )
     static var NOT_IMAGE_TYPES: Set<NSPasteboard.PasteboardType> = [
-        .init("com.apple.icns"),
+        .icon,
         .init("public.svg-image"),
         .init("public.xml"),
         .init("com.adobe.illustrator.ai-image"),
@@ -263,7 +284,7 @@ class Image: CustomStringConvertible {
         }
 
         var nsImage: NSImage?
-        if !allowImage, !typeSet.intersectsSet(NOT_IMAGE_TYPES.without(.icon)), let img = nsImageFromPath() {
+        if allowImage || typeSet.contains(NSPasteboard.PasteboardType.icon), let img = nsImageFromPath() {
             nsImage = img
             allowImage = true
         }
@@ -289,7 +310,48 @@ class Image: CustomStringConvertible {
         return img
     }
 
-    func optimiseGIF(optimiser: Optimiser, resizeTo newSize: CGSize? = nil, scaleTo scaleFactor: Double? = nil, fromSize: CGSize? = nil, aggressiveOptimisation: Bool? = nil) throws -> Image {
+    func runThroughShortcut(shortcut: Shortcut? = nil, optimiser: Optimiser, allowLarger: Bool, aggressiveOptimisation: Bool, source: String?) throws -> Image? {
+        let shortcutOutFile = FilePath.images.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(path.stem!)")
+
+        let proc: Process? = if let shortcut {
+            optimiser.runShortcut(shortcut, outFile: shortcutOutFile, url: path.url)
+        } else {
+            optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: path.url, type: .image(type))
+        }
+        guard let proc else {
+            return nil
+        }
+
+        proc.waitUntilExit()
+        shortcutOutFile.waitForFile(for: 2)
+        guard shortcutOutFile.exists else {
+            return nil
+        }
+        var outImg: Image?
+
+        if let img = Image(path: shortcutOutFile, retinaDownscaled: retinaDownscaled) {
+            outImg = img
+        } else if let size = shortcutOutFile.fileSize(), size < 4096,
+                  let path = (try? String(contentsOfFile: shortcutOutFile.string))?.existingFilePath, self.path != path
+        {
+            outImg = Image(path: path, retinaDownscaled: retinaDownscaled)
+        }
+
+        guard let outImg, outImg.hash != hash else {
+            return nil
+        }
+        let optimisedImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? outImg
+        if optimisedImg.path != path {
+            try optimisedImg.path.copy(to: path, force: true)
+        }
+        return optimisedImg.copyWithPath(path)
+    }
+
+    func copyWithPath(_ path: FilePath) -> Image {
+        Image(data: data, path: path, nsImage: image, type: type, optimised: optimised, retinaDownscaled: retinaDownscaled)
+    }
+
+    func optimiseGIF(optimiser: Optimiser, resizeTo newSize: CGSize? = nil, scaleTo scaleFactor: Double? = nil, cropTo cropSize: NSSize? = nil, fromSize: CGSize? = nil, aggressiveOptimisation: Bool? = nil) throws -> Image {
         let tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.gif")
 
         var resizedFile: FilePath? = nil
@@ -297,11 +359,25 @@ class Image: CustomStringConvertible {
         var size = newSize ?? .zero
         if let newSize {
             resizeArgs = ["--resize", "\(newSize.width.i)x\(newSize.height.i)"]
-        }
-        if let scaleFactor {
+        } else if let cropSize, let fromSize {
+            let cropString: String
+            if cropSize.width < cropSize.height {
+                let newAspectRatio = cropSize.width / cropSize.height
+                let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
+                cropString = "\(widthDiff),0+-\(widthDiff)x0"
+            } else {
+                let newAspectRatio = cropSize.height / cropSize.width
+                let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
+                cropString = "0,\(heightDiff)+0x-\(heightDiff)"
+            }
+
+            resizeArgs = ["--crop", cropString, "--resize", "\(cropSize.width.i)x\(cropSize.height.i)"]
+            size = cropSize
+        } else if let scaleFactor {
             resizeArgs = ["--scale", "\(scaleFactor.str(decimals: 2))"]
             size = (fromSize ?? size).scaled(by: scaleFactor)
         }
+
         if resizeArgs.isNotEmpty {
             resizedFile = FilePath.forResize.appending(path.nameWithoutSize).withSize(size)
             let resizeProc = try tryProc(
@@ -314,7 +390,7 @@ class Image: CustomStringConvertible {
                 mainActor { optimiser.processes = [proc] }
             }
             guard resizeProc.terminationStatus == 0 else {
-                throw ClopError.processError(resizeProc)
+                throw ClopProcError.processError(resizeProc)
             }
         }
 
@@ -340,7 +416,7 @@ class Image: CustomStringConvertible {
             mainActor { optimiser.processes = [proc] }
         }
         guard proc.terminationStatus == 0 else {
-            throw ClopError.processError(proc)
+            throw ClopProcError.processError(proc)
         }
 
         tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
@@ -390,7 +466,7 @@ class Image: CustomStringConvertible {
             throw ClopError.noProcess(jpegProc.cmdline)
         }
         guard proc.terminationStatus == 0 else {
-            throw ClopError.processError(proc)
+            throw ClopProcError.processError(proc)
         }
 
         var type = UTType.jpeg
@@ -470,7 +546,7 @@ class Image: CustomStringConvertible {
         var procs = [pngProc]
 
         var jpegOutFile: FilePath?
-        if testJPEG, let jpeg = try? convert(to: .jpeg) {
+        if testJPEG, let rep = image.representations.first, !rep.hasAlpha, let jpeg = try? convert(to: .jpeg) {
             let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationJPEG]
 
             let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
@@ -491,7 +567,7 @@ class Image: CustomStringConvertible {
             throw ClopError.noProcess(pngProc.cmdline)
         }
         guard proc.terminationStatus == 0 else {
-            throw ClopError.processError(proc)
+            throw ClopProcError.processError(proc)
         }
 
         var type = UTType.png
@@ -530,12 +606,23 @@ class Image: CustomStringConvertible {
             return try gif.optimiseGIF(optimiser: optimiser, scaleTo: fraction, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
         }
 
+        return try resize(toSize: size, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+    }
+
+    func resize(toSize size: NSSize, optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
+        let pathForResize = FilePath.forResize.appending(path.nameWithoutSize)
+        try path.copy(to: pathForResize, force: true)
+
+        if type == .gif, let gif = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
+            return try gif.optimiseGIF(optimiser: optimiser, cropTo: size, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
+        }
+
         let sizeStr = "\(size.width.i)x\(size.height.i)"
         let proc = try tryProc(VIPSTHUMBNAIL.string, args: ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", "attention", pathForResize.string], tries: 3) { proc in
             mainActor { optimiser.processes = [proc] }
         }
         guard proc.terminationStatus == 0 else {
-            throw ClopError.processError(proc)
+            throw ClopProcError.processError(proc)
         }
         pathForResize.waitForFile(for: 2.0)
 
@@ -802,7 +889,7 @@ extension FilePath {
                     }
                 }
 
-            } catch let ClopError.processError(proc) {
+            } catch let ClopProcError.processError(proc) {
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
@@ -822,25 +909,11 @@ extension FilePath {
             guard var optimisedImage else { return }
 
             var shortcutChangedImage = false
-            let shortcutOutFile = FilePath.images.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(optimisedImage.path.name.string)")
-            if let proc = optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: optimisedImage.path.url, type: .image(optimisedImage.type)) {
-                proc.waitUntilExit()
-                if shortcutOutFile.exists, let size = shortcutOutFile.fileSize() {
-                    var outImg: Image?
+            if let changedImage = try? optimisedImage.runThroughShortcut(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
+                optimisedImage = changedImage
+                mainActor { optimiser.url = changedImage.path.url }
 
-                    if size > 4096 {
-                        outImg = Image(path: shortcutOutFile, retinaDownscaled: optimisedImage.retinaDownscaled)
-                    } else {
-                        if let path = (try? String(contentsOfFile: shortcutOutFile.string))?.existingFilePath {
-                            outImg = path == optimisedImage.path ? nil : Image(path: path, retinaDownscaled: optimisedImage.retinaDownscaled)
-                        }
-                    }
-
-                    if let outImg, outImg.hash != optimisedImage.hash {
-                        optimisedImage = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? outImg
-                        shortcutChangedImage = true
-                    }
-                }
+                shortcutChangedImage = true
             }
 
             mainActor {
@@ -881,6 +954,7 @@ extension FilePath {
 @MainActor func downscaleImage(
     _ img: Image,
     toFactor factor: Double? = nil,
+    cropTo cropSize: NSSize? = nil,
     saveTo savePath: FilePath? = nil,
     copyToClipboard: Bool = false,
     id: String? = nil,
@@ -900,7 +974,8 @@ extension FilePath {
         scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
     }
 
-    let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \((scalingFactor * 100).intround)%", hidden: hideFloatingResult, source: source)
+    let scaleString = cropSize != nil ? "\(cropSize!.width.i)x\(cropSize!.height.i)" : "\((scalingFactor * 100).intround)%"
+    let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {
         optimiser.operation += " (aggressive)"
@@ -924,14 +999,18 @@ extension FilePath {
             OM.current = optimiser
         }
         do {
-            resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
-
-            if id != Optimiser.IDs.clipboardImage, resized!.type == img.type {
-                try resized!.path.copy(to: savePath ?? img.path, force: true)
+            if let cropSize {
+                resized = try img.resize(toSize: cropSize, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
             } else {
-                mainActor { optimiser.url = resized!.path.url }
+                resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
             }
-        } catch let ClopError.processError(proc) {
+
+            var newURL = resized!.path.url
+            if id != Optimiser.IDs.clipboardImage, resized!.type == img.type {
+                newURL = try (resized!.path.copy(to: savePath ?? img.path, force: true)).url
+            }
+            mainActor { optimiser.url = newURL }
+        } catch let ClopProcError.processError(proc) {
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
