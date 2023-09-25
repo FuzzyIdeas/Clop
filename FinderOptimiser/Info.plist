@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIconFile</key>
+	<string>icon.icns</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>NSExtensionActivationRule</key>
+			<string>
+				SUBQUERY (
+					extensionItems,
+					$extensionItem,
+					SUBQUERY (
+						$extensionItem.attachments,
+						$attachment,
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.adobe.pdf" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.apple.m4v-video" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.apple.quicktime-movie" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.compuserve.gif" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.microsoft.bmp" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.matroska.mkv" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.webmproject.webm" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.avi" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.avif" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.heic" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.jpeg" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.mpeg-2-video" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.mpeg-4" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.mpeg" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.png" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.tiff" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.webmproject.webp"
+					).@count &lt;= $extensionItem.attachments.@count).@count &gt;= 1
+			</string>
+			<key>NSExtensionServiceAllowsFinderPreviewItem</key>
+			<true/>
+			<key>NSExtensionServiceAllowsTouchBarItem</key>
+			<true/>
+			<key>NSExtensionServiceFinderPreviewIconName</key>
+			<string>ExtensionIcon</string>
+			<key>NSExtensionServiceRoleType</key>
+			<string>NSExtensionServiceRoleTypeEditor</string>
+			<key>NSExtensionServiceTouchBarBezelColorName</key>
+			<string>TouchBarBezel</string>
+			<key>NSExtensionServiceTouchBarIconName</key>
+			<string>ExtensionIcon</string>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.services</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).ActionRequestHandler</string>
+	</dict>
+</dict>
+</plist>

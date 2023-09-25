@@ -11,16 +11,13 @@ extension Defaults.Keys {
 }
 
 extension Optimiser {
-    func runAutomation(outFile: FilePath) -> Process? {
-        guard !inRemoval, !SWIFTUI_PREVIEW, let source, let url else {
-            return nil
-        }
-
-        guard let key = type.shortcutKey, let shortcut = Defaults[key][source], let proc = runShortcut(shortcut, url.path, outFile: outFile.string) else {
+    nonisolated func runShortcut(_ shortcut: Shortcut, outFile: FilePath, url: URL) -> Process? {
+        guard let proc = Clop.runShortcut(shortcut, url.path, outFile: outFile.string) else {
             return nil
         }
 
         mainActor { [weak self] in
+            self?.running = true
             self?.progress = Progress()
             self?.operation = "Running \"\(shortcut.name)\""
             self?.processes = [proc]
@@ -28,21 +25,26 @@ extension Optimiser {
         return proc
     }
 
+    func runAutomation(outFile: FilePath) -> Process? {
+        guard !inRemoval, !SWIFTUI_PREVIEW, let source, let url else {
+            return nil
+        }
+
+        guard let key = type.shortcutKey, let shortcut = Defaults[key][source] else {
+            return nil
+        }
+        return runShortcut(shortcut, outFile: outFile, url: url)
+    }
+
     nonisolated func runAutomation(outFile: FilePath, source: String?, url: URL?, type: ItemType) -> Process? {
         guard let source, let url, let key = type.shortcutKey else {
             return nil
         }
 
-        guard let shortcut = Defaults[key][source], let proc = runShortcut(shortcut, url.path, outFile: outFile.string) else {
+        guard let shortcut = Defaults[key][source] else {
             return nil
         }
-
-        mainActor { [weak self] in
-            self?.progress = Progress()
-            self?.operation = "Running \"\(shortcut.name)\""
-            self?.processes = [proc]
-        }
-        return proc
+        return runShortcut(shortcut, outFile: outFile, url: url)
     }
 }
 

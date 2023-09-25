@@ -7,6 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C70B5F1A2AC014BF00345739 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C70B5F192AC014BF00345739 /* Cocoa.framework */; };
+		C70B5F1D2AC014BF00345739 /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C70B5F1C2AC014BF00345739 /* Media.xcassets */; };
+		C70B5F212AC014BF00345739 /* ActionRequestHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F202AC014BF00345739 /* ActionRequestHandler.swift */; };
+		C70B5F262AC014BF00345739 /* FinderOptimiser.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C70B5F172AC014BF00345739 /* FinderOptimiser.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C70B5F2C2AC0151300345739 /* icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = C70B5F2B2AC0151300345739 /* icon.icns */; };
+		C70B5F2E2AC01F1200345739 /* LocalMachPort.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */; };
+		C70B5F2F2AC01F1200345739 /* LocalMachPort.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */; };
+		C70B5F312AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
+		C70B5F322AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
+		C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
 		C7333E422A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7333E3E2A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 */; };
 		C7333E432A98A1D400B1D5BE /* bin-arm64.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */; };
 		C7333E442A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7333E402A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 */; };
@@ -38,7 +48,41 @@
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		C70B5F242AC014BF00345739 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C7AB6619288301590041BEC8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C70B5F162AC014BF00345739;
+			remoteInfo = FinderOptimiser;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C70B5F2A2AC014BF00345739 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C70B5F262AC014BF00345739 /* FinderOptimiser.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		C70B5F172AC014BF00345739 /* FinderOptimiser.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FinderOptimiser.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C70B5F192AC014BF00345739 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		C70B5F1C2AC014BF00345739 /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
+		C70B5F202AC014BF00345739 /* ActionRequestHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionRequestHandler.swift; sourceTree = "<group>"; };
+		C70B5F222AC014BF00345739 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C70B5F232AC014BF00345739 /* FinderOptimiser.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FinderOptimiser.entitlements; sourceTree = "<group>"; };
+		C70B5F2B2AC0151300345739 /* icon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = icon.icns; sourceTree = "<group>"; };
+		C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMachPort.swift; sourceTree = "<group>"; };
+		C70B5F302AC029DA00345739 /* Shared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared.swift; sourceTree = "<group>"; };
+		C70B5F332AC1B56C00345739 /* Optimisable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Optimisable.swift; sourceTree = "<group>"; };
 		C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
 		C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Clop-Bridging-Header.h"; sourceTree = "<group>"; };
 		C7333E3E2A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "bin-x86.tar.xz.sha256"; sourceTree = "<group>"; };
@@ -72,6 +116,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C70B5F142AC014BF00345739 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C70B5F1A2AC014BF00345739 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C7AB661E288301590041BEC8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -86,10 +138,33 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		C70B5F182AC014BF00345739 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C70B5F192AC014BF00345739 /* Cocoa.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		C70B5F1B2AC014BF00345739 /* FinderOptimiser */ = {
+			isa = PBXGroup;
+			children = (
+				C70B5F1C2AC014BF00345739 /* Media.xcassets */,
+				C70B5F2B2AC0151300345739 /* icon.icns */,
+				C70B5F202AC014BF00345739 /* ActionRequestHandler.swift */,
+				C70B5F222AC014BF00345739 /* Info.plist */,
+				C70B5F232AC014BF00345739 /* FinderOptimiser.entitlements */,
+			);
+			path = FinderOptimiser;
+			sourceTree = "<group>";
+		};
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
+				C70B5F302AC029DA00345739 /* Shared.swift */,
 				C7AB6623288301590041BEC8 /* Clop */,
+				C70B5F1B2AC014BF00345739 /* FinderOptimiser */,
+				C70B5F182AC014BF00345739 /* Frameworks */,
 				C7AB6622288301590041BEC8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,6 +173,7 @@
 			isa = PBXGroup;
 			children = (
 				C7AB6621288301590041BEC8 /* Clop.app */,
+				C70B5F172AC014BF00345739 /* FinderOptimiser.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -131,6 +207,8 @@
 				C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */,
 				C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */,
 				C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */,
+				C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */,
+				C70B5F332AC1B56C00345739 /* Optimisable.swift */,
 			);
 			path = Clop;
 			sourceTree = "<group>";
@@ -157,6 +235,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C70B5F162AC014BF00345739 /* FinderOptimiser */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C70B5F272AC014BF00345739 /* Build configuration list for PBXNativeTarget "FinderOptimiser" */;
+			buildPhases = (
+				C70B5F132AC014BF00345739 /* Sources */,
+				C70B5F142AC014BF00345739 /* Frameworks */,
+				C70B5F152AC014BF00345739 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FinderOptimiser;
+			productName = FinderOptimiser;
+			productReference = C70B5F172AC014BF00345739 /* FinderOptimiser.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		C7AB6620288301590041BEC8 /* Clop */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C7AB66302883015A0041BEC8 /* Build configuration list for PBXNativeTarget "Clop" */;
@@ -165,10 +260,12 @@
 				C7AB661E288301590041BEC8 /* Frameworks */,
 				C7AB661F288301590041BEC8 /* Resources */,
 				C71A88752A94AFAA00ABD6EE /* ShellScript */,
+				C70B5F2A2AC014BF00345739 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C70B5F252AC014BF00345739 /* PBXTargetDependency */,
 			);
 			name = Clop;
 			packageProductDependencies = (
@@ -188,9 +285,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1400;
+				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					C70B5F162AC014BF00345739 = {
+						CreatedOnToolsVersion = 15.0;
+					};
 					C7AB6620288301590041BEC8 = {
 						CreatedOnToolsVersion = 14.0;
 					};
@@ -214,11 +314,21 @@
 			projectRoot = "";
 			targets = (
 				C7AB6620288301590041BEC8 /* Clop */,
+				C70B5F162AC014BF00345739 /* FinderOptimiser */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C70B5F152AC014BF00345739 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C70B5F1D2AC014BF00345739 /* Media.xcassets in Resources */,
+				C70B5F2C2AC0151300345739 /* icon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C7AB661F288301590041BEC8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -259,17 +369,30 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C70B5F132AC014BF00345739 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C70B5F322AC029DA00345739 /* Shared.swift in Sources */,
+				C70B5F212AC014BF00345739 /* ActionRequestHandler.swift in Sources */,
+				C70B5F2F2AC01F1200345739 /* LocalMachPort.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C7AB661D288301590041BEC8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */,
+				C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */,
 				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,
 				C7760AB62A5C4EE500851F8C /* Images.swift in Sources */,
 				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
+				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
 				C7333E472A98C90500B1D5BE /* PDF.swift in Sources */,
 				C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */,
 				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
+				C70B5F2E2AC01F1200345739 /* LocalMachPort.swift in Sources */,
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
 				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
 				C7760AC12A5E957700851F8C /* OptimisationUtils.swift in Sources */,
@@ -283,7 +406,80 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		C70B5F252AC014BF00345739 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C70B5F162AC014BF00345739 /* FinderOptimiser */;
+			targetProxy = C70B5F242AC014BF00345739 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		C70B5F282AC014BF00345739 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.2.2;
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FinderOptimiser/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Optimise with Clop";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.2.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C70B5F292AC014BF00345739 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.2.2;
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FinderOptimiser/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Optimise with Clop";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.2.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		C7AB662E2883015A0041BEC8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -404,12 +600,13 @@
 		C7AB66312883015A0041BEC8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0;
+				CURRENT_PROJECT_VERSION = 2.2.2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -429,7 +626,7 @@
 					"$(PROJECT_DIR)/Clop/bin",
 				);
 				LLVM_LTO = YES_THIN;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -440,12 +637,13 @@
 		C7AB66322883015A0041BEC8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0;
+				CURRENT_PROJECT_VERSION = 2.2.2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -465,7 +663,7 @@
 					"$(PROJECT_DIR)/Clop/bin",
 				);
 				LLVM_LTO = YES;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.2;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -477,6 +675,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C70B5F272AC014BF00345739 /* Build configuration list for PBXNativeTarget "FinderOptimiser" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C70B5F282AC014BF00345739 /* Debug */,
+				C70B5F292AC014BF00345739 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		C7AB661C288301590041BEC8 /* Build configuration list for PBXProject "Clop" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

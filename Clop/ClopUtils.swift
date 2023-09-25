@@ -65,12 +65,39 @@ func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: 
 
 // MARK: - ClopError
 
-enum ClopError: Error, CustomStringConvertible {
+enum ClopProcError: Error, CustomStringConvertible {
+    case processError(Process)
+
+    var localizedDescription: String { description }
+    var description: String {
+        switch self {
+        case let .processError(proc):
+            var desc = "Process error: \(([proc.launchPath ?? ""] + (proc.arguments ?? [])).joined(separator: " "))"
+
+            var env: [String: String]? = proc.environment
+            if let out = env?.removeValue(forKey: "__swift_stdout"), let outData = fm.contents(atPath: out) {
+                desc += "\n\t" + (outData.s ?? "NON-UTF8 STDOUT")
+            }
+            if let err = env?.removeValue(forKey: "__swift_stderr"), let errData = fm.contents(atPath: err) {
+                desc += "\n\t" + (errData.s ?? "NON-UTF8 STDERR")
+            }
+            return desc
+        }
+    }
+    var humanDescription: String {
+        switch self {
+        case .processError:
+            "Process error"
+
+        }
+    }
+}
+
+enum ClopError: Error, CustomStringConvertible, Codable {
     case fileNotFound(FilePath)
     case fileNotImage(FilePath)
     case noClipboardImage(FilePath)
     case noProcess(String)
-    case processError(Process)
     case alreadyOptimised(FilePath)
     case unknownImageType(FilePath)
     case skippedType(String)
@@ -80,6 +107,7 @@ enum ClopError: Error, CustomStringConvertible {
     case videoError(String)
     case downloadError(String)
     case optimisationPaused(FilePath)
+    case optimisationFailed(String)
     case conversionFailed(FilePath)
     case proError(String)
     case downscaleFailed(FilePath)
@@ -121,20 +149,10 @@ enum ClopError: Error, CustomStringConvertible {
             return "Pro error: \(string)"
         case let .downscaleFailed(p):
             return "Downscale failed: \(p)"
+        case let .optimisationFailed(p):
+            return "Optimisation failed: \(p)"
         case .unknownType:
             return "Unknown type"
-
-        case let .processError(proc):
-            var desc = "Process error: \(([proc.launchPath ?? ""] + (proc.arguments ?? [])).joined(separator: " "))"
-
-            var env: [String: String]? = proc.environment
-            if let out = env?.removeValue(forKey: "__swift_stdout"), let outData = fm.contents(atPath: out) {
-                desc += "\n\t" + (outData.s ?? "NON-UTF8 STDOUT")
-            }
-            if let err = env?.removeValue(forKey: "__swift_stderr"), let errData = fm.contents(atPath: err) {
-                desc += "\n\t" + (errData.s ?? "NON-UTF8 STDERR")
-            }
-            return desc
         }
     }
     var humanDescription: String {
@@ -157,8 +175,6 @@ enum ClopError: Error, CustomStringConvertible {
             "Already optimised"
         case .unknownImageType:
             "Unknown image type"
-        case .processError:
-            "Process error"
         case .videoError:
             "Video error"
         case .downloadError:
@@ -173,6 +189,8 @@ enum ClopError: Error, CustomStringConvertible {
             "Pro error"
         case .downscaleFailed:
             "Downscale failed"
+        case .optimisationFailed:
+            "Optimisation failed"
         case .unknownType:
             "Unknown type"
         }
@@ -338,13 +356,13 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
 
 }
 
-func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = false, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
+func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
     var outPipe = Pipe()
     var errPipe = Pipe()
 
     let cmdline = "\(cmd) \(args.joined(separator: " "))"
     log.debug("Starting \(cmdline)")
-    guard var proc = shellProc(cmd, args: args, out: outPipe, err: errPipe) else {
+    guard var proc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
         throw ClopError.noProcess(cmd)
     }
     for tryNum in 1 ... tries {
@@ -361,7 +379,7 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
         errPipe.fileHandleForReading.readabilityHandler = nil
         outPipe = Pipe()
         errPipe = Pipe()
-        guard let retryProc = shellProc(cmd, args: args, out: outPipe, err: errPipe) else {
+        guard let retryProc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
             throw ClopError.noProcess(cmd)
         }
         proc = retryProc
