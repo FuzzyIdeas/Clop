@@ -53,10 +53,11 @@ else
 endif
 
 
-setversion: OLD_VERSION=$(shell rg -o --no-filename 'MARKETING_VERSION = ([^;]+).+' -r '$1' | head -1)
+setversion: OLD_VERSION=$(shell rg -o --no-filename 'MARKETING_VERSION = ([^;]+).+' -r '$$1' *.xcodeproj/project.pbxproj | head -1)
+setversion: SHELL=fish
 setversion:
 ifneq (, $(FULL_VERSION))
-	rg -l 'VERSION = "?$(OLD_VERSION)"?' && sed -E -i .bkp 's/VERSION = "?$(OLD_VERSION)"?/VERSION = $(FULL_VERSION)/g' $$(rg -l 'VERSION = "?$(OLD_VERSION)"?')
+	sdf '((?:CURRENT_PROJECT|MARKETING)_VERSION) = $(OLD_VERSION);' '$$1 = $(FULL_VERSION);'
 endif
 
 Releases/Clop-%.html: ReleaseNotes/$(VERSION)*.md
