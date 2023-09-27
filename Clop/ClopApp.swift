@@ -134,6 +134,38 @@ class AppDelegate: LowtechProAppDelegate {
     var machPortThread: Thread?
 
     @MainActor
+    static func handleStopOptimisationRequest(_ req: StopOptimisationRequest) {
+        log.debug("Stopping optimisation request: \(req.jsonString)")
+
+        for id in req.ids {
+            guard let opt = opt(id) else {
+                continue
+            }
+
+            opt.stop(remove: req.remove)
+        }
+    }
+
+    static func handleOptimisationRequest(_ req: OptimisationRequest) -> Data? {
+        log.debug("Handling optimisation request: \(req.jsonString)")
+
+        let sem = DispatchSemaphore(value: 0)
+        var resp: [OptimisationResponse] = []
+        tryAsync {
+            resp = try await processOptimisationRequest(req)
+            sem.signal()
+        }
+        sem.wait()
+
+        return resp.jsonData
+    }
+
+    func setupServiceProvider() {
+        NSApplication.shared.servicesProvider = ContextualMenuServiceProvider()
+        NSUpdateDynamicServices()
+    }
+
+    @MainActor
     func handleCommandHotkey(_ key: SauceKey) {
         guard let opt = OM.hovered else {
             return
@@ -253,7 +285,6 @@ class AppDelegate: LowtechProAppDelegate {
                 }
             }.store(in: &observers)
     }
-
     func initMachPortListener() {
         machPortThread = Thread {
             OPTIMISATION_PORT.listen { data in
@@ -261,25 +292,17 @@ class AppDelegate: LowtechProAppDelegate {
                     return nil
                 }
 
-                let req: OptimisationRequest
-                do {
-                    req = try JSONDecoder().decode(OptimisationRequest.self, from: data)
-                } catch {
-                    log.error(error.localizedDescription)
-                    return nil
+                var result: Data? = nil
+                if let req = OptimisationRequest.from(data) {
+                    result = Self.handleOptimisationRequest(req)
+                } else if let req = StopOptimisationRequest.from(data) {
+                    mainActor { Self.handleStopOptimisationRequest(req) }
                 }
 
-                let sem = DispatchSemaphore(value: 0)
-                var resp: OptimisationResponse?
-                tryAsync {
-                    resp = try await processOptimisationRequest(req)
-                    sem.signal()
-                }
-                sem.wait()
-                guard let resp, let respData = try? JSONEncoder().encode(resp) else {
+                guard let result else {
                     return nil
                 }
-                return Unmanaged.passRetained(respData as CFData)
+                return Unmanaged.passRetained(result as CFData)
             }
             RunLoop.current.run()
         }
@@ -783,5 +806,32 @@ extension NSFilePromiseReceiver {
             return
         }
         log.error(exc.description)
+    }
+}
+
+class ContextualMenuServiceProvider: NSObject {
+    @objc func optimisationService(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
+            return
+        }
+
+        for item in items.map(ClipboardType.fromPasteboardItem) {
+            guard item != .unknown else {
+                continue
+            }
+            Task.init {
+                try await optimiseItem(
+                    item,
+                    id: item.id,
+                    hideFloatingResult: false,
+                    downscaleTo: nil,
+                    speedUpBy: nil,
+                    aggressiveOptimisation: nil,
+                    optimisationCount: &manualOptimisationCount,
+                    copyToClipboard: false,
+                    source: "service"
+                )
+            }
+        }
     }
 }
