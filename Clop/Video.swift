@@ -150,7 +150,9 @@ class Video: Optimisable {
         #else
             let encoderArgs = ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "26"] : [])
         #endif
-        let args = ["-y", "-i", inputPath.string] + encoderArgs + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
+        let args = ["-y", "-i", inputPath.string]
+            + (["mp4", "mov", "hevc"].contains(outputPath.extension?.lowercased()) ? encoderArgs : [])
+            + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         var realDuration: Int64?
         if let duration {
@@ -159,10 +161,12 @@ class Video: Optimisable {
                 optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(realDuration!.hmsString)"
             }
         }
+
+        let videoURL = path.url
         let proc = try tryProc(FFMPEG.string, args: args, tries: 3, captureOutput: true) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: inputPath.url, optimiser: optimiser, duration: realDuration)
+                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: videoURL, optimiser: optimiser, duration: realDuration)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -232,6 +236,7 @@ let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}
         } else {
             optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(optimiser.progress.totalUnitCount.hmsString)"
         }
+        optimiser.progress.publish()
     }
 
     let handle = pipe.fileHandleForReading
@@ -239,6 +244,7 @@ let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}
         let data = pipe.availableData
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
+            mainActor { optimiser.progress.unpublish() }
             return
         }
         guard let string = String(data: data, encoding: .utf8) else {
@@ -328,6 +334,7 @@ var processTerminated = Set<pid_t>()
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
+    noConversion: Bool = false,
     source: String? = nil
 ) async throws -> Video? {
     let path = video.path
@@ -356,7 +363,7 @@ var processTerminated = Set<pid_t>()
             do {
                 mainActor { OM.current = optimiser }
 
-                optimisedVideo = try video.optimise(optimiser: optimiser, forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie), aggressiveOptimisation: aggressiveOptimisation)
+                optimisedVideo = try video.optimise(optimiser: optimiser, forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie), aggressiveOptimisation: aggressiveOptimisation)
                 if optimisedVideo!.convertedFrom == nil, optimisedVideo!.fileSize >= fileSize, !allowLarger {
                     video.path.restore(force: true)
                     mainActor {
@@ -412,6 +419,7 @@ var processTerminated = Set<pid_t>()
     cropTo cropSize: NSSize? = nil,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
+    noConversion: Bool = false,
     source: String? = nil
 ) async throws -> Video? {
     guard let resolution = video.size else {
@@ -455,7 +463,7 @@ var processTerminated = Set<pid_t>()
         do {
             optimisedVideo = try video.optimise(
                 optimiser: optimiser,
-                forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
+                forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
                 backup: false,
                 resizeTo: newSize,
                 cropTo: cropSize,
@@ -515,6 +523,7 @@ var processTerminated = Set<pid_t>()
     byFactor factor: Double? = nil,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
+    noConversion: Bool = false,
     source: String? = nil
 ) async throws -> Video? {
     let pathString = video.path.string
@@ -565,7 +574,7 @@ var processTerminated = Set<pid_t>()
         do {
             optimisedVideo = try video.optimise(
                 optimiser: optimiser,
-                forceMP4: Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
+                forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
                 backup: false,
                 resizeTo: resolution,
                 speedUpBy: speedUpFactor,

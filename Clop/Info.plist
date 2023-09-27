@@ -1,19 +1,61 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<true/>
+		</dict>
+		<key>LSUIElement</key>
 		<true/>
+		<key>NSPrincipalClass</key>
+		<string>SentryCrashExceptionApplication</string>
+		<key>SUFeedURL</key>
+		<string>https://files.lowtechguys.com/clop/appcast.xml</string>
+		<key>SUPublicEDKey</key>
+		<string>lqnO6tg2A9evTIFo2SC9ArZ6NS84gtBshcAWdwh12xQ=</string>
+
+		<key>NSServices</key>
+		<array>
+			<dict>
+				<key>NSKeyEquivalent</key>
+				<dict>
+					<key>default</key>
+					<string>~@O</string>
+				</dict>
+				<key>NSMenuItem</key>
+				<dict>
+					<key>default</key>
+					<string>Optimise with Clop</string>
+				</dict>
+				<key>NSMessage</key>
+				<string>optimisationService</string>
+				<key>NSPortName</key>
+				<string>Clop</string>
+				<key>NSRequiredContext</key>
+				<dict/>
+				<key>NSReturnTypes</key>
+				<array/>
+				<key>NSSendFileTypes</key>
+				<array>
+					<string>public.image</string>
+					<string>public.movie</string>
+					<string>public.video</string>
+					<string>public.pdf</string>
+					<string>com.apple.alias-file</string>
+					<string>public.file-url</string>
+				</array>
+				<key>NSSendTypes</key>
+				<array>
+					<string>public.image</string>
+					<string>public.movie</string>
+					<string>public.video</string>
+					<string>public.pdf</string>
+					<string>com.apple.alias-file</string>
+					<string>public.file-url</string>
+				</array>
+			</dict>
+		</array>
 	</dict>
-	<key>LSUIElement</key>
-	<true/>
-	<key>NSPrincipalClass</key>
-	<string>SentryCrashExceptionApplication</string>
-	<key>SUFeedURL</key>
-	<string>https://files.lowtechguys.com/clop/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>lqnO6tg2A9evTIFo2SC9ArZ6NS84gtBshcAWdwh12xQ=</string>
-</dict>
 </plist>

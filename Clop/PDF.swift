@@ -137,6 +137,7 @@ let GS_PAGE_REGEX = try! Regex(#"^\s*Processing pages \d+ through (\d+)."#, as: 
         optimiser.progress.fileURL = url
         optimiser.progress.localizedDescription = optimiser.operation
         optimiser.progress.localizedAdditionalDescription = "Calculating progress"
+        optimiser.progress.publish()
     }
 
     let handle = pipe.fileHandleForReading
@@ -144,6 +145,7 @@ let GS_PAGE_REGEX = try! Regex(#"^\s*Processing pages \d+ through (\d+)."#, as: 
         let data = pipe.availableData
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
+            mainActor { optimiser.progress.unpublish() }
             return
         }
         guard let string = String(data: data, encoding: .utf8) else {
