@@ -137,7 +137,7 @@ enum ItemType {
         switch fileType {
         case "image/jpeg", "image/png", "image/gif", "image/tiff", "image/webp", "image/heic", "image/heif", "image/avif":
             return .image(UTType(mimeType: fileType)!)
-        case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg":
+        case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg", "video/webm":
             return .video(UTType(mimeType: fileType)!)
         case "application/pdf":
             return .pdf
@@ -916,9 +916,6 @@ func justTry(_ action: () throws -> Void) {
     }
 }
 
-func mainActor(_ action: @escaping @MainActor () -> Void) {
-    Task.init { await MainActor.run { action() }}
-}
 @MainActor let OM = OptimisationManager()
 
 let optimisationQueue = DispatchQueue(label: "optimisation.queue")
@@ -1145,7 +1142,10 @@ enum ClipboardType: Equatable {
         guard let item = NSPasteboard.general.pasteboardItems?.first else {
             return .unknown
         }
+        return fromPasteboardItem(item)
+    }
 
+    static func fromPasteboardItem(_ item: NSPasteboardItem) -> ClipboardType {
         if let path = item.string(forType: .fileURL)?.trimmedPath.url?.filePath ?? item.string(forType: .string)?.trimmedPath.existingFilePath, path.isPDF || path.isVideo {
             return .file(path)
         }
@@ -1293,7 +1293,7 @@ var manualOptimisationCount = 0
                     source: source
                 )
             } else {
-                try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
         }
         guard let result else { return nil }
@@ -1319,7 +1319,7 @@ var manualOptimisationCount = 0
                         source: source
                     )
                 } else {
-                    try await optimiseImage(img, copyToClipboard: copyToClipboard, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 }
             }
             guard let result else { return nil }
@@ -1333,11 +1333,21 @@ var manualOptimisationCount = 0
                 let video = await (try? Video.byFetchingMetadata(path: path)) ?? Video(path: path)
 
                 if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleVideo(video, copyToClipboard: copyToClipboard, toFactor: scalingFactor, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await downscaleVideo(
+                        video,
+                        copyToClipboard: copyToClipboard,
+                        id: id,
+                        toFactor: scalingFactor,
+                        cropTo: cropSize,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        source: source
+                    )
                 } else if let cropSize, let size = video.size, cropSize < size {
                     return try await downscaleVideo(
                         video,
                         copyToClipboard: copyToClipboard,
+                        id: id,
                         toFactor: cropSize.area / size.area,
                         cropTo: cropSize,
                         hideFloatingResult: hideFloatingResult,
@@ -1345,9 +1355,9 @@ var manualOptimisationCount = 0
                         source: source
                     )
                 } else if let speedUpFactor, speedUpFactor != 1, speedUpFactor != 0 {
-                    return try await speedUpVideo(video, copyToClipboard: copyToClipboard, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await speedUpVideo(video, copyToClipboard: copyToClipboard, id: id, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else {
-                    return try await optimiseVideo(video, copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await optimiseVideo(video, copyToClipboard: copyToClipboard, id: id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 }
             }
             guard let result else { return nil }
@@ -1358,7 +1368,7 @@ var manualOptimisationCount = 0
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
-                try await optimisePDF(PDF(path), copyToClipboard: copyToClipboard, allowLarger: false, hideFloatingResult: hideFloatingResult, cropTo: cropSize, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await optimisePDF(PDF(path), copyToClipboard: copyToClipboard, id: id, allowLarger: false, hideFloatingResult: hideFloatingResult, cropTo: cropSize, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
             guard let result else { return nil }
             return .file(result.path)
@@ -1396,39 +1406,79 @@ var manualOptimisationCount = 0
 
 var cliOptimisationCount = 0
 
-func processOptimisationRequest(_ req: OptimisationRequest) async throws -> OptimisationResponse {
-    let clip = ClipboardType.fromURL(req.url)
+func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [OptimisationResponse] {
+    try await withThrowingTaskGroup(of: OptimisationResponse.self, returning: [OptimisationResponse].self) { group in
+        for url in req.urls {
+            group.addTaskUnlessCancelled {
+                let clip = ClipboardType.fromURL(url)
 
-    let result: ClipboardType?
-    do {
-        result = try await optimiseItem(
-            clip,
-            id: req.id,
-            hideFloatingResult: req.hideFloatingResult,
-            downscaleTo: req.downscaleFactor,
-            cropTo: req.size,
-            aggressiveOptimisation: req.aggressiveOptimisation,
-            optimisationCount: &cliOptimisationCount,
-            copyToClipboard: req.copyToClipboard,
-            source: req.source
-        )
-    } catch let ClopError.alreadyOptimised(path) {
-        guard path.exists else {
-            throw ClopError.fileNotFound(path)
+                do {
+                    let result: ClipboardType?
+                    do {
+                        result = try await optimiseItem(
+                            clip,
+                            id: url.absoluteString,
+                            hideFloatingResult: req.hideFloatingResult,
+                            downscaleTo: req.downscaleFactor,
+                            cropTo: req.size,
+                            aggressiveOptimisation: req.aggressiveOptimisation,
+                            optimisationCount: &cliOptimisationCount,
+                            copyToClipboard: req.copyToClipboard,
+                            source: req.source
+                        )
+                    } catch let ClopError.alreadyOptimised(path) {
+                        guard path.exists else {
+                            throw ClopError.fileNotFound(path)
+                        }
+                        return OptimisationResponse(path: path.string, forURL: url)
+                    }
+
+                    guard let result, let opt = await opt(url.absoluteString) else {
+                        throw ClopError.optimisationFailed(url.absoluteString)
+                    }
+
+                    switch result {
+                    case let .file(path):
+                        return await OptimisationResponse(
+                            path: path.string, forURL: url, convertedFrom: opt.convertedFromURL?.filePath.string,
+                            oldBytes: opt.oldBytes, newBytes: opt.newBytes,
+                            oldSize: opt.oldSize, newSize: opt.newSize
+                        )
+                    case let .image(img):
+                        return await OptimisationResponse(
+                            path: img.path.string, forURL: url, convertedFrom: opt.convertedFromURL?.filePath.string,
+                            oldBytes: opt.oldBytes, newBytes: opt.newBytes,
+                            oldSize: opt.oldSize, newSize: opt.newSize
+                        )
+                    default:
+                        throw ClopError.optimisationFailed(url.absoluteString)
+                    }
+                } catch {
+                    throw BatchOptimisationError.wrappedError(error, url)
+                }
+            }
         }
-        return OptimisationResponse(path: path)
-    }
 
-    guard let result else {
-        throw ClopError.optimisationFailed(req.url.absoluteString)
-    }
+        var responses = [OptimisationResponse]()
+        while !group.isEmpty {
+            do {
+                guard let resp = try await group.next() else {
+                    continue
+                }
+                responses.append(resp)
+                try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: resp.jsonData)
+            } catch is CancellationError {
+                continue
+            } catch let BatchOptimisationError.wrappedError(error, url) {
+                try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
+                log.error("Error \(error.localizedDescription) for \(url)")
+            }
+        }
 
-    switch result {
-    case let .file(path):
-        return OptimisationResponse(path: path)
-    case let .image(img):
-        return OptimisationResponse(path: img.path)
-    default:
-        throw ClopError.optimisationFailed(req.url.absoluteString)
+        return responses
     }
+}
+
+enum BatchOptimisationError: Error {
+    case wrappedError(Error, URL)
 }
