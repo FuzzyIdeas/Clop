@@ -58,7 +58,10 @@ class ActionRequestHandler: NSObject, NSExtensionRequestHandling {
 
                 let coordinator = NSFileCoordinator()
                 coordinator.coordinate(readingItemAt: url, options: [], error: nil) { url in
-                    let tempURL = URL.temporaryDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
+                    var tempURL = URL.temporaryDirectory.appendingPathComponent(url.lastPathComponent)
+                    if FileManager.default.fileExists(atPath: tempURL.path) {
+                        tempURL = URL.temporaryDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
+                    }
                     try? FileManager.default.removeItem(at: tempURL)
                     try? FileManager.default.copyItem(at: url, to: tempURL)
 
