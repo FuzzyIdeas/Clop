@@ -22,7 +22,7 @@
 				<key>NSKeyEquivalent</key>
 				<dict>
 					<key>default</key>
-					<string>~@O</string>
+					<string>^O</string>
 				</dict>
 				<key>NSMenuItem</key>
 				<dict>
@@ -43,8 +43,6 @@
 					<string>public.movie</string>
 					<string>public.video</string>
 					<string>public.pdf</string>
-					<string>com.apple.alias-file</string>
-					<string>public.file-url</string>
 				</array>
 				<key>NSSendTypes</key>
 				<array>
@@ -52,8 +50,54 @@
 					<string>public.movie</string>
 					<string>public.video</string>
 					<string>public.pdf</string>
-					<string>com.apple.alias-file</string>
-					<string>public.file-url</string>
+				</array>
+			</dict>
+			<dict>
+				<key>NSKeyEquivalent</key>
+				<dict>
+					<key>default</key>
+					<string>^O</string>
+				</dict>
+				<key>NSMenuItem</key>
+				<dict>
+					<key>default</key>
+					<string>Optimise with Clop</string>
+				</dict>
+				<key>NSMessage</key>
+				<string>optimisationService</string>
+				<key>NSPortName</key>
+				<string>Clop</string>
+				<key>NSRequiredContext</key>
+				<dict>
+					<key>NSServiceCategory</key>
+					<string>public.text</string>
+					<key>NSTextContent</key>
+					<array>
+						<string>URL</string>
+						<string>FilePath</string>
+					</array>
+				</dict>
+				<key>NSReturnTypes</key>
+				<array/>
+				<key>NSSendFileTypes</key>
+				<array>
+					<string>public.plain-text</string>
+					<string>com.apple.rtf</string>
+					<string>com.apple.rtfd</string>
+					<string>com.apple.flat-rtfd</string>
+					<string>NSStringPboardType</string>
+					<string>NSRTFPboardType</string>
+					<string>NSRTFDPboardType</string>
+				</array>
+				<key>NSSendTypes</key>
+				<array>
+					<string>public.plain-text</string>
+					<string>com.apple.rtf</string>
+					<string>com.apple.rtfd</string>
+					<string>com.apple.flat-rtfd</string>
+					<string>NSStringPboardType</string>
+					<string>NSRTFPboardType</string>
+					<string>NSRTFDPboardType</string>
 				</array>
 			</dict>
 		</array>

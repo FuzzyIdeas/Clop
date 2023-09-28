@@ -442,6 +442,7 @@ class AppDelegate: LowtechProAppDelegate {
                 _ = checkInternalRequirements([product], nil)
             }
         #endif
+        setupServiceProvider()
     }
 
     func trackScrollWheel() {
@@ -479,7 +480,7 @@ class AppDelegate: LowtechProAppDelegate {
         return true
     }
 
-    override func applicationDidBecomeActive(_: Notification) {
+    override func applicationDidBecomeActive(_ notification: Notification) {
         if didBecomeActiveAtLeastOnce, !Defaults[.showMenubarIcon] {
             WM.open("settings")
             focus()
