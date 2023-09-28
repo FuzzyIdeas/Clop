@@ -57,6 +57,11 @@ struct RightClickMenuView: View {
             }
             .keyboardShortcut("c")
 
+            Button("Show in Finder") {
+                optimiser.showInFinder()
+            }
+            .keyboardShortcut("f")
+
             if let url = optimiser.url {
                 OpenWithMenuView(fileURL: url)
             }
