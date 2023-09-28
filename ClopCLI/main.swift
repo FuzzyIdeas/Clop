@@ -8,6 +8,7 @@
 import ArgumentParser
 import Cocoa
 import Foundation
+import UniformTypeIdentifiers
 
 let SIZE_REGEX = #/(\d+)[xX×](\d+)/#
 let CLOP_APP: URL = {
@@ -23,6 +24,13 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
+func isURLOptimisable(_ url: URL, type: UTType? = nil) -> Bool {
+    guard url.isFileURL, let type = type ?? url.contentTypeResourceValue ?? url.fetchFileType() else {
+        return true
+    }
+    return IMAGE_VIDEO_FORMATS.contains(type) || type == .pdf
+}
+
 struct Clop: ParsableCommand {
     struct Optimise: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
@@ -31,8 +39,14 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, inversion: .prefixedNo, help: "Print progress to stderr")
         var progress = true
 
+        @Flag(name: .long, help: "Process files and items in the background")
+        var async = false
+
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
+
+        @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
+        var recursive = false
 
         @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
         var copy = false
@@ -55,14 +69,64 @@ struct Clop: ParsableCommand {
         @Argument(help: "Images, videos, PDFs or URLs to optimise")
         var items: [String] = []
 
+        func getURLsFromFolder(_ folder: URL) -> [URL] {
+            guard let enumerator = FileManager.default.enumerator(
+                at: folder,
+                includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey],
+                options: [.skipsPackageDescendants]
+            ) else {
+                return []
+            }
+
+            var urls: [URL] = []
+
+            for case let fileURL as URL in enumerator {
+                guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey]),
+                      let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
+                else {
+                    continue
+                }
+
+                if isDirectory {
+                    if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
+                        enumerator.skipDescendants()
+                    }
+                    continue
+                }
+
+                if !isRegularFile {
+                    continue
+                }
+
+                if !isURLOptimisable(fileURL, type: resourceValues.contentType) {
+                    continue
+                }
+                urls.append(fileURL)
+            }
+            return urls
+        }
+
         mutating func validate() throws {
-            urls = try items.map { item in
+            var dirs: [URL] = []
+            urls = try items.compactMap { item in
                 let url = item.contains(":") ? (URL(string: item) ?? URL(fileURLWithPath: item)) : URL(fileURLWithPath: item)
-                if !skipErrors, url.isFileURL, !FileManager.default.fileExists(atPath: url.path) {
+                var isDir = ObjCBool(false)
+
+                if url.isFileURL, !FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) {
+                    if skipErrors {
+                        return nil
+                    }
+
                     throw ValidationError("File \(url.path) does not exist")
                 }
+
+                if isDir.boolValue {
+                    dirs.append(url)
+                    return nil
+                }
                 return url
-            }
+            }.filter { isURLOptimisable($0) }
+            urls += dirs.flatMap(getURLsFromFolder)
 
             if let crop {
                 if let match = try? SIZE_REGEX.firstMatch(in: crop) {
@@ -86,11 +150,14 @@ struct Clop: ParsableCommand {
 
         mutating func run() throws {
             let urls = urls
+            let showProgress = progress
 
-            if progress {
+            if !async {
                 progressPrinter = ProgressPrinter(urls: urls)
                 Task.init {
                     await progressPrinter!.startResponsesThread()
+
+                    guard showProgress else { return }
                     await progressPrinter!.printProgress()
                 }
             }
@@ -110,21 +177,35 @@ struct Clop: ParsableCommand {
             signal(SIGINT, stopCurrentRequests(_:))
             signal(SIGTERM, stopCurrentRequests(_:))
 
-            if progress, let progressPrinter {
+            if progress, !async, let progressPrinter {
                 for url in urls where url.isFileURL {
                     Task.init { await progressPrinter.startProgressListener(url: url) }
                 }
             }
 
+            guard !async else {
+                try OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
+                print("Queued \(urls.count) items for optimisation")
+                if !gui {
+                    printerr("Use the `--gui` flag to see progress")
+                }
+                Clop.exit()
+            }
+
             let respData = try OPTIMISATION_PORT.sendAndWait(data: req.jsonData)
-            guard let respData, let responses = [OptimisationResponse].from(respData) else {
+            guard respData != nil else {
                 Clop.exit(withError: CLIError.optimisationError)
             }
 
-            if progress, let progressPrinter {
-                awaitSync { await progressPrinter.printProgress() }
+            awaitSync {
+                await progressPrinter!.waitUntilDone()
+
+                if showProgress {
+                    await progressPrinter!.printProgress()
+                    fflush(stderr)
+                }
+                await progressPrinter!.printResults()
             }
-            print(responses.jsonString)
         }
     }
 
@@ -137,6 +218,11 @@ struct Clop: ParsableCommand {
 }
 
 var progressPrinter: ProgressPrinter?
+
+struct CLIResult: Codable {
+    let done: [OptimisationResponse]
+    let failed: [OptimisationResponseError]
+}
 
 actor ProgressPrinter {
     init(urls: [URL]) {
@@ -208,18 +294,34 @@ actor ProgressPrinter {
         printerr("Processed \(done + failed) of \(total) | Success: \(done) | Failed: \(failed)")
 
         for (url, progress) in progressProxies {
-            let progressStr = String(format: "%.2f", progress.fractionCompleted * 100)
+            let progressInt = Int(round(progress.fractionCompleted * 100))
+            let progressBarStr = String(repeating: "█", count: Int(progress.fractionCompleted * 20)) + String(repeating: "░", count: 20 - Int(progress.fractionCompleted * 20))
+            var itemStr = (url.isFileURL ? url.path : url.absoluteString)
+            if itemStr.count > 50 {
+                itemStr = "..." + itemStr.suffix(40)
+            }
             if let desc = progress.localizedAdditionalDescription {
-                printerr("\(url.isFileURL ? url.path : url.absoluteString): \(desc) (\(progressStr)%)")
+                printerr("\(itemStr): \(desc) \(progressBarStr) (\(progressInt)%)")
             } else {
-                printerr("\(url.isFileURL ? url.path : url.absoluteString): \(progressStr)%")
+                printerr("\(itemStr): \(progressBarStr) \(progressInt)%")
             }
         }
     }
 
+    func waitUntilDone() async {
+        while responses.count + errors.count < urlsToProcess.count {
+            try! await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+
+    func printResults() {
+        let result = CLIResult(done: responses.values.sorted { $0.forURL.path < $1.forURL.path }, failed: errors.values.sorted { $0.forURL.path < $1.forURL.path })
+        print(result.jsonString)
+    }
+
     func startResponsesThread() {
         responsesThread = Thread {
-            OPTIMISATION_RESPONSE_PORT.listen { data in
+            OPTIMISATION_CLI_RESPONSE_PORT.listen { data in
                 log.debug("Received optimisation response: \(data?.count ?? 0) bytes")
 
                 guard let data else {

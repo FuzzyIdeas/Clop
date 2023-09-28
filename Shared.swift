@@ -8,6 +8,21 @@
 import Cocoa
 import Foundation
 import System
+import UniformTypeIdentifiers
+
+extension UTType {
+    static let avif = UTType("public.avif")
+    static let webm = UTType("org.webmproject.webm")
+    static let mkv = UTType("org.matroska.mkv")
+    static let mpeg = UTType("public.mpeg")
+    static let wmv = UTType("com.microsoft.windows-media-wmv")
+    static let flv = UTType("com.adobe.flash.video")
+    static let m4v = UTType("com.apple.m4v-video")
+}
+
+let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg].compactMap { $0 }
+let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
+let IMAGE_VIDEO_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS
 
 func printerr(_ msg: String, terminator: String = "\n") {
     fputs("\(msg)\(terminator)", stderr)
@@ -23,28 +38,12 @@ func awaitSync(_ action: @escaping () async -> Void) {
 }
 
 let OPTIMISATION_PORT_ID = "com.lowtechguys.Clop.optimisationService"
-let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponse"
-let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
+let OPTIMISATION_CLI_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponseCLI"
 
 func mainActor(_ action: @escaping @MainActor () -> Void) {
     Task.init { await MainActor.run { action() }}
 }
-
-// @MainActor
-// var optimisationMachPorts: [String: LocalMachPort] = [:]
-//
-// @MainActor
-// func optimisationPort(id: String) -> LocalMachPort {
-//    if let port = optimisationMachPorts[id] {
-//        return port
-//    }
-//
-//    let port = LocalMachPort(portLocation: "com.lowtechguys.Clop.optimisation.\(id)")
-//    optimisationMachPorts[id] = port
-//
-//    return port
-// }
 
 extension Encodable {
     var jsonString: String {
@@ -82,8 +81,8 @@ struct OptimisationResponse: Codable, Identifiable {
     var oldBytes = 0
     var newBytes = 0
 
-    var oldSize: CGSize? = nil
-    var newSize: CGSize? = nil
+    var oldWidthHeight: CGSize? = nil
+    var newWidthHeight: CGSize? = nil
 
     var id: String { path }
 }
@@ -96,6 +95,7 @@ struct StopOptimisationRequest: Codable {
 struct OptimisationRequest: Codable, Identifiable {
     let id: String
     let urls: [URL]
+    var originalUrls: [URL: URL] = [:] // [tempURL: originalURL]
     let size: NSSize?
     let downscaleFactor: Double?
     let speedUpFactor: Double?
@@ -162,3 +162,48 @@ final class SharedLogger {
 }
 
 let log = SharedLogger.self
+
+func shell(_ command: String, args: [String] = []) -> String? {
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: command)
+    task.arguments = args
+
+    let pipe = Pipe()
+    task.standardOutput = pipe
+
+    do {
+        try task.run()
+        task.waitUntilExit()
+    } catch {
+        log.error(error.localizedDescription)
+        return nil
+    }
+
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    return String(data: data, encoding: .utf8)
+}
+
+extension URL {
+    func fetchFileType() -> UTType? {
+        if let type = UTType(filenameExtension: pathExtension) {
+            return type
+        }
+
+        guard let mimeType = shell("/usr/bin/file", args: ["-b", "--mime-type", path]) else {
+            return nil
+        }
+
+        return UTType(mimeType: mimeType)
+    }
+
+    var contentTypeResourceValue: UTType? {
+        var type: AnyObject?
+
+        do {
+            try (self as NSURL).getResourceValue(&type, forKey: .contentTypeKey)
+        } catch {
+            log.error(error.localizedDescription)
+        }
+        return type as? UTType
+    }
+}

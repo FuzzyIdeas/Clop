@@ -15,23 +15,9 @@ import UniformTypeIdentifiers
 extension SauceKey: Defaults.Serializable {}
 extension UTType: Defaults.Serializable {}
 
-extension UTType {
-    static let avif = UTType("public.avif")
-    static let webm = UTType("org.webmproject.webm")
-    static let mkv = UTType("org.matroska.mkv")
-    static let mpeg = UTType("public.mpeg")
-    static let wmv = UTType("com.microsoft.windows-media-wmv")
-    static let flv = UTType("com.adobe.flash.video")
-    static let m4v = UTType("com.apple.m4v-video")
-}
-
-let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg].compactMap { $0 }
 let FORMATS_CONVERTIBLE_TO_MP4: [UTType] = VIDEO_FORMATS.without([.mpeg4Movie])
-
-let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
 let FORMATS_CONVERTIBLE_TO_JPEG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let FORMATS_CONVERTIBLE_TO_PNG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
-let IMAGE_VIDEO_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS
 
 let VIDEO_EXTENSIONS = VIDEO_FORMATS.compactMap(\.preferredFilenameExtension)
 let IMAGE_EXTENSIONS = IMAGE_FORMATS.compactMap(\.preferredFilenameExtension) + ["jpg"]

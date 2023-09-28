@@ -5,6 +5,7 @@
 //  Created by Alin Panaitiu on 24.09.2023.
 //
 
+import Cocoa
 import Combine
 import Foundation
 import System
@@ -58,14 +59,20 @@ class ActionRequestHandler: NSObject, NSExtensionRequestHandling {
 
                 let coordinator = NSFileCoordinator()
                 coordinator.coordinate(readingItemAt: url, options: [], error: nil) { url in
-                    var tempURL = URL.temporaryDirectory.appendingPathComponent(url.lastPathComponent)
-                    if FileManager.default.fileExists(atPath: tempURL.path) {
-                        tempURL = URL.temporaryDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
-                    }
+                    guard let itemReplacementDirectory = try? FileManager.default.url(
+                        for: .itemReplacementDirectory, in: .userDomainMask,
+                        appropriateFor: URL(fileURLWithPath: NSHomeDirectory()), create: true
+                    ) else { return }
+
+                    let _tempURL = itemReplacementDirectory.appendingPathComponent(url.lastPathComponent)
+                    let tempURL = FileManager.default.fileExists(atPath: _tempURL.path)
+                        ? itemReplacementDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
+                        : _tempURL
+
                     try? FileManager.default.removeItem(at: tempURL)
                     try? FileManager.default.copyItem(at: url, to: tempURL)
 
-                    Task.init { await self.requestSender.add(tempURL, type: type, attachment: attachment) }
+                    Task.init { await self.requestSender.add(tempURL, type: type, attachment: attachment, originalURL: url) }
                 }
             }
         }
@@ -87,14 +94,14 @@ actor RequestSender {
         didSet {
             guard processedURLs == urls.count else { return }
 
-            let outputItem = NSExtensionItem()
-            outputItem.attachments = outputAttachments.map { att in
-                if let (url, att) = att as? (URL, NSItemProvider), let response = responses[url] {
-                    return NSItemProvider(contentsOf: response.path.url) ?? att
-                }
-                return att as! NSItemProvider
-            }
-            context.completeRequest(returningItems: [outputItem], completionHandler: nil)
+            // let outputItem = NSExtensionItem()
+            // outputItem.attachments = outputAttachments.map { att in
+            //     if let (url, att) = att as? (URL, NSItemProvider), let response = responses[url] {
+            //         return NSItemProvider(contentsOf: response.path.url) ?? att
+            //     }
+            //     return att as! NSItemProvider
+            // }
+            // context.completeRequest(returningItems: [outputItem], completionHandler: nil)
         }
     }
     private var processedAttachments = 0 {
@@ -105,28 +112,33 @@ actor RequestSender {
                     return
                 }
                 send()
+                complete()
             }
         }
     }
     private var urls: [URL] = []
-    private var outputAttachments: [Any] = []
+    private var originalUrls: [URL: URL] = [:]
+    private var outputAttachments: [NSItemProvider] = []
     private var observers: [AnyCancellable] = []
 
-//    func complete() {
-//        let outputItem = NSExtensionItem()
-//        outputItem.attachments = outputAttachments
-//        context.completeRequest(returningItems: [outputItem]) { expired in
-//            guard !expired else { return }
-//
-//            log.error("Optimisation request was cancelled")
-//            Task.init {
-//                let ids = await self.urls.map(\.absoluteString)
-//                let req = StopOptimisationRequest(ids: ids, remove: true)
-//                try? OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
-//                exit(0)
-//            }
-//        }
-//    }
+    func complete() {
+        log.debug("Completing request with \(outputAttachments.count) attachments")
+
+        let outputItem = NSExtensionItem()
+        outputItem.attachments = outputAttachments
+
+        context.completeRequest(returningItems: [outputItem]) { expired in
+            guard expired else { return }
+
+            log.error("Optimisation request was cancelled")
+            awaitSync {
+                let ids = await self.urls.map(\.absoluteString)
+                let req = StopOptimisationRequest(ids: ids, remove: true)
+                try? OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
+                exit(0)
+            }
+        }
+    }
 
     func skipAttachment(_ attachment: NSItemProvider) {
         log.debug("Skipping attachment \(attachment.registeredContentTypes.first?.identifier ?? "unknown")")
@@ -135,88 +147,82 @@ actor RequestSender {
         processedAttachments += 1
     }
 
-//    func observe(_ url: URL, completion: @escaping (URL?, Bool, Error?) -> Void) {
-//        log.debug("Observing \(url) for file completion")
-//
-//        if let response = responses[url] {
-//            completion(response.path.url, true, nil)
-//            return
-//        }
-//        if let resp = errors[url] {
-//            completion(nil, false, resp.error.err)
-//            return
-//        }
-//
-//        lastResponse.sink { resp in
-//            guard resp.forURL == url else { return }
-//            completion(url, true, nil)
-//            self.processedURLs += 1
-//        }.store(in: &observers)
-//
-//        lastResponseError.sink { resp in
-//            guard resp.forURL == url else { return }
-//            completion(nil, false, resp.error.err)
-//            self.processedURLs += 1
-//        }.store(in: &observers)
-//    }
-//
-//    func observe(_ url: URL, completion: @escaping (NSSecureCoding?, Error?) -> Void) {
-//        log.debug("Observing \(url) for data completion")
-//
-//        if let resp = responses[url] {
-//            if let data = FileManager.default.contents(atPath: resp.path) {
-//                completion(data as NSData, nil)
-//            } else {
-//                completion(nil, "File not found".err)
-//            }
-//            return
-//        }
-//        if let resp = errors[url] {
-//            completion(nil, resp.error.err)
-//            return
-//        }
-//
-//        lastResponse.sink { resp in
-//            guard resp.forURL == url else { return }
-//            if let data = FileManager.default.contents(atPath: url.path) {
-//                completion(data as NSData, nil)
-//            } else {
-//                completion(nil, "File not found".err)
-//            }
-//            self.processedURLs += 1
-//        }.store(in: &observers)
-//
-//        lastResponseError.sink { resp in
-//            guard resp.forURL == url else { return }
-//            completion(nil, resp.error.err)
-//            self.processedURLs += 1
-//        }.store(in: &observers)
-//    }
+    func observe(_ url: URL, type: UTType, completion: @escaping (URL?, Bool, Error?) -> Void) {
+        if let response = responses[url], let urlType = response.path.url.fetchFileType() {
+            guard urlType == type else {
+                completion(nil, false, "Wrong type".err)
+                return
+            }
 
-    func add(_ url: URL, type: UTType, attachment: NSItemProvider) {
+            log.debug("Item \(url) of type \(type.identifier) is ready, calling completion handler")
+            completion(response.path.url, false, nil)
+            return
+        }
+        if let resp = errors[url] {
+            log.debug("Item \(url) failed, calling completion handler")
+            completion(nil, false, resp.error.err)
+            return
+        }
+
+        log.debug("Observing \(url) for file completion")
+
+        lastResponse.sink { resp in
+            guard resp.forURL == url, let urlType = resp.path.url.fetchFileType() else {
+                return
+            }
+            guard urlType == type else {
+                completion(nil, false, "Wrong type".err)
+                return
+            }
+            log.debug("Received '\(resp.path)' of type \(type.identifier) for item \(url), calling completion handler")
+
+            completion(url, false, nil)
+            // self.processedURLs += 1
+        }.store(in: &observers)
+
+        lastResponseError.sink { resp in
+            guard resp.forURL == url else { return }
+            log.debug("Failed with '\(resp.error)' for item \(url), calling completion handler")
+
+            completion(nil, false, resp.error.err)
+            // self.processedURLs += 1
+        }.store(in: &observers)
+    }
+
+    func add(_ url: URL, type: UTType, attachment: NSItemProvider, originalURL: URL? = nil) {
         log.debug("Adding \(url) of type \(type.identifier) for processing")
 
         urls.append(url)
         startProgressListener(url: url)
 
-//        let provider = NSItemProvider()
-//        provider.registerFileRepresentation(for: type, openInPlace: true) { completion in
-//            Task.init {
-//                await self.observe(url, completion: completion)
-//            }
-//            log.debug("Loading file representation for optimised \(url)")
-//            return DispatchQueue.main.sync { progressProxies[url] }
-//        }
-//        provider.registerItem(forTypeIdentifier: type.identifier) { completion, expectedValueClass, options in
-//            guard let completion else { return }
-//            Task.init {
-//                await self.observe(url, completion: completion)
-//            }
-//            log.debug("Loading file representation for optimised \(url)")
-        ////            return DispatchQueue.main.sync { progressProxies[url] }
-//        }
+        let types = if type.isSubtype(of: .movie), type != .mpeg4Movie {
+            [type, .mpeg4Movie]
+        } else if type.isSubtype(of: .image), ![UTType.jpeg, UTType.png].contains(type) {
+            [type, .jpeg, .png]
+        } else {
+            [type]
+        }
 
-        outputAttachments.append((url, attachment))
+        let provider = NSItemProvider()
+        for type in types {
+            provider.registerFileRepresentation(
+                forTypeIdentifier: type.identifier, fileOptions: [.openInPlace],
+                visibility: .all, loadHandler: { completion in
+                    Task.init {
+                        await self.observe(url, type: type, completion: completion)
+                    }
+                    log.debug("Loading file representation of type \(type) for optimised \(url)")
+                    return DispatchQueue.main.sync { progressProxies[url] }
+                }
+            )
+        }
+
+        if let originalURL {
+            originalUrls[url] = originalURL
+        }
+
+        // outputAttachments.append((url, attachment))
+        outputAttachments.append(provider)
         processedAttachments += 1
     }
 
@@ -225,7 +231,7 @@ actor RequestSender {
 
         removeProgressSubscriber(url: response.forURL)
         responses[response.forURL] = response
-//        lastResponse.send(response)
+        lastResponse.send(response)
         processedURLs += 1
     }
     func markError(response: OptimisationResponseError) {
@@ -233,7 +239,7 @@ actor RequestSender {
 
         removeProgressSubscriber(url: response.forURL)
         errors[response.forURL] = response
-//        lastResponseError.send(response)
+        lastResponseError.send(response)
         processedURLs += 1
     }
 
@@ -245,6 +251,7 @@ actor RequestSender {
         let req = OptimisationRequest(
             id: String(Int.random(in: 1000 ... 100_000)),
             urls: urls.compactMap { $0 },
+            originalUrls: originalUrls,
             size: nil,
             downscaleFactor: nil,
             speedUpFactor: nil,
@@ -289,6 +296,8 @@ actor RequestSender {
     private var progressSubscribers: [URL: Any] = [:]
 
     func removeProgressSubscriber(url: URL) {
+        log.debug("Removing progress subscriber for \(url)")
+
         if let sub = progressSubscribers.removeValue(forKey: url) {
             Progress.removeSubscriber(sub)
         }
@@ -297,6 +306,8 @@ actor RequestSender {
 
     func startProgressListener(url: URL) {
         let sub = Progress.addSubscriber(forFileURL: url) { progress in
+            log.debug("Subscribed to Progress for \(url): \(progress.fractionCompleted)")
+
             DispatchQueue.main.async { progressProxies[url] = progress }
             return {
                 Task.init { await self.removeProgressSubscriber(url: url) }

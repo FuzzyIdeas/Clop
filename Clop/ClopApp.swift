@@ -540,7 +540,7 @@ class AppDelegate: LowtechProAppDelegate {
             }
 
             mainActor {
-                if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo {
+                if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo, !path.hasOptimisationStatusXattr() {
                     Task.init {
                         try? await optimiseVideo(Video(path: path), source: "clipboard")
                     }
