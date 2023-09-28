@@ -30,7 +30,7 @@ class Optimisable {
     lazy var hash: String = path.fileContentsHash ?? ""
 
     @MainActor var optimiser: Optimiser? {
-        OM.optimisers.first(where: { $0.id == id ?? path.string })
+        OM.optimisers.first(where: { $0.id == id ?? path.string || $0.id == path.string || $0.id == path.url.absoluteString })
     }
 
     func copyWithPath(_ path: FilePath) -> Self {
@@ -38,10 +38,17 @@ class Optimisable {
     }
 
     @MainActor func fetchThumbnail() {
-        generateThumbnail(for: path.url, size: THUMB_SIZE) { [weak self] thumb in
+        var url = path.url
+        if let thumbURL = THUMBNAIL_URLS[url] {
+            log.debug("Using cached thumbnail from \(thumbURL.path) for \(path.string)")
+            url = thumbURL
+        }
+        generateThumbnail(for: url, size: THUMB_SIZE) { [weak self] thumb in
             guard let self, let optimiser else {
+                log.debug("Thumbnail generation cancelled for \(url.path)")
                 return
             }
+            log.debug("Thumbnail generated for \(path.string)")
             optimiser.thumbnail = NSImage(cgImage: thumb.cgImage, size: .zero)
         }
     }

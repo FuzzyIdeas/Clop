@@ -222,6 +222,7 @@ class OptimiserProgressDelegate: NSObject, URLSessionDataDelegate {
         if !optimiser.running || optimiser.inRemoval {
             task.cancel()
         }
+        optimiser.progress.publish()
     }
 
     nonisolated func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
@@ -400,6 +401,13 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             if startingURL == nil {
                 startingURL = url
             }
+            path = {
+                if let url { return FilePath(url) }
+                return id == IDs.clipboardImage ? nil : FilePath(stringLiteral: id)
+            }()
+            filename =
+                id == IDs.clipboardImage ? id : (url?.lastPathComponent ?? FilePath(stringLiteral: id).name.string)
+
         }
     }
     @Published var operation = "Optimising" { didSet {
@@ -1198,6 +1206,7 @@ var manualOptimisationCount = 0
 
     optimiser.operation = "Downloading"
     let fileURL = try await url.download(type: type?.utType, delegate: progressDelegate)
+    optimiser.progress.unpublish()
 
     type = type ?? ItemType.from(filePath: fileURL.filePath)
     guard let type, type.isImage || type.isVideo, let ext = type.ext else {
@@ -1257,6 +1266,8 @@ var manualOptimisationCount = 0
     let optimiser = OM.optimiser(id: "notice", type: .unknown, operation: "")
     optimiser.finish(notice: notice)
 }
+
+var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
 @discardableResult
 @MainActor func optimiseItem(
@@ -1408,8 +1419,11 @@ var cliOptimisationCount = 0
 
 func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [OptimisationResponse] {
     try await withThrowingTaskGroup(of: OptimisationResponse.self, returning: [OptimisationResponse].self) { group in
+        THUMBNAIL_URLS.accessQueue.sync {
+            THUMBNAIL_URLS = ThreadSafeDictionary(dict: req.originalUrls)
+        }
         for url in req.urls {
-            group.addTaskUnlessCancelled {
+            _ = group.addTaskUnlessCancelled {
                 let clip = ClipboardType.fromURL(url)
 
                 do {
@@ -1437,22 +1451,31 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                         throw ClopError.optimisationFailed(url.absoluteString)
                     }
 
-                    switch result {
+                    var respPath = switch result {
                     case let .file(path):
-                        return await OptimisationResponse(
-                            path: path.string, forURL: url, convertedFrom: opt.convertedFromURL?.filePath.string,
-                            oldBytes: opt.oldBytes, newBytes: opt.newBytes,
-                            oldSize: opt.oldSize, newSize: opt.newSize
-                        )
+                        path.string
                     case let .image(img):
-                        return await OptimisationResponse(
-                            path: img.path.string, forURL: url, convertedFrom: opt.convertedFromURL?.filePath.string,
-                            oldBytes: opt.oldBytes, newBytes: opt.newBytes,
-                            oldSize: opt.oldSize, newSize: opt.newSize
-                        )
+                        img.path.string
                     default:
                         throw ClopError.optimisationFailed(url.absoluteString)
                     }
+
+                    if let optURL = respPath.fileURL, optURL != url, optURL.deletingLastPathComponent() != url.deletingLastPathComponent() {
+                        let newURL = url.deletingLastPathComponent().appendingPathComponent(optURL.lastPathComponent)
+                        if fm.fileExists(atPath: newURL.path) {
+                            try fm.removeItem(at: newURL)
+                        }
+                        try fm.copyItem(at: optURL, to: newURL)
+                        await MainActor.run { opt.url = newURL }
+                        respPath = newURL.path
+                    }
+
+                    return await OptimisationResponse(
+                        path: respPath, forURL: url,
+                        convertedFrom: opt.convertedFromURL?.filePath.string,
+                        oldBytes: opt.oldBytes, newBytes: opt.newBytes,
+                        oldWidthHeight: opt.oldSize, newWidthHeight: opt.newSize
+                    )
                 } catch {
                     throw BatchOptimisationError.wrappedError(error, url)
                 }
@@ -1466,11 +1489,19 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                     continue
                 }
                 responses.append(resp)
-                try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: resp.jsonData)
+                if req.source == "cli" {
+                    try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: resp.jsonData)
+                } else {
+                    try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: resp.jsonData)
+                }
             } catch is CancellationError {
                 continue
             } catch let BatchOptimisationError.wrappedError(error, url) {
-                try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
+                if req.source == "cli" {
+                    try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
+                } else {
+                    try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
+                }
                 log.error("Error \(error.localizedDescription) for \(url)")
             }
         }
@@ -1482,3 +1513,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
 enum BatchOptimisationError: Error {
     case wrappedError(Error, URL)
 }
+
+let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
+let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
+let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
