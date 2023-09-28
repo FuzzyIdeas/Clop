@@ -12,8 +12,6 @@
 		C70B5F212AC014BF00345739 /* ActionRequestHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F202AC014BF00345739 /* ActionRequestHandler.swift */; };
 		C70B5F262AC014BF00345739 /* FinderOptimiser.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C70B5F172AC014BF00345739 /* FinderOptimiser.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C70B5F2C2AC0151300345739 /* icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = C70B5F2B2AC0151300345739 /* icon.icns */; };
-		C70B5F2E2AC01F1200345739 /* LocalMachPort.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */; };
-		C70B5F2F2AC01F1200345739 /* LocalMachPort.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */; };
 		C70B5F312AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C70B5F322AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
@@ -34,11 +32,13 @@
 		C78211062A59E371008DB106 /* LowtechPro in Frameworks */ = {isa = PBXBuildFile; productRef = C78211052A59E371008DB106 /* LowtechPro */; };
 		C78211092A5B21A4008DB106 /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
 		C7956A422AC208DD00C0EDF2 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7956A412AC208DD00C0EDF2 /* main.swift */; };
-		C7956A462AC2094100C0EDF2 /* LocalMachPort.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */; };
 		C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C7956A4A2AC209F200C0EDF2 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = C7956A492AC209F200C0EDF2 /* ArgumentParser */; };
 		C7956A4C2AC317D200C0EDF2 /* ClopCLI in Copy Files (1 item) */ = {isa = PBXBuildFile; fileRef = C7956A3F2AC208DD00C0EDF2 /* ClopCLI */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		C7A7DD672A739C7400DA12DF /* ClopShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */; };
+		C7AB38CB2AC5B10300F299CE /* RightClickMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */; };
+		C7AB38CD2AC5E00C00F299CE /* CherryPicks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */; };
+		C7AB38CE2AC5E00C00F299CE /* CherryPicks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */; };
 		C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6624288301590041BEC8 /* ClopApp.swift */; };
 		C7AB6627288301590041BEC8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6626288301590041BEC8 /* ContentView.swift */; };
 		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
@@ -47,7 +47,7 @@
 		C7C8AD5F2ABC78CF003ECDE6 /* Clop - PDF.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */; };
 		C7C8AD602ABC78CF003ECDE6 /* Clop - image.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */; };
 		C7C8AD622ABC9B34003ECDE6 /* Upload to SSH server.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD612ABC9B34003ECDE6 /* Upload to SSH server.shortcut */; };
-		C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */; };
+		C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */; };
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
@@ -105,7 +105,6 @@
 		C70B5F222AC014BF00345739 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C70B5F232AC014BF00345739 /* FinderOptimiser.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FinderOptimiser.entitlements; sourceTree = "<group>"; };
 		C70B5F2B2AC0151300345739 /* icon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = icon.icns; sourceTree = "<group>"; };
-		C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMachPort.swift; sourceTree = "<group>"; };
 		C70B5F302AC029DA00345739 /* Shared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared.swift; sourceTree = "<group>"; };
 		C70B5F332AC1B56C00345739 /* Optimisable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Optimisable.swift; sourceTree = "<group>"; };
 		C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
@@ -127,6 +126,8 @@
 		C7956A412AC208DD00C0EDF2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClopCLI.entitlements; sourceTree = "<group>"; };
 		C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopShortcuts.swift; sourceTree = "<group>"; };
+		C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightClickMenu.swift; sourceTree = "<group>"; };
+		C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CherryPicks.swift; sourceTree = "<group>"; };
 		C7AB6621288301590041BEC8 /* Clop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7AB6624288301590041BEC8 /* ClopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopApp.swift; sourceTree = "<group>"; };
 		C7AB6626288301590041BEC8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -138,7 +139,7 @@
 		C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - PDF.shortcut"; sourceTree = "<group>"; };
 		C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - image.shortcut"; sourceTree = "<group>"; };
 		C7C8AD612ABC9B34003ECDE6 /* Upload to SSH server.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload to SSH server.shortcut"; sourceTree = "<group>"; };
-		C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizeNotificationView.swift; sourceTree = "<group>"; };
+		C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingResult.swift; sourceTree = "<group>"; };
 		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
 		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -240,7 +241,8 @@
 				C7AB6624288301590041BEC8 /* ClopApp.swift */,
 				C733B3D12A50789C002A0585 /* Video.swift */,
 				C7AB6626288301590041BEC8 /* ContentView.swift */,
-				C7D9200B288FE1D200FA0C83 /* SizeNotificationView.swift */,
+				C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */,
+				C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */,
 				C7AB66282883015A0041BEC8 /* Assets.xcassets */,
 				C7AB662D2883015A0041BEC8 /* Clop.entitlements */,
 				C7AB662A2883015A0041BEC8 /* Preview Content */,
@@ -254,8 +256,8 @@
 				C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */,
 				C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */,
 				C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */,
-				C70B5F2D2AC01F1200345739 /* LocalMachPort.swift */,
 				C70B5F332AC1B56C00345739 /* Optimisable.swift */,
+				C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */,
 			);
 			path = Clop;
 			sourceTree = "<group>";
@@ -446,9 +448,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7AB38CD2AC5E00C00F299CE /* CherryPicks.swift in Sources */,
 				C70B5F322AC029DA00345739 /* Shared.swift in Sources */,
 				C70B5F212AC014BF00345739 /* ActionRequestHandler.swift in Sources */,
-				C70B5F2F2AC01F1200345739 /* LocalMachPort.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -456,9 +458,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7AB38CE2AC5E00C00F299CE /* CherryPicks.swift in Sources */,
 				C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */,
 				C7956A422AC208DD00C0EDF2 /* main.swift in Sources */,
-				C7956A462AC2094100C0EDF2 /* LocalMachPort.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -469,13 +471,13 @@
 				C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */,
 				C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */,
 				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,
+				C7AB38CB2AC5B10300F299CE /* RightClickMenu.swift in Sources */,
 				C7760AB62A5C4EE500851F8C /* Images.swift in Sources */,
 				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
 				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
 				C7333E472A98C90500B1D5BE /* PDF.swift in Sources */,
-				C7D9200C288FE1D200FA0C83 /* SizeNotificationView.swift in Sources */,
+				C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */,
 				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
-				C70B5F2E2AC01F1200345739 /* LocalMachPort.swift in Sources */,
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
 				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
 				C7760AC12A5E957700851F8C /* OptimisationUtils.swift in Sources */,

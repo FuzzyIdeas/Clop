@@ -277,7 +277,7 @@ class Image: CustomStringConvertible {
                 (NOT_IMAGE_TYPE_PATTERN.firstMatch(in: item.types.map(\.rawValue).joined(separator: " "))) == nil
         )
         let nsImageFromPath: () -> NSImage? = {
-            guard Defaults[.optimiseImagePathClipboard], let path = item.existingFilePath, path.isImage else {
+            guard Defaults[.optimiseImagePathClipboard], let path = item.existingFilePath, path.isImage, !path.hasOptimisationStatusXattr() else {
                 return nil
             }
             return NSImage(contentsOfFile: path.string)
@@ -828,6 +828,7 @@ extension FilePath {
         operation: "Optimising" + (aggressiveOptimisation ?? false ? " (aggressive)" : ""),
         hidden: hideFloatingResult, source: source
     )
+    optimiser.thumbnail = img.image
     optimiser.downscaleFactor = 1.0
     optimiser.newSize = nil
     optimiser.newBytes = -1
@@ -843,7 +844,6 @@ extension FilePath {
         scalingFactor = 1.0
         optimiser.stop(remove: false)
         optimiser.operation = (Defaults[.showImages] ? "Optimising" : "Optimising \(optimiser.filename)") + (aggressiveOptimisation ?? false ? " (aggressive)" : "")
-        optimiser.thumbnail = img.image
         optimiser.originalURL = img.path.backup(force: false, operation: .copy)?.url ?? img.path.url
         optimiser.url = img.path.url
         if id == Optimiser.IDs.clipboardImage {

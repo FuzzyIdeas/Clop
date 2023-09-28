@@ -1,8 +1,8 @@
 //
-//  LocalMachPort.swift
+//  CherryPicks.swift
 //  Clop
 //
-//  Created by Alin Panaitiu on 24.09.2023.
+//  Created by Alin Panaitiu on 28.09.2023.
 //
 
 import Cocoa
@@ -65,7 +65,7 @@ class LocalMachPort {
         }
         semaphore.signal()
 
-//        print("Sending \(data?.s ?? String(describing: data)) to port \(portLocation!)")
+        log.debug("Sending \(data?.s ?? String(describing: data)) to port \(portLocation!)")
         var returnData: Unmanaged<CFData>?
         let err = CFMessagePortSendRequest(
             port, Int32.random(in: 1 ... 100_000),
@@ -83,15 +83,17 @@ class LocalMachPort {
 }
 
 extension Data {
-    var s: String? { String(data: self, encoding: .utf8) }
+    var s: String? {
+        String(data: self, encoding: .utf8)
+    }
 }
-
-// extension String: LocalizedError {
-//    public var errorDescription: String? { return self }
-// }
 
 extension String {
     var err: NSError {
         NSError(domain: self, code: 1)
     }
 }
+
+let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
+let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
+let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)

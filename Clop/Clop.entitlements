@@ -11,6 +11,7 @@
 		<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
 		<array>
 			<string>com.lowtechguys.Clop.optimisationServiceResponse</string>
+			<string>com.lowtechguys.Clop.optimisationServiceResponseCLI</string>
 		</array>
 		<key>com.apple.security.temporary-exception.mach-register.global-name</key>
 		<array>
