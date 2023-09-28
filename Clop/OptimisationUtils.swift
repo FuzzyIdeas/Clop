@@ -695,6 +695,11 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     }
 
+    func showInFinder() {
+        guard let url else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
     func save() {
         guard let url, let path = url.existingFilePath else { return }
 
