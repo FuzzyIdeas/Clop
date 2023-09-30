@@ -319,11 +319,3 @@ actor RequestSender {
 
 var progressProxies: [URL: Progress] = [:]
 var responsesThread: Thread?
-
-extension FilePath {
-    var url: URL { URL(filePath: self)! }
-}
-
-extension String {
-    var url: URL { URL(fileURLWithPath: self) }
-}
