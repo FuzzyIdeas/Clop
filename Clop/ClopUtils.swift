@@ -105,6 +105,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case videoSizeLarger(FilePath)
     case pdfSizeLarger(FilePath)
     case videoError(String)
+    case pdfError(String)
     case downloadError(String)
     case optimisationPaused(FilePath)
     case optimisationFailed(String)
@@ -136,7 +137,9 @@ enum ClopError: Error, CustomStringConvertible, Codable {
         case let .unknownImageType(p):
             return "Unknown image type: \(p)"
         case let .videoError(string):
-            return "Error optimising video: \(string)"
+            return "Error processing video: \(string)"
+        case let .pdfError(string):
+            return "Error processing PDF: \(string)"
         case let .downloadError(string):
             return "Download failed: \(string)"
         case let .skippedType(string):
@@ -177,6 +180,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Unknown image type"
         case .videoError:
             "Video error"
+        case let .pdfError:
+            "PDF error"
         case .downloadError:
             "Download failed"
         case .skippedType:
