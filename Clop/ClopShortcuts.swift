@@ -23,6 +23,83 @@ enum IntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
 
 var shortcutsOptimisationCount = 0
 
+struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
+    init() {}
+
+    static var title: LocalizedStringResource = "Speed up or slow down video"
+    static var description = IntentDescription("Optimises a video received as input and changes its playback speed by the specific factor.")
+
+    static var parameterSummary: some ParameterSummary {
+        When(\.$playbackSpeedFactor, ComparableComparisonOperator.greaterThanOrEqualTo, 1.0, {
+            Summary("Speed up \(\.$item) by \(\.$playbackSpeedFactor)x and optimise") {
+                \.$hideFloatingResult
+                \.$aggressiveOptimisation
+            }
+        }, otherwise: {
+            Summary("Slow down \(\.$item) by \(\.$playbackSpeedFactor)x and optimise") {
+                \.$hideFloatingResult
+                \.$aggressiveOptimisation
+            }
+        })
+    }
+
+    @Parameter(title: "Video")
+    var item: String
+
+    @Parameter(title: "Hide floating result")
+    var hideFloatingResult: Bool
+
+    @Parameter(title: "Use aggressive optimisation")
+    var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Playback speed factor", default: 1.5)
+    var playbackSpeedFactor: Double
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        let clip = ClipboardType.fromString(item)
+
+        let result: ClipboardType?
+        do {
+            result = try await optimiseItem(
+                clip,
+                id: item,
+                hideFloatingResult: hideFloatingResult,
+                changePlaybackSpeedBy: playbackSpeedFactor,
+                aggressiveOptimisation: aggressiveOptimisation,
+                optimisationCount: &shortcutsOptimisationCount,
+                copyToClipboard: false, source: "shortcuts"
+            )
+        } catch let ClopError.alreadyOptimised(path) {
+            guard path.exists else {
+                throw IntentError.message("Couldn't find file at \(path)")
+            }
+            let file = IntentFile(fileURL: path.url, filename: path.name.string)
+            return .result(value: file)
+        } catch let error as ClopError {
+            throw IntentError.message(error.description)
+        } catch {
+            log.error(error.localizedDescription)
+            throw IntentError.message(error.localizedDescription)
+        }
+
+        guard let result else {
+            throw IntentError.message("Couldn't change playback speed for \(item)")
+        }
+
+        switch result {
+        case let .file(path):
+            let file = IntentFile(fileURL: path.url, filename: path.name.string)
+            return .result(value: file)
+        case let .image(img):
+            let file = IntentFile(fileURL: img.path.url, filename: img.path.name.string, type: img.type)
+            return .result(value: file)
+        default:
+            throw IntentError.message("Bad optimisation result")
+        }
+    }
+}
+
 struct CropOptimiseFileIntent: AppIntent {
     init() {}
 
@@ -31,8 +108,6 @@ struct CropOptimiseFileIntent: AppIntent {
 
     static var parameterSummary: some ParameterSummary {
         Summary("Crop \(\.$item) to \(\.$width)x\(\.$height) and optimise") {
-            \.$width
-            \.$height
             \.$hideFloatingResult
             \.$aggressiveOptimisation
             \.$copyToClipboard
@@ -87,7 +162,7 @@ struct CropOptimiseFileIntent: AppIntent {
         }
 
         guard let result else {
-            throw IntentError.message("Couldn't optimise item")
+            throw IntentError.message("Couldn't crop \(item)")
         }
 
         switch result {

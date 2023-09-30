@@ -161,6 +161,7 @@ class AppDelegate: LowtechProAppDelegate {
     }
 
     func setupServiceProvider() {
+        NSApp.registerServicesMenuSendTypes([.png, .pdf, .fileURL, .fileContents], returnTypes: [.png, .pdf, .fileURL, .fileContents])
         NSApplication.shared.servicesProvider = ContextualMenuServiceProvider()
         NSUpdateDynamicServices()
     }
@@ -174,8 +175,8 @@ class AppDelegate: LowtechProAppDelegate {
         switch key {
         case .minus where opt.downscaleFactor > 0.1:
             opt.downscale()
-        case .x where opt.speedUpFactor < 10 && opt.canSpeedUp():
-            opt.speedUp()
+        case .x where opt.changePlaybackSpeedFactor < 10 && opt.canChangePlaybackSpeed():
+            opt.changePlaybackSpeed()
         case .delete:
             hoveredOptimiserID = nil
             opt.stop(animateRemoval: true)
@@ -216,11 +217,11 @@ class AppDelegate: LowtechProAppDelegate {
                 Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
             }
         case .x:
-            if let opt = OM.current, opt.canSpeedUp() {
-                guard opt.speedUpFactor < 10 else { return }
-                opt.speedUp()
+            if let opt = OM.current, opt.canChangePlaybackSpeed() {
+                guard opt.changePlaybackSpeedFactor < 10 else { return }
+                opt.changePlaybackSpeed()
             } else {
-                Task.init { try? await optimiseLastClipboardItem(speedUpBy: 1.25) }
+                Task.init { try? await optimiseLastClipboardItem(changePlaybackSpeedBy: 1.25) }
             }
         case .r:
             if let opt = OM.current, !opt.running {
@@ -728,9 +729,9 @@ class FileOptimisationWatcher {
 }
 
 #if DEBUG
-    let sizeNotificationWindow = OSDWindow(swiftuiView: SizeNotificationContainer().any, level: .floating, canScreenshot: true, allowsMouse: true)
+    let sizeNotificationWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: true, allowsMouse: true)
 #else
-    let sizeNotificationWindow = OSDWindow(swiftuiView: SizeNotificationContainer().any, level: .floating, canScreenshot: false, allowsMouse: true)
+    let sizeNotificationWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: false, allowsMouse: true)
 #endif
 var clipboardWatcher: Timer?
 var pbChangeCount = NSPasteboard.general.changeCount
@@ -828,7 +829,7 @@ class ContextualMenuServiceProvider: NSObject {
                     id: item.id,
                     hideFloatingResult: false,
                     downscaleTo: nil,
-                    speedUpBy: nil,
+                    changePlaybackSpeedBy: nil,
                     aggressiveOptimisation: nil,
                     optimisationCount: &manualOptimisationCount,
                     copyToClipboard: false,

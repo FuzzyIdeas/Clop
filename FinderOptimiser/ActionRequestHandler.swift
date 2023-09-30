@@ -254,7 +254,7 @@ actor RequestSender {
             originalUrls: originalUrls,
             size: nil,
             downscaleFactor: nil,
-            speedUpFactor: nil,
+            changePlaybackSpeedFactor: nil,
             hideFloatingResult: false,
             copyToClipboard: false,
             aggressiveOptimisation: false,
