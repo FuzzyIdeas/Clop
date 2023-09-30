@@ -55,8 +55,11 @@ struct Shortcut: Codable, Hashable, Defaults.Serializable, Identifiable {
     var id: String { identifier }
 }
 
-func getShortcuts() -> [Shortcut]? {
-    guard let output = shell("/usr/bin/shortcuts", args: ["list", "--show-identifiers"], timeout: 2).o else {
+func getShortcuts(folder: String? = nil) -> [Shortcut]? {
+    log.debug("Getting shortcuts for folder \(folder ?? "nil")")
+
+    let additionalArgs = folder.map { ["--folder-name", $0] } ?? []
+    guard let output = shell("/usr/bin/shortcuts", args: ["list", "--show-identifiers"] + additionalArgs, timeout: 2).o else {
         return nil
     }
 
@@ -76,6 +79,18 @@ func getShortcuts() -> [Shortcut]? {
     }
 
     return shortcuts
+}
+
+func getShortcutsMap() -> [String: [Shortcut]] {
+    guard let folders: [String] = shell("/usr/bin/shortcuts", args: ["list", "--folders"], timeout: 2).o?.split(separator: "\n").map({ s in String(s) })
+    else { return [:] }
+
+    return (folders + ["none"]).compactMap { folder -> (String, [Shortcut])? in
+        guard let shortcuts = getShortcuts(folder: folder) else {
+            return nil
+        }
+        return (folder == "none" ? "Other" : folder, shortcuts)
+    }.reduce(into: [:]) { $0[$1.0] = $1.1 }
 }
 
 func runShortcut(_ shortcut: Shortcut, _ file: String, outFile: String) -> Process? {

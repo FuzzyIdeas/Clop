@@ -98,7 +98,7 @@ struct OptimisationRequest: Codable, Identifiable {
     var originalUrls: [URL: URL] = [:] // [tempURL: originalURL]
     let size: NSSize?
     let downscaleFactor: Double?
-    let speedUpFactor: Double?
+    let changePlaybackSpeedFactor: Double?
     let hideFloatingResult: Bool
     let copyToClipboard: Bool
     let aggressiveOptimisation: Bool

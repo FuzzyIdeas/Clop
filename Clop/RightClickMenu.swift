@@ -92,15 +92,15 @@ struct RightClickMenuView: View {
                 DownscaleMenu(optimiser: optimiser)
             }
 
-            if optimiser.canSpeedUp() {
-                Button("Speed up") {
-                    optimiser.speedUp()
+            if optimiser.canChangePlaybackSpeed() {
+                Button("Change Playback Speed") {
+                    optimiser.changePlaybackSpeed()
                 }
                 .keyboardShortcut("x")
-                .disabled(optimiser.speedUpFactor >= 10)
+                .disabled(optimiser.changePlaybackSpeedFactor >= 10)
 
                 Menu("    by specific factor") {
-                    SpeedUpMenu(optimiser: optimiser)
+                    ChangePlaybackSpeedMenu(optimiser: optimiser)
                 }
             }
 
@@ -114,6 +114,39 @@ struct RightClickMenuView: View {
             .keyboardShortcut("a")
             .disabled(optimiser.aggresive)
 
+            if optimiser.type.isVideo {
+                Button("Convert to GIF") {
+                    videoOptimisationQueue.addOperation {
+                        guard let video = optimiser.video else {
+                            return
+                        }
+
+                        do {
+                            mainActor {
+                                optimiser.remover = nil
+                                optimiser.inRemoval = false
+                                optimiser.stop(remove: false)
+
+                                optimiser.running = true
+                                optimiser.progress.completedUnitCount = 0
+                                optimiser.isOriginal = false
+                                optimiser.operation = "Converting to GIF"
+                            }
+
+                            let gif = try video.convertToGIF(optimiser: optimiser)
+
+                            mainActor {
+                                optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: gif.path.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize, newSize: gif.size)
+                            }
+                        } catch {
+                            mainActor {
+                                optimiser.finish(error: error.localizedDescription)
+                            }
+                        }
+                    }
+                }
+            }
+
             Menu("Run workflow") {
                 WorkflowMenu(optimiser: optimiser)
             }
@@ -123,34 +156,61 @@ struct RightClickMenuView: View {
 
 struct WorkflowMenu: View {
     @ObservedObject var optimiser: Optimiser
-    @State var shortcuts: [Shortcut]?
+    @State var shortcutsMap: [String: [Shortcut]]?
 
     var body: some View {
-        if let shortcuts {
-            ForEach(shortcuts) { shortcut in
-                Button(shortcut.name) {
-                    switch optimiser.type {
-                    case .image:
-                        processImage(shortcut: shortcut)
-                    case .video:
-                        processVideo(shortcut: shortcut)
-                    case .pdf:
-                        processPDF(shortcut: shortcut)
-                    default:
-                        break
-                    }
+        if let shortcutsMap {
+            if shortcutsMap.isEmpty {
+                Text("Create a Shortcut in the Clop folder to have it appear here").disabled(true)
+            } else {
+                if let clopShortcuts = shortcutsMap["Clop"] {
+                    ForEach(clopShortcuts) { shortcut in
+                        Button(shortcut.name) {
+                            switch optimiser.type {
+                            case .image:
+                                processImage(shortcut: shortcut)
+                            case .video:
+                                processVideo(shortcut: shortcut)
+                            case .pdf:
+                                processPDF(shortcut: shortcut)
+                            default:
+                                break
+                            }
 
+                        }
+                    }
+                } else {
+                    Text("Create a Shortcut in the Clop folder to have it appear here").disabled(true)
+                    let shorts = shortcutsMap.sorted { $0.key < $1.key }
+
+                    ForEach(shorts, id: \.key) { folder, shortcuts in
+                        Section(folder) {
+                            ForEach(shortcuts) { shortcut in
+                                Button(shortcut.name) {
+                                    switch optimiser.type {
+                                    case .image:
+                                        processImage(shortcut: shortcut)
+                                    case .video:
+                                        processVideo(shortcut: shortcut)
+                                    case .pdf:
+                                        processPDF(shortcut: shortcut)
+                                    default:
+                                        break
+                                    }
+
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else {
             Text("Loading...").disabled(true)
                 .onAppear {
                     DispatchQueue.global().async {
-                        guard let shortcuts = getShortcuts() else {
-                            return
-                        }
+                        let shortcutsMap = getShortcutsMap()
                         mainActor {
-                            self.shortcuts = shortcuts
+                            self.shortcutsMap = shortcutsMap
                         }
                     }
                 }
@@ -233,29 +293,29 @@ struct DownscaleMenu: View {
     }
 }
 
-struct SpeedUpMenu: View {
+struct ChangePlaybackSpeedMenu: View {
     @ObservedObject var optimiser: Optimiser
 
     var body: some View {
-        let speedUpFactors = [1.25, 1.5, 1.75] + Array(stride(from: 2.0, to: 10.1, by: 1.0))
+        let changePlaybackSpeedFactors = [1.25, 1.5, 1.75] + Array(stride(from: 2.0, to: 10.1, by: 1.0))
         let slowDownFactors = [0.25, 0.5, 0.75]
 
         Button("Restore normal playback speed (1x)") {
-            optimiser.speedUp(byFactor: 1)
-        }.disabled(optimiser.speedUpFactor == 1)
+            optimiser.changePlaybackSpeed(byFactor: 1)
+        }.disabled(optimiser.changePlaybackSpeedFactor == 1)
 
         Section("Playback speed up") {
-            ForEach(speedUpFactors, id: \.self) { factor in
+            ForEach(changePlaybackSpeedFactors, id: \.self) { factor in
                 Button("\(factor < 2 ? String(format: "%.2f", factor) : factor.i.s)x") {
-                    optimiser.speedUp(byFactor: factor)
-                }.disabled(factor == optimiser.speedUpFactor)
+                    optimiser.changePlaybackSpeed(byFactor: factor)
+                }.disabled(factor == optimiser.changePlaybackSpeedFactor)
             }
         }
         Section("Playback slow down") {
             ForEach(slowDownFactors, id: \.self) { factor in
                 Button("\(String(format: "%.2f", factor))x") {
-                    optimiser.speedUp(byFactor: factor)
-                }.disabled(factor == optimiser.speedUpFactor)
+                    optimiser.changePlaybackSpeed(byFactor: factor)
+                }.disabled(factor == optimiser.changePlaybackSpeedFactor)
             }
         }
     }

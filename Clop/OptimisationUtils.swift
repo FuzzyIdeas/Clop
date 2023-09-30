@@ -316,7 +316,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     @Published var convertedFromURL: URL?
 
     @Published var downscaleFactor = 1.0
-    @Published var speedUpFactor = 1.0
+    @Published var changePlaybackSpeedFactor = 1.0
     @Published var aggresive = false
 
     lazy var path: FilePath? = {
@@ -463,11 +463,11 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         OM.quicklook(optimiser: self)
     }
 
-    func canSpeedUp() -> Bool {
+    func canChangePlaybackSpeed() -> Bool {
         type.isVideo && !inRemoval
     }
 
-    func speedUp(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
+    func changePlaybackSpeed(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval, !SWIFTUI_PREVIEW else { return }
 
         remover = nil
@@ -496,10 +496,10 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             }
 
             if let factor {
-                speedUpFactor = factor
+                changePlaybackSpeedFactor = factor
             }
 
-            let _ = try? await speedUpVideo(
+            let _ = try? await changePlaybackSpeedVideo(
                 video,
                 originalPath: originalPath,
                 id: self.id, byFactor: factor, hideFloatingResult: hideFloatingResult,
@@ -625,7 +625,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         guard let url else { return }
         scalingFactor = 1.0
         downscaleFactor = 1.0
-        speedUpFactor = 1.0
+        changePlaybackSpeedFactor = 1.0
         aggresive = false
         resetRemover()
 
@@ -863,8 +863,8 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         )
 
         optimiser.operation = operation
-        optimiser.running = true
         optimiser.hidden = hidden
+        optimiser.running = true
         optimiser.progress.completedUnitCount = 0
         optimiser.isOriginal = false
 
@@ -1002,7 +1002,7 @@ func optimiseURL(
     hideFloatingResult: Bool = false,
     downscaleTo scalingFactor: Double? = nil,
     cropTo cropSize: NSSize? = nil,
-    speedUpBy speedUpFactor: Double? = nil,
+    changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     source: String? = nil
 ) async throws -> ClipboardType? {
@@ -1059,8 +1059,16 @@ func optimiseURL(
                 result = try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id), let size = video.size, cropSize < size {
                 result = try await downscaleVideo(video, id: optimiser.id, toFactor: cropSize.area / size.area, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
-            } else if let speedUpFactor, speedUpFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                result = try await speedUpVideo(video, copyToClipboard: copyToClipboard, id: optimiser.id, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+            } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
+                result = try await changePlaybackSpeedVideo(
+                    video,
+                    copyToClipboard: copyToClipboard,
+                    id: optimiser.id,
+                    byFactor: changePlaybackSpeedFactor,
+                    hideFloatingResult: hideFloatingResult,
+                    aggressiveOptimisation: aggressiveOptimisation,
+                    source: source
+                )
             } else {
                 result = try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
@@ -1252,14 +1260,14 @@ var manualOptimisationCount = 0
     }
 }
 
-@MainActor func optimiseLastClipboardItem(hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, speedUpBy speedUpFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws {
+@MainActor func optimiseLastClipboardItem(hideFloatingResult: Bool = false, downscaleTo scalingFactor: Double? = nil, changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil, aggressiveOptimisation: Bool? = nil) async throws {
     let item = ClipboardType.lastItem()
     try await optimiseItem(
         item,
         id: Optimiser.IDs.clipboard,
         hideFloatingResult: hideFloatingResult,
         downscaleTo: scalingFactor,
-        speedUpBy: speedUpFactor,
+        changePlaybackSpeedBy: changePlaybackSpeedFactor,
         aggressiveOptimisation: aggressiveOptimisation,
         optimisationCount: &manualOptimisationCount,
         copyToClipboard: true,
@@ -1281,7 +1289,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     hideFloatingResult: Bool = false,
     downscaleTo scalingFactor: Double? = nil,
     cropTo cropSize: NSSize? = nil,
-    speedUpBy speedUpFactor: Double? = nil,
+    changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     optimisationCount: inout Int,
     copyToClipboard: Bool,
@@ -1341,7 +1349,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             guard let result else { return nil }
             return .image(result)
         } else if path.isVideo {
-            guard aggressiveOptimisation == true || speedUpFactor != nil || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
+            guard aggressiveOptimisation == true || changePlaybackSpeedFactor != nil || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
                 nope("Already optimised")
                 throw ClopError.alreadyOptimised(path)
             }
@@ -1370,8 +1378,16 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         aggressiveOptimisation: aggressiveOptimisation,
                         source: source
                     )
-                } else if let speedUpFactor, speedUpFactor != 1, speedUpFactor != 0 {
-                    return try await speedUpVideo(video, copyToClipboard: copyToClipboard, id: id, byFactor: speedUpFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor != 0 {
+                    return try await changePlaybackSpeedVideo(
+                        video,
+                        copyToClipboard: copyToClipboard,
+                        id: id,
+                        byFactor: changePlaybackSpeedFactor,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        source: source
+                    )
                 } else {
                     return try await optimiseVideo(video, copyToClipboard: copyToClipboard, id: id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 }
@@ -1400,7 +1416,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 hideFloatingResult: hideFloatingResult,
                 downscaleTo: scalingFactor,
                 cropTo: cropSize,
-                speedUpBy: speedUpFactor,
+                changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
                 source: source
             )
