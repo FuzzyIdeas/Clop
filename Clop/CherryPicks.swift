@@ -92,8 +92,19 @@ extension String {
     var err: NSError {
         NSError(domain: self, code: 1)
     }
+    var url: URL { URL(fileURLWithPath: self) }
 }
 
 let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
+
+extension FilePath {
+    var url: URL { URL(filePath: self)! }
+}
+
+extension NSSize {
+    var aspectRatio: Double {
+        width / height
+    }
+}
