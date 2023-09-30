@@ -8,9 +8,11 @@
 import ArgumentParser
 import Cocoa
 import Foundation
+import PDFKit
+import System
 import UniformTypeIdentifiers
 
-let SIZE_REGEX = #/(\d+)[xX×](\d+)/#
+let SIZE_REGEX = #/(\d+)\s*[xX×]\s*(\d+)/#
 let CLOP_APP: URL = {
     let u = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
     return u.pathExtension == "app" ? u : URL(fileURLWithPath: "/Applications/Clop.app")
@@ -31,7 +33,220 @@ func isURLOptimisable(_ url: URL, type: UTType? = nil) -> Bool {
     return IMAGE_VIDEO_FORMATS.contains(type) || type == .pdf
 }
 
+extension FilePath: ExpressibleByArgument {
+    public init?(argument: String) {
+        guard FileManager.default.fileExists(atPath: argument) else {
+            return nil
+        }
+        self.init(argument)
+    }
+}
+
+extension NSSize: ExpressibleByArgument {
+    public init?(argument: String) {
+        if let size = Int(argument) {
+            self.init(width: size, height: size)
+            return
+        }
+
+        guard let match = try? SIZE_REGEX.firstMatch(in: argument) else {
+            return nil
+        }
+        let width = Int(match.1)!
+        let height = Int(match.2)!
+        self.init(width: width, height: height)
+    }
+}
+
+let DEVICES_STR = """
+Devices:
+  iPad:        "iPad 3"  "iPad 4"  "iPad 5"  "iPad 6"
+               "iPad 7"  "iPad 8"  "iPad 9"  "iPad 10"
+
+  iPad Air:    "iPad Air 1"  "iPad Air 2"    "iPad Air 3"
+               "iPad Air 4"  "iPad Air 5"
+
+  iPad mini:   "iPad mini 1"   "iPad mini 2"   "iPad mini 3"
+               "iPad mini 4"   "iPad mini 5"   "iPad mini 6"
+
+  iPad Pro:    "iPad Pro 1 12.9inch"   "iPad Pro 1 9.7inch"
+               "iPad Pro 2 10.5inch"   "iPad Pro 2 12.9inch"
+               "iPad Pro 3 11inch"     "iPad Pro 3 12.9inch"
+               "iPad Pro 4 11inch"     "iPad Pro 4 12.9inch"
+               "iPad Pro 5 11inch"     "iPad Pro 5 12.9inch"
+               "iPad Pro 6 11inch"     "iPad Pro 6 12.9inch"
+
+  iPhone:      "iPhone 15"    "iPhone 15 Plus"  "iPhone 15 Pro"      "iPhone 15 Pro Max"
+               "iPhone 14"    "iPhone 14 Plus"  "iPhone 14 Pro"      "iPhone 14 Pro Max"
+               "iPhone 13"    "iPhone 13 mini"  "iPhone 13 Pro"      "iPhone 13 Pro Max"
+               "iPhone 12"    "iPhone 12 mini"  "iPhone 12 Pro"      "iPhone 12 Pro Max"
+               "iPhone 11"    "iPhone 11 Pro"   "iPhone 11 Pro Max"
+               "iPhone X"     "iPhone XR"       "iPhone XS"          "iPhone XS Max"
+               "iPhone SE 1"  "iPhone SE 2"     "iPhone SE 3"
+               "iPhone 7"     "iPhone 7 Plus"   "iPhone 8"           "iPhone 8 Plus"
+               "iPhone 6"     "iPhone 6 Plus"   "iPhone 6s"          "iPhone 6s Plus"
+               "iPhone 4"     "iPhone 4S"       "iPhone 5"           "iPhone 5S"
+
+  iPod touch:  "iPod touch 4" "iPod touch 5" "iPod touch 6" "iPod touch 7"
+"""
+
+let PAPER_SIZES_STR = """
+Paper sizes:
+  A:              "2A0"  "4A0"  "A0"   "A0+"  "A1"   "A1+"  "A10"  "A11"  "A12"  "A13"
+                  "A2"   "A3"   "A3+"  "A4"   "A5"   "A6"   "A7"   "A8"   "A9"
+
+  B:              "B0"   "B0+"  "B1"   "B1+"  "B10"  "B11"  "B12"  "B13"  "B2"   "B2+"
+                  "B3"   "B4"   "B5"   "B6"   "B7"   "B8"   "B9"
+
+  US:             "ANSI A"  "ANSI B"  "ANSI C"  "ANSI D"  "ANSI E"
+                  "Arch A"  "Arch B"  "Arch C"  "Arch D"  "Arch E"  "Arch E1"  "Arch E2"  "Arch E3"
+                  "Letter"  "Government Letter" "Half Letter"
+                  "Government Legal"  "Junior Legal"  "Ledger"  "Legal"  "Tabloid"
+
+  Photography:    "2LD, DSCW"    "2LW"  "2R"  "3R, L"    "4R, KG"    "5R, 2L"    "6R"
+                  "A3+ Super B"  "KGD"  "LW"  "LD, DSC"  "Passport"  "S8R, 6PW"  "8R, 6P"
+
+  Newspaper:      "British Broadsheet"  "South African Broadsheet"  "Broadsheet"   "US Broadsheet"
+                  "Canadian Tabloid"    "Norwegian Tabloid"    "Newspaper Tabloid"
+                  "Berliner"  "Ciner"   "Compact"     "Nordisch"         "Rhenish"
+                  "Swiss"     "Wall Street Journal"   "New York Times"
+
+  Books:          "12mo"  "16mo"  "18mo"  "32mo"  "48mo"  "64mo"
+                  "A Format"  "B Format"  "C Format" "Folio"  "Quarto"
+                  "Octavo"        "Royal Octavo"     "Medium Octavo"
+                  "Crown Octavo"  "Imperial Octavo"  "Super Octavo"
+"""
+
 struct Clop: ParsableCommand {
+    struct CropPdf: ParsableCommand {
+        @Option(help: "Crops pages to fit the screen of a specific device (e.g. iPad Air)")
+        var forDevice: String? = nil
+
+        @Option(help: "Crops pages to fit a specific paper size (e.g. A4, Letter)")
+        var paperSize: String? = nil
+
+        @Option(help: "Crops pages to fit the aspect ratio of a resolution (e.g. 1640x2360)")
+        var resolution: NSSize? = nil
+
+        @Option(help: "Crops the PDF pages to fit a specific aspect ratio (e.g. 1.7777777778 for 16:9)")
+        var aspectRatio: Double? = nil
+
+        @Flag(name: .shortAndLong, help: "Crop all PDFs in subfolders (when using a folder as input)")
+        var recursive = false
+
+        @Flag(name: .long, help: "List possible devices that can be passed to --for-device")
+        var listDevices = false
+
+        @Flag(name: .long, help: "List possible paper sizes that can be passed to --paper-size")
+        var listPaperSizes = false
+
+        @Option(help: "Output file path (defaults to modifying the PDF in place). In case of cropping multiple files, this needs to be a folder.")
+        var output: String? = nil
+
+        @Argument(help: "PDFs to crop (can be a folder)")
+        var pdfs: [FilePath] = []
+
+        var foundPDFs: [FilePath] = []
+        var ratio: Double!
+
+        func getPDFsFromFolder(_ folder: FilePath) -> [FilePath] {
+            guard let enumerator = FileManager.default.enumerator(
+                at: folder.url,
+                includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey],
+                options: [.skipsPackageDescendants]
+            ) else {
+                return []
+            }
+
+            var pdfs: [FilePath] = []
+
+            for case let fileURL as URL in enumerator {
+                guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey]),
+                      let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
+                else {
+                    continue
+                }
+
+                if isDirectory {
+                    if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
+                        enumerator.skipDescendants()
+                    }
+                    continue
+                }
+
+                if !isRegularFile {
+                    continue
+                }
+
+                if !name.lowercased().hasSuffix(".pdf") {
+                    continue
+                }
+                pdfs.append(FilePath(fileURL.path))
+            }
+            return pdfs
+        }
+
+        mutating func validate() throws {
+            if listDevices {
+                print(DEVICES_STR)
+                throw ExitCode.success
+            }
+
+            if listPaperSizes {
+                print(PAPER_SIZES_STR)
+                throw ExitCode.success
+            }
+
+            ratio = DEVICE_SIZES[forDevice ?? ""]?.aspectRatio ?? PAPER_SIZES[paperSize ?? ""]?.aspectRatio ?? resolution?.aspectRatio ?? aspectRatio
+            guard let ratio else {
+                throw ValidationError("Invalid aspect ratio, at least one of --for-device, --paper-size, --resolution or --aspect-ratio must be specified")
+            }
+            guard ratio > 0 else {
+                throw ValidationError("Invalid aspect ratio, must be greater than 0")
+            }
+            if pdfs.count > 1, let output, output.hasSuffix(".pdf") {
+                throw ValidationError("Output path must be a folder when cropping multiple PDFs")
+            }
+            guard output == nil || !output!.isEmpty else {
+                throw ValidationError("Output path cannot be empty")
+            }
+            guard !pdfs.isEmpty else {
+                throw ValidationError("At least one PDF or folder must be specified")
+            }
+
+            var isDir: ObjCBool = false
+            if let folder = pdfs.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
+                foundPDFs = getPDFsFromFolder(folder)
+            } else {
+                foundPDFs = pdfs
+            }
+        }
+
+        mutating func run() throws {
+            var outputDir: FilePath? = nil
+            if let output, foundPDFs.count > 1 || output.last == "/" {
+                outputDir = output.first! == "/" ? FilePath(output) : FilePath(FileManager.default.currentDirectoryPath).appending(output)
+
+                if !FileManager.default.fileExists(atPath: outputDir!.string) {
+                    try FileManager.default.createDirectory(at: outputDir!.url, withIntermediateDirectories: true, attributes: nil)
+                }
+            }
+
+            for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
+                print("Cropping \(pdf.documentURL!.path) to aspect ratio \(ratio!)", terminator: outputDir == nil ? "\n" : "")
+                pdf.cropTo(aspectRatio: ratio)
+
+                if let outputDir {
+                    let output = outputDir.appending(pdf.documentURL!.lastPathComponent)
+                    print(" -> saved to \(output.string)")
+                    pdf.write(to: output.url)
+                } else {
+                    pdf.write(to: pdf.documentURL!)
+                }
+            }
+        }
+    }
+
     struct Optimise: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
@@ -61,12 +276,11 @@ struct Clop: ParsableCommand {
         var downscaleFactor: Double? = nil
 
         @Option(help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50")
-        var crop: String? = nil
+        var crop: NSSize? = nil
 
-        var cropSize: NSSize?
         var urls: [URL] = []
 
-        @Argument(help: "Images, videos, PDFs or URLs to optimise")
+        @Argument(help: "Images, videos, PDFs or URLs to optimise (can be a folder)")
         var items: [String] = []
 
         func getURLsFromFolder(_ folder: URL) -> [URL] {
@@ -128,18 +342,6 @@ struct Clop: ParsableCommand {
             }.filter { isURLOptimisable($0) }
             urls += dirs.flatMap(getURLsFromFolder)
 
-            if let crop {
-                if let match = try? SIZE_REGEX.firstMatch(in: crop) {
-                    let width = Int(match.1)!
-                    let height = Int(match.2)!
-                    cropSize = NSSize(width: width, height: height)
-                } else if let size = Int(crop) {
-                    cropSize = NSSize(width: size, height: size)
-                } else {
-                    throw ValidationError("Invalid crop size: \(crop)")
-                }
-            }
-
             ensureAppIsRunning()
             sleep(1)
 
@@ -166,7 +368,7 @@ struct Clop: ParsableCommand {
             let req = OptimisationRequest(
                 id: String(Int.random(in: 1000 ... 100_000)),
                 urls: urls,
-                size: cropSize,
+                size: crop,
                 downscaleFactor: downscaleFactor,
                 speedUpFactor: speedUpFactor,
                 hideFloatingResult: !gui,
@@ -213,6 +415,7 @@ struct Clop: ParsableCommand {
         abstract: "Clop",
         subcommands: [
             Optimise.self,
+            CropPdf.self,
         ]
     )
 }
