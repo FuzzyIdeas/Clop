@@ -270,7 +270,7 @@ struct Clop: ParsableCommand {
         var skipErrors = false
 
         @Option(help: "Speeds up the video by a certain amount (1 means no change, 2 means twice as fast, 0.5 means 2x slower)")
-        var speedUpFactor: Double? = nil
+        var changePlaybackSpeedFactor: Double? = nil
 
         @Option(help: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
         var downscaleFactor: Double? = nil
@@ -370,7 +370,7 @@ struct Clop: ParsableCommand {
                 urls: urls,
                 size: crop,
                 downscaleFactor: downscaleFactor,
-                speedUpFactor: speedUpFactor,
+                changePlaybackSpeedFactor: changePlaybackSpeedFactor,
                 hideFloatingResult: !gui,
                 copyToClipboard: copy,
                 aggressiveOptimisation: aggressive,

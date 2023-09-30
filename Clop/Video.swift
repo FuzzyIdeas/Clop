@@ -9,6 +9,11 @@ import System
 import UniformTypeIdentifiers
 
 let FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").existingFilePath!
+let GIFSKI = BIN_DIR.appendingPathComponent("gifski").existingFilePath!
+
+extension Double {
+    var i64: Int64 { Int64(self) }
+}
 
 class Video: Optimisable {
     init(path: FilePath, metadata: VideoMetadata? = nil, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) {
@@ -72,13 +77,64 @@ class Video: Optimisable {
         }
     #endif
 
+    func convertToGIF(optimiser: Optimiser) throws -> Image {
+        log.debug("Converting video \(path.string) to GIF")
+        let tempDir = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_gif_pngs").filePath
+        tempDir.mkdir(withIntermediateDirectories: true)
+
+        let duration = duration
+        if let duration {
+            mainActor {
+                optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(Int64(duration).hmsString)"
+            }
+        }
+
+        let progressArgs = ["-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1"]
+
+        let videoURL = path.url
+        let ffmpegProc = try tryProc(FFMPEG.string, args: ["-i", path.string] + progressArgs + ["\(tempDir.string)/frame%04d.png"], tries: 3, captureOutput: true) { proc in
+            mainActor {
+                optimiser.processes = [proc]
+                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: videoURL, optimiser: optimiser, duration: duration?.i64)
+            }
+        }
+        guard ffmpegProc.terminationStatus == 0 else {
+            throw ClopProcError.processError(ffmpegProc)
+        }
+
+        let gif = FilePath.images / "\(path.stem!).gif"
+        let pngs = tempDir.ls()
+        let gifskiProc = try tryProc(GIFSKI.string, args: ["-o", gif.string] + pngs.map(\.string), tries: 3, captureOutput: true) { proc in
+            mainActor {
+                optimiser.processes = [proc]
+                updateProgressGifski(pipe: proc.standardOutput as! Pipe, url: videoURL, optimiser: optimiser, frames: pngs.count.i64)
+            }
+        }
+        guard gifskiProc.terminationStatus == 0 else {
+            throw ClopProcError.processError(gifskiProc)
+        }
+
+        try? gif.setOptimisationStatusXattr("true")
+
+        guard let image = Image(path: gif, type: .gif, optimised: true, retinaDownscaled: false) else {
+            throw ClopError.fileNotImage(gif)
+        }
+
+        mainActor {
+            optimiser.url = image.path.url
+            optimiser.type = .image(.gif)
+        }
+
+        return image
+    }
+
     func optimise(
         optimiser: Optimiser,
         forceMP4: Bool = false,
         backup: Bool = true,
         resizeTo newSize: CGSize? = nil,
         cropTo cropSize: NSSize? = nil,
-        speedUpBy speedUpFactor: Double? = nil,
+        changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
         originalPath: FilePath? = nil,
         aggressiveOptimisation: Bool? = nil
     ) throws -> Video {
@@ -126,11 +182,11 @@ class Video: Optimisable {
             filters += ["crop=\(cropString)", "scale=w=\(cropSize.width.i.s):h=\(cropSize.height.i.s)"]
         }
 
-        if let speedUpFactor, speedUpFactor != 1, speedUpFactor > 0 {
-//            if speedUpFactor < 1, let fps, let newFPS {
-//                filters.append("minterpolate='fps=\(min(fps, newFPS).d * speedUpFactor)'")
+        if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor > 0 {
+//            if changePlaybackSpeedFactor < 1, let fps, let newFPS {
+//                filters.append("minterpolate='fps=\(min(fps, newFPS).d * changePlaybackSpeedFactor)'")
 //            }
-            filters.append("setpts=PTS/\(String(format: "%.2f", speedUpFactor))")
+            filters.append("setpts=PTS/\(String(format: "%.2f", changePlaybackSpeedFactor))")
         }
 
         if filters.isNotEmpty {
@@ -156,7 +212,7 @@ class Video: Optimisable {
 
         var realDuration: Int64?
         if let duration {
-            realDuration = ((duration * 1_000_000) / (speedUpFactor ?? 1)).intround.i64
+            realDuration = ((duration * 1_000_000) / (changePlaybackSpeedFactor ?? 1)).intround.i64
             mainActor {
                 optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(realDuration!.hmsString)"
             }
@@ -225,6 +281,53 @@ func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
 }
 
 let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}).(\d{2})"#, as: (Substring, Substring, Substring, Substring, Substring).self).anchorsMatchLineEndings(true)
+let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Substring, Substring).self).anchorsMatchLineEndings(true)
+
+@MainActor func updateProgressGifski(pipe: Pipe, url: URL, optimiser: Optimiser, frames: Int64) {
+    /* Gifski output
+         ^MFrame 1 / 88  _...........................................................  52s ^M1.2MB GIF; Frame 10 / 88  #####_...............  ......
+          ......................  7s ^M786KB GIF; Frame 18 / 88  ##########_......................................  5s ^M671KB GIF; Frame 19  / 88
+          ##########_......................................  6s ^M615KB GIF; Frame 34 / 88  ##################_..............................    3s
+           ^M694KB GIF; Frame 39 / 88  #####################_...........................  3s ^M625KB GIF; Frame 51 / 88  ####################  ######
+          ##_....................  2s ^M641KB GIF; Frame 62 / 88  ##################################_..............  1s ^M718KB GIF; Frame 70   / 88
+           ######################################_..........  1s ^M850KB GIF; Frame 78 / 88  ###########################################_....  .  0
+          s ^M970KB GIF; Frame 88 / 88  ###################################################   ^M970KB GIF; Frame 88 / 88  ###################  ######
+          ##########################   ^Mgifski created /private/tmp/x.gif
+     */
+
+    mainActor {
+        optimiser.progress = Progress(totalUnitCount: frames)
+        optimiser.progress.fileURL = url
+        optimiser.progress.localizedDescription = optimiser.operation
+        optimiser.progress.localizedAdditionalDescription = "Frame 0 of \(optimiser.progress.totalUnitCount)"
+        optimiser.progress.publish()
+    }
+
+    let handle = pipe.fileHandleForReading
+    handle.readabilityHandler = { pipe in
+        let data = pipe.availableData
+        guard !data.isEmpty else {
+            handle.readabilityHandler = nil
+            mainActor { optimiser.progress.unpublish() }
+            return
+        }
+        guard let string = String(data: data.replacing([0x13], with: []), encoding: .utf8) else {
+            return
+        }
+
+        let lines = string.components(separatedBy: "; ")
+        for line in lines where line.starts(with: "Frame ") {
+            guard let match = try? GIFSKI_FRAME_REGEX.firstMatch(in: line), let frame = Int64(match.1), frame > 0 else {
+                continue
+            }
+            mainActor {
+                optimiser.progress.completedUnitCount = min(frame, optimiser.progress.totalUnitCount)
+                optimiser.progress.localizedAdditionalDescription = "Frame \(frame) of \(optimiser.progress.totalUnitCount)"
+            }
+        }
+
+    }
+}
 
 @MainActor func updateProgressFFmpeg(pipe: Pipe, url: URL, optimiser: Optimiser, duration: Int64? = nil) {
     mainActor {
@@ -447,7 +550,7 @@ var processTerminated = Set<pid_t>()
     optimiser.inRemoval = false
     optimiser.stop(remove: false)
     optimiser.downscaleFactor = scalingFactor
-    let speedUpFactor = optimiser.speedUpFactor
+    let changePlaybackSpeedFactor = optimiser.changePlaybackSpeedFactor
 
     var result: Video?
     var done = false
@@ -467,7 +570,7 @@ var processTerminated = Set<pid_t>()
                 backup: false,
                 resizeTo: newSize,
                 cropTo: cropSize,
-                speedUpBy: speedUpFactor,
+                changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 originalPath: originalPath,
                 aggressiveOptimisation: aggressive
             )
@@ -515,7 +618,7 @@ var processTerminated = Set<pid_t>()
 }
 
 @discardableResult
-@MainActor func speedUpVideo(
+@MainActor func changePlaybackSpeedVideo(
     _ video: Video,
     originalPath: FilePath? = nil,
     copyToClipboard: Bool = false,
@@ -529,25 +632,25 @@ var processTerminated = Set<pid_t>()
     let pathString = video.path.string
     videoOptimiseDebouncers[pathString]?.cancel()
 
-    let speedUpFactor: Double
+    let changePlaybackSpeedFactor: Double
     if let factor {
-        speedUpFactor = factor
-    } else if let currentFactor = opt(id ?? pathString)?.speedUpFactor {
-        speedUpFactor = min(currentFactor < 2 ? currentFactor + 0.25 : currentFactor + 1.0, 10)
+        changePlaybackSpeedFactor = factor
+    } else if let currentFactor = opt(id ?? pathString)?.changePlaybackSpeedFactor {
+        changePlaybackSpeedFactor = min(currentFactor < 2 ? currentFactor + 0.25 : currentFactor + 1.0, 10)
     } else {
-        speedUpFactor = 1.25
+        changePlaybackSpeedFactor = 1.25
     }
 
     let itemType = ItemType.from(filePath: video.path)
     let optimiser = OM.optimiser(
         id: id ?? pathString,
         type: itemType,
-        operation: speedUpFactor > 1
-            ? "Speeding up by \(speedUpFactor < 2 ? speedUpFactor.str(decimals: 2) : speedUpFactor.i.s)x"
+        operation: changePlaybackSpeedFactor > 1
+            ? "Speeding up by \(changePlaybackSpeedFactor < 2 ? changePlaybackSpeedFactor.str(decimals: 2) : changePlaybackSpeedFactor.i.s)x"
             : (
-                speedUpFactor == 1
+                changePlaybackSpeedFactor == 1
                     ? "Reverting to original speed"
-                    : "Slowing down by \(speedUpFactor < 2 ? speedUpFactor.str(decimals: 2) : speedUpFactor.i.s)x"
+                    : "Slowing down by \(changePlaybackSpeedFactor < 2 ? changePlaybackSpeedFactor.str(decimals: 2) : changePlaybackSpeedFactor.i.s)x"
             ),
         hidden: hideFloatingResult, source: source
     )
@@ -558,7 +661,7 @@ var processTerminated = Set<pid_t>()
     optimiser.remover = nil
     optimiser.inRemoval = false
     optimiser.stop(remove: false)
-    optimiser.speedUpFactor = speedUpFactor
+    optimiser.changePlaybackSpeedFactor = changePlaybackSpeedFactor
 
     var result: Video?
     var done = false
@@ -577,7 +680,7 @@ var processTerminated = Set<pid_t>()
                 forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
                 backup: false,
                 resizeTo: resolution,
-                speedUpBy: speedUpFactor,
+                changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 originalPath: originalPath,
                 aggressiveOptimisation: aggressive
             )
