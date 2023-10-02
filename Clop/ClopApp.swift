@@ -188,7 +188,7 @@ class AppDelegate: LowtechProAppDelegate {
             opt.editingFilename = true
         case .c:
             opt.copyToClipboard()
-            opt.hotkeyMessage = "Copied"
+            opt.overlayMessage = "Copied"
         case .s:
             opt.save()
         case .f:
@@ -460,7 +460,7 @@ class AppDelegate: LowtechProAppDelegate {
                 guard let event else { return }
 
                 mainActor {
-                    if self.swipeEnded, self.floatingResultsCorner.isTrailing ? event.scrollingDeltaX > 3 : event.scrollingDeltaX < -3,
+                    if self.swipeEnded, !OM.compactResults, self.floatingResultsCorner.isTrailing ? event.scrollingDeltaX > 3 : event.scrollingDeltaX < -3,
                        let hov = hoveredOptimiserID, let optimiser = OM.optimisers.first(where: { $0.id == hov })
                     {
                         hoveredOptimiserID = nil

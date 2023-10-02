@@ -149,25 +149,32 @@ enum ItemType: Equatable {
     }
 }
 
+var hoveredOptimiserIDTask: DispatchWorkItem? {
+    didSet {
+        oldValue?.cancel()
+    }
+}
 var lastFocusedApp: NSRunningApplication?
 var hoveredOptimiserID: String? {
     didSet {
-        mainActor {
-            guard hoveredOptimiserID != oldValue else {
-                return
-            }
-            guard hoveredOptimiserID != nil else {
-                KM.secondaryKeys = []
-                KM.reinitHotkeys()
-                hoverKeyGlobalMonitor.stop()
-                hoverKeyLocalMonitor.stop()
-                return
-            }
+        hoveredOptimiserIDTask = mainAsyncAfter(ms: 200) {
+            mainActor {
+                guard hoveredOptimiserID != oldValue else {
+                    return
+                }
+                guard hoveredOptimiserID != nil else {
+                    KM.secondaryKeys = []
+                    KM.reinitHotkeys()
+                    hoverKeyGlobalMonitor.stop()
+                    hoverKeyLocalMonitor.stop()
+                    return
+                }
 
-            KM.secondaryKeys = DEFAULT_HOVER_KEYS
-            KM.reinitHotkeys()
-            hoverKeyGlobalMonitor.start()
-            hoverKeyLocalMonitor.start()
+                KM.secondaryKeys = DEFAULT_HOVER_KEYS
+                KM.reinitHotkeys()
+                hoverKeyGlobalMonitor.start()
+                hoverKeyLocalMonitor.start()
+            }
         }
     }
 }
@@ -372,15 +379,15 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             }
         }
     }
-    @Published var hotkeyMessage = "" {
+    @Published var overlayMessage = "" {
         didSet {
-            guard !SWIFTUI_PREVIEW, hotkeyMessage.isNotEmpty else { return }
-            hotkeyMessageResetter = mainAsyncAfter(ms: 1000) { [weak self] in
-                self?.hotkeyMessage = ""
+            guard !SWIFTUI_PREVIEW, overlayMessage.isNotEmpty else { return }
+            overlayMessageResetter = mainAsyncAfter(ms: 1000) { [weak self] in
+                self?.overlayMessage = ""
             }
         }
     }
-    var hotkeyMessageResetter: DispatchWorkItem? {
+    var overlayMessageResetter: DispatchWorkItem? {
         didSet {
             oldValue?.cancel()
         }
@@ -720,12 +727,12 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
             if let savedPath = try? path.copy(to: url.filePath, force: true) {
-                self?.hotkeyMessage = "Saved"
+                self?.overlayMessage = "Saved"
                 self?.url = url
                 self?.path = savedPath
                 self?.filename = savedPath.name.string
             } else {
-                self?.hotkeyMessage = "Error saving"
+                self?.overlayMessage = "Error saving"
             }
         }
     }
@@ -831,6 +838,8 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
 @MainActor
 class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
+    var compactResults = false
+
     @Published var current: Optimiser?
     @Published var skippedBecauseNotPro: [URL] = []
     @Published var ignoreProErrorBadge = false

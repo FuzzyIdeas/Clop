@@ -90,9 +90,10 @@ class Video: Optimisable {
         }
 
         let progressArgs = ["-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1"]
+        let fpsArgs = ["-fpsmax", fps.s]
 
         let videoURL = path.url
-        let ffmpegProc = try tryProc(FFMPEG.string, args: ["-i", path.string] + progressArgs + ["\(tempDir.string)/frame%04d.png"], tries: 3, captureOutput: true) { proc in
+        let ffmpegProc = try tryProc(FFMPEG.string, args: ["-i", path.string] + progressArgs + fpsArgs + ["\(tempDir.string)/frame%04d.png"], tries: 3, captureOutput: true) { proc in
             mainActor {
                 optimiser.processes = [proc]
                 updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: videoURL, optimiser: optimiser, duration: duration?.i64)
@@ -104,7 +105,12 @@ class Video: Optimisable {
 
         let gif = FilePath.images / "\(path.stem!).gif"
         let pngs = tempDir.ls()
-        let gifskiProc = try tryProc(GIFSKI.string, args: ["-o", gif.string, "--width", maxWidth.s, "--fps", fps.s] + pngs.map(\.string), tries: 3, captureOutput: true) { proc in
+        let gifskiProc = try tryProc(
+            GIFSKI.string,
+            args: ["-o", gif.string, "--width", maxWidth.s, "--fps", fps.s, "--quality", Defaults[.useAggresiveOptimisationGIF] ? 60.s : 90.s] + pngs.map(\.string),
+            tries: 3,
+            captureOutput: true
+        ) { proc in
             mainActor {
                 optimiser.processes = [proc]
                 updateProgressGifski(pipe: proc.standardOutput as! Pipe, url: videoURL, optimiser: optimiser, frames: pngs.count.i64)

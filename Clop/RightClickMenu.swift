@@ -53,7 +53,7 @@ struct RightClickMenuView: View {
 
             Button("Copy to clipboard") {
                 optimiser.copyToClipboard()
-                optimiser.hotkeyMessage = "Copied"
+                optimiser.overlayMessage = "Copied"
             }
             .keyboardShortcut("c")
 
@@ -261,7 +261,7 @@ struct ConvertToGIFMenu: View {
 
     var body: some View {
         let widths = [1920, 1280, 800, 640, 480, 320]
-        let frames = [30, 20, 15, 10]
+        let frames = [24, 20, 15, 10]
         ForEach(frames, id: \.self) { fps in
             Section("\(fps)fps") {
                 ForEach(widths, id: \.self) { width in

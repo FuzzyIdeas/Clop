@@ -12,6 +12,23 @@ import SwiftUI
 
 let FLOAT_MARGIN: CGFloat = 64
 
+private struct PreviewKey: EnvironmentKey {
+    public static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var preview: Bool {
+        get { self[PreviewKey.self] }
+        set { self[PreviewKey.self] = newValue }
+    }
+}
+
+extension View {
+    func preview(_ preview: Bool) -> some View {
+        environment(\.preview, preview)
+    }
+}
+
 extension Int {
     var humanSize: String {
         switch self {
@@ -30,6 +47,20 @@ extension Int {
     }
 }
 
+struct FloatingResultList: View {
+    var optimisers: [Optimiser]
+
+    var body: some View {
+        ForEach(optimisers) { optimiser in
+            FloatingResult(optimiser: optimiser, linear: optimisers.count > 1)
+                .gesture(TapGesture(count: 2).onEnded {
+                    if let url = optimiser.url {
+                        NSWorkspace.shared.open(url)
+                    }
+                })
+        }
+    }
+}
 struct FloatingResultContainer: View {
     @ObservedObject var om = OM
     @ObservedObject var dragManager = DM
@@ -38,10 +69,21 @@ struct FloatingResultContainer: View {
     @Default(.showImages) var showImages
 
     var body: some View {
+        let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
         VStack(spacing: 10) {
-            ForEach(om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse).prefix(9)) { optimiser in
-                FloatingResult(optimiser: optimiser, isPreview: isPreview, linear: om.optimisers.count > 1)
+            if optimisers.count > 5 {
+                CompactResultList(optimisers: optimisers).preview(isPreview)
+                    .padding()
+                    .onAppear {
+                        om.compactResults = true
+                    }
+            } else {
+                FloatingResultList(optimisers: optimisers).preview(isPreview)
+                    .onAppear {
+                        om.compactResults = false
+                    }
             }
+
             if !isPreview, dragManager.dragging {
                 DropZoneView()
                     .transition(
@@ -105,7 +147,7 @@ struct FloatingPreview: View {
 
 struct FloatingResult: View {
     // color(display-p3 0.9983 0.818 0.3296)
-    static let yellow = Color(.displayP3, red: 1, green: 0.818, blue: 0.3296, opacity: 1)
+    static let yellow = Color(.displayP3, red: 1, green: 0.768, blue: 0.4296, opacity: 1)
     // color(display-p3 0.0193 0.4224 0.646)
     static let darkBlue = Color(.displayP3, red: 0.0193, green: 0.4224, blue: 0.646, opacity: 1)
     // color(display-p3 0.037 0.6578 0.9928)
@@ -114,11 +156,12 @@ struct FloatingResult: View {
     static let red = Color(.displayP3, red: 1, green: 0.015, blue: 0.2, opacity: 1)
 
     @ObservedObject var optimiser: Optimiser
-    var isPreview = false
+    @Environment(\.preview) var preview
 
     @State var linear = false
     @State var hovering = false
     @State var hoveringThumbnail = false
+    @State var editingFilename = false
 
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.showImages) var showImages
@@ -127,11 +170,6 @@ struct FloatingResult: View {
     @Default(.neverShowProError) var neverShowProError
 
     @Environment(\.openWindow) var openWindow
-
-    @State var hotkeyMessageOpacity = 1.0
-
-    @State var editingFilename = false
-
     @Environment(\.colorScheme) var colorScheme
 
     var showsThumbnail: Bool {
@@ -204,80 +242,15 @@ struct FloatingResult: View {
         .brightness(0.1)
         .saturation(1.1)
     }
+
     var closeStopButton: some View {
-        Button(
-            action: {
-                if !isPreview {
-                    hoveredOptimiserID = nil
-                    optimiser.stop(animateRemoval: true)
-                }
-            },
-            label: { SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(9)) }
-        )
-        .help((optimiser.running ? "Stop" : "Close") + " (\(keyComboModifiers.str)⌫)")
-        .buttonStyle(showsThumbnail ? FlatButton(color: .clear, textColor: .black, circle: true) : FlatButton(color: .inverted, textColor: .primary, circle: true))
-        .background(
-            VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active, appearance: .vibrantLight)
-                .clipShape(Circle())
-                .shadow(radius: 2)
-        )
-    }
-    @ViewBuilder var restoreOptimiseButton: some View {
-        if optimiser.url != nil, !optimiser.running {
-            if optimiser.isOriginal {
-                Button(
-                    action: { if !isPreview { optimiser.optimise(allowLarger: false) } },
-                    label: { SwiftUI.Image(systemName: "goforward.plus").font(.heavy(9)) }
-                )
-                .help("Optimise")
-            } else {
-                Button(
-                    action: { if !isPreview { optimiser.restoreOriginal() } },
-                    label: { SwiftUI.Image(systemName: "arrow.uturn.left").font(.semibold(9)) }
-                )
-                .help("Restore original (\(keyComboModifiers.str)Z)")
-            }
-        }
-    }
-    var sideButtons: some View {
-        VStack {
-            Button(
-                action: { if !isPreview { optimiser.downscale() }},
-                label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) }
+        CloseStopButton(optimiser: optimiser)
+            .buttonStyle(showsThumbnail ? FlatButton(color: .clear, textColor: .black, circle: true) : FlatButton(color: .inverted, textColor: .primary, circle: true))
+            .background(
+                VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active, appearance: .vibrantLight)
+                    .clipShape(Circle())
+                    .shadow(radius: 2)
             )
-            .help("Downscale (\(keyComboModifiers.str)-)")
-            .contextMenu {
-                DownscaleMenu(optimiser: optimiser)
-            }
-
-            Button(
-                action: { if !isPreview { optimiser.quicklook() }},
-                label: { SwiftUI.Image(systemName: "eye").font(.heavy(9)) }
-            ).help("QuickLook (\(keyComboModifiers.str)space)")
-            restoreOptimiseButton
-            if !optimiser.aggresive {
-                Button(
-                    action: {
-                        guard !isPreview else { return }
-
-                        if optimiser.running {
-                            optimiser.stop(remove: false)
-                            optimiser.url = optimiser.originalURL
-                            optimiser.finish(oldBytes: optimiser.oldBytes ?! optimiser.path?.fileSize() ?? 0, newBytes: -1)
-                        }
-
-                        if optimiser.downscaleFactor < 1 {
-                            optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
-                        } else {
-                            optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
-                        }
-                    },
-                    label: { SwiftUI.Image(systemName: "bolt").font(.heavy(9)) }
-                ).help("Aggressive optimisation (\(keyComboModifiers.str)A)")
-            }
-        }
-        .buttonStyle(FlatButton(color: .white.opacity(0.9), textColor: .black.opacity(0.7), width: showsThumbnail ? 24 : 18, height: showsThumbnail ? 24 : 18, circle: true))
-        .animation(.fastSpring, value: optimiser.aggresive)
     }
 
     @ViewBuilder var noThumbnailView: some View {
@@ -391,21 +364,12 @@ struct FloatingResult: View {
 
     @ViewBuilder var topRightButton: some View {
         if !optimiser.running, optimiser.canChangePlaybackSpeed() {
-            let factor = optimiser.changePlaybackSpeedFactor.truncatingRemainder(dividingBy: 1) != 0
-                ? String(format: "%.\(optimiser.changePlaybackSpeedFactor == 1.5 ? 1 : 2)f", optimiser.changePlaybackSpeedFactor)
-                : optimiser.changePlaybackSpeedFactor.i.s
-            Menu("\(factor)x") {
-                ChangePlaybackSpeedMenu(optimiser: optimiser)
-            }
-            .menuButtonStyle(BorderlessButtonMenuButtonStyle())
-            .help("Change Playback Speed" + " (\(keyComboModifiers.str)X)")
-            .buttonStyle(FlatButton(color: .clear, textColor: .white, circle: optimiser.changePlaybackSpeedFactor >= 2))
-            .font(.round(11, weight: .bold))
-            .background(
-                VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .shadow(radius: 2)
-            )
+            ChangePlaybackSpeedButton(optimiser: optimiser)
+                .background(
+                    VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .shadow(radius: 2)
+                )
 
         } else {
             SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
@@ -450,23 +414,7 @@ struct FloatingResult: View {
                 }
             }
             .hfill(.leading)
-            if optimiser.hotkeyMessage.isNotEmpty {
-                Text(optimiser.hotkeyMessage)
-                    .roundbg(radius: 12, padding: 6, color: .black)
-                    .fill()
-                    .background(
-                        VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark).scaleEffect(1.1)
-                    )
-                    .opacity(hotkeyMessageOpacity)
-                    .onAppear {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            hotkeyMessageOpacity = 1.0
-                        }
-                        withAnimation(.easeIn(duration: 0.5).delay(0.3)) {
-                            hotkeyMessageOpacity = 0.0
-                        }
-                    }
-            }
+            OverlayMessageView(optimiser: optimiser, color: .black)
         }
         .frame(
             width: THUMB_SIZE.width / 2,
@@ -547,7 +495,7 @@ struct FloatingResult: View {
                 }
 
                 if hasThumbnail, hovering {
-                    sideButtons
+                    SideButtons(optimiser: optimiser, size: showsThumbnail ? 24 : 18)
                 } else {
                     SwiftUI.Image("clop")
                         .resizable()
