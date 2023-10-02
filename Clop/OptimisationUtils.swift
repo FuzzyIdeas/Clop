@@ -12,7 +12,7 @@ import QuickLookUI
 import SwiftUI
 import System
 
-enum ItemType {
+enum ItemType: Equatable {
     case image(UTType)
     case video(UTType)
     case pdf
@@ -523,9 +523,13 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             shouldUseAggressiveOptimisation = true
         }
 
-        guard let path = originalURL?.filePath ?? path else {
+        guard var path = originalURL?.filePath ?? path else {
             return
         }
+        if let selfPath = self.path, selfPath.extension?.lowercased() == "gif", path.extension?.lowercased() != "gif" {
+            path = selfPath
+        }
+
         let originalPath = (path.backupPath?.exists ?? false) ? path.backupPath : nil
         if !path.exists, let originalPath {
             let _ = try? originalPath.copy(to: path)
@@ -661,6 +665,9 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         self.oldBytes = path.fileSize() ?? self.oldBytes
         self.newBytes = -1
         self.newSize = nil
+        if type == .image(.gif), path.isVideo, let utType = path.url.utType() {
+            self.type = .video(utType)
+        }
 
         if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled), id == IDs.clipboardImage {
             image.copyToClipboard()
@@ -855,14 +862,18 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id == Optimiser.IDs.clipboardImage }) }
 
-    func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false, source: String? = nil) -> Optimiser {
+    func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false, source: String? = nil, indeterminateProgress: Bool = false) -> Optimiser {
         let optimiser = (
             OM.optimisers.first(where: { $0.id == id }) ??
                 (current?.id == id ? current : nil) ??
                 Optimiser(id: id, type: type, operation: operation)
         )
 
+        if indeterminateProgress {
+            optimiser.progress = Progress()
+        }
         optimiser.operation = operation
+        optimiser.progress.localizedAdditionalDescription = ""
         optimiser.hidden = hidden
         optimiser.running = true
         optimiser.progress.completedUnitCount = 0

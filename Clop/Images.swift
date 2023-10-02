@@ -382,7 +382,7 @@ class Image: CustomStringConvertible {
             resizedFile = FilePath.forResize.appending(path.nameWithoutSize).withSize(size)
             let resizeProc = try tryProc(
                 GIFSICLE.string,
-                args: ["--unoptimise", "--threads=\(ProcessInfo.processInfo.activeProcessorCount)", "--resize-method=box", "--resize-colors=256"] +
+                args: ["--unoptimize", "--threads=\(ProcessInfo.processInfo.activeProcessorCount)", "--resize-method=box", "--resize-colors=256"] +
                     resizeArgs +
                     ["--output", resizedFile!.string, path.string],
                 tries: 3
@@ -826,7 +826,7 @@ extension FilePath {
     let optimiser = OM.optimiser(
         id: id ?? pathString, type: .image(img.type),
         operation: "Optimising" + (aggressiveOptimisation ?? false ? " (aggressive)" : ""),
-        hidden: hideFloatingResult, source: source
+        hidden: hideFloatingResult, source: source, indeterminateProgress: true
     )
     optimiser.thumbnail = img.image
     optimiser.downscaleFactor = 1.0
@@ -975,7 +975,7 @@ extension FilePath {
     }
 
     let scaleString = cropSize != nil ? "\(cropSize!.width.i)x\(cropSize!.height.i)" : "\((scalingFactor * 100).intround)%"
-    let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source)
+    let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source, indeterminateProgress: true)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {
         optimiser.operation += " (aggressive)"

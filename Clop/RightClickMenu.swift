@@ -82,25 +82,21 @@ struct RightClickMenuView: View {
 
         if !optimiser.running {
             Divider()
-            Button("Downscale") {
-                optimiser.downscale()
-            }
-            .keyboardShortcut("-")
-            .disabled(optimiser.downscaleFactor <= 0.1)
-
-            Menu("    to specific factor") {
+            Menu("Downscale") {
                 DownscaleMenu(optimiser: optimiser)
             }
+            .disabled(optimiser.downscaleFactor <= 0.1)
 
             if optimiser.canChangePlaybackSpeed() {
-                Button("Change Playback Speed") {
-                    optimiser.changePlaybackSpeed()
-                }
-                .keyboardShortcut("x")
-                .disabled(optimiser.changePlaybackSpeedFactor >= 10)
-
-                Menu("    by specific factor") {
+                Menu("Change playback speed") {
                     ChangePlaybackSpeedMenu(optimiser: optimiser)
+                }
+                .disabled(optimiser.changePlaybackSpeedFactor >= 10)
+            }
+
+            if optimiser.type.isVideo {
+                Menu("Convert to GIF") {
+                    ConvertToGIFMenu(optimiser: optimiser)
                 }
             }
 
@@ -113,39 +109,6 @@ struct RightClickMenuView: View {
             }
             .keyboardShortcut("a")
             .disabled(optimiser.aggresive)
-
-            if optimiser.type.isVideo {
-                Button("Convert to GIF") {
-                    videoOptimisationQueue.addOperation {
-                        guard let video = optimiser.video else {
-                            return
-                        }
-
-                        do {
-                            mainActor {
-                                optimiser.remover = nil
-                                optimiser.inRemoval = false
-                                optimiser.stop(remove: false)
-
-                                optimiser.running = true
-                                optimiser.progress.completedUnitCount = 0
-                                optimiser.isOriginal = false
-                                optimiser.operation = "Converting to GIF"
-                            }
-
-                            let gif = try video.convertToGIF(optimiser: optimiser)
-
-                            mainActor {
-                                optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: gif.path.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize, newSize: gif.size)
-                            }
-                        } catch {
-                            mainActor {
-                                optimiser.finish(error: error.localizedDescription)
-                            }
-                        }
-                    }
-                }
-            }
 
             Menu("Run workflow") {
                 WorkflowMenu(optimiser: optimiser)
@@ -291,6 +254,56 @@ struct DownscaleMenu: View {
             }
         }
     }
+}
+
+struct ConvertToGIFMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        let widths = [1920, 1280, 800, 640, 480, 320]
+        let frames = [30, 20, 15, 10]
+        ForEach(frames, id: \.self) { fps in
+            Section("\(fps)fps") {
+                ForEach(widths, id: \.self) { width in
+                    Button("\(width)px max width @ \(fps)fps\(fps == 20 && width == 800 ? " (recommended)" : "")") {
+                        convertToGIF(width: width, fps: fps)
+                    }
+                }
+            }
+        }
+    }
+
+    func convertToGIF(width: Int, fps: Int) {
+        videoOptimisationQueue.addOperation {
+            guard let video = optimiser.video else {
+                return
+            }
+
+            do {
+                mainActor {
+                    optimiser.remover = nil
+                    optimiser.inRemoval = false
+                    optimiser.stop(remove: false)
+
+                    optimiser.running = true
+                    optimiser.progress.completedUnitCount = 0
+                    optimiser.isOriginal = false
+                    optimiser.operation = "Converting to GIF"
+                }
+
+                let gif = try video.convertToGIF(optimiser: optimiser, maxWidth: width, fps: fps)
+
+                mainActor {
+                    optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: gif.path.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize, newSize: gif.size)
+                }
+            } catch {
+                mainActor {
+                    optimiser.finish(error: error.localizedDescription)
+                }
+            }
+        }
+    }
+
 }
 
 struct ChangePlaybackSpeedMenu: View {
