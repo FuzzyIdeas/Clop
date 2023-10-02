@@ -17,19 +17,17 @@ struct FileNameField: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .matchedGeometryEffect(id: "filename", in: namespace)
-
-            if !optimiser.running {
-                Button(action: {
+                .onTapGesture {
                     withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
                     focus()
-                }, label: { SwiftUI.Image(systemName: "pencil").foregroundColor(.primary) })
-                    .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
-                    .fontWeight(.bold)
-                    .frame(width: 18)
-                    .contentShape(Rectangle())
-                    .focusable(false)
-                    .matchedGeometryEffect(id: "button", in: namespace)
-            }
+                }
+                .onHover { inside in
+                    if inside {
+                        NSCursor.iBeam.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
         }
     }
 
@@ -59,7 +57,7 @@ struct FileNameField: View {
                 optimiser.editingFilename = false
             }, label: { SwiftUI.Image(systemName: "xmark").foregroundColor(.primary) })
                 .buttonStyle(FlatButton(color: .clear, textColor: .white, horizontalPadding: 0, verticalPadding: 0))
-                .fontWeight(.bold)
+                .font(.bold(9))
                 .frame(width: 18)
                 .contentShape(Rectangle())
                 .keyboardShortcut(.escape, modifiers: [])

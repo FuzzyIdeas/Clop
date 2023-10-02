@@ -41,6 +41,8 @@
 		C7AB38CE2AC5E00C00F299CE /* CherryPicks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */; };
 		C7AB38D12AC8320B00F299CE /* FileNameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CF2AC8320B00F299CE /* FileNameField.swift */; };
 		C7AB38D22AC8320B00F299CE /* DropZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38D02AC8320B00F299CE /* DropZone.swift */; };
+		C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38DA2ACB059200F299CE /* ActionButtons.swift */; };
+		C7AB38DD2ACB059200F299CE /* CompactResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38DB2ACB059200F299CE /* CompactResult.swift */; };
 		C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6624288301590041BEC8 /* ClopApp.swift */; };
 		C7AB6627288301590041BEC8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6626288301590041BEC8 /* ContentView.swift */; };
 		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
@@ -133,6 +135,8 @@
 		C7AB38CF2AC8320B00F299CE /* FileNameField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileNameField.swift; sourceTree = "<group>"; };
 		C7AB38D02AC8320B00F299CE /* DropZone.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DropZone.swift; sourceTree = "<group>"; };
 		C7AB38D32AC8AA8900F299CE /* CoreBrightness.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBrightness.framework; path = ../../../../../System/Library/PrivateFrameworks/CoreBrightness.framework; sourceTree = "<group>"; };
+		C7AB38DA2ACB059200F299CE /* ActionButtons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActionButtons.swift; sourceTree = "<group>"; };
+		C7AB38DB2ACB059200F299CE /* CompactResult.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompactResult.swift; sourceTree = "<group>"; };
 		C7AB6621288301590041BEC8 /* Clop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7AB6624288301590041BEC8 /* ClopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopApp.swift; sourceTree = "<group>"; };
 		C7AB6626288301590041BEC8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -235,6 +239,8 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
+				C7AB38DB2ACB059200F299CE /* CompactResult.swift */,
 				C7AB38D02AC8320B00F299CE /* DropZone.swift */,
 				C7AB38CF2AC8320B00F299CE /* FileNameField.swift */,
 				C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */,
@@ -480,6 +486,7 @@
 				C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */,
 				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,
 				C7AB38CB2AC5B10300F299CE /* RightClickMenu.swift in Sources */,
+				C7AB38DD2ACB059200F299CE /* CompactResult.swift in Sources */,
 				C7760AB62A5C4EE500851F8C /* Images.swift in Sources */,
 				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
 				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
@@ -490,6 +497,7 @@
 				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
 				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
+				C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */,
 				C7760AC12A5E957700851F8C /* OptimisationUtils.swift in Sources */,
 				C7760ABD2A5E026600851F8C /* NSImageExtensions.swift in Sources */,
 				C7760ABF2A5E92B800851F8C /* ClopUtils.swift in Sources */,
