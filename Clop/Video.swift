@@ -77,7 +77,7 @@ class Video: Optimisable {
         }
     #endif
 
-    func convertToGIF(optimiser: Optimiser) throws -> Image {
+    func convertToGIF(optimiser: Optimiser, maxWidth: Int, fps: Int) throws -> Image {
         log.debug("Converting video \(path.string) to GIF")
         let tempDir = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_gif_pngs").filePath
         tempDir.mkdir(withIntermediateDirectories: true)
@@ -104,7 +104,7 @@ class Video: Optimisable {
 
         let gif = FilePath.images / "\(path.stem!).gif"
         let pngs = tempDir.ls()
-        let gifskiProc = try tryProc(GIFSKI.string, args: ["-o", gif.string] + pngs.map(\.string), tries: 3, captureOutput: true) { proc in
+        let gifskiProc = try tryProc(GIFSKI.string, args: ["-o", gif.string, "--width", maxWidth.s, "--fps", fps.s] + pngs.map(\.string), tries: 3, captureOutput: true) { proc in
             mainActor {
                 optimiser.processes = [proc]
                 updateProgressGifski(pipe: proc.standardOutput as! Pipe, url: videoURL, optimiser: optimiser, frames: pngs.count.i64)

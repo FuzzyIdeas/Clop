@@ -184,6 +184,10 @@ func shell(_ command: String, args: [String] = []) -> String? {
 }
 
 extension URL {
+    func utType() -> UTType? {
+        contentTypeResourceValue ?? fetchFileType()
+    }
+
     func fetchFileType() -> UTType? {
         if let type = UTType(filenameExtension: pathExtension) {
             return type
