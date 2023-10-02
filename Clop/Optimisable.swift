@@ -26,7 +26,6 @@ class Optimisable {
     let id: String?
 
     lazy var fileSize: Int = path.fileSize() ?? 0
-
     lazy var hash: String = path.fileContentsHash ?? ""
 
     @MainActor var optimiser: Optimiser? {
