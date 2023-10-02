@@ -60,7 +60,7 @@ class Video: Optimisable {
     }
 
     override func copyWithPath(_ path: FilePath) -> Self {
-        Video(path: path, metadata: metadata, fileSize: fileSize, convertedFrom: convertedFrom, thumb: true, id: id) as! Self
+        Video(path: path, metadata: metadata, fileSize: path.fileSize() ?? fileSize, convertedFrom: convertedFrom, thumb: true, id: id) as! Self
     }
     #if arch(arm64)
         func useAggressiveOptimisation(aggressiveSetting: Bool) -> Bool {

@@ -392,7 +392,7 @@ struct FloatingResult: View {
     @ViewBuilder var topRightButton: some View {
         if !optimiser.running, optimiser.canChangePlaybackSpeed() {
             let factor = optimiser.changePlaybackSpeedFactor.truncatingRemainder(dividingBy: 1) != 0
-                ? String(format: "%.2f", optimiser.changePlaybackSpeedFactor)
+                ? String(format: "%.\(optimiser.changePlaybackSpeedFactor == 1.5 ? 1 : 2)f", optimiser.changePlaybackSpeedFactor)
                 : optimiser.changePlaybackSpeedFactor.i.s
             Menu("\(factor)x") {
                 ChangePlaybackSpeedMenu(optimiser: optimiser)
