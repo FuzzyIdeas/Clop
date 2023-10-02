@@ -104,6 +104,15 @@ struct FloatingPreview: View {
 // MARK: - FloatingResult
 
 struct FloatingResult: View {
+    // color(display-p3 0.9983 0.818 0.3296)
+    static let yellow = Color(.displayP3, red: 1, green: 0.818, blue: 0.3296, opacity: 1)
+    // color(display-p3 0.0193 0.4224 0.646)
+    static let darkBlue = Color(.displayP3, red: 0.0193, green: 0.4224, blue: 0.646, opacity: 1)
+    // color(display-p3 0.037 0.6578 0.9928)
+    static let lightBlue = Color(.displayP3, red: 0.037, green: 0.6578, blue: 0.9928, opacity: 1)
+    // color(display-p3 1 0.015 0.3)
+    static let red = Color(.displayP3, red: 1, green: 0.015, blue: 0.2, opacity: 1)
+
     @ObservedObject var optimiser: Optimiser
     var isPreview = false
 
@@ -119,11 +128,11 @@ struct FloatingResult: View {
 
     @Environment(\.openWindow) var openWindow
 
-    let paleYellow = Color(hue: 0.13, saturation: 0.43, brightness: 0.89, opacity: 1.00)
-
     @State var hotkeyMessageOpacity = 1.0
 
     @State var editingFilename = false
+
+    @Environment(\.colorScheme) var colorScheme
 
     var showsThumbnail: Bool {
         optimiser.thumbnail != nil && showImages
@@ -174,20 +183,20 @@ struct FloatingResult: View {
         }
     }
 
+    @ViewBuilder
     var fileSizeDiff: some View {
+        let improvement = optimiser.newBytes >= 0 && optimiser.newBytes < optimiser.oldBytes
+        let improvementColor = (optimiser.thumbnail != nil && showImages ? FloatingResult.yellow : (colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue))
+
         HStack {
             Text(optimiser.oldBytes.humanSize)
                 .mono(13, weight: .semibold)
-                .foregroundColor(Color.red)
-            if optimiser.newBytes >= 0, optimiser.newBytes < optimiser.oldBytes {
+                .foregroundColor(improvement ? Color.red : improvementColor)
+            if optimiser.newBytes >= 0 {
                 SwiftUI.Image(systemName: "arrow.right")
                 Text(optimiser.newBytes.humanSize)
                     .mono(13, weight: .semibold)
-                    .foregroundColor(
-                        optimiser.newBytes < optimiser.oldBytes
-                            ? (optimiser.thumbnail != nil && showImages ? paleYellow : Color.blue)
-                            : Color.red
-                    )
+                    .foregroundColor(improvement ? improvementColor : FloatingResult.red)
             }
         }
         .lineLimit(1)
@@ -381,10 +390,14 @@ struct FloatingResult: View {
     }
 
     @ViewBuilder var topRightButton: some View {
-        if optimiser.changePlaybackSpeedFactor != 1 {
-            Button("\(optimiser.changePlaybackSpeedFactor < 2 ? String(format: "%.2f", optimiser.changePlaybackSpeedFactor) : optimiser.changePlaybackSpeedFactor.i.s)x") {
-                optimiser.changePlaybackSpeed()
+        if !optimiser.running, optimiser.canChangePlaybackSpeed() {
+            let factor = optimiser.changePlaybackSpeedFactor.truncatingRemainder(dividingBy: 1) != 0
+                ? String(format: "%.2f", optimiser.changePlaybackSpeedFactor)
+                : optimiser.changePlaybackSpeedFactor.i.s
+            Menu("\(factor)x") {
+                ChangePlaybackSpeedMenu(optimiser: optimiser)
             }
+            .menuButtonStyle(BorderlessButtonMenuButtonStyle())
             .help("Change Playback Speed" + " (\(keyComboModifiers.str)X)")
             .buttonStyle(FlatButton(color: .clear, textColor: .white, circle: optimiser.changePlaybackSpeedFactor >= 2))
             .font(.round(11, weight: .bold))
@@ -393,9 +406,7 @@ struct FloatingResult: View {
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .shadow(radius: 2)
             )
-            .contextMenu {
-                ChangePlaybackSpeedMenu(optimiser: optimiser)
-            }
+
         } else {
             SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
                 .font(.bold(11))
