@@ -13,9 +13,11 @@ struct CompactResult: View {
 
     @Environment(\.openWindow) var openWindow
 
+    @Default(.showCompactImages) var showCompactImages
+
     @ViewBuilder var pathView: some View {
         if let url = optimiser.url, url.isFileURL {
-            Text(url.path)
+            Text(url.filePath.shellString)
                 .medium(9)
                 .foregroundColor(.secondary.opacity(0.75))
                 .lineLimit(1)
@@ -30,7 +32,7 @@ struct CompactResult: View {
                 .medium(9)
                 .foregroundColor(.secondary.opacity(0.75))
                 .lineLimit(1)
-                .frame(width: 100, alignment: .trailing)
+                .frame(width: 120, alignment: .trailing)
                 .allowsTightening(true)
                 .truncationMode(.middle)
         }
@@ -155,9 +157,16 @@ struct CompactResult: View {
             .allowsTightening(true)
         }
     }
-
     var body: some View {
         HStack {
+            if showCompactImages, let image = optimiser.thumbnail {
+                SwiftUI.Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
             if optimiser.running {
                 progressView
                     .controlSize(.small)
@@ -239,46 +248,60 @@ struct OverlayMessageView: View {
 
 struct CompactResultList: View {
     @State var hovering = false
+    @State var showList = true
     var optimisers: [Optimiser]
 
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 5) {
-            Button("Clear all") {
-                hoveredOptimiserID = nil
-                OM.removedOptimisers = OM.removedOptimisers.filter { o in !OM.optimisers.contains(o) }.with(OM.optimisers.arr)
-                OM.optimisers.filter(\.running).forEach { $0.stop(remove: false) }
-                OM.optimisers = OM.optimisers.filter(\.hidden)
-            }
-            .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
-            .font(.medium(11))
-            .opacity(hovering ? 1 : 0)
-            .focusable(false)
+    @Default(.floatingResultsCorner) var floatingResultsCorner
 
-            List {
-                ForEach(optimisers) { optimiser in
-                    ZStack {
-                        CompactResult(optimiser: optimiser)
-                        OverlayMessageView(optimiser: optimiser, color: .secondary)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                    .gesture(TapGesture(count: 2).onEnded {
-                        if let url = optimiser.url {
-                            NSWorkspace.shared.open(url)
+    var body: some View {
+        let isTrailing = floatingResultsCorner.isTrailing
+
+        VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
+            FlipGroup(if: floatingResultsCorner.isTop) {
+                Button("Clear all") {
+                    hoveredOptimiserID = nil
+                    OM.removedOptimisers = OM.removedOptimisers.filter { o in !OM.optimisers.contains(o) }.with(OM.optimisers.arr)
+                    OM.optimisers.filter(\.running).forEach { $0.stop(remove: false) }
+                    OM.optimisers = OM.optimisers.filter(\.hidden)
+                }
+                .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
+                .font(.medium(11))
+                .opacity(hovering ? 1 : 0)
+                .focusable(false)
+                .if(!showList, transform: { $0.hidden() })
+
+                List {
+                    ForEach(optimisers) { optimiser in
+                        ZStack {
+                            CompactResult(optimiser: optimiser)
+                            OverlayMessageView(optimiser: optimiser, color: .secondary)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
-                    })
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        Button(role: .destructive, action: {
-                            hoveredOptimiserID = nil
-                            optimiser.stop(remove: true, animateRemoval: true)
-                        }, label: {
-                            Label(optimiser.running ? "Stop" : "Remove", systemImage: optimiser.running ? "stop.fill" : "xmark")
+                        .gesture(TapGesture(count: 2).onEnded {
+                            if let url = optimiser.url {
+                                NSWorkspace.shared.open(url)
+                            }
                         })
+                        .swipeActions(edge: isTrailing ? .leading : .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive, action: {
+                                hoveredOptimiserID = nil
+                                optimiser.stop(remove: true, animateRemoval: true)
+                            }, label: {
+                                Label(optimiser.running ? "Stop" : "Remove", systemImage: optimiser.running ? "stop.fill" : "xmark")
+                            })
+                        }
                     }
                 }
+                .frame(width: THUMB_SIZE.width, height: min(360, (optimisers.count * 50).cg), alignment: .center)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .if(!showList, transform: { $0.hidden() })
+
+                ToggleCompactResultListButton(showList: $showList, badge: optimisers.count.s)
+                    .offset(x: 10)
             }
-            .frame(width: THUMB_SIZE.width, height: min(400, (optimisers.count * 60).cg), alignment: .center)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .padding(isTrailing ? .trailing : .leading)
+        .frame(width: THUMB_SIZE.width + 50, height: 442, alignment: floatingResultsCorner.alignment)
         .onHover { hovered in
             withAnimation(.easeIn(duration: 0.35)) {
                 hovering = hovered
@@ -287,48 +310,92 @@ struct CompactResultList: View {
     }
 }
 
+struct ToggleCompactResultListButton: View {
+    @Binding var showList: Bool
+    var badge: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            FlipGroup(if: floatingResultsCorner.isTop) {
+                Button(action: { showList.toggle() }, label: {
+                    ZStack(alignment: floatingResultsCorner.isTrailing ? .topLeading : .topTrailing) {
+                        SwiftUI.Image("clop")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 30, height: 30, alignment: .center)
+                        if !showList {
+                            Text(badge)
+                                .round(10)
+                                .foregroundColor(.white)
+                                .padding(2)
+                                .background(Circle().fill(.gray))
+                                .offset(x: 0, y: -6)
+                                .opacity(0.75)
+                        }
+                    }
+                })
+                .buttonStyle(FlatButton(color: .clear, textColor: .primary, radius: 7, verticalPadding: 2))
+
+                Text(showList ? "Hide" : "Show")
+                    .font(.medium(10))
+                    .roundbg(radius: 5, padding: 2, color: .inverted.opacity(0.9))
+                    .opacity(hovering ? 1 : 0)
+            }
+        }
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.15)) {
+                self.hovering = hovering
+            }
+        }
+    }
+
+    @Default(.floatingResultsCorner) private var floatingResultsCorner
+    @State private var hovering = false
+
+}
+
 @MainActor
 struct CompactPreview: View {
     static var om: OptimisationManager = {
         let o = OptimisationManager()
         let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
 
+        let errorOpt = Optimiser(id: "file-with-error", type: .image(.png))
+        errorOpt.url = "\(HOME)/Desktop/passport-scan.png".fileURL
+        errorOpt.finish(error: "Already optimised")
+
         let pdfEnd = Optimiser(id: "pages.pdf", type: .pdf)
-        pdfEnd.url = "/Users/user/Documents/pages.pdf".fileURL
+        pdfEnd.url = "\(HOME)/Documents/pages.pdf".fileURL
         pdfEnd.finish(oldBytes: 12_250_190, newBytes: 5_211_932)
 
         let pdfRunning = Optimiser(id: "scans.pdf", type: .pdf, running: true, progress: pdfProgress)
-        pdfRunning.url = "/Users/user/Documents/scans.pdf".fileURL
+        pdfRunning.url = "\(HOME)/Documents/scans.pdf".fileURL
         pdfRunning.operation = "Optimising"
 
-        let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
-        videoOpt.url = "/Users/user/Movies/meeting-recording-video.mov".fileURL
+        let videoOpt = Optimiser(id: "Movies/meeting-recording.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
+        videoOpt.url = "\(HOME)/Movies/meeting-recording.mov".fileURL
         videoOpt.operation = "Optimising"
         videoOpt.thumbnail = NSImage(named: "sonoma-video")
         videoOpt.changePlaybackSpeedFactor = 2.0
 
         let videoToGIF = Optimiser(id: "Videos/app-ui-demo.mov", type: .video(.quickTimeMovie), running: true, progress: videoToGIFProgress)
-        videoToGIF.url = "/Users/user/Videos/app-ui-demo.mov".fileURL
+        videoToGIF.url = "\(HOME)/Videos/app-ui-demo.mov".fileURL
         videoToGIF.operation = "Converting to GIF"
 
         let gifOpt = Optimiser(id: "https://files.lowtechguys.com/moon.gif", type: .image(.gif), running: true, progress: gifProgress)
         gifOpt.url = "https://files.lowtechguys.com/moon.gif".url!
         gifOpt.operation = "Downloading"
 
+        let pngIndeterminate = Optimiser(id: "png-indeterminate", type: .image(.png), running: true)
+        pngIndeterminate.url = "\(HOME)/Desktop/dash-screenshot.png".fileURL
+        pngIndeterminate.thumbnail = NSImage(named: "sonoma-shot")
+
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
-        clipEnd.url = "/Users/user/Desktop/sonoma-shot.png".fileURL
+        clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
         clipEnd.thumbnail = NSImage(named: "sonoma-shot")
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
-        let pngIndeterminate = Optimiser(id: "png-indeterminate", type: .image(.png), running: true)
-        pngIndeterminate.url = "/Users/user/Desktop/sonoma-shot.png".fileURL
-        pngIndeterminate.thumbnail = NSImage(named: "sonoma-shot")
-
 //        clipEnd.overlayMessage = "Copied"
-
-        let errorOpt = Optimiser(id: "file-with-error", type: .image(.png))
-        errorOpt.url = "/Users/user/Desktop/sonoma-shot.png".fileURL
-        errorOpt.finish(error: "Already optimised")
 
         let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)
         proErrorOpt.finish(error: "Free version limits reached", notice: "Only 2 file optimisations per session\nare included in the free version")
@@ -339,12 +406,12 @@ struct CompactPreview: View {
         o.optimisers = [
             clipEnd,
             videoOpt,
-            proErrorOpt,
+//            proErrorOpt,
             gifOpt,
             errorOpt,
             pngIndeterminate,
             pdfRunning,
-            noticeOpt,
+//            noticeOpt,
             pdfEnd,
             videoToGIF,
         ]
