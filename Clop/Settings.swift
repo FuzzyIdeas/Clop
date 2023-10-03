@@ -32,6 +32,8 @@ let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, 
 extension Defaults.Keys {
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
+    static let alwaysShowCompactResults = Key<Bool>("alwaysShowCompactResults", default: false)
+
     static let optimiseTIFF = Key<Bool>("optimiseTIFF", default: true)
     static let enableClipboardOptimiser = Key<Bool>("enableClipboardOptimiser", default: true)
     static let optimiseVideoClipboard = Key<Bool>("optimiseVideoClipboard", default: false)
@@ -80,6 +82,7 @@ extension Defaults.Keys {
     static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
     static let showImages = Key<Bool>("showImages", default: true)
+    static let showCompactImages = Key<Bool>("showCompactImages", default: false)
     static let autoHideFloatingResults = Key<Bool>("autoHideFloatingResults", default: true)
     static let autoHideFloatingResultsAfter = Key<Int>("autoHideFloatingResultsAfter", default: 30)
     static let autoHideClipboardResultAfter = Key<Int>("autoHideClipboardResultAfter", default: 3)

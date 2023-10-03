@@ -67,11 +67,12 @@ struct FloatingResultContainer: View {
     var isPreview = false
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showImages) var showImages
+    @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
 
     var body: some View {
         let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
         VStack(spacing: 10) {
-            if optimisers.count > 5 {
+            if alwaysShowCompactResults || optimisers.count > 5 || om.compactResults {
                 CompactResultList(optimisers: optimisers).preview(isPreview)
                     .padding()
                     .onAppear {
@@ -79,9 +80,6 @@ struct FloatingResultContainer: View {
                     }
             } else {
                 FloatingResultList(optimisers: optimisers).preview(isPreview)
-                    .onAppear {
-                        om.compactResults = false
-                    }
             }
 
             if !isPreview, dragManager.dragging {
@@ -107,17 +105,17 @@ struct FloatingPreview: View {
         let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
 
         let noThumb = Optimiser(id: "pages.pdf", type: .pdf)
-        noThumb.url = "/Users/user/Documents/pages.pdf".fileURL
+        noThumb.url = "\(HOME)/Documents/pages.pdf".fileURL
         noThumb.finish(oldBytes: 12_250_190, newBytes: 5_211_932)
 
         let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
-        videoOpt.url = "/Users/user/Movies/meeting-recording-video.mov".fileURL
+        videoOpt.url = "\(HOME)/Movies/meeting-recording-video.mov".fileURL
         videoOpt.operation = Defaults[.showImages] ? "Optimising" : "Optimising \(videoOpt.filename)"
         videoOpt.thumbnail = NSImage(named: "sonoma-video")
         videoOpt.changePlaybackSpeedFactor = 2.0
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
-        clipEnd.url = "/Users/user/Desktop/sonoma-shot.png".fileURL
+        clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
         clipEnd.thumbnail = NSImage(named: "sonoma-shot")
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
@@ -557,6 +555,19 @@ func FlipGroup(
         TupleView((pair.value.1, pair.value.0))
     } else {
         TupleView((pair.value.0, pair.value.1))
+    }
+}
+
+@ViewBuilder
+func FlipGroup(
+    if value: Bool,
+    @ViewBuilder _ content: @escaping () -> TupleView<(some View, some View, some View)>
+) -> some View {
+    let pair = content()
+    if value {
+        TupleView((pair.value.2, pair.value.1, pair.value.0))
+    } else {
+        TupleView((pair.value.0, pair.value.1, pair.value.2))
     }
 }
 
