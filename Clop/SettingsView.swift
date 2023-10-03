@@ -760,23 +760,41 @@ struct AboutSettingsView: View {
 struct FloatingSettingsView: View {
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.showImages) var showImages
+    @Default(.showCompactImages) var showCompactImages
     @Default(.autoHideFloatingResults) var autoHideFloatingResults
     @Default(.autoHideFloatingResultsAfter) var autoHideFloatingResultsAfter
     @Default(.autoHideClipboardResultAfter) var autoHideClipboardResultAfter
     @Default(.floatingResultsCorner) var floatingResultsCorner
+    @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
+
+    @State var compact = true
 
     var settings: some View {
         Form {
             Section(header: SectionHeader(title: "Layout")) {
-                Toggle("Show hat icon", isOn: $showFloatingHatIcon)
-                Toggle("Show images", isOn: $showImages)
                 Picker("Position on screen", selection: $floatingResultsCorner) {
                     Text("Bottom right").tag(ScreenCorner.bottomRight)
                     Text("Bottom left").tag(ScreenCorner.bottomLeft)
                     Text("Top right").tag(ScreenCorner.topRight)
                     Text("Top left").tag(ScreenCorner.topLeft)
                 }
+                Toggle(isOn: $alwaysShowCompactResults) {
+                    Text("Always use compact layout").regular(13)
+                        + Text("\nBy default, the layout switches to compact automatically when there are more than 5 results on the screen")
+                        .round(10, weight: .regular)
+                        .foregroundColor(.secondary)
+                }
             }
+
+            Section(header: SectionHeader(title: "Full layout")) {
+                Toggle("Show hat icon", isOn: $showFloatingHatIcon)
+                Toggle("Show images", isOn: $showImages)
+            }
+
+            Section(header: SectionHeader(title: "Compact layout")) {
+                Toggle("Show images", isOn: $showCompactImages)
+            }
+
             Section(header: SectionHeader(title: "Behaviour")) {
                 Toggle("Auto hide", isOn: $autoHideFloatingResults)
                 Picker("files after", selection: $autoHideFloatingResultsAfter) {
@@ -805,12 +823,30 @@ struct FloatingSettingsView: View {
         }
         .frame(maxWidth: 380).fixedSize()
     }
-    var body: some View {
-        VStack {
-            HStack(alignment: .top) {
-                settings
 
-                FloatingPreview()
+    var body: some View {
+        HStack(alignment: .top) {
+            ScrollView {
+                settings
+            }
+
+            VStack {
+                if compact {
+                    CompactPreview()
+                        .frame(width: THUMB_SIZE.width + 60, height: 450, alignment: .center)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+                } else {
+                    FloatingPreview()
+                        .frame(width: THUMB_SIZE.width + 60, height: 450, alignment: .center)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+                }
+                Picker("", selection: $compact) {
+                    Text("Compact").tag(true)
+                    Text("Full").tag(false)
+                }.pickerStyle(.segmented).frame(width: 200)
+                Text("only for preview")
+                    .round(10)
+                    .foregroundColor(.secondary)
             }
         }
         .padding()
@@ -874,7 +910,7 @@ struct GeneralSettingsView: View {
 }
 
 class SettingsViewManager: ObservableObject {
-    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .images : .general
+    @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .floating : .general
 }
 
 let settingsViewManager = SettingsViewManager()
@@ -1054,6 +1090,6 @@ struct SettingsView: View {
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView()
-            .frame(minWidth: 850, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity)
+            .frame(minWidth: 850, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
     }
 }
