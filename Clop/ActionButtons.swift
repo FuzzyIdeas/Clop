@@ -129,10 +129,12 @@ struct CopyToClipboardButton: View {
 
     var body: some View {
         Button(
-            action: { if !preview {
-                optimiser.copyToClipboard()
+            action: {
+                if !preview {
+                    optimiser.copyToClipboard()
+                }
                 optimiser.overlayMessage = "Copied"
-            }},
+            },
             label: { SwiftUI.Image(systemName: "doc.on.doc").font(.heavy(9)) }
         )
         .help("Copy to clipboard (\(keyComboModifiers.str)C)")

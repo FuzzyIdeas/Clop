@@ -381,7 +381,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
     @Published var overlayMessage = "" {
         didSet {
-            guard !SWIFTUI_PREVIEW, overlayMessage.isNotEmpty else { return }
+            guard overlayMessage.isNotEmpty else { return }
             overlayMessageResetter = mainAsyncAfter(ms: 1000) { [weak self] in
                 self?.overlayMessage = ""
             }
@@ -396,9 +396,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     @Published var running = true {
         didSet {
             if running, !oldValue {
-                remover = nil
-                inRemoval = false
-                lastRemoveAfterMs = nil
+                stopRemover()
             }
         }
     }
@@ -477,7 +475,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     func changePlaybackSpeed(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval, !SWIFTUI_PREVIEW else { return }
 
-        remover = nil
+        stopRemover()
         isOriginal = false
         error = nil
         notice = nil
@@ -518,7 +516,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     func downscale(toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval else { return }
 
-        remover = nil
+        stopRemover()
         isOriginal = false
         error = nil
         notice = nil
@@ -599,7 +597,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
         guard let url else { return }
-        remover = nil
+        stopRemover()
         error = nil
         notice = nil
 
@@ -763,7 +761,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     func finish(oldBytes: Int, newBytes: Int, oldSize: CGSize? = nil, newSize: CGSize? = nil, removeAfterMs: Int? = nil) {
         mainAsync { [weak self] in
             guard let self, !self.inRemoval else { return }
-            self.remover = nil
+            self.stopRemover()
             withAnimation(.easeOut(duration: 0.5)) {
                 self.oldBytes = oldBytes
                 self.newBytes = newBytes
@@ -772,10 +770,16 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 self.running = false
             }
 
-            guard let removeAfterMs, removeAfterMs > 0 else { return }
+            guard let removeAfterMs, removeAfterMs > 0, !OM.compactResults else { return }
 
             self.remove(after: removeAfterMs)
         }
+    }
+
+    func stopRemover() {
+        self.remover = nil
+        self.inRemoval = false
+        self.lastRemoveAfterMs = nil
     }
 
     func resetRemover() {
@@ -790,9 +794,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     func bringBack() {
         mainAsync {
-            self.remover = nil
-            self.inRemoval = false
-            self.lastRemoveAfterMs = nil
+            self.stopRemover()
             OM.optimisers = OM.optimisers.with(self)
         }
     }
@@ -838,8 +840,6 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
 @MainActor
 class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
-    var compactResults = false
-
     @Published var current: Optimiser?
     @Published var skippedBecauseNotPro: [URL] = []
     @Published var ignoreProErrorBadge = false
@@ -847,6 +847,20 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var removedOptimisers: [Optimiser] = []
 
     var optimisedFilesByHash: [String: FilePath] = [:]
+
+    var compactResults = false {
+        didSet {
+            guard compactResults != oldValue else {
+                return
+            }
+
+            if compactResults {
+                for o in optimisers where o.error == nil && o.notice == nil {
+                    o.stopRemover()
+                }
+            }
+        }
+    }
 
     var hovered: Optimiser? {
         guard let hoveredOptimiserID else { return nil }
@@ -861,6 +875,9 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
             }
             if !added.isEmpty {
                 log.debug("Added optimisers: \(added)")
+            }
+            if compactResults, optimisers.filter(!\.hidden).isEmpty {
+                compactResults = false
             }
         }
     }

@@ -758,7 +758,7 @@ struct ClopApp: App {
                 .windowModifier { window in
                     window.isMovableByWindowBackground = true
                 }
-                .frame(minWidth: 850, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity)
+                .frame(minWidth: 850, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)

@@ -69,7 +69,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "1580b3f895d928fc6f45278b8d912196079cff5a"
+        "revision" : "689459e53f37208c56fc9d8713f5717c948e8f03"
       }
     },
     {
@@ -131,8 +131,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-atomics",
       "state" : {
-        "revision" : "6c89474e62719ddcc1e9614989fff2f68208fe10",
-        "version" : "1.1.0"
+        "revision" : "cd142fd2f64be2100422d658e7411e39489da985",
+        "version" : "1.2.0"
       }
     },
     {
