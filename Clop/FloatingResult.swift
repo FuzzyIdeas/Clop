@@ -221,14 +221,14 @@ struct FloatingResult: View {
 
     @ViewBuilder
     var fileSizeDiff: some View {
-        let improvement = optimiser.newBytes >= 0 && optimiser.newBytes < optimiser.oldBytes
+        let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
         let improvementColor = (optimiser.thumbnail != nil && showImages ? FloatingResult.yellow : (colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue))
 
         HStack {
             Text(optimiser.oldBytes.humanSize)
                 .mono(13, weight: .semibold)
                 .foregroundColor(improvement ? Color.red : improvementColor)
-            if optimiser.newBytes >= 0, optimiser.newBytes != optimiser.oldBytes {
+            if optimiser.newBytes > 0, optimiser.newBytes != optimiser.oldBytes {
                 SwiftUI.Image(systemName: "arrow.right")
                 Text(optimiser.newBytes.humanSize)
                     .mono(13, weight: .semibold)
@@ -263,7 +263,7 @@ struct FloatingResult: View {
                 noticeView
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let url = optimiser.url, url.isFileURL {
+                    if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                         FileNameField(optimiser: optimiser)
                             .foregroundColor(.primary)
                             .font(.semibold(14)).lineLimit(1).fixedSize().opacity(0.8)
@@ -456,7 +456,7 @@ struct FloatingResult: View {
             FlipGroup(if: !floatingResultsCorner.isTrailing) {
                 if hasThumbnail, showImages {
                     VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 2) {
-                        if let url = optimiser.url, url.isFileURL {
+                        if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                             FileNameField(optimiser: optimiser)
                                 .font(.medium(9))
                                 .foregroundColor(.primary)

@@ -172,11 +172,11 @@ var hoveredOptimiserIDTask: DispatchWorkItem? {
 var lastFocusedApp: NSRunningApplication?
 var hoveredOptimiserID: String? {
     didSet {
+        guard hoveredOptimiserID != oldValue else {
+            return
+        }
         hoveredOptimiserIDTask = mainAsyncAfter(ms: 200) {
             mainActor {
-                guard hoveredOptimiserID != oldValue else {
-                    return
-                }
                 guard hoveredOptimiserID != nil else {
                     KM.secondaryKeys = []
                     KM.reinitHotkeys()
@@ -631,7 +631,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             }
         }
         if remove {
-            self.remove(after: animateRemoval ? 500 : 0, withAnimation: true)
+            self.remove(after: (animateRemoval && !OM.compactResults) ? 500 : 0, withAnimation: !OM.compactResults)
         }
     }
 
@@ -891,11 +891,17 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     var optimisedFilesByHash: [String: FilePath] = [:]
 
-    @Published var visibleOptimisers: Set<Optimiser> = []
-
     @Published var doneCount = 0
     @Published var failedCount = 0
     @Published var visibleCount = 0
+
+    @Published var visibleOptimisers: Set<Optimiser> = [] {
+        didSet {
+            if visibleOptimisers.isEmpty {
+                hoveredOptimiserID = nil
+            }
+        }
+    }
 
     var compactResults = false {
         didSet {

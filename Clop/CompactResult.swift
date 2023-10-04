@@ -94,13 +94,13 @@ struct CompactResult: View {
     }
 
     @ViewBuilder var fileSizeDiff: some View {
-        let improvement = optimiser.newBytes >= 0 && optimiser.newBytes < optimiser.oldBytes
+        let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
 
         HStack {
             Text(optimiser.oldBytes.humanSize)
                 .mono(11, weight: .semibold)
                 .foregroundColor(improvement ? Color.red : Color.secondary)
-            if optimiser.newBytes >= 0, optimiser.newBytes != optimiser.oldBytes {
+            if optimiser.newBytes > 0, optimiser.newBytes != optimiser.oldBytes {
                 SwiftUI.Image(systemName: "arrow.right")
                     .font(.medium(11))
                 Text(optimiser.newBytes.humanSize)
@@ -197,7 +197,7 @@ struct CompactResult: View {
                 noticeView
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let url = optimiser.url, url.isFileURL {
+                    if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                         FileNameField(optimiser: optimiser)
                             .foregroundColor(.primary)
                             .font(.medium(12)).lineLimit(1).fixedSize()
@@ -293,27 +293,24 @@ struct CompactResultList: View {
                 .focusable(false)
                 .opacity(showList ? 1 : 0)
 
-                let opts = optimisers.dropLast().map { ($0, false) } + [(optimisers.last!, true)]
+                let opts = optimisers
+                    .dropLast().enumerated()
+                    .map { n, x in (opt: x, isLast: false, isEven: (n + 1).isMultiple(of: 2)) } + [(opt: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2))]
                 ZStack(alignment: .bottom) {
                     ScrollView(.vertical, showsIndicators: false) {
-                        ForEach(opts, id: \.0.id) { optimiser, isLast in
-                            ZStack {
-                                CompactResult(optimiser: optimiser)
-                                OverlayMessageView(optimiser: optimiser, color: .secondary)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            }
-                            .padding(.horizontal, 10)
-                            .gesture(TapGesture(count: 2).onEnded {
-                                if let url = optimiser.url {
-                                    NSWorkspace.shared.open(url)
+                        VStack(spacing: 0) {
+                            ForEach(opts, id: \.opt.id) { optimiser, isLast, isEven in
+                                ZStack {
+                                    CompactResult(optimiser: optimiser)
+                                    OverlayMessageView(optimiser: optimiser, color: .secondary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 }
-                            })
-
-                            if !isLast {
-                                Divider().background(.secondary.opacity(0.35))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(.primary.opacity(isEven ? 0.15 : 0))
                             }
                         }
-                        .padding(.bottom, progress == nil ? 0 : 22)
+                        .padding(.bottom, progress == nil ? 0 : 16)
                     }
                     .padding(.vertical, 5)
                     .frame(width: THUMB_SIZE.width + (showCompactImages ? 50 : 0), height: min(360, (optimisers.count * 70).cg), alignment: .center)
@@ -356,23 +353,31 @@ struct ToggleCompactResultListButton: View {
     var body: some View {
         VStack(spacing: 0) {
             FlipGroup(if: floatingResultsCorner.isTop) {
-                Button(action: { showList.toggle() }, label: {
-                    ZStack(alignment: floatingResultsCorner.isTrailing ? .topLeading : .topTrailing) {
-                        SwiftUI.Image("clop")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 30, height: 30, alignment: .center)
+                Button(
+                    action: {
+                        showList.toggle()
                         if !showList {
-                            Text(badge)
-                                .round(10)
-                                .foregroundColor(.white)
-                                .padding(3)
-                                .background(Circle().fill(Color.darkGray))
-                                .offset(x: 0, y: -6)
-                                .opacity(0.75)
+                            hoveredOptimiserID = nil
+                        }
+                    },
+                    label: {
+                        ZStack(alignment: floatingResultsCorner.isTrailing ? .topLeading : .topTrailing) {
+                            SwiftUI.Image("clop")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 30, height: 30, alignment: .center)
+                            if !showList {
+                                Text(badge)
+                                    .round(10)
+                                    .foregroundColor(.white)
+                                    .padding(3)
+                                    .background(Circle().fill(Color.darkGray))
+                                    .offset(x: 0, y: -6)
+                                    .opacity(0.75)
+                            }
                         }
                     }
-                })
+                )
                 .buttonStyle(FlatButton(color: .clear, textColor: .primary, radius: 7, verticalPadding: 2))
 
                 Text(showList ? "Hide" : "Show")
