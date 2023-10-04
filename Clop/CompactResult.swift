@@ -5,6 +5,8 @@ import LowtechPro
 import SwiftUI
 
 struct CompactResult: View {
+    static let improvementColor = Color(light: FloatingResult.darkBlue, dark: FloatingResult.yellow)
+
     @ObservedObject var optimiser: Optimiser
     @State var hovering = false
 
@@ -14,6 +16,8 @@ struct CompactResult: View {
     @Environment(\.openWindow) var openWindow
 
     @Default(.showCompactImages) var showCompactImages
+
+    @Environment(\.preview) var preview
 
     @ViewBuilder var pathView: some View {
         if let url = optimiser.url, url.isFileURL {
@@ -40,12 +44,18 @@ struct CompactResult: View {
 
     @ViewBuilder var progressURLView: some View {
         if optimiser.type.isURL, let url = optimiser.url {
-            Text(url.absoluteString)
-                .medium(10)
-                .foregroundColor(.secondary.opacity(0.75))
-                .lineLimit(1)
-                .allowsTightening(true)
-                .truncationMode(.middle)
+            HStack(spacing: 2) {
+                SwiftUI.Image(systemName: "link")
+                    .font(.medium(10))
+                    .foregroundColor(.secondary.opacity(0.75))
+
+                Link(url.absoluteString, destination: url)
+                    .font(.medium(10))
+                    .foregroundColor(.secondary.opacity(0.75))
+                    .lineLimit(1)
+                    .allowsTightening(true)
+                    .truncationMode(.middle)
+            }
         }
     }
     @ViewBuilder var progressView: some View {
@@ -89,13 +99,13 @@ struct CompactResult: View {
         HStack {
             Text(optimiser.oldBytes.humanSize)
                 .mono(11, weight: .semibold)
-                .foregroundColor(improvement ? Color.secondary : Color.primary)
-            if optimiser.newBytes >= 0 {
+                .foregroundColor(improvement ? Color.red : Color.secondary)
+            if optimiser.newBytes >= 0, optimiser.newBytes != optimiser.oldBytes {
                 SwiftUI.Image(systemName: "arrow.right")
                     .font(.medium(11))
                 Text(optimiser.newBytes.humanSize)
                     .mono(11, weight: .semibold)
-                    .foregroundColor(improvement ? Color.primary : Color.secondary)
+                    .foregroundColor(improvement ? Self.improvementColor : FloatingResult.red)
             }
         }
         .lineLimit(1)
@@ -145,6 +155,22 @@ struct CompactResult: View {
             .allowsTightening(true)
         }
     }
+    @ViewBuilder var thumbnail: some View {
+        if showCompactImages {
+            if let image = optimiser.thumbnail {
+                SwiftUI.Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            } else {
+                SwiftUI.Image(systemName: optimiser.type.icon)
+                    .font(.system(size: 22))
+                    .frame(width: 40)
+                    .foregroundColor(.secondary.opacity(0.5))
+            }
+        }
+    }
     @ViewBuilder var noticeView: some View {
         if let notice = optimiser.notice {
             VStack(alignment: .leading) {
@@ -159,13 +185,7 @@ struct CompactResult: View {
     }
     var body: some View {
         HStack {
-            if showCompactImages, let image = optimiser.thumbnail {
-                SwiftUI.Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
+            thumbnail
 
             if optimiser.running {
                 progressView
@@ -195,20 +215,18 @@ struct CompactResult: View {
 
             Spacer()
             CloseStopButton(optimiser: optimiser)
-                .buttonStyle(FlatButton(color: .inverted.opacity(0.7), textColor: .primary.opacity(0.7), circle: true))
+                .buttonStyle(FlatButton(color: .primary.opacity(0.13), textColor: Color.mauvish.opacity(0.8), circle: true))
+                .focusable(false)
         }
+        .padding(.top, 3)
+        .onHover(perform: updateHover(_:))
         .ifLet(optimiser.url, transform: { view, url in
             view.draggable(url)
         })
-        .padding(.vertical, 3)
-        .onHover(perform: updateHover(_:))
-        .contextMenu {
-            RightClickMenuView(optimiser: optimiser)
-        }
     }
 
     func updateHover(_ hovering: Bool) {
-        if hovering {
+        if hovering, !preview {
             hoveredOptimiserID = optimiser.id
         }
         withAnimation(.easeOut(duration: 0.15)) {
@@ -250,8 +268,16 @@ struct CompactResultList: View {
     @State var hovering = false
     @State var showList = true
     var optimisers: [Optimiser]
+    var progress: Progress?
+
+    var doneCount: Int
+    var failedCount: Int
+    var visibleCount: Int
 
     @Default(.floatingResultsCorner) var floatingResultsCorner
+    @Default(.showCompactImages) var showCompactImages
+
+    @Environment(\.preview) var preview
 
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
@@ -259,49 +285,62 @@ struct CompactResultList: View {
         VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
             FlipGroup(if: floatingResultsCorner.isTop) {
                 Button("Clear all") {
-                    hoveredOptimiserID = nil
-                    OM.removedOptimisers = OM.removedOptimisers.filter { o in !OM.optimisers.contains(o) }.with(OM.optimisers.arr)
-                    OM.optimisers.filter(\.running).forEach { $0.stop(remove: false) }
-                    OM.optimisers = OM.optimisers.filter(\.hidden)
+                    OM.clearVisibleOptimisers(stop: true)
                 }
                 .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
                 .font(.medium(11))
                 .opacity(hovering ? 1 : 0)
                 .focusable(false)
-                .if(!showList, transform: { $0.hidden() })
+                .opacity(showList ? 1 : 0)
 
-                List {
-                    ForEach(optimisers) { optimiser in
-                        ZStack {
-                            CompactResult(optimiser: optimiser)
-                            OverlayMessageView(optimiser: optimiser, color: .secondary)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        }
-                        .gesture(TapGesture(count: 2).onEnded {
-                            if let url = optimiser.url {
-                                NSWorkspace.shared.open(url)
+                let opts = optimisers.dropLast().map { ($0, false) } + [(optimisers.last!, true)]
+                ZStack(alignment: .bottom) {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        ForEach(opts, id: \.0.id) { optimiser, isLast in
+                            ZStack {
+                                CompactResult(optimiser: optimiser)
+                                OverlayMessageView(optimiser: optimiser, color: .secondary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
-                        })
-                        .swipeActions(edge: isTrailing ? .leading : .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive, action: {
-                                hoveredOptimiserID = nil
-                                optimiser.stop(remove: true, animateRemoval: true)
-                            }, label: {
-                                Label(optimiser.running ? "Stop" : "Remove", systemImage: optimiser.running ? "stop.fill" : "xmark")
+                            .padding(.horizontal, 10)
+                            .gesture(TapGesture(count: 2).onEnded {
+                                if let url = optimiser.url {
+                                    NSWorkspace.shared.open(url)
+                                }
                             })
+
+                            if !isLast {
+                                Divider().background(.secondary.opacity(0.35))
+                            }
                         }
+                        .padding(.bottom, progress == nil ? 0 : 22)
+                    }
+                    .padding(.vertical, 5)
+                    .frame(width: THUMB_SIZE.width + (showCompactImages ? 50 : 0), height: min(360, (optimisers.count * 70).cg), alignment: .center)
+                    .background(Color.inverted.brightness(0.1))
+
+                    if progress != nil {
+                        ProgressView(" Done: \(doneCount)/\(visibleCount)  |  Failed: \(failedCount)/\(visibleCount)", value: (doneCount + failedCount).d, total: visibleCount.d)
+                            .controlSize(.small)
+                            .frame(width: THUMB_SIZE.width + (showCompactImages ? 40 : -10))
+                            .padding(.top, 4)
+                            .background(VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active).scaleEffect(1.1))
+                            .offset(y: 6)
+                            .font(.mono(9))
                     }
                 }
-                .frame(width: THUMB_SIZE.width, height: min(360, (optimisers.count * 50).cg), alignment: .center)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .if(!showList, transform: { $0.hidden() })
+                .shadow(radius: preview ? 0 : 10)
+                .opacity(showList ? 1 : 0)
+                .allowsHitTesting(showList)
 
-                ToggleCompactResultListButton(showList: $showList, badge: optimisers.count.s)
-                    .offset(x: 10)
+                ToggleCompactResultListButton(showList: $showList.animation(), badge: optimisers.count.s)
+                    .offset(x: isTrailing ? 10 : -10)
             }
         }
         .padding(isTrailing ? .trailing : .leading)
-        .frame(width: THUMB_SIZE.width + 50, height: 442, alignment: floatingResultsCorner.alignment)
+        .frame(width: THUMB_SIZE.width + (showCompactImages ? 60 : 50), height: 442, alignment: floatingResultsCorner.alignment)
+        .contentShape(Rectangle())
         .onHover { hovered in
             withAnimation(.easeIn(duration: 0.35)) {
                 hovering = hovered
@@ -327,8 +366,8 @@ struct ToggleCompactResultListButton: View {
                             Text(badge)
                                 .round(10)
                                 .foregroundColor(.white)
-                                .padding(2)
-                                .background(Circle().fill(.gray))
+                                .padding(3)
+                                .background(Circle().fill(Color.darkGray))
                                 .offset(x: 0, y: -6)
                                 .opacity(0.75)
                         }
@@ -338,7 +377,8 @@ struct ToggleCompactResultListButton: View {
 
                 Text(showList ? "Hide" : "Show")
                     .font(.medium(10))
-                    .roundbg(radius: 5, padding: 2, color: .inverted.opacity(0.9))
+                    .roundbg(radius: 5, padding: 2, color: .inverted.opacity(0.9), noFG: true)
+                    .foregroundColor(.primary)
                     .opacity(hovering ? 1 : 0)
             }
         }
@@ -362,15 +402,13 @@ struct CompactPreview: View {
 
         let errorOpt = Optimiser(id: "file-with-error", type: .image(.png))
         errorOpt.url = "\(HOME)/Desktop/passport-scan.png".fileURL
+        errorOpt.thumbnail = NSImage(named: "passport")
         errorOpt.finish(error: "Already optimised")
-
-        let pdfEnd = Optimiser(id: "pages.pdf", type: .pdf)
-        pdfEnd.url = "\(HOME)/Documents/pages.pdf".fileURL
-        pdfEnd.finish(oldBytes: 12_250_190, newBytes: 5_211_932)
 
         let pdfRunning = Optimiser(id: "scans.pdf", type: .pdf, running: true, progress: pdfProgress)
         pdfRunning.url = "\(HOME)/Documents/scans.pdf".fileURL
         pdfRunning.operation = "Optimising"
+        pdfRunning.thumbnail = NSImage(named: "scans.pdf")
 
         let videoOpt = Optimiser(id: "Movies/meeting-recording.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.url = "\(HOME)/Movies/meeting-recording.mov".fileURL
@@ -381,8 +419,14 @@ struct CompactPreview: View {
         let videoToGIF = Optimiser(id: "Videos/app-ui-demo.mov", type: .video(.quickTimeMovie), running: true, progress: videoToGIFProgress)
         videoToGIF.url = "\(HOME)/Videos/app-ui-demo.mov".fileURL
         videoToGIF.operation = "Converting to GIF"
+        videoToGIF.thumbnail = NSImage(named: "app-ui-demo")
 
-        let gifOpt = Optimiser(id: "https://files.lowtechguys.com/moon.gif", type: .image(.gif), running: true, progress: gifProgress)
+        let pdfEnd = Optimiser(id: "pages.pdf", type: .pdf)
+        pdfEnd.url = "\(HOME)/Documents/pages.pdf".fileURL
+        pdfEnd.thumbnail = NSImage(named: "pages.pdf")
+        pdfEnd.finish(oldBytes: 12_250_190, newBytes: 15_211_932)
+
+        let gifOpt = Optimiser(id: "https://files.lowtechguys.com/moon.gif", type: .url, running: true, progress: gifProgress)
         gifOpt.url = "https://files.lowtechguys.com/moon.gif".url!
         gifOpt.operation = "Downloading"
 
@@ -394,8 +438,6 @@ struct CompactPreview: View {
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
         clipEnd.thumbnail = NSImage(named: "sonoma-shot")
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
-
-//        clipEnd.overlayMessage = "Copied"
 
         let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)
         proErrorOpt.finish(error: "Free version limits reached", notice: "Only 2 file optimisations per session\nare included in the free version")
@@ -415,6 +457,7 @@ struct CompactPreview: View {
             pdfEnd,
             videoToGIF,
         ]
+        o.updateProgress()
         return o
     }()
 

@@ -86,6 +86,7 @@ extension Defaults.Keys {
     static let autoHideFloatingResults = Key<Bool>("autoHideFloatingResults", default: true)
     static let autoHideFloatingResultsAfter = Key<Int>("autoHideFloatingResultsAfter", default: 30)
     static let autoHideClipboardResultAfter = Key<Int>("autoHideClipboardResultAfter", default: 3)
+    static let autoClearAllCompactResultsAfter = Key<Int>("autoClearAllCompactResultsAfter", default: 120)
     static let floatingResultsCorner = Key<ScreenCorner>("floatingResultsCorner", default: .bottomRight)
     static let neverShowProError = Key<Bool>("neverShowProError", default: false)
 

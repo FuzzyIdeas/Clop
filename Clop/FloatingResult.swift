@@ -72,8 +72,8 @@ struct FloatingResultContainer: View {
     var body: some View {
         let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
         VStack(spacing: 10) {
-            if alwaysShowCompactResults || optimisers.count > 5 || om.compactResults {
-                CompactResultList(optimisers: optimisers).preview(isPreview)
+            if (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults {
+                CompactResultList(optimisers: optimisers, progress: om.progress, doneCount: om.doneCount, failedCount: om.failedCount, visibleCount: om.visibleCount).preview(isPreview)
                     .padding()
                     .onAppear {
                         om.compactResults = true
@@ -228,7 +228,7 @@ struct FloatingResult: View {
             Text(optimiser.oldBytes.humanSize)
                 .mono(13, weight: .semibold)
                 .foregroundColor(improvement ? Color.red : improvementColor)
-            if optimiser.newBytes >= 0 {
+            if optimiser.newBytes >= 0, optimiser.newBytes != optimiser.oldBytes {
                 SwiftUI.Image(systemName: "arrow.right")
                 Text(optimiser.newBytes.humanSize)
                     .mono(13, weight: .semibold)
@@ -284,6 +284,7 @@ struct FloatingResult: View {
                 .overlay(optimiser.error == nil ? .clear : .red.opacity(0.5))
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         )
+        .padding(.top, 10)
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
     }
     @ViewBuilder var errorView: some View {
@@ -535,7 +536,7 @@ struct FloatingResult: View {
     }
 
     func updateHover(_ hovering: Bool) {
-        if hovering {
+        if hovering, !preview {
             hoveredOptimiserID = optimiser.id
         }
         withAnimation(.easeOut(duration: 0.15)) {
