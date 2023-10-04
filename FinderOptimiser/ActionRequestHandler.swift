@@ -57,26 +57,32 @@ class ActionRequestHandler: NSObject, NSExtensionRequestHandling {
                     return
                 }
 
-                let coordinator = NSFileCoordinator()
-                coordinator.coordinate(readingItemAt: url, options: [], error: nil) { url in
-                    guard let itemReplacementDirectory = try? FileManager.default.url(
-                        for: .itemReplacementDirectory, in: .userDomainMask,
-                        appropriateFor: URL(fileURLWithPath: NSHomeDirectory()), create: true
-                    ) else { return }
-
-                    let _tempURL = itemReplacementDirectory.appendingPathComponent(url.lastPathComponent)
-                    let tempURL = FileManager.default.fileExists(atPath: _tempURL.path)
-                        ? itemReplacementDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
-                        : _tempURL
-
-                    try? FileManager.default.removeItem(at: tempURL)
-                    try? FileManager.default.copyItem(at: url, to: tempURL)
-
+                sandboxURL(url) { tempURL in
                     Task.init { await self.requestSender.add(tempURL, type: type, attachment: attachment, originalURL: url) }
                 }
             }
         }
         log.debug("Waiting for \(attachments.count) attachments to be processed")
+    }
+}
+
+func sandboxURL(_ url: URL, completion: @escaping (URL) -> Void) {
+    let coordinator = NSFileCoordinator()
+    coordinator.coordinate(readingItemAt: url, options: [], error: nil) { url in
+        guard let itemReplacementDirectory = try? FileManager.default.url(
+            for: .itemReplacementDirectory, in: .userDomainMask,
+            appropriateFor: URL(fileURLWithPath: NSHomeDirectory()), create: true
+        ) else { return }
+
+        let _tempURL = itemReplacementDirectory.appendingPathComponent(url.lastPathComponent)
+        let tempURL = FileManager.default.fileExists(atPath: _tempURL.path)
+            ? itemReplacementDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
+            : _tempURL
+
+        try? FileManager.default.removeItem(at: tempURL)
+        try? FileManager.default.copyItem(at: url, to: tempURL)
+
+        completion(tempURL)
     }
 }
 
@@ -90,20 +96,6 @@ actor RequestSender {
     }
 
     private var sent = false
-    private var processedURLs = 0 {
-        didSet {
-            guard processedURLs == urls.count else { return }
-
-            // let outputItem = NSExtensionItem()
-            // outputItem.attachments = outputAttachments.map { att in
-            //     if let (url, att) = att as? (URL, NSItemProvider), let response = responses[url] {
-            //         return NSItemProvider(contentsOf: response.path.url) ?? att
-            //     }
-            //     return att as! NSItemProvider
-            // }
-            // context.completeRequest(returningItems: [outputItem], completionHandler: nil)
-        }
-    }
     private var processedAttachments = 0 {
         didSet {
             if processedAttachments == attachmentsToProcess {
@@ -149,12 +141,12 @@ actor RequestSender {
 
     func observe(_ url: URL, type: UTType, completion: @escaping (URL?, Bool, Error?) -> Void) {
         if let response = responses[url], let urlType = response.path.url.fetchFileType() {
-            guard urlType == type else {
+            guard urlType == type || urlType.isSubtype(of: type) else {
                 completion(nil, false, "Wrong type".err)
                 return
             }
 
-            log.debug("Item \(url) of type \(type.identifier) is ready, calling completion handler")
+            log.debug("Item \(url) is ready, calling completion handler")
             completion(response.path.url, false, nil)
             return
         }
@@ -170,14 +162,13 @@ actor RequestSender {
             guard resp.forURL == url, let urlType = resp.path.url.fetchFileType() else {
                 return
             }
-            guard urlType == type else {
+            guard urlType == type || urlType.isSubtype(of: type) else {
                 completion(nil, false, "Wrong type".err)
                 return
             }
-            log.debug("Received '\(resp.path)' of type \(type.identifier) for item \(url), calling completion handler")
 
-            completion(url, false, nil)
-            // self.processedURLs += 1
+            log.debug("Received '\(resp.path)' of type \(type.identifier) for item \(url), calling completion handler")
+            completion(resp.path.url, false, nil)
         }.store(in: &observers)
 
         lastResponseError.sink { resp in
@@ -185,7 +176,6 @@ actor RequestSender {
             log.debug("Failed with '\(resp.error)' for item \(url), calling completion handler")
 
             completion(nil, false, resp.error.err)
-            // self.processedURLs += 1
         }.store(in: &observers)
     }
 
@@ -195,10 +185,10 @@ actor RequestSender {
         urls.append(url)
         startProgressListener(url: url)
 
-        let types = if type.isSubtype(of: .movie), type != .mpeg4Movie {
-            [type, .mpeg4Movie]
-        } else if type.isSubtype(of: .image), ![UTType.jpeg, UTType.png].contains(type) {
-            [type, .jpeg, .png]
+        let types = if type.isSubtype(of: .movie) || type.isSubtype(of: .video) {
+            [UTType.movie, UTType.video]
+        } else if type.isSubtype(of: .image) {
+            [UTType.image]
         } else {
             [type]
         }
@@ -232,7 +222,6 @@ actor RequestSender {
         removeProgressSubscriber(url: response.forURL)
         responses[response.forURL] = response
         lastResponse.send(response)
-        processedURLs += 1
     }
     func markError(response: OptimisationResponseError) {
         log.debug("Got error response \(response.error) for \(response.forURL)")
@@ -240,7 +229,6 @@ actor RequestSender {
         removeProgressSubscriber(url: response.forURL)
         errors[response.forURL] = response
         lastResponseError.send(response)
-        processedURLs += 1
     }
 
     func send() {
