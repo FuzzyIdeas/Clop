@@ -19,6 +19,21 @@ enum ItemType: Equatable {
     case url
     case unknown
 
+    var icon: String {
+        switch self {
+        case .image:
+            "photo"
+        case .video:
+            "film"
+        case .pdf:
+            "doc.text"
+        case .url:
+            "link"
+        case .unknown:
+            "questionmark"
+        }
+    }
+
     var ext: String? {
         switch self {
         case let .image(uTType):
@@ -180,6 +195,7 @@ var hoveredOptimiserID: String? {
 }
 
 @MainActor var lastModifierFlags: NSEvent.ModifierFlags = []
+@MainActor var possibleShiftQuickLook = true
 @MainActor var hoverKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
     guard let event, let opt = OM.hovered, !opt.editingFilename else {
         return
@@ -188,9 +204,16 @@ var hoveredOptimiserID: String? {
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastModifierFlags = flags
+        if flags.isEmpty {
+            possibleShiftQuickLook = true
+        }
     }
 
-    if lastModifierFlags == [.shift], flags == [] {
+    if flags.isNotEmpty, flags != [.shift] {
+        possibleShiftQuickLook = false
+    }
+
+    if possibleShiftQuickLook, lastModifierFlags == [.shift], flags == [] {
         opt.quicklook()
     }
     lastModifierFlags = flags
@@ -203,9 +226,16 @@ var hoveredOptimiserID: String? {
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastModifierFlags = flags
+        if flags.isEmpty {
+            possibleShiftQuickLook = true
+        }
     }
 
-    if lastModifierFlags == [.shift], flags == [] {
+    if flags.isNotEmpty, flags != [.shift] {
+        possibleShiftQuickLook = false
+    }
+
+    if possibleShiftQuickLook, lastModifierFlags == [.shift], flags == [] {
         opt.quicklook()
         return nil
     }
@@ -398,6 +428,16 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             if running, !oldValue {
                 stopRemover()
             }
+            if !running, oldValue, OM.compactResults {
+                let removeAfterMs = Defaults[.autoClearAllCompactResultsAfter]
+                guard removeAfterMs > 0 else { return }
+
+                let visibleOptimisers = OM.optimisers.filter { !$0.hidden }
+                if visibleOptimisers.allSatisfy({ !$0.running }) {
+                    OM.removeVisibleOptimisers(after: removeAfterMs)
+                }
+            }
+            OM.updateProgress()
         }
     }
     @Published var url: URL? {
@@ -743,6 +783,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             self.notice = notice
             self.running = false
 
+            guard !OM.compactResults else { return }
             self.remove(after: removeAfterMs)
         }
     }
@@ -780,6 +821,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         self.remover = nil
         self.inRemoval = false
         self.lastRemoveAfterMs = nil
+        OM.remover = nil
     }
 
     func resetRemover() {
@@ -840,6 +882,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
 @MainActor
 class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
+    @Published var progress: Progress?
     @Published var current: Optimiser?
     @Published var skippedBecauseNotPro: [URL] = []
     @Published var ignoreProErrorBadge = false
@@ -847,6 +890,12 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var removedOptimisers: [Optimiser] = []
 
     var optimisedFilesByHash: [String: FilePath] = [:]
+
+    @Published var visibleOptimisers: Set<Optimiser> = []
+
+    @Published var doneCount = 0
+    @Published var failedCount = 0
+    @Published var visibleCount = 0
 
     var compactResults = false {
         didSet {
@@ -862,6 +911,9 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         }
     }
 
+    var remover: DispatchWorkItem? { didSet {
+        oldValue?.cancel()
+    }}
     var hovered: Optimiser? {
         guard let hoveredOptimiserID else { return nil }
         return opt(hoveredOptimiserID)
@@ -876,17 +928,54 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
             if !added.isEmpty {
                 log.debug("Added optimisers: \(added)")
             }
-            if compactResults, optimisers.filter(!\.hidden).isEmpty {
+            visibleOptimisers = optimisers.filter { !$0.hidden }
+            if compactResults, visibleOptimisers.isEmpty, !Defaults[.alwaysShowCompactResults] {
                 compactResults = false
             }
+            updateProgress()
         }
     }
-
     var optimisersWithURLs: [Optimiser] {
         optimisers.filter { $0.url != nil }
     }
 
     var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id == Optimiser.IDs.clipboardImage }) }
+
+    func updateProgress() {
+        visibleCount = visibleOptimisers.count
+        doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil && $0.notice == nil }.count
+        failedCount = visibleOptimisers.filter { !$0.running && $0.error != nil }.count
+        let finishedCount = doneCount + failedCount
+
+        guard finishedCount < visibleCount else {
+            progress = nil
+            return
+        }
+        progress = Progress(totalUnitCount: visibleCount.i64)
+        progress!.completedUnitCount = finishedCount.i64
+    }
+
+    func clearVisibleOptimisers(stop: Bool = false) {
+        hoveredOptimiserID = nil
+        if stop {
+            optimisers.filter(\.running).forEach { $0.stop(remove: false) }
+            removedOptimisers = removedOptimisers
+                .filter { o in !optimisers.contains(o) }
+                .with(optimisers.filter { !$0.hidden })
+            optimisers = optimisers.filter(\.hidden)
+        } else {
+            removedOptimisers = removedOptimisers
+                .filter { o in !optimisers.contains(o) }
+                .with(optimisers.filter { !$0.running && !$0.hidden })
+            optimisers = optimisers.filter { $0.running || $0.hidden }
+        }
+    }
+
+    func removeVisibleOptimisers(after ms: Int) {
+        remover = mainAsyncAfter(ms: ms) {
+            self.clearVisibleOptimisers()
+        }
+    }
 
     func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false, source: String? = nil, indeterminateProgress: Bool = false) -> Optimiser {
         let optimiser = (
@@ -993,6 +1082,7 @@ var imageOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 var imageResizeDebouncers: [String: DispatchWorkItem] = [:]
 var scalingFactor = 1.0
 
+@MainActor
 var hideClipboardAfter: Int? {
     let hide = Defaults[.autoHideFloatingResults]
     let hideClipboardAfter = Defaults[.autoHideClipboardResultAfter]
@@ -1000,6 +1090,7 @@ var hideClipboardAfter: Int? {
     return hide ? (hideClipboardAfter == -1 ? hideFilesAfter : hideClipboardAfter) * 1000 : nil
 }
 
+@MainActor
 var hideFilesAfter: Int? {
     let hide = Defaults[.autoHideFloatingResults]
     let hideFilesAfter = Defaults[.autoHideFloatingResultsAfter]

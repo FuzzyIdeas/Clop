@@ -764,10 +764,11 @@ struct FloatingSettingsView: View {
     @Default(.autoHideFloatingResults) var autoHideFloatingResults
     @Default(.autoHideFloatingResultsAfter) var autoHideFloatingResultsAfter
     @Default(.autoHideClipboardResultAfter) var autoHideClipboardResultAfter
+    @Default(.autoClearAllCompactResultsAfter) var autoClearAllCompactResultsAfter
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
 
-    @State var compact = true
+    @State var compact = SWIFTUI_PREVIEW
 
     var settings: some View {
         Form {
@@ -780,7 +781,7 @@ struct FloatingSettingsView: View {
                 }
                 Toggle(isOn: $alwaysShowCompactResults) {
                     Text("Always use compact layout").regular(13)
-                        + Text("\nBy default, the layout switches to compact automatically when there are more than 5 results on the screen")
+                        + Text("\n\nBy default, the layout switches to compact automatically when there are more than 5 results on the screen")
                         .round(10, weight: .regular)
                         .foregroundColor(.secondary)
                 }
@@ -789,13 +790,6 @@ struct FloatingSettingsView: View {
             Section(header: SectionHeader(title: "Full layout")) {
                 Toggle("Show hat icon", isOn: $showFloatingHatIcon)
                 Toggle("Show images", isOn: $showImages)
-            }
-
-            Section(header: SectionHeader(title: "Compact layout")) {
-                Toggle("Show images", isOn: $showCompactImages)
-            }
-
-            Section(header: SectionHeader(title: "Behaviour")) {
                 Toggle("Auto hide", isOn: $autoHideFloatingResults)
                 Picker("files after", selection: $autoHideFloatingResultsAfter) {
                     Text("5 seconds").tag(5)
@@ -820,13 +814,30 @@ struct FloatingSettingsView: View {
                     Text("never").tag(0)
                 }.disabled(!autoHideFloatingResults).padding(.leading, 20)
             }
+
+            Section(header: SectionHeader(title: "Compact layout")) {
+                Toggle("Show images", isOn: $showCompactImages)
+                Picker("Auto clear all after", selection: $autoClearAllCompactResultsAfter) {
+                    Text("5 seconds").tag(5)
+                    Text("10 seconds").tag(10)
+                    Text("15 seconds").tag(15)
+                    Text("30 seconds").tag(30)
+                    Text("1 minute").tag(60)
+                    Text("2 minutes").tag(120)
+                    Text("5 minutes").tag(300)
+                    Text("10 minutes").tag(600)
+                    Text("30 minutes").tag(1800)
+                    Text("never").tag(0)
+                }
+            }
+
         }
         .frame(maxWidth: 380).fixedSize()
     }
 
     var body: some View {
         HStack(alignment: .top) {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 settings
             }
 
@@ -849,8 +860,11 @@ struct FloatingSettingsView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .padding()
         .hfill()
+        .padding(.top)
+        .onChange(of: alwaysShowCompactResults) { value in
+            compact = value
+        }
     }
 }
 struct GeneralSettingsView: View {
