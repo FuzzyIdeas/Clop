@@ -121,6 +121,8 @@ struct WorkflowMenu: View {
     @ObservedObject var optimiser: Optimiser
     @State var shortcutsMap: [String: [Shortcut]]?
 
+    @Environment(\.preview) var preview
+
     var body: some View {
         if let shortcutsMap {
             if shortcutsMap.isEmpty {
@@ -170,6 +172,9 @@ struct WorkflowMenu: View {
         } else {
             Text("Loading...").disabled(true)
                 .onAppear {
+                    guard !preview else {
+                        return
+                    }
                     DispatchQueue.global().async {
                         let shortcutsMap = getShortcutsMap()
                         mainActor {
