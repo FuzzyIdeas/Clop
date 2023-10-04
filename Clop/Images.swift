@@ -5,6 +5,7 @@
 //  Created by Alin Panaitiu on 10.07.2023.
 //
 
+import Accelerate
 import Cocoa
 import Defaults
 import EonilFSEvents
@@ -110,6 +111,47 @@ extension NSImage {
             imageRep.size = size
             return imageRep.representation(using: imgType, properties: [:])
         }
+    }
+
+    var hasTransparentPixels: Bool {
+        if representations.allSatisfy(\.isOpaque) {
+            return false
+        }
+        if let rep = representations.first(where: { $0.hasAlpha }) {
+            // check for alpha pixels the fast way (use Accelerate)
+            guard let cgImage = rep.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                return true
+            }
+
+            let alphaInfo = cgImage.alphaInfo
+            if alphaInfo == .none || alphaInfo == .noneSkipLast || alphaInfo == .noneSkipFirst {
+                return false
+            }
+
+            let pixelCount = Int(size.width * size.height)
+            let alphaBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: pixelCount)
+            defer { alphaBuffer.deallocate() }
+
+            let context = CGContext(
+                data: alphaBuffer,
+                width: Int(size.width),
+                height: Int(size.height),
+                bitsPerComponent: 8,
+                bytesPerRow: Int(size.width),
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue
+            )!
+            context.draw(cgImage, in: CGRect(origin: .zero, size: size))
+
+            var alphaBufferFloat = [Float](repeating: 0, count: pixelCount)
+            vDSP_vfltu8(alphaBuffer, 1, &alphaBufferFloat, 1, vDSP_Length(pixelCount))
+
+            var alphaMin: Float = 0xFF
+            vDSP_minv(alphaBufferFloat, 1, &alphaMin, vDSP_Length(pixelCount))
+
+            return alphaMin < 0xFF
+        }
+        return false
     }
 }
 
@@ -546,7 +588,7 @@ class Image: CustomStringConvertible {
         var procs = [pngProc]
 
         var jpegOutFile: FilePath?
-        if testJPEG, let rep = image.representations.first, !rep.hasAlpha, let jpeg = try? convert(to: .jpeg) {
+        if testJPEG, !image.hasTransparentPixels, let jpeg = try? convert(to: .jpeg) {
             let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationJPEG]
 
             let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
@@ -582,8 +624,9 @@ class Image: CustomStringConvertible {
             if Defaults[.convertedImageBehaviour] != .temporary {
                 justTry {
                     try jpegOutFile.setOptimisationStatusXattr("true")
-                    let newPath = try jpegOutFile.copy(to: path.dir)
-                    tempFile = newPath
+                    if jpegOutFile != path.dir.appending(jpegOutFile.name) {
+                        tempFile = try jpegOutFile.copy(to: path.dir)
+                    }
                 }
             }
         }

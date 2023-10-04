@@ -14,7 +14,15 @@ struct CloseStopButton: View {
                 guard !preview else { return }
 
                 hoveredOptimiserID = nil
-                optimiser.stop(animateRemoval: true)
+                optimiser.stop(remove: !OM.compactResults, animateRemoval: true)
+
+                if optimiser.url == nil, let originalURL = optimiser.originalURL {
+                    optimiser.url = originalURL
+                }
+                if optimiser.oldBytes == 0, let path = (optimiser.url ?? optimiser.originalURL)?.existingFilePath, let size = path.fileSize() {
+                    optimiser.oldBytes = size
+                }
+                optimiser.running = false
             },
             label: { SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(9)) }
         )
@@ -229,7 +237,7 @@ struct ActionButtons: View {
             CopyToClipboardButton(optimiser: optimiser)
             RightClickButton(optimiser: optimiser)
         }
-        .buttonStyle(FlatButton(color: .inverted.opacity(0.8), textColor: .primary.opacity(0.9), width: size, height: size, circle: true))
+        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary.opacity(0.9), width: size, height: size, circle: true))
         .animation(.fastSpring, value: optimiser.aggresive)
         .hfill(.leading)
         .roundbg(radius: 10, verticalPadding: 3, horizontalPadding: 2, color: .primary.opacity(colorScheme == .dark ? 0.05 : 0.13))
