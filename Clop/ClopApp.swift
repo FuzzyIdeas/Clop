@@ -446,6 +446,31 @@ class AppDelegate: LowtechProAppDelegate {
             }
         #endif
         setupServiceProvider()
+        startShortcutWatcher()
+
+        // listen for NSWindow.willCloseNotification to release the window
+        NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(windowDidBecomeMainNotification), name: NSWindow.didBecomeMainNotification, object: nil)
+    }
+
+    @objc func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        if window.title == "Settings" {
+            mainActor {
+                settingsViewManager.windowOpen = false
+            }
+        }
+    }
+
+    @objc func windowDidBecomeMainNotification(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        if window.title == "Settings" {
+            mainActor {
+                settingsViewManager.windowOpen = true
+                log.debug("Starting settings tab key monitor")
+                tabKeyMonitor.start()
+            }
+        }
     }
 
     func trackScrollWheel() {

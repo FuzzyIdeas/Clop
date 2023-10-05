@@ -931,6 +931,7 @@ struct GeneralSettingsView: View {
 
 class SettingsViewManager: ObservableObject {
     @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .floating : .general
+    @Published var windowOpen = false
 }
 
 let settingsViewManager = SettingsViewManager()
@@ -986,6 +987,12 @@ struct SettingsView: View {
     @ObservedObject var svm = settingsViewManager
 
     var body: some View {
+        if svm.windowOpen {
+            settings
+        }
+    }
+
+    var settings: some View {
         ZStack(alignment: .topTrailing) {
             TabView(selection: $svm.tab) {
                 GeneralSettingsView()
