@@ -767,6 +767,8 @@ struct FloatingSettingsView: View {
     @Default(.autoClearAllCompactResultsAfter) var autoClearAllCompactResultsAfter
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
+    @Default(.dismissFloatingResultOnDrop) var dismissFloatingResultOnDrop
+    @Default(.dismissCompactResultOnDrop) var dismissCompactResultOnDrop
 
     @State var compact = SWIFTUI_PREVIEW
 
@@ -790,6 +792,8 @@ struct FloatingSettingsView: View {
             Section(header: SectionHeader(title: "Full layout")) {
                 Toggle("Show hat icon", isOn: $showFloatingHatIcon)
                 Toggle("Show images", isOn: $showImages)
+                Toggle("Dismiss after dragging outside", isOn: $dismissFloatingResultOnDrop)
+
                 Toggle("Auto hide", isOn: $autoHideFloatingResults)
                 Picker("files after", selection: $autoHideFloatingResultsAfter) {
                     Text("5 seconds").tag(5)
@@ -817,6 +821,8 @@ struct FloatingSettingsView: View {
 
             Section(header: SectionHeader(title: "Compact layout")) {
                 Toggle("Show images", isOn: $showCompactImages)
+                Toggle("Dismiss after dragging outside", isOn: $dismissCompactResultOnDrop)
+
                 Picker("Auto clear all after", selection: $autoClearAllCompactResultsAfter) {
                     Text("5 seconds").tag(5)
                     Text("10 seconds").tag(10)

@@ -218,6 +218,8 @@ struct ActionButtons: View {
     @Environment(\.preview) var preview
     @Environment(\.colorScheme) var colorScheme
 
+    @State var hovering = false
+
     var body: some View {
         HStack(spacing: 1) {
             DownscaleButton(optimiser: optimiser)
@@ -235,12 +237,17 @@ struct ActionButtons: View {
             ShowInFinderButton(optimiser: optimiser)
             SaveAsButton(optimiser: optimiser)
             CopyToClipboardButton(optimiser: optimiser)
-            RightClickButton(optimiser: optimiser)
+            if hovering {
+                RightClickButton(optimiser: optimiser)
+            } else {
+                Button(action: {}, label: { SwiftUI.Image(systemName: "line.3.horizontal").font(.heavy(9)) })
+            }
         }
         .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary.opacity(0.9), width: size, height: size, circle: true))
         .animation(.fastSpring, value: optimiser.aggresive)
         .hfill(.leading)
         .roundbg(radius: 10, verticalPadding: 3, horizontalPadding: 2, color: .primary.opacity(colorScheme == .dark ? 0.05 : 0.13))
         .focusable(false)
+        .onHover { hovering = $0 }
     }
 }

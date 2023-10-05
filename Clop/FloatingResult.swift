@@ -443,7 +443,17 @@ struct FloatingResult: View {
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
         .ifLet(optimiser.url, transform: { view, url in
             view
-                .draggable(url)
+                .onDrag {
+                    guard !preview else {
+                        return NSItemProvider()
+                    }
+
+                    log.debug("Dragging \(url)")
+                    if Defaults[.dismissFloatingResultOnDrop] {
+                        optimiser.remove(after: 100, withAnimation: true)
+                    }
+                    return NSItemProvider(object: url as NSURL)
+                }
         })
         .foregroundColor(.white)
         .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 8)

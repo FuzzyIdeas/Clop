@@ -90,6 +90,9 @@ extension Defaults.Keys {
     static let floatingResultsCorner = Key<ScreenCorner>("floatingResultsCorner", default: .bottomRight)
     static let neverShowProError = Key<Bool>("neverShowProError", default: false)
 
+    static let dismissFloatingResultOnDrop = Key<Bool>("dismissFloatingResultOnDrop", default: true)
+    static let dismissCompactResultOnDrop = Key<Bool>("dismissCompactResultOnDrop", default: false)
+
     static let autoCopyToClipboard = Key<Bool>("autoCopyToClipboard", default: true)
 
     static let keyComboModifiers = Key<[TriggerKey]>("keyComboModifiers", default: [.lctrl, .lshift])
