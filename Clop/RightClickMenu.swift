@@ -172,11 +172,10 @@ struct WorkflowMenu: View {
         } else {
             Text("Loading...").disabled(true)
                 .onAppear {
-                    guard !preview else {
-                        return
-                    }
+                    guard !preview else { return }
+
                     DispatchQueue.global().async {
-                        let shortcutsMap = getShortcutsMap()
+                        let shortcutsMap = getShortcutsMapOrCached()
                         mainActor {
                             self.shortcutsMap = shortcutsMap
                         }
