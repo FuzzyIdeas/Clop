@@ -55,6 +55,47 @@ struct Shortcut: Codable, Hashable, Defaults.Serializable, Identifiable {
     var id: String { identifier }
 }
 
+struct CachedShortcuts {
+    var shortcuts: [Shortcut] = []
+    var lastUpdate = Date()
+    var folder: String?
+}
+struct CachedShortcutsMap {
+    var shortcuts: [String: [Shortcut]] = [:]
+    var lastUpdate = Date()
+}
+
+var shortcutsCacheByFolder: [String?: CachedShortcuts] = [:]
+var shortcutsMapCache: CachedShortcutsMap?
+
+func getShortcutsOrCached(folder: String? = nil) -> [Shortcut]? {
+    if let cached = mainThread({ shortcutsCacheByFolder[folder] }), cached.lastUpdate.timeIntervalSinceNow > -60 {
+        return cached.shortcuts
+    }
+
+    guard let shortcuts = getShortcuts(folder: folder) else {
+        return nil
+    }
+
+    mainAsync {
+        shortcutsCacheByFolder[folder] = CachedShortcuts(shortcuts: shortcuts, lastUpdate: Date(), folder: folder)
+    }
+    return shortcuts
+}
+
+func getShortcutsMapOrCached() -> [String: [Shortcut]] {
+    if let cached = mainThread({ shortcutsMapCache }), cached.lastUpdate.timeIntervalSinceNow > -60 {
+        return cached.shortcuts
+    }
+
+    let shortcutsMap = getShortcutsMap()
+
+    mainAsync {
+        shortcutsMapCache = CachedShortcutsMap(shortcuts: shortcutsMap, lastUpdate: Date())
+    }
+    return shortcutsMap
+}
+
 func getShortcuts(folder: String? = nil) -> [Shortcut]? {
     log.debug("Getting shortcuts for folder \(folder ?? "nil")")
 
@@ -85,8 +126,12 @@ func getShortcutsMap() -> [String: [Shortcut]] {
     guard let folders: [String] = shell("/usr/bin/shortcuts", args: ["list", "--folders"], timeout: 2).o?.split(separator: "\n").map({ s in String(s) })
     else { return [:] }
 
+    if let cached = mainThread({ shortcutsMapCache }), cached.lastUpdate.timeIntervalSinceNow > -60 {
+        return cached.shortcuts
+    }
+
     return (folders + ["none"]).compactMap { folder -> (String, [Shortcut])? in
-        guard let shortcuts = getShortcuts(folder: folder) else {
+        guard let shortcuts = getShortcutsOrCached(folder: folder) else {
             return nil
         }
         return (folder == "none" ? "Other" : folder, shortcuts)
@@ -277,7 +322,7 @@ struct AutomationSettingsView: View {
         }.padding(4)
             .onAppear {
                 DispatchQueue.global().async {
-                    guard let shortcuts = getShortcuts() else {
+                    guard let shortcuts = getShortcutsOrCached() else {
                         return
                     }
                     mainActor {

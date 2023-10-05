@@ -66,14 +66,12 @@ class Optimisable {
         guard shortcutOutFile.exists else {
             return nil
         }
-        var outfile: Self?
-
-        if let size = shortcutOutFile.fileSize(), size < 4096,
-           let path = (try? String(contentsOfFile: shortcutOutFile.string))?.existingFilePath, self.path != path
+        var outfile: Self? = if let size = shortcutOutFile.fileSize(), size < 4096,
+                                let path = (try? String(contentsOfFile: shortcutOutFile.string))?.existingFilePath, self.path != path
         {
-            outfile = Self(path, id: id)
+            Self(path, id: id)
         } else {
-            outfile = Self(shortcutOutFile, id: id)
+            Self(shortcutOutFile, id: id)
         }
 
         guard let outfile, outfile.hash != hash else {

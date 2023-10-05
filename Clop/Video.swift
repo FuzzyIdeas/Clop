@@ -638,13 +638,12 @@ var processTerminated = Set<pid_t>()
     let pathString = video.path.string
     videoOptimiseDebouncers[pathString]?.cancel()
 
-    let changePlaybackSpeedFactor: Double
-    if let factor {
-        changePlaybackSpeedFactor = factor
+    let changePlaybackSpeedFactor: Double = if let factor {
+        factor
     } else if let currentFactor = opt(id ?? pathString)?.changePlaybackSpeedFactor {
-        changePlaybackSpeedFactor = min(currentFactor < 2 ? currentFactor + 0.25 : currentFactor + 1.0, 10)
+        min(currentFactor < 2 ? currentFactor + 0.25 : currentFactor + 1.0, 10)
     } else {
-        changePlaybackSpeedFactor = 1.25
+        1.25
     }
 
     let itemType = ItemType.from(filePath: video.path)
