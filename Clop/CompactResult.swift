@@ -221,7 +221,18 @@ struct CompactResult: View {
         .padding(.top, 3)
         .onHover(perform: updateHover(_:))
         .ifLet(optimiser.url, transform: { view, url in
-            view.draggable(url)
+            view
+                .onDrag {
+                    guard !preview else {
+                        return NSItemProvider()
+                    }
+
+                    log.debug("Dragging \(url)")
+                    if Defaults[.dismissCompactResultOnDrop] {
+                        optimiser.remove(after: 100, withAnimation: true)
+                    }
+                    return NSItemProvider(object: url as NSURL)
+                }
         })
     }
 
@@ -284,14 +295,28 @@ struct CompactResultList: View {
 
         VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
             FlipGroup(if: floatingResultsCorner.isTop) {
-                Button("Clear all") {
-                    OM.clearVisibleOptimisers(stop: true)
+                HStack {
+                    Button("Stop all") {
+                        OM.optimisers.filter(\.running).forEach { optimiser in
+                            optimiser.stop(remove: false)
+                            if optimiser.url == nil, let originalURL = optimiser.originalURL {
+                                optimiser.url = originalURL
+                            }
+                            if optimiser.oldBytes == 0, let path = (optimiser.url ?? optimiser.originalURL)?.existingFilePath, let size = path.fileSize() {
+                                optimiser.oldBytes = size
+                            }
+
+                            optimiser.running = false
+                        }
+                    }
+                    Button("Clear all") {
+                        OM.clearVisibleOptimisers(stop: true)
+                    }
                 }
                 .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
                 .font(.medium(11))
-                .opacity(hovering ? 1 : 0)
+                .opacity(hovering && showList ? 1 : 0)
                 .focusable(false)
-                .opacity(showList ? 1 : 0)
 
                 let opts = optimisers
                     .dropLast().enumerated()

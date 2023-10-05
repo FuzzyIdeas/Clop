@@ -437,7 +437,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     OM.removeVisibleOptimisers(after: removeAfterMs)
                 }
             }
-            OM.updateProgress()
+            mainActor { OM.updateProgress() }
         }
     }
     @Published var url: URL? {
@@ -623,7 +623,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         if running {
             for process in processes {
                 let pid = process.processIdentifier
-                mainAsync { processTerminated.insert(pid) }
+                mainActor { processTerminated.insert(pid) }
 
                 (process.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
                 (process.standardError as? Pipe)?.fileHandleForReading.readabilityHandler = nil
@@ -776,7 +776,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func finish(error: String, notice: String? = nil, keepFor removeAfterMs: Int = 2500) {
-        mainAsync { [weak self] in
+        mainActor { [weak self] in
             guard let self else { return }
 
             self.error = error
@@ -789,7 +789,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func finish(notice: String) {
-        mainAsync { [weak self] in
+        mainActor { [weak self] in
             guard let self else { return }
 
             self.notice = notice
@@ -800,7 +800,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func finish(oldBytes: Int, newBytes: Int, oldSize: CGSize? = nil, newSize: CGSize? = nil, removeAfterMs: Int? = nil) {
-        mainAsync { [weak self] in
+        mainActor { [weak self] in
             guard let self, !self.inRemoval else { return }
             self.stopRemover()
             withAnimation(.easeOut(duration: 0.5)) {
@@ -825,7 +825,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func resetRemover() {
-        mainAsync { [weak self] in
+        mainActor { [weak self] in
             guard let self, !self.inRemoval, self.remover != nil, let lastRemoveAfterMs = self.lastRemoveAfterMs else {
                 return
             }
@@ -835,7 +835,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func bringBack() {
-        mainAsync {
+        mainActor {
             self.stopRemover()
             OM.optimisers = OM.optimisers.with(self)
         }
@@ -844,7 +844,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     func remove(after ms: Int, withAnimation: Bool = false) {
         guard !inRemoval else { return }
 
-        mainAsync { [weak self] in
+        mainActor { [weak self] in
             guard let self else { return }
 
             self.lastRemoveAfterMs = ms
@@ -1164,13 +1164,12 @@ func optimiseURL(
             }
             clipResult = .image(img)
 
-            let result: Image?
-            if let scalingFactor, scalingFactor < 1 {
-                result = try await downscaleImage(img, toFactor: scalingFactor, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+            let result: Image? = if let scalingFactor, scalingFactor < 1 {
+                try await downscaleImage(img, toFactor: scalingFactor, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let cropSize, cropSize < img.size {
-                result = try await downscaleImage(img, toFactor: cropSize.area / img.size.area, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await downscaleImage(img, toFactor: cropSize.area / img.size.area, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
-                result = try await optimiseImage(
+                try await optimiseImage(
                     img,
                     copyToClipboard: copyToClipboard,
                     id: optimiser.id,
@@ -1188,13 +1187,12 @@ func optimiseURL(
         case .video:
             clipResult = .file(downloadPath)
 
-            let result: Video?
-            if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                result = try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+            let result: Video? = if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
+                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id), let size = video.size, cropSize < size {
-                result = try await downscaleVideo(video, id: optimiser.id, toFactor: cropSize.area / size.area, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await downscaleVideo(video, id: optimiser.id, toFactor: cropSize.area / size.area, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                result = try await changePlaybackSpeedVideo(
+                try await changePlaybackSpeedVideo(
                     video,
                     copyToClipboard: copyToClipboard,
                     id: optimiser.id,
@@ -1204,7 +1202,7 @@ func optimiseURL(
                     source: source
                 )
             } else {
-                result = try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
 
             if let result {
