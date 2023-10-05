@@ -117,70 +117,82 @@ struct RightClickMenuView: View {
     }
 }
 
-struct WorkflowMenu: View {
-    @ObservedObject var optimiser: Optimiser
-    @State var shortcutsMap: [String: [Shortcut]]?
-
+struct ShortcutChoiceMenu: View {
+    @ObservedObject var shortcutsManager = SHM
     @Environment(\.preview) var preview
 
+    var onShortcutChosen: ((Shortcut) -> Void)? = nil
+
     var body: some View {
-        if let shortcutsMap {
+        if let shortcutsMap = shortcutsManager.shortcutsMap {
             if shortcutsMap.isEmpty {
                 Text("Create a Shortcut in the Clop folder to have it appear here").disabled(true)
             } else {
                 if let clopShortcuts = shortcutsMap["Clop"] {
-                    ForEach(clopShortcuts) { shortcut in
-                        Button(shortcut.name) {
-                            switch optimiser.type {
-                            case .image:
-                                processImage(shortcut: shortcut)
-                            case .video:
-                                processVideo(shortcut: shortcut)
-                            case .pdf:
-                                processPDF(shortcut: shortcut)
-                            default:
-                                break
-                            }
-
-                        }
-                    }
+                    shortcutList(clopShortcuts)
                 } else {
                     Text("Create a Shortcut in the Clop folder to have it appear here").disabled(true)
                     let shorts = shortcutsMap.sorted { $0.key < $1.key }
 
                     ForEach(shorts, id: \.key) { folder, shortcuts in
-                        Section(folder) {
-                            ForEach(shortcuts) { shortcut in
-                                Button(shortcut.name) {
-                                    switch optimiser.type {
-                                    case .image:
-                                        processImage(shortcut: shortcut)
-                                    case .video:
-                                        processVideo(shortcut: shortcut)
-                                    case .pdf:
-                                        processPDF(shortcut: shortcut)
-                                    default:
-                                        break
-                                    }
-
-                                }
-                            }
-                        }
+                        Section(folder) { shortcutList(shortcuts) }
                     }
                 }
             }
         } else {
-            Text("Loading...").disabled(true)
+            Text("Loading...")
+                .disabled(true)
                 .onAppear {
                     guard !preview else { return }
-
-                    DispatchQueue.global().async {
-                        let shortcutsMap = getShortcutsMapOrCached()
-                        mainActor {
-                            self.shortcutsMap = shortcutsMap
-                        }
-                    }
+                    shortcutsManager.fetch()
                 }
+        }
+    }
+
+    @ViewBuilder func shortcutList(_ shortcuts: [Shortcut]) -> some View {
+        if let onShortcutChosen {
+            ForEach(shortcuts) { shortcut in
+                Button(shortcut.name) { onShortcutChosen(shortcut) }
+            }
+        } else {
+            ForEach(shortcuts) { shortcut in
+                Text(shortcut.name).tag(shortcut as Shortcut?)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+    }
+
+}
+
+struct WorkflowMenu: View {
+    @ObservedObject var optimiser: Optimiser
+    @ObservedObject var shortcutsManager = SHM
+
+    var body: some View {
+        ShortcutChoiceMenu { shortcut in
+            switch optimiser.type {
+            case .image:
+                processImage(shortcut: shortcut)
+            case .video:
+                processVideo(shortcut: shortcut)
+            case .pdf:
+                processPDF(shortcut: shortcut)
+            default:
+                break
+            }
+        }
+        .onChange(of: shortcutsManager.cacheIsValid) { cacheIsValid in
+            if !cacheIsValid, OM.optimisers.contains(optimiser) {
+                log.debug("Re-fetching Shortcuts from WorkflowMenu.onChange")
+                shortcutsManager.fetch()
+            }
+        }
+        .onAppear {
+            if !shortcutsManager.cacheIsValid {
+                log.debug("Re-fetching Shortcuts from WorkflowMenu.onAppear")
+                shortcutsManager.fetch()
+            }
         }
     }
 
