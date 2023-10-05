@@ -171,10 +171,26 @@ struct ShortcutsIcon: View {
     }
 }
 
+var shortcutCacheResetTask: DispatchWorkItem? {
+    didSet {
+        oldValue?.cancel()
+    }
+}
+import EonilFSEvents
+
+func startShortcutWatcher() {
+    try! EonilFSEvents.startWatching(paths: ["\(HOME)/Library/Shortcuts"], for: ObjectIdentifier(AppDelegate.instance)) { event in
+        guard !SWIFTUI_PREVIEW else { return }
+
+        shortcutCacheResetTask = mainAsyncAfter(ms: 1000) {
+            SHM.invalidateCache()
+        }
+    }
+}
+
 struct AutomationRowView: View {
     @Binding var shortcuts: [String: Shortcut]
 
-    var shortcutsList: [Shortcut]
     var icon: String
     var type: String
     var color: Color
@@ -188,7 +204,9 @@ struct AutomationRowView: View {
                     SwiftUI.Image(systemName: icon).frame(width: 14)
                     Text(type)
                 }.roundbg(radius: 6, color: color.opacity(0.1), noFG: true)
+
                 Spacer()
+
                 Menu(content: {
                     Button("From scratch") {
                         NSWorkspace.shared.open(
@@ -239,11 +257,7 @@ struct AutomationRowView: View {
                 content: {
                     Text("do nothing").tag(nil as Shortcut?)
                     Divider()
-                    ForEach(shortcutsList) { sh in
-                        Text("\(sh.name)").tag(sh as Shortcut?)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+                    ShortcutChoiceMenu()
                 },
                 label: {
                     HStack {
@@ -279,7 +293,7 @@ struct AutomationSettingsView: View {
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
 
-    @State var shortcuts: [Shortcut] = []
+    @ObservedObject var shortcutsManager = SHM
 
     var body: some View {
         let imageSources = ((enableClipboardOptimiser || optimiseImagePathClipboard) ? ["clipboard"] : []) + (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.imageDirs]
@@ -294,7 +308,6 @@ struct AutomationSettingsView: View {
                 if imageSources.isNotEmpty {
                     AutomationRowView(
                         shortcuts: $shortcutToRunOnImage,
-                        shortcutsList: shortcuts,
                         icon: "photo", type: "image",
                         color: .calmBlue,
                         sources: imageSources
@@ -303,7 +316,6 @@ struct AutomationSettingsView: View {
                 if videoSources.isNotEmpty {
                     AutomationRowView(
                         shortcuts: $shortcutToRunOnVideo,
-                        shortcutsList: shortcuts,
                         icon: "video", type: "video",
                         color: .red,
                         sources: videoSources
@@ -312,24 +324,27 @@ struct AutomationSettingsView: View {
                 if pdfSources.isNotEmpty {
                     AutomationRowView(
                         shortcuts: $shortcutToRunOnPdf,
-                        shortcutsList: shortcuts,
                         icon: "doc.text.magnifyingglass", type: "PDF",
                         color: .burntSienna,
                         sources: pdfSources
                     )
                 }
             }
-        }.padding(4)
-            .onAppear {
-                DispatchQueue.global().async {
-                    guard let shortcuts = getShortcutsOrCached() else {
-                        return
-                    }
-                    mainActor {
-                        self.shortcuts = shortcuts
-                    }
-                }
+        }
+        .padding(4)
+        .onChange(of: shortcutsManager.cacheIsValid) { cacheIsValid in
+            if !cacheIsValid {
+                log.debug("Re-fetching Shortcuts from AutomationSettingsView.onChange")
+                shortcutsManager.fetch()
             }
+        }
+        .onAppear {
+            if !shortcutsManager.cacheIsValid {
+                log.debug("Re-fetching Shortcuts from AutomationSettingsView.onAppear")
+                shortcutsManager.fetch()
+            }
+        }
+
     }
 }
 
@@ -340,3 +355,46 @@ struct AutomationSettingsView_Previews: PreviewProvider {
             .formStyle(.grouped)
     }
 }
+
+class ShortcutsManager: ObservableObject {
+    init() {
+        DispatchQueue.global().async { [self] in
+            let shortcutsMap = getShortcutsMapOrCached()
+            mainActor {
+                self.shortcutsMap = shortcutsMap
+            }
+        }
+    }
+
+    @Published var shortcutsMap: [String: [Shortcut]]? = nil
+    @Published var cacheIsValid = true
+
+    func invalidateCache() {
+        cacheIsValid = false
+        if shortcutsCacheByFolder.isNotEmpty {
+            shortcutsCacheByFolder = [:]
+        }
+        shortcutsMapCache = nil
+    }
+
+    func fetch() {
+        DispatchQueue.global().async { [self] in
+            let shortcutsMap = getShortcutsMapOrCached()
+            mainActor {
+                self.shortcutsMap = shortcutsMap
+                self.cacheIsValid = true
+            }
+        }
+    }
+
+    func refetch() {
+        if shortcutsCacheByFolder.isNotEmpty {
+            shortcutsCacheByFolder = [:]
+        }
+        shortcutsMapCache = nil
+
+        fetch()
+    }
+}
+
+let SHM = ShortcutsManager()
