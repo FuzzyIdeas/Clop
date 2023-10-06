@@ -38,7 +38,7 @@ struct RightClickMenuView: View {
     @ObservedObject var optimiser: Optimiser
 
     var body: some View {
-        Button(optimiser.running ? "Stop" : "Close") {
+        Button(optimiser.running ? "Stop" : "Dismiss") {
             hoveredOptimiserID = nil
             optimiser.stop(animateRemoval: true)
         }
@@ -61,6 +61,13 @@ struct RightClickMenuView: View {
                 optimiser.showInFinder()
             }
             .keyboardShortcut("f")
+
+            if let url = optimiser.url ?? optimiser.originalURL {
+                Button("Open with default app") {
+                    NSWorkspace.shared.open(url)
+                }
+                .keyboardShortcut("o")
+            }
 
             if let url = optimiser.url {
                 OpenWithMenuView(fileURL: url)

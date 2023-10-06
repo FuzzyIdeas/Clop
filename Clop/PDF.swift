@@ -80,7 +80,7 @@ let GS_ARGS: [String] = [
     "-dPDFNOCIDFALLBACK",
     "-dPDFNOCIDFALLBACK",
     "-dPDFSETTINGS=/screen",
-    "-dPDFSTOPONERROR",
+    // "-dPDFSTOPONERROR",
     "-dPreserveAnnots=true",
     "-dPreserveCopyPage=false",
     "-dPreserveDeviceN=false",

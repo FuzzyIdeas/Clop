@@ -11,7 +11,7 @@ struct FileNameField: View {
     @ViewBuilder var viewer: some View {
         let ext = optimiser.url?.filePath.extension ?? optimiser.originalURL?.filePath.extension ?? ""
         HStack {
-            (Text(tempName) + Text(".\(ext)").fontDesign(.monospaced))
+            (Text(tempName) + Text(".\(ext)").fontDesign(.monospaced).foregroundColor(.gray))
                 .hfill(.leading)
                 .frame(height: 16)
                 .lineLimit(1)

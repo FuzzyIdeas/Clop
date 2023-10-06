@@ -648,7 +648,8 @@ struct KeysSettingsView: View {
             Section(header: SectionHeader(title: "Action keys")) {
                 keyToggle(.minus, actionName: "Downscale", description: "Decrease resolution of the last image or video")
                 keyToggle(.x, actionName: "Speed up video", description: "Make video playback faster by dropping frames")
-                keyToggle(.delete, actionName: "Stop and Remove", description: "Stop the last running action and remove the floating result")
+                keyToggle(.delete, actionName: "Stop and Dismiss", description: "Stop the last running action and dismiss the floating result")
+                keyToggle(.escape, actionName: "Stop and Clear All", description: "Stop running optimisations and clear all floating results")
                 keyToggle(.equal, actionName: "Bring Back", description: "Bring back the last removed floating result")
                 keyToggle(.space, actionName: "QuickLook", description: "Preview the latest image or video")
                 keyToggle(.r, actionName: "Rename", description: "Rename the file of the latest image or video")
