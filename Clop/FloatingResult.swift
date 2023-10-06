@@ -164,7 +164,6 @@ struct FloatingResult: View {
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.showImages) var showImages
     @Default(.floatingResultsCorner) var floatingResultsCorner
-    @Default(.keyComboModifiers) var keyComboModifiers
     @Default(.neverShowProError) var neverShowProError
 
     @Environment(\.openWindow) var openWindow

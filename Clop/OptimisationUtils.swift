@@ -434,7 +434,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
                 let visibleOptimisers = OM.optimisers.filter { !$0.hidden }
                 if visibleOptimisers.allSatisfy({ !$0.running }) {
-                    OM.removeVisibleOptimisers(after: removeAfterMs)
+                    OM.removeVisibleOptimisers(after: removeAfterMs * 1000)
                 }
             }
             mainActor { OM.updateProgress() }
@@ -642,7 +642,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         notice = nil
 
         var path = url.filePath
-        if fromOriginal, path.hasOptimisationStatusXattr() {
+        if fromOriginal, !path.exists || path.hasOptimisationStatusXattr() {
             if let backup = path.backupPath, backup.exists {
                 path.restore(force: true)
             } else if let startingPath = startingURL?.existingFilePath, let originalPath = originalURL?.existingFilePath, originalPath != startingPath {
@@ -822,6 +822,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         self.inRemoval = false
         self.lastRemoveAfterMs = nil
         OM.remover = nil
+        OM.lastRemoveAfterMs = nil
     }
 
     func resetRemover() {
@@ -895,6 +896,8 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var failedCount = 0
     @Published var visibleCount = 0
 
+    var lastRemoveAfterMs: Int? = nil
+
     @Published var visibleOptimisers: Set<Optimiser> = [] {
         didSet {
             if visibleOptimisers.isEmpty {
@@ -957,14 +960,21 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
             progress = nil
             return
         }
+
         progress = Progress(totalUnitCount: visibleCount.i64)
         progress!.completedUnitCount = finishedCount.i64
     }
 
     func clearVisibleOptimisers(stop: Bool = false) {
+        remover = nil
+        lastRemoveAfterMs = nil
         hoveredOptimiserID = nil
+
         if stop {
-            optimisers.filter(\.running).forEach { $0.stop(remove: false) }
+            optimisers.filter(\.running).forEach {
+                $0.editingFilename = false
+                $0.stop(remove: false)
+            }
             removedOptimisers = removedOptimisers
                 .filter { o in !optimisers.contains(o) }
                 .with(optimisers.filter { !$0.hidden })
@@ -978,8 +988,24 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     }
 
     func removeVisibleOptimisers(after ms: Int) {
-        remover = mainAsyncAfter(ms: ms) {
+        lastRemoveAfterMs = ms
+        remover = mainAsyncAfter(ms: ms) { [self] in
+            guard hoveredOptimiserID == nil, !DM.dragging, !visibleOptimisers.contains(where: \.editingFilename) else {
+                self.resetRemover()
+                return
+            }
+
             self.clearVisibleOptimisers()
+        }
+    }
+
+    func resetRemover() {
+        mainActor { [self] in
+            guard remover != nil, let lastRemoveAfterMs else {
+                return
+            }
+
+            removeVisibleOptimisers(after: lastRemoveAfterMs)
         }
     }
 
@@ -1593,6 +1619,10 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             copyToClipboard: req.copyToClipboard,
                             source: req.source
                         )
+
+                        if let origURL = req.originalUrls[url] {
+                            await MainActor.run { opt(url.absoluteString)?.url = origURL }
+                        }
                     } catch let ClopError.alreadyOptimised(path) {
                         guard path.exists else {
                             throw ClopError.fileNotFound(path)
