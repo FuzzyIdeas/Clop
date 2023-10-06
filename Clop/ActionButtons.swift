@@ -14,7 +14,7 @@ struct CloseStopButton: View {
                 guard !preview else { return }
 
                 hoveredOptimiserID = nil
-                optimiser.stop(remove: !OM.compactResults, animateRemoval: true)
+                optimiser.stop(remove: !OM.compactResults || !optimiser.running, animateRemoval: true)
 
                 if optimiser.url == nil, let originalURL = optimiser.originalURL {
                     optimiser.url = originalURL
@@ -26,7 +26,7 @@ struct CloseStopButton: View {
             },
             label: { SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(9)) }
         )
-        .help((optimiser.running ? "Stop" : "Close") + " (\(keyComboModifiers.str)⌫)")
+        .help((optimiser.running ? "Stop" : "Dismiss") + " (\(keyComboModifiers.str)⌫)")
     }
 }
 
@@ -245,9 +245,6 @@ struct ActionButtons: View {
         }
         .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary.opacity(0.9), width: size, height: size, circle: true))
         .animation(.fastSpring, value: optimiser.aggresive)
-        .hfill(.leading)
-        .roundbg(radius: 10, verticalPadding: 3, horizontalPadding: 2, color: .primary.opacity(colorScheme == .dark ? 0.05 : 0.13))
-        .focusable(false)
         .onHover { hovering = $0 }
     }
 }
