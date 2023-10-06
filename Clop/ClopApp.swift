@@ -173,6 +173,9 @@ class AppDelegate: LowtechProAppDelegate {
         }
 
         switch key {
+        case .comma:
+            WM.open("settings")
+            focus()
         case .minus where opt.downscaleFactor > 0.1:
             opt.downscale()
         case .x where opt.changePlaybackSpeedFactor < 10 && opt.canChangePlaybackSpeed():
@@ -193,6 +196,9 @@ class AppDelegate: LowtechProAppDelegate {
             opt.save()
         case .f:
             opt.showInFinder()
+        case .o:
+            guard let url = opt.url ?? opt.originalURL else { return }
+            NSWorkspace.shared.open(url)
         case .a where !opt.aggresive:
             if opt.downscaleFactor < 1 {
                 opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
@@ -207,6 +213,8 @@ class AppDelegate: LowtechProAppDelegate {
     @MainActor
     func handleHotkey(_ key: SauceKey) {
         switch key {
+        case .escape:
+            OM.clearVisibleOptimisers(stop: true)
         case .minus:
             if let opt = OM.current {
                 guard opt.downscaleFactor > 0.1 else { return }

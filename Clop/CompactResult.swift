@@ -12,18 +12,20 @@ struct CompactResult: View {
 
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.neverShowProError) var neverShowProError
-
-    @Environment(\.openWindow) var openWindow
-
     @Default(.showCompactImages) var showCompactImages
 
+    @Environment(\.openWindow) var openWindow
     @Environment(\.preview) var preview
+    @Environment(\.openURL) var openURL
+    @Environment(\.colorScheme) var colorScheme
+
+    var isEven: Bool
 
     @ViewBuilder var pathView: some View {
         if let url = optimiser.url, url.isFileURL {
             Text(url.filePath.shellString)
                 .medium(9)
-                .foregroundColor(.secondary.opacity(0.75))
+                .foregroundColor(.secondary)
                 .lineLimit(1)
                 .allowsTightening(true)
                 .truncationMode(.middle)
@@ -34,7 +36,7 @@ struct CompactResult: View {
         if let url = optimiser.url, url.isFileURL {
             Text(url.lastPathComponent)
                 .medium(9)
-                .foregroundColor(.secondary.opacity(0.75))
+                .foregroundColor(.secondary)
                 .lineLimit(1)
                 .frame(width: 120, alignment: .trailing)
                 .allowsTightening(true)
@@ -87,7 +89,7 @@ struct CompactResult: View {
                 }
             }
             .font(.mono(11, weight: .medium))
-            .foregroundColor(.secondary.opacity(0.7))
+            .foregroundColor(.secondary)
             .lineLimit(1)
             .fixedSize()
         }
@@ -183,6 +185,7 @@ struct CompactResult: View {
             .allowsTightening(true)
         }
     }
+
     var body: some View {
         HStack {
             thumbnail
@@ -190,7 +193,7 @@ struct CompactResult: View {
             if optimiser.running {
                 progressView
                     .controlSize(.small)
-                    .lineLimit(1)
+                    .font(.medium(12)).lineLimit(1)
             } else if optimiser.error != nil {
                 errorView
             } else if optimiser.notice != nil {
@@ -201,6 +204,7 @@ struct CompactResult: View {
                         FileNameField(optimiser: optimiser)
                             .foregroundColor(.primary)
                             .font(.medium(12)).lineLimit(1).fixedSize()
+                            .frame(width: THUMB_SIZE.width * 0.7, alignment: .leading)
                     }
                     HStack {
                         fileSizeDiff
@@ -209,13 +213,18 @@ struct CompactResult: View {
                     }
                     ActionButtons(optimiser: optimiser, size: 18)
                         .padding(.top, 2)
-                        .opacity(hovering ? 1 : 0.3)
+                        .hfill(.leading)
+                        .roundbg(
+                            radius: 10, verticalPadding: 3, horizontalPadding: 2,
+                            color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13))
+                        )
+                        .focusable(false)
                 }
             }
 
             Spacer()
             CloseStopButton(optimiser: optimiser)
-                .buttonStyle(FlatButton(color: .primary.opacity(0.13), textColor: Color.mauvish.opacity(0.8), circle: true))
+                .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.08) : (isEven ? 0.04 : 0.13)), textColor: Color.mauvish.opacity(0.8), circle: true))
                 .focusable(false)
         }
         .padding(.top, 3)
@@ -233,6 +242,7 @@ struct CompactResult: View {
                     }
                     return NSItemProvider(object: url as NSURL)
                 }
+
         })
     }
 
@@ -277,7 +287,7 @@ struct OverlayMessageView: View {
 
 struct CompactResultList: View {
     @State var hovering = false
-    @State var showList = true
+    @State var showList = false
     var optimisers: [Optimiser]
     var progress: Progress?
 
@@ -287,8 +297,10 @@ struct CompactResultList: View {
 
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showCompactImages) var showCompactImages
+    @Default(.keyComboModifiers) var keyComboModifiers
 
     @Environment(\.preview) var preview
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
@@ -312,6 +324,7 @@ struct CompactResultList: View {
                     Button("Clear all") {
                         OM.clearVisibleOptimisers(stop: true)
                     }
+                    .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
                 }
                 .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
                 .font(.medium(11))
@@ -326,16 +339,17 @@ struct CompactResultList: View {
                         VStack(spacing: 0) {
                             ForEach(opts, id: \.opt.id) { optimiser, isLast, isEven in
                                 ZStack {
-                                    CompactResult(optimiser: optimiser)
+                                    CompactResult(optimiser: optimiser, isEven: isEven)
                                     OverlayMessageView(optimiser: optimiser, color: .secondary)
                                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 }
-                                .padding(.horizontal, 10)
+                                .padding(.trailing, 4)
+                                .padding(.leading, 8)
                                 .padding(.vertical, 4)
-                                .background(.primary.opacity(isEven ? 0.15 : 0))
+                                .background(.primary.opacity(isEven ? (colorScheme == .dark ? 0.05 : 0.15) : 0))
                             }
                         }
-                        .padding(.bottom, progress == nil ? 0 : 16)
+                        .padding(.bottom, progress == nil ? 0 : 18)
                     }
                     .padding(.vertical, 5)
                     .frame(width: THUMB_SIZE.width + (showCompactImages ? 50 : 0), height: min(360, (optimisers.count * 70).cg), alignment: .center)
@@ -356,7 +370,7 @@ struct CompactResultList: View {
                 .opacity(showList ? 1 : 0)
                 .allowsHitTesting(showList)
 
-                ToggleCompactResultListButton(showList: $showList.animation(), badge: optimisers.count.s)
+                ToggleCompactResultListButton(showList: $showList.animation(), badge: optimisers.count.s, progress: progress)
                     .offset(x: isTrailing ? 10 : -10)
             }
         }
@@ -368,12 +382,16 @@ struct CompactResultList: View {
                 hovering = hovered
             }
         }
+        .onAppear {
+            showList = preview
+        }
     }
 }
 
 struct ToggleCompactResultListButton: View {
     @Binding var showList: Bool
     var badge: String
+    var progress: Progress?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -387,18 +405,35 @@ struct ToggleCompactResultListButton: View {
                     },
                     label: {
                         ZStack(alignment: floatingResultsCorner.isTrailing ? .topLeading : .topTrailing) {
-                            SwiftUI.Image("clop")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 30, height: 30, alignment: .center)
+                            if progress == nil || showList {
+                                SwiftUI.Image("clop")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 32, height: 32, alignment: .center)
+                                    .opacity(hovering ? 1 : 0.3)
+                            }
                             if !showList {
-                                Text(badge)
-                                    .round(10)
-                                    .foregroundColor(.white)
-                                    .padding(3)
-                                    .background(Circle().fill(Color.darkGray))
-                                    .offset(x: 0, y: -6)
-                                    .opacity(0.75)
+                                if let progress {
+                                    ZStack {
+                                        ProgressView(value: progress.fractionCompleted, total: 1)
+                                            .progressViewStyle(.circular)
+                                            .controlSize(.regular)
+                                            .font(.regular(1))
+                                            .background(Circle().fill(Color.primary.opacity(0.5)))
+                                        Text((progress.totalUnitCount - progress.completedUnitCount).s)
+                                            .round(13)
+                                            .foregroundColor(.inverted)
+                                    }
+                                    .opacity(hovering ? 1 : 0.6)
+                                } else {
+                                    Text(badge)
+                                        .round(10)
+                                        .foregroundColor(.white)
+                                        .padding(3)
+                                        .background(Circle().fill(Color.darkGray))
+                                        .opacity(0.75)
+
+                                }
                             }
                         }
                     }
@@ -487,7 +522,7 @@ struct CompactPreview: View {
             pdfEnd,
             videoToGIF,
         ]
-        o.updateProgress()
+        mainActor { o.updateProgress() }
         return o
     }()
 
