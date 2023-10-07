@@ -72,14 +72,16 @@ struct FloatingResultContainer: View {
     var body: some View {
         let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
         VStack(spacing: 10) {
-            if (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults {
-                CompactResultList(optimisers: optimisers, progress: om.progress, doneCount: om.doneCount, failedCount: om.failedCount, visibleCount: om.visibleCount).preview(isPreview)
-                    .padding()
-                    .onAppear {
-                        om.compactResults = true
-                    }
-            } else {
-                FloatingResultList(optimisers: optimisers).preview(isPreview)
+            if optimisers.isNotEmpty {
+                if (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults {
+                    CompactResultList(optimisers: optimisers, progress: om.progress, doneCount: om.doneCount, failedCount: om.failedCount, visibleCount: om.visibleCount).preview(isPreview)
+                        .padding()
+                        .onAppear {
+                            om.compactResults = true
+                        }
+                } else {
+                    FloatingResultList(optimisers: optimisers).preview(isPreview)
+                }
             }
 
             if !isPreview, dragManager.dragging {
@@ -88,7 +90,8 @@ struct FloatingResultContainer: View {
                         .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
                     )
             }
-        }.onHover { hovering in
+        }
+        .onHover { hovering in
             if !hovering {
                 hoveredOptimiserID = nil
             }

@@ -117,6 +117,121 @@ Paper sizes:
                   "Crown Octavo"  "Imperial Octavo"  "Super Octavo"
 """
 
+func getURLsFromFolder(_ folder: URL, recursive: Bool) -> [URL] {
+    guard let enumerator = FileManager.default.enumerator(
+        at: folder,
+        includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey],
+        options: [.skipsPackageDescendants]
+    ) else {
+        return []
+    }
+
+    var urls: [URL] = []
+
+    for case let fileURL as URL in enumerator {
+        guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey]),
+              let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
+        else {
+            continue
+        }
+
+        if isDirectory {
+            if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
+                enumerator.skipDescendants()
+            }
+            continue
+        }
+
+        if !isRegularFile {
+            continue
+        }
+
+        if !isURLOptimisable(fileURL, type: resourceValues.contentType) {
+            continue
+        }
+        urls.append(fileURL)
+    }
+    return urls
+}
+
+func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool) throws -> [URL] {
+    var dirs: [URL] = []
+    var urls: [URL] = try items.compactMap { item in
+        let url = item.contains(":") ? (URL(string: item) ?? URL(fileURLWithPath: item)) : URL(fileURLWithPath: item)
+        var isDir = ObjCBool(false)
+
+        if url.isFileURL, !FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) {
+            if skipErrors {
+                return nil
+            }
+
+            throw ValidationError("File \(url.path) does not exist")
+        }
+
+        if isDir.boolValue {
+            dirs.append(url)
+            return nil
+        }
+        return url
+    }.filter { isURLOptimisable($0) }
+    urls += dirs.flatMap { getURLsFromFolder($0, recursive: recursive) }
+
+    ensureAppIsRunning()
+    sleep(1)
+
+    guard isClopRunning() else {
+        Clop.exit(withError: CLIError.appNotRunning)
+    }
+    return urls
+}
+
+func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, operation: String, _ requestCreator: () -> OptimisationRequest) throws {
+    if !async {
+        progressPrinter = ProgressPrinter(urls: urls)
+        Task.init {
+            await progressPrinter!.startResponsesThread()
+
+            guard showProgress else { return }
+            await progressPrinter!.printProgress()
+        }
+    }
+
+    currentRequestIDs = urls.map(\.absoluteString)
+    let req = requestCreator()
+    signal(SIGINT, stopCurrentRequests(_:))
+    signal(SIGTERM, stopCurrentRequests(_:))
+
+    if showProgress, !async, let progressPrinter {
+        for url in urls where url.isFileURL {
+            Task.init { await progressPrinter.startProgressListener(url: url) }
+        }
+    }
+
+    guard !async else {
+        try OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
+        print("Queued \(urls.count) items for \(operation)")
+        if !gui {
+            printerr("Use the `--gui` flag to see progress")
+        }
+        Clop.exit()
+    }
+
+    let respData = try OPTIMISATION_PORT.sendAndWait(data: req.jsonData)
+    guard respData != nil else {
+        Clop.exit(withError: CLIError.optimisationError)
+    }
+
+    awaitSync {
+        await progressPrinter!.waitUntilDone()
+
+        if showProgress {
+            await progressPrinter!.printProgress()
+            fflush(stderr)
+        }
+        await progressPrinter!.printResults()
+    }
+}
+
 struct Clop: ParsableCommand {
     struct CropPdf: ParsableCommand {
         @Option(help: "Crops pages to fit the screen of a specific device (e.g. iPad Air)")
@@ -247,6 +362,102 @@ struct Clop: ParsableCommand {
         }
     }
 
+    struct Crop: ParsableCommand {
+        @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
+        var gui = false
+
+        @Flag(name: .shortAndLong, inversion: .prefixedNo, help: "Print progress to stderr")
+        var progress = true
+
+        @Flag(name: .long, help: "Process files and items in the background")
+        var async = false
+
+        @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
+        var recursive = false
+
+        @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
+        var copy = false
+
+        @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
+        var skipErrors = false
+
+        @Option(help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50")
+        var size: NSSize
+
+        var urls: [URL] = []
+
+        @Argument(help: "Images, videos, PDFs or URLs to crop (can be a folder)")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+        }
+
+        mutating func run() throws {
+            try sendRequest(urls: urls, showProgress: progress, async: async, gui: gui, operation: "cropping") {
+                OptimisationRequest(
+                    id: String(Int.random(in: 1000 ... 100_000)),
+                    urls: urls,
+                    size: size,
+                    downscaleFactor: 0.9,
+                    changePlaybackSpeedFactor: nil,
+                    hideFloatingResult: !gui,
+                    copyToClipboard: copy,
+                    aggressiveOptimisation: false,
+                    source: "cli"
+                )
+            }
+        }
+    }
+
+    struct Downscale: ParsableCommand {
+        @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
+        var gui = false
+
+        @Flag(name: .shortAndLong, inversion: .prefixedNo, help: "Print progress to stderr")
+        var progress = true
+
+        @Flag(name: .long, help: "Process files and items in the background")
+        var async = false
+
+        @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
+        var recursive = false
+
+        @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
+        var copy = false
+
+        @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
+        var skipErrors = false
+
+        @Option(help: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
+        var factor = 0.5
+
+        var urls: [URL] = []
+
+        @Argument(help: "Images, videos or URLs to downscale (can be a folder)")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+        }
+
+        mutating func run() throws {
+            try sendRequest(urls: urls, showProgress: progress, async: async, gui: gui, operation: "downscaling") {
+                OptimisationRequest(
+                    id: String(Int.random(in: 1000 ... 100_000)),
+                    urls: urls,
+                    size: nil,
+                    downscaleFactor: factor,
+                    changePlaybackSpeedFactor: nil,
+                    hideFloatingResult: !gui,
+                    copyToClipboard: copy,
+                    aggressiveOptimisation: false,
+                    source: "cli"
+                )
+            }
+        }
+    }
+
     struct Optimise: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
@@ -283,130 +494,23 @@ struct Clop: ParsableCommand {
         @Argument(help: "Images, videos, PDFs or URLs to optimise (can be a folder)")
         var items: [String] = []
 
-        func getURLsFromFolder(_ folder: URL) -> [URL] {
-            guard let enumerator = FileManager.default.enumerator(
-                at: folder,
-                includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey],
-                options: [.skipsPackageDescendants]
-            ) else {
-                return []
-            }
-
-            var urls: [URL] = []
-
-            for case let fileURL as URL in enumerator {
-                guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey]),
-                      let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
-                else {
-                    continue
-                }
-
-                if isDirectory {
-                    if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
-                        enumerator.skipDescendants()
-                    }
-                    continue
-                }
-
-                if !isRegularFile {
-                    continue
-                }
-
-                if !isURLOptimisable(fileURL, type: resourceValues.contentType) {
-                    continue
-                }
-                urls.append(fileURL)
-            }
-            return urls
-        }
-
         mutating func validate() throws {
-            var dirs: [URL] = []
-            urls = try items.compactMap { item in
-                let url = item.contains(":") ? (URL(string: item) ?? URL(fileURLWithPath: item)) : URL(fileURLWithPath: item)
-                var isDir = ObjCBool(false)
-
-                if url.isFileURL, !FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) {
-                    if skipErrors {
-                        return nil
-                    }
-
-                    throw ValidationError("File \(url.path) does not exist")
-                }
-
-                if isDir.boolValue {
-                    dirs.append(url)
-                    return nil
-                }
-                return url
-            }.filter { isURLOptimisable($0) }
-            urls += dirs.flatMap(getURLsFromFolder)
-
-            ensureAppIsRunning()
-            sleep(1)
-
-            guard isClopRunning() else {
-                Clop.exit(withError: CLIError.appNotRunning)
-            }
+            urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
         }
 
         mutating func run() throws {
-            let urls = urls
-            let showProgress = progress
-
-            if !async {
-                progressPrinter = ProgressPrinter(urls: urls)
-                Task.init {
-                    await progressPrinter!.startResponsesThread()
-
-                    guard showProgress else { return }
-                    await progressPrinter!.printProgress()
-                }
-            }
-
-            currentRequestIDs = urls.map(\.absoluteString)
-            let req = OptimisationRequest(
-                id: String(Int.random(in: 1000 ... 100_000)),
-                urls: urls,
-                size: crop,
-                downscaleFactor: downscaleFactor,
-                changePlaybackSpeedFactor: changePlaybackSpeedFactor,
-                hideFloatingResult: !gui,
-                copyToClipboard: copy,
-                aggressiveOptimisation: aggressive,
-                source: "cli"
-            )
-            signal(SIGINT, stopCurrentRequests(_:))
-            signal(SIGTERM, stopCurrentRequests(_:))
-
-            if progress, !async, let progressPrinter {
-                for url in urls where url.isFileURL {
-                    Task.init { await progressPrinter.startProgressListener(url: url) }
-                }
-            }
-
-            guard !async else {
-                try OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
-                print("Queued \(urls.count) items for optimisation")
-                if !gui {
-                    printerr("Use the `--gui` flag to see progress")
-                }
-                Clop.exit()
-            }
-
-            let respData = try OPTIMISATION_PORT.sendAndWait(data: req.jsonData)
-            guard respData != nil else {
-                Clop.exit(withError: CLIError.optimisationError)
-            }
-
-            awaitSync {
-                await progressPrinter!.waitUntilDone()
-
-                if showProgress {
-                    await progressPrinter!.printProgress()
-                    fflush(stderr)
-                }
-                await progressPrinter!.printResults()
+            try sendRequest(urls: urls, showProgress: progress, async: async, gui: gui, operation: "optimisation") {
+                OptimisationRequest(
+                    id: String(Int.random(in: 1000 ... 100_000)),
+                    urls: urls,
+                    size: crop,
+                    downscaleFactor: downscaleFactor,
+                    changePlaybackSpeedFactor: changePlaybackSpeedFactor,
+                    hideFloatingResult: !gui,
+                    copyToClipboard: copy,
+                    aggressiveOptimisation: aggressive,
+                    source: "cli"
+                )
             }
         }
     }
@@ -415,6 +519,8 @@ struct Clop: ParsableCommand {
         abstract: "Clop",
         subcommands: [
             Optimise.self,
+            Crop.self,
+            Downscale.self,
             CropPdf.self,
         ]
     )

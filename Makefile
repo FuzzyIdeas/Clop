@@ -8,7 +8,7 @@ endef
 BETA=
 
 ifeq (, $(VERSION))
-VERSION=$(shell rg -o --no-filename 'MARKETING_VERSION = ([^;]+).+' -r '$$1' *.xcodeproj/project.pbxproj | head -1)
+VERSION=$(shell rg -o --no-filename 'MARKETING_VERSION = ([^;]+).+' -r '$$1' *.xcodeproj/project.pbxproj | head -1 | sd 'b\d+' '')
 endif
 
 ifneq (, $(BETA))
@@ -23,9 +23,10 @@ DERIVED_DATA_DIR=$(shell ls -td $$HOME/Library/Developer/Xcode/DerivedData/Clop-
 
 print-%  : ; @echo $* = $($*)
 
+build: SHELL=fish
 build:
-	make-app --build --devid --dmg -s Clop -c Release --version $(VERSION) \
-		&& xcp /tmp/apps/Clop-$(VERSION).dmg Releases/
+	make-app --build --devid --dmg -s Clop -c Release --version $(FULL_VERSION)
+	xcp /tmp/apps/Clop-$(FULL_VERSION).dmg Releases/
 
 upload:
 	rsync -avzP Releases/*.{delta,dmg} hetzner:/static/lowtechguys/releases/ || true
@@ -43,12 +44,12 @@ appcast: Releases/Clop-$(FULL_VERSION).html
 	rm Releases/Clop.dmg || true
 ifneq (, $(BETA))
 	rm Releases/Clop$(FULL_VERSION)*.delta >/dev/null 2>/dev/null || true
-	generate_appcast --channel beta --maximum-versions 10 --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
+	generate_appcast --channel beta --maximum-versions 10 --maximum-deltas 5 --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
 else
 	rm Releases/Clop$(FULL_VERSION)*.delta >/dev/null 2>/dev/null || true
 	rm Releases/Clop-*b*.dmg >/dev/null 2>/dev/null || true
 	rm Releases/Clop*b*.delta >/dev/null 2>/dev/null || true
-	generate_appcast --maximum-versions 10 --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
+	generate_appcast --maximum-versions 10 --maximum-deltas 5 --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
 	cp Releases/Clop-$(FULL_VERSION).dmg Releases/Clop.dmg
 endif
 

@@ -177,6 +177,7 @@ class PDF: Optimisable {
 
     lazy var document: PDFDocument? = PDFDocument(url: path.url)
 
+    @discardableResult
     func cropTo(aspectRatio: Double, saveTo newPath: FilePath? = nil) -> Bool {
         guard let document else {
             return false

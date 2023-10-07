@@ -180,7 +180,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Unknown image type"
         case .videoError:
             "Video error"
-        case let .pdfError:
+        case .pdfError:
             "PDF error"
         case .downloadError:
             "Download failed"

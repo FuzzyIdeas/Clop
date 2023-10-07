@@ -27,6 +27,8 @@ struct MenuView: View {
     @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
     @Default(.useAggresiveOptimisationMP4) var useAggresiveOptimisationMP4
 
+    @State var cliInstallResult: String?
+
     @ViewBuilder var proErrors: some View {
         Section("Skipped items because of free version limits") {
             ForEach(om.skippedBecauseNotPro, id: \.self) { url in
@@ -97,6 +99,23 @@ struct MenuView: View {
             }
             .keyboardShortcut("=", modifiers: keyComboModifiers.eventModifiers)
             .disabled(om.removedOptimisers.isEmpty)
+        }
+
+        Section("Automation") {
+            Button("Install command-line integration") {
+                do {
+                    try installCLIBinary()
+                    cliInstallResult = "CLI installed (type `clop` in a new terminal)"
+                } catch let error as InstallCLIError {
+                    cliInstallResult = error.message
+                } catch {
+                    cliInstallResult = "Installation failed"
+                }
+                showNotice(cliInstallResult!)
+            }
+            if let cliInstallResult {
+                Text(cliInstallResult).disabled(true)
+            }
         }
 
         if let pro = pm.pro, !pro.active, !om.skippedBecauseNotPro.isEmpty {
