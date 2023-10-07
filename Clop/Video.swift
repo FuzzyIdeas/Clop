@@ -171,11 +171,9 @@ class Video: Optimisable {
         }
 
         var filters = [String]()
-        if let size = newSize {
-            filters.append("scale=w=\(size.width.i.s):h=\(size.height.i.s)")
-        } else if let cropSize, let fromSize = size {
+        if let cropSize, let fromSize = size {
             let cropString: String
-            if cropSize.width < cropSize.height {
+            if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
                 let newAspectRatio = cropSize.width / cropSize.height
                 let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
                 cropString = "in_w-\(widthDiff * 2):in_h:\(widthDiff):0"
@@ -186,6 +184,8 @@ class Video: Optimisable {
             }
 
             filters += ["crop=\(cropString)", "scale=w=\(cropSize.width.i.s):h=\(cropSize.height.i.s)"]
+        } else if let size = newSize {
+            filters.append("scale=w=\(size.width.i.s):h=\(size.height.i.s)")
         }
 
         if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor > 0 {

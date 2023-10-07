@@ -237,11 +237,7 @@ struct ActionButtons: View {
             ShowInFinderButton(optimiser: optimiser)
             SaveAsButton(optimiser: optimiser)
             CopyToClipboardButton(optimiser: optimiser)
-            if hovering {
-                RightClickButton(optimiser: optimiser)
-            } else {
-                Button(action: {}, label: { SwiftUI.Image(systemName: "line.3.horizontal").font(.heavy(9)) })
-            }
+            RightClickButton(optimiser: optimiser)
         }
         .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary.opacity(0.9), width: size, height: size, circle: true))
         .animation(.fastSpring, value: optimiser.aggresive)
