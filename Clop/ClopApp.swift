@@ -56,7 +56,7 @@ class AppDelegate: LowtechProAppDelegate {
     var lastDragChangeCount = NSPasteboard(name: .drag).changeCount
 
     @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
-        guard let event, NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 2 else {
+        guard NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 2 else {
             return
         }
 
@@ -124,7 +124,7 @@ class AppDelegate: LowtechProAppDelegate {
         }
     }
     @MainActor lazy var stopDragMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-        guard let event, event.modifierFlags.contains(.option), !DM.dragHovering else { return }
+        guard event.modifierFlags.contains(.option), !DM.dragHovering else { return }
 
         DM.dragging = false
     }
@@ -322,6 +322,7 @@ class AppDelegate: LowtechProAppDelegate {
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
+            handleCLIInstall()
             unarchiveBinaries()
             print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
             shouldRestartOnCrash = true
@@ -788,9 +789,6 @@ struct ClopApp: App {
     var body: some Scene {
         Window("Settings", id: "settings") {
             SettingsView()
-                .windowModifier { window in
-                    window.isMovableByWindowBackground = true
-                }
                 .frame(minWidth: 850, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
         .windowStyle(.hiddenTitleBar)

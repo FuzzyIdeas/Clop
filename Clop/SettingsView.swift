@@ -869,6 +869,9 @@ struct FloatingSettingsView: View {
         }
         .hfill()
         .padding(.top)
+        .onAppear {
+            compact = alwaysShowCompactResults
+        }
         .onChange(of: alwaysShowCompactResults) { value in
             compact = value
         }
