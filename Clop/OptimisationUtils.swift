@@ -178,6 +178,7 @@ var hoveredOptimiserID: String? {
         hoveredOptimiserIDTask = mainAsyncAfter(ms: 200) {
             mainActor {
                 guard hoveredOptimiserID != nil else {
+                    log.debug("Hovered optimiser ID is nil, stopping hover hotkeys")
                     KM.secondaryKeys = []
                     KM.reinitHotkeys()
                     hoverKeyGlobalMonitor.stop()
@@ -185,6 +186,7 @@ var hoveredOptimiserID: String? {
                     return
                 }
 
+                log.debug("Hovered optimiser ID is \(hoveredOptimiserID!), starting hover hotkeys")
                 KM.secondaryKeys = DEFAULT_HOVER_KEYS
                 KM.reinitHotkeys()
                 hoverKeyGlobalMonitor.start()
@@ -197,10 +199,6 @@ var hoveredOptimiserID: String? {
 @MainActor var lastModifierFlags: NSEvent.ModifierFlags = []
 @MainActor var possibleShiftQuickLook = true
 @MainActor var hoverKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-    guard let event, let opt = OM.hovered, !opt.editingFilename else {
-        return
-    }
-
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastModifierFlags = flags
@@ -214,15 +212,14 @@ var hoveredOptimiserID: String? {
     }
 
     if possibleShiftQuickLook, lastModifierFlags == [.shift], flags == [] {
-        opt.quicklook()
+        if QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared(), ql.isVisible {
+            QLPreviewPanel.shared().close()
+        } else if let opt = OM.hovered, !opt.editingFilename {
+            opt.quicklook()
+        }
     }
-    lastModifierFlags = flags
 }
 @MainActor var hoverKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
-    guard let opt = OM.hovered, !opt.editingFilename else {
-        return event
-    }
-
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastModifierFlags = flags
@@ -236,7 +233,11 @@ var hoveredOptimiserID: String? {
     }
 
     if possibleShiftQuickLook, lastModifierFlags == [.shift], flags == [] {
-        opt.quicklook()
+        if QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared(), ql.isVisible {
+            QLPreviewPanel.shared().close()
+        } else if let opt = OM.hovered, !opt.editingFilename {
+            opt.quicklook()
+        }
         return nil
     }
     return event
@@ -1453,8 +1454,14 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     copyToClipboard: Bool,
     source: String? = nil
 ) async throws -> ClipboardType? {
-    let nope = { (notice: String) in
-        let optimiser = OM.optimiser(id: id, type: .unknown, operation: "", hidden: hideFloatingResult)
+    func nope(notice: String, thumbnail: NSImage? = nil, url: URL? = nil, type: ItemType? = nil) {
+        let optimiser = OM.optimiser(id: id, type: type ?? .unknown, operation: "", hidden: hideFloatingResult)
+        if let thumbnail {
+            optimiser.thumbnail = thumbnail
+        }
+        if let url {
+            optimiser.url = url
+        }
         optimiser.finish(notice: notice)
     }
 
@@ -1483,7 +1490,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     case let .file(path):
         if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
             guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
-                nope("Already optimised")
+                nope(notice: "Already optimised", thumbnail: img.image, url: path.url, type: .image(img.type))
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
@@ -1508,7 +1515,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             return .image(result)
         } else if path.isVideo {
             guard aggressiveOptimisation == true || changePlaybackSpeedFactor != nil || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
-                nope("Already optimised")
+                nope(notice: "Already optimised", url: path.url, type: .video(.mpeg4Movie))
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
@@ -1554,7 +1561,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             return .file(result.path)
         } else if path.isPDF {
             guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
-                nope("Already optimised")
+                nope(notice: "Already optimised", url: path.url, type: .pdf)
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
@@ -1563,7 +1570,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             guard let result else { return nil }
             return .file(result.path)
         } else {
-            nope("Clipboard contents can't be optimised")
+            nope(notice: "Clipboard contents can't be optimised")
             throw ClopError.unknownType
         }
     case let .url(url):
@@ -1581,7 +1588,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         }
         return result
     default:
-        nope("Clipboard contents can't be optimised")
+        nope(notice: "Clipboard contents can't be optimised")
         throw ClopError.unknownType
     }
 }

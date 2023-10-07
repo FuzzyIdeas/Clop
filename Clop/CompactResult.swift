@@ -69,10 +69,10 @@ struct CompactResult: View {
                     nameView
                 }
                 progressURLView
-                ProgressView(optimiser.progress).progressViewStyle(.linear)
+                ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
             } else {
                 ZStack(alignment: .topTrailing) {
-                    ProgressView(optimiser.progress).progressViewStyle(.linear)
+                    ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
                     nameView.offset(y: 2)
                 }
                 progressURLView.padding(.top, 5)
@@ -159,18 +159,19 @@ struct CompactResult: View {
     }
     @ViewBuilder var thumbnail: some View {
         if showCompactImages {
-            if let image = optimiser.thumbnail {
-                SwiftUI.Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            } else {
-                SwiftUI.Image(systemName: optimiser.type.icon)
-                    .font(.system(size: 22))
-                    .frame(width: 40)
-                    .foregroundColor(.secondary.opacity(0.5))
+            VStack {
+                if let image = optimiser.thumbnail {
+                    SwiftUI.Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    SwiftUI.Image(systemName: optimiser.type.icon)
+                        .font(.system(size: 22))
+                        .foregroundColor(.secondary.opacity(0.5))
+                }
             }
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
     @ViewBuilder var noticeView: some View {
@@ -181,6 +182,7 @@ struct CompactResult: View {
                         .font(.system(size: 12))
                         .lineLimit(2)
                 }
+                pathView
             }
             .allowsTightening(true)
         }
@@ -219,6 +221,7 @@ struct CompactResult: View {
                             color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13))
                         )
                         .focusable(false)
+                        .frame(height: 26)
                 }
             }
 
@@ -241,6 +244,8 @@ struct CompactResult: View {
                         optimiser.remove(after: 100, withAnimation: true)
                     }
                     return NSItemProvider(object: url as NSURL)
+                } preview: {
+                    thumbnail
                 }
 
         })
@@ -281,7 +286,6 @@ struct OverlayMessageView: View {
                     }
                 }
         }
-
     }
 }
 
@@ -331,9 +335,12 @@ struct CompactResultList: View {
                 .opacity(hovering && showList ? 1 : 0)
                 .focusable(false)
 
-                let opts = optimisers
-                    .dropLast().enumerated()
-                    .map { n, x in (opt: x, isLast: false, isEven: (n + 1).isMultiple(of: 2)) } + [(opt: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2))]
+                let opts: [(opt: Optimiser, isLast: Bool, isEven: Bool)] = optimisers.isEmpty
+                    ? []
+                    : optimisers
+                        .dropLast().enumerated()
+                        .map { n, x in (opt: x, isLast: false, isEven: (n + 1).isMultiple(of: 2)) } + [(opt: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2))]
+
                 ZStack(alignment: .bottom) {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 0) {
@@ -352,8 +359,13 @@ struct CompactResultList: View {
                         .padding(.bottom, progress == nil ? 0 : 18)
                     }
                     .padding(.vertical, 5)
-                    .frame(width: THUMB_SIZE.width + (showCompactImages ? 50 : 0), height: min(360, (optimisers.count * 70).cg), alignment: .center)
+                    .frame(width: THUMB_SIZE.width + (showCompactImages ? 50 : 0), height: min(360, (optimisers.count * 80).cg), alignment: .center)
                     .background(Color.inverted.brightness(0.1))
+                    .onHover { hovering in
+                        if !hovering {
+                            hoveredOptimiserID = nil
+                        }
+                    }
 
                     if progress != nil {
                         ProgressView(" Done: \(doneCount)/\(visibleCount)  |  Failed: \(failedCount)/\(visibleCount)", value: (doneCount + failedCount).d, total: visibleCount.d)
@@ -376,14 +388,13 @@ struct CompactResultList: View {
         }
         .padding(isTrailing ? .trailing : .leading)
         .frame(width: THUMB_SIZE.width + (showCompactImages ? 60 : 50), height: 442, alignment: floatingResultsCorner.alignment)
-        .contentShape(Rectangle())
         .onHover { hovered in
             withAnimation(.easeIn(duration: 0.35)) {
                 hovering = hovered
             }
         }
         .onAppear {
-            showList = preview
+            showList = preview || optimisers.count <= 3
         }
     }
 }
@@ -410,7 +421,7 @@ struct ToggleCompactResultListButton: View {
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 32, height: 32, alignment: .center)
-                                    .opacity(hovering ? 1 : 0.3)
+                                    .opacity(hovering ? 1 : 0.5)
                             }
                             if !showList {
                                 if let progress {
@@ -496,8 +507,8 @@ struct CompactPreview: View {
         gifOpt.operation = "Downloading"
 
         let pngIndeterminate = Optimiser(id: "png-indeterminate", type: .image(.png), running: true)
-        pngIndeterminate.url = "\(HOME)/Desktop/dash-screenshot.png".fileURL
-        pngIndeterminate.thumbnail = NSImage(named: "sonoma-shot")
+        pngIndeterminate.url = "\(HOME)/Desktop/device_hierarchy.png".fileURL
+        pngIndeterminate.thumbnail = NSImage(named: "device_hierarchy")
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
