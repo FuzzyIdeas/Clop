@@ -227,6 +227,16 @@ extension NSSize {
             return NSRect(x: 0, y: y, width: width, height: height)
         }
     }
+
+    var evenSize: NSSize {
+        var w = Int(width.rounded())
+        w = w + w % 2
+
+        var h = Int(height.rounded())
+        h = h + h % 2
+
+        return NSSize(width: Double(w), height: Double(h))
+    }
 }
 
 extension PDFDocument {

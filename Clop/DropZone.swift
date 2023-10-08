@@ -207,7 +207,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
     guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF else {
         return
     }
-    try await proGuard(count: &DM.optimisationCount, limit: 2, url: path.url) {
+    try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
         try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: Defaults[.autoCopyToClipboard], source: source)
     }
 }
