@@ -32,6 +32,7 @@
 		C78211062A59E371008DB106 /* LowtechPro in Frameworks */ = {isa = PBXBuildFile; productRef = C78211052A59E371008DB106 /* LowtechPro */; };
 		C78211092A5B21A4008DB106 /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
 		C78B29FF2AD0826F00B6A19B /* InstallCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */; };
+		C78B2A022AD1F02E00B6A19B /* ResolutionField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */; };
 		C7956A422AC208DD00C0EDF2 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7956A412AC208DD00C0EDF2 /* main.swift */; };
 		C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C7956A4A2AC209F200C0EDF2 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = C7956A492AC209F200C0EDF2 /* ArgumentParser */; };
@@ -136,6 +137,7 @@
 		C78211082A5B21A4008DB106 /* Xattr.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Xattr.swift; sourceTree = "<group>"; };
 		C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InstallCLI.swift; sourceTree = "<group>"; };
 		C78B2A002AD184D400B6A19B /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
+		C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResolutionField.swift; sourceTree = "<group>"; };
 		C7956A3F2AC208DD00C0EDF2 /* ClopCLI */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ClopCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7956A412AC208DD00C0EDF2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClopCLI.entitlements; sourceTree = "<group>"; };
@@ -250,6 +252,7 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */,
 				C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
 				C7AB38DB2ACB059200F299CE /* CompactResult.swift */,
@@ -511,6 +514,7 @@
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
 				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
 				C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */,
+				C78B2A022AD1F02E00B6A19B /* ResolutionField.swift in Sources */,
 				C78B29FF2AD0826F00B6A19B /* InstallCLI.swift in Sources */,
 				C7760AC12A5E957700851F8C /* OptimisationUtils.swift in Sources */,
 				C7760ABD2A5E026600851F8C /* NSImageExtensions.swift in Sources */,

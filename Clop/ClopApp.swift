@@ -732,7 +732,7 @@ class FileOptimisationWatcher {
                     guard let self else { return }
 
                     var count = optimisedCount
-                    try? await proGuard(count: &count, limit: 2, url: event.path.fileURL) {
+                    try? await proGuard(count: &count, limit: 5, url: event.path.fileURL) {
                         self.handler(event)
                     }
                     optimisedCount = count

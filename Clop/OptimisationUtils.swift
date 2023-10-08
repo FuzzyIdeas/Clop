@@ -372,6 +372,38 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     var source: String?
 
+    @Published var editing = false {
+        didSet {
+            guard editing != oldValue else {
+                return
+            }
+
+            if editing {
+                KM.secondaryKeys = []
+                KM.reinitHotkeys()
+            } else {
+                sizeNotificationWindow.allowToBecomeKey = false
+                if hoveredOptimiserID != nil {
+                    KM.secondaryKeys = DEFAULT_HOVER_KEYS
+                    KM.reinitHotkeys()
+                }
+            }
+
+            if let lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
+                self.lastRemoveAfterMs = 1000 * 120
+                resetRemover()
+            }
+        }
+    }
+    @Published var editingResolution = false {
+        didSet {
+            mainActor { [weak self] in
+                guard let self else { return }
+                editing = editingFilename || editingResolution
+            }
+        }
+    }
+
     var image: Image? {
         guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
         return Image(path: path, type: imageType, retinaDownscaled: false)
@@ -389,24 +421,9 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     @Published var editingFilename = false {
         didSet {
-            guard editingFilename != oldValue else {
-                return
-            }
-
-            if editingFilename {
-                KM.secondaryKeys = []
-                KM.reinitHotkeys()
-            } else {
-                sizeNotificationWindow.allowToBecomeKey = false
-                if hoveredOptimiserID != nil {
-                    KM.secondaryKeys = DEFAULT_HOVER_KEYS
-                    KM.reinitHotkeys()
-                }
-            }
-
-            if let lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
-                self.lastRemoveAfterMs = 1000 * 120
-                resetRemover()
+            mainActor { [weak self] in
+                guard let self else { return }
+                editing = editingFilename || editingResolution
             }
         }
     }
@@ -840,6 +857,26 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         mainActor {
             self.stopRemover()
             OM.optimisers = OM.optimisers.with(self)
+        }
+    }
+
+    func crop(to size: NSSize) {
+        guard let url, url.isFileURL, url.filePath.exists else { return }
+
+        let clip = ClipboardType.fromURL(url)
+
+        Task.init {
+            try await optimiseItem(
+                clip,
+                id: id,
+                hideFloatingResult: false,
+                downscaleTo: nil,
+                cropTo: size,
+                aggressiveOptimisation: aggresive,
+                optimisationCount: &manualOptimisationCount,
+                copyToClipboard: id == IDs.clipboardImage,
+                source: source
+            )
         }
     }
 
@@ -1353,7 +1390,7 @@ enum ClipboardType: Equatable {
 import LowtechPro
 
 @discardableResult
-@MainActor func proGuard<T>(count: inout Int, limit: Int = 2, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
+@MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
     guard let PRO, PRO.active || count < limit else {
         proLimitsReached(url: url)
         throw ClopError.proError("Pro limits reached")
@@ -1467,7 +1504,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
     switch item {
     case let .image(img):
-        let result = try await proGuard(count: &optimisationCount, limit: 2, url: img.path.url) {
+        let result = try await proGuard(count: &optimisationCount, limit: 5, url: img.path.url) {
             if let scalingFactor, scalingFactor < 1 {
                 try await downscaleImage(img, toFactor: scalingFactor, cropTo: cropSize, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let cropSize, cropSize < img.size {
@@ -1489,11 +1526,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         return .image(result)
     case let .file(path):
         if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
-            guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
+            guard aggressiveOptimisation == true || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
                 nope(notice: "Already optimised", thumbnail: img.image, url: path.url, type: .image(img.type))
                 throw ClopError.alreadyOptimised(path)
             }
-            let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
+            let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 if let scalingFactor, scalingFactor < 1 {
                     try await downscaleImage(img, toFactor: scalingFactor, cropTo: cropSize, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else if let cropSize, cropSize < img.size {
@@ -1514,11 +1551,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             guard let result else { return nil }
             return .image(result)
         } else if path.isVideo {
-            guard aggressiveOptimisation == true || changePlaybackSpeedFactor != nil || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
+            guard aggressiveOptimisation == true || changePlaybackSpeedFactor != nil || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
                 nope(notice: "Already optimised", url: path.url, type: .video(.mpeg4Movie))
                 throw ClopError.alreadyOptimised(path)
             }
-            let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
+            let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 let video = await (try? Video.byFetchingMetadata(path: path)) ?? Video(path: path)
 
                 if let scalingFactor, scalingFactor < 1 {
@@ -1560,11 +1597,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             guard let result else { return nil }
             return .file(result.path)
         } else if path.isPDF {
-            guard aggressiveOptimisation == true || !path.hasOptimisationStatusXattr() else {
+            guard aggressiveOptimisation == true || cropSize != nil || !path.hasOptimisationStatusXattr() else {
                 nope(notice: "Already optimised", url: path.url, type: .pdf)
                 throw ClopError.alreadyOptimised(path)
             }
-            let result = try await proGuard(count: &optimisationCount, limit: 2, url: path.url) {
+            let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 try await optimisePDF(PDF(path), copyToClipboard: copyToClipboard, id: id, allowLarger: false, hideFloatingResult: hideFloatingResult, cropTo: cropSize, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
             guard let result else { return nil }
@@ -1574,7 +1611,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             throw ClopError.unknownType
         }
     case let .url(url):
-        let result = try await proGuard(count: &optimisationCount, limit: 2, url: url) {
+        let result = try await proGuard(count: &optimisationCount, limit: 5, url: url) {
             try await optimiseURL(
                 url,
                 copyToClipboard: copyToClipboard,

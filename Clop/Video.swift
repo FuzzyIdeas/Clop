@@ -173,6 +173,7 @@ class Video: Optimisable {
         var filters = [String]()
         if let cropSize, let fromSize = size {
             let cropString: String
+            let cropSize = cropSize.evenSize
             if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
                 let newAspectRatio = cropSize.width / cropSize.height
                 let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i

@@ -403,6 +403,7 @@ class Image: CustomStringConvertible {
             resizeArgs = ["--resize", "\(newSize.width.i)x\(newSize.height.i)"]
         } else if let cropSize, let fromSize {
             let cropString: String
+            let cropSize = cropSize.evenSize
             if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
                 let newAspectRatio = cropSize.width / cropSize.height
                 let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
@@ -660,7 +661,7 @@ class Image: CustomStringConvertible {
             return try gif.optimiseGIF(optimiser: optimiser, cropTo: size, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
         }
 
-        let sizeStr = "\(size.width.i)x\(size.height.i)"
+        let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
         let proc = try tryProc(VIPSTHUMBNAIL.string, args: ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", "attention", pathForResize.string], tries: 3) { proc in
             mainActor { optimiser.processes = [proc] }
         }

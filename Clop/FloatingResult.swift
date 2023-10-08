@@ -207,17 +207,10 @@ struct FloatingResult: View {
     }
     @ViewBuilder var sizeDiff: some View {
         if let oldSize = optimiser.oldSize {
-            HStack(spacing: 3) {
-                Text("\(oldSize.width.i)×\(oldSize.height.i)")
-                if let newSize = optimiser.newSize, newSize != oldSize {
-                    SwiftUI.Image(systemName: "arrow.right")
-                    Text("\(newSize.width.i)×\(newSize.height.i)")
-                }
-            }
-            .font(.round(10))
-            .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
-            .lineLimit(1)
-            .fixedSize()
+            ResolutionField(optimiser: optimiser, size: oldSize)
+                .font(.round(10))
+                .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
+                .fixedSize()
         }
     }
 
