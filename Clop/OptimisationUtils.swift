@@ -990,7 +990,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     func updateProgress() {
         visibleCount = visibleOptimisers.count
-        doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil && $0.notice == nil }.count
+        doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil }.count
         failedCount = visibleOptimisers.filter { !$0.running && $0.error != nil }.count
         let finishedCount = doneCount + failedCount
 
