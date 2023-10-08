@@ -71,7 +71,7 @@ struct FloatingResultContainer: View {
 
     var body: some View {
         let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
-        VStack(spacing: 10) {
+        VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: 10) {
             if optimisers.isNotEmpty {
                 if (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults {
                     CompactResultList(optimisers: optimisers, progress: om.progress, doneCount: om.doneCount, failedCount: om.failedCount, visibleCount: om.visibleCount).preview(isPreview)

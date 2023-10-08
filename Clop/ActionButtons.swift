@@ -231,7 +231,7 @@ struct ActionButtons: View {
             }
 
             Spacer()
-            Divider().background(.primary)
+            Divider().background(.secondary)
             Spacer()
 
             ShowInFinderButton(optimiser: optimiser)

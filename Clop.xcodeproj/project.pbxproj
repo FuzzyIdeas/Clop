@@ -136,7 +136,6 @@
 		C7760AC22A5FF89B00851F8C /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		C78211082A5B21A4008DB106 /* Xattr.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Xattr.swift; sourceTree = "<group>"; };
 		C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InstallCLI.swift; sourceTree = "<group>"; };
-		C78B2A002AD184D400B6A19B /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
 		C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResolutionField.swift; sourceTree = "<group>"; };
 		C7956A3F2AC208DD00C0EDF2 /* ClopCLI */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ClopCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7956A412AC208DD00C0EDF2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -229,7 +228,6 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
-				C78B2A002AD184D400B6A19B /* Lowtech */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				C7AB6623288301590041BEC8 /* Clop */,
 				C70B5F1B2AC014BF00345739 /* FinderOptimiser */,
@@ -548,7 +546,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0b1;
+				CURRENT_PROJECT_VERSION = 2.2.0;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -564,7 +562,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0b1;
+				MARKETING_VERSION = 2.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -581,7 +579,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0b1;
+				CURRENT_PROJECT_VERSION = 2.2.0;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -597,7 +595,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0b1;
+				MARKETING_VERSION = 2.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -779,7 +777,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0b1;
+				CURRENT_PROJECT_VERSION = 2.2.0;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -800,7 +798,7 @@
 				);
 				LLVM_LTO = YES_THIN;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0b1;
+				MARKETING_VERSION = 2.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -817,7 +815,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0b1;
+				CURRENT_PROJECT_VERSION = 2.2.0;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -838,7 +836,7 @@
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0b1;
+				MARKETING_VERSION = 2.2.0;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
