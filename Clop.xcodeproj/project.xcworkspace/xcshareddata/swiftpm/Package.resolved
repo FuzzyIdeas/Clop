@@ -64,6 +64,15 @@
       }
     },
     {
+      "identity" : "lowtech",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FuzzyIdeas/Lowtech",
+      "state" : {
+        "branch" : "ventura",
+        "revision" : "2198b8467980b5008bcf89a1ef8a5f59663d9645"
+      }
+    },
+    {
       "identity" : "magnet",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
