@@ -82,6 +82,7 @@ struct CompactResult: View {
     @ViewBuilder var sizeDiff: some View {
         if let oldSize = optimiser.oldSize {
             ResolutionField(optimiser: optimiser, size: oldSize)
+                .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13)), textColor: .primary, radius: 3, horizontalPadding: 3, verticalPadding: 1))
                 .font(.mono(11, weight: .medium))
                 .foregroundColor(.secondary)
                 .fixedSize()
@@ -285,6 +286,8 @@ struct OverlayMessageView: View {
 struct CompactResultList: View {
     @State var hovering = false
     @State var showList = false
+    @State var size = NSSize(width: 50, height: 50)
+
     var optimisers: [Optimiser]
     var progress: Progress?
 
@@ -352,7 +355,8 @@ struct CompactResultList: View {
                         .padding(.bottom, progress == nil ? 0 : 18)
                     }
                     .padding(.vertical, 5)
-                    .frame(width: THUMB_SIZE.width + (showCompactImages ? 50 : 0), height: min(360, (optimisers.count * 80).cg), alignment: .center)
+                    .frame(width: size.width, height: size.height, alignment: .center)
+                    .fixedSize()
                     .background(Color.inverted.brightness(0.1))
                     .onHover { hovering in
                         if !hovering {
@@ -380,15 +384,35 @@ struct CompactResultList: View {
             }
         }
         .padding(isTrailing ? .trailing : .leading)
-        .frame(width: THUMB_SIZE.width + (showCompactImages ? 60 : 50), height: 442, alignment: floatingResultsCorner.alignment)
         .onHover { hovered in
             withAnimation(.easeIn(duration: 0.35)) {
                 hovering = hovered
             }
         }
+        .onChange(of: showList) { showList in
+            compactResultsSizeTask = mainAsyncAfter(ms: showList ? 0 : 500) {
+                setSize(showList: showList)
+            }
+        }
+        .onChange(of: optimisers.count) { count in setSize(count: count) }
+        .onChange(of: showCompactImages) { compactImages in setSize(compactImages: compactImages) }
         .onAppear {
             showList = preview || optimisers.count <= 3
+            setSize()
         }
+    }
+
+    func setSize(showList: Bool? = nil, count: Int? = nil, compactImages: Bool? = nil) {
+        size = NSSize(
+            width: (showList ?? self.showList) ? (THUMB_SIZE.width + ((compactImages ?? showCompactImages) ? 50 : 0)) : 50,
+            height: (showList ?? self.showList) ? min(360, ((count ?? optimisers.count) * 80).cg) : 50
+        )
+    }
+}
+
+var compactResultsSizeTask: DispatchWorkItem? {
+    didSet {
+        oldValue?.cancel()
     }
 }
 
