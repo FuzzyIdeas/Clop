@@ -32,7 +32,6 @@ struct ResolutionField: View {
                 .lineLimit(1)
             }
         )
-        .buttonStyle(FlatButton(color: .black.opacity(0.1), textColor: .white, radius: 3, horizontalPadding: 3, verticalPadding: 1))
     }
 
     var editor: some View {
@@ -68,7 +67,8 @@ struct ResolutionField: View {
                 guard !preview else { return }
                 optimiser.crop(to: NSSize(width: tempWidth, height: tempHeight))
             }
-            .buttonStyle(FlatButton(color: .inverted.opacity(0.6), textColor: .primary))
+            .buttonStyle(.bordered)
+            .fontDesign(.rounded)
             .monospacedDigit()
 
             HStack {
@@ -80,7 +80,9 @@ struct ResolutionField: View {
                     else { return }
 
                     savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
-                }.buttonStyle(FlatButton(color: .inverted.opacity(0.6), textColor: .primary))
+                }
+                .buttonStyle(.bordered)
+                .fontDesign(.rounded)
             }
         }
         .padding()
@@ -134,6 +136,7 @@ struct ResolutionField: View {
                 HStack {
                     Text(size.name)
                         .allowsTightening(false)
+                        .fontDesign(.rounded)
                     Spacer()
                     Text(size.id)
                         .monospaced()
@@ -142,6 +145,7 @@ struct ResolutionField: View {
                 .frame(width: 150)
                 .lineLimit(1)
             })
+            .buttonStyle(.bordered)
 
             Button(action: {
                 withAnimation(.easeOut(duration: 0.1)) {
@@ -151,6 +155,7 @@ struct ResolutionField: View {
                 SwiftUI.Image(systemName: "trash")
                     .foregroundColor(.red)
             })
+            .buttonStyle(.bordered)
 
         }
     }

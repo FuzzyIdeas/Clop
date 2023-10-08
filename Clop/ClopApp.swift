@@ -393,6 +393,7 @@ class AppDelegate: LowtechProAppDelegate {
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
 
         guard !SWIFTUI_PREVIEW else { return }
+        sizeNotificationWindow.animateOnResize = true
         pub(.floatingResultsCorner)
             .sink {
                 sizeNotificationWindow.moveToScreen(.withMouse, corner: $0.newValue)

@@ -75,7 +75,8 @@ struct FloatingResultContainer: View {
             if optimisers.isNotEmpty {
                 if (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults {
                     CompactResultList(optimisers: optimisers, progress: om.progress, doneCount: om.doneCount, failedCount: om.failedCount, visibleCount: om.visibleCount).preview(isPreview)
-                        .padding()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 15)
                         .onAppear {
                             om.compactResults = true
                         }
@@ -96,10 +97,12 @@ struct FloatingResultContainer: View {
                 hoveredOptimiserID = nil
             }
         }
-        .padding(.vertical, showImages ? 36 : 10)
+        .padding(.vertical, om.compactResults ? 0 : (showImages ? 36 : 10))
         .padding(floatingResultsCorner.isTrailing ? .leading : .trailing, 20)
     }
 }
+
+var initializedFloatingWindow = false
 
 @MainActor
 struct FloatingPreview: View {
@@ -208,6 +211,7 @@ struct FloatingResult: View {
     @ViewBuilder var sizeDiff: some View {
         if let oldSize = optimiser.oldSize {
             ResolutionField(optimiser: optimiser, size: oldSize)
+                .buttonStyle(FlatButton(color: .black.opacity(0.1), textColor: .white, radius: 3, horizontalPadding: 3, verticalPadding: 1))
                 .font(.round(10))
                 .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
                 .fixedSize()
@@ -415,6 +419,7 @@ struct FloatingResult: View {
             height: THUMB_SIZE.height / 2,
             alignment: .center
         )
+        .fixedSize()
         .padding(.horizontal, 5)
         .padding(.vertical, 5)
         .background(
@@ -473,6 +478,7 @@ struct FloatingResult: View {
                                         )
                                 )
                                 .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
+                                .fixedSize()
                                 .padding(.horizontal, 5)
                                 .offset(y: hovering || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
                                 .opacity(hovering || editingFilename || SWIFTUI_PREVIEW ? 1 : 0)
@@ -500,16 +506,19 @@ struct FloatingResult: View {
 
                 if hasThumbnail, hovering {
                     SideButtons(optimiser: optimiser, size: showsThumbnail ? 24 : 18)
+                        .frame(width: 30, alignment: .bottom)
+                        .fixedSize()
                 } else {
                     SwiftUI.Image("clop")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 30, height: 30, alignment: .center)
+                        .fixedSize()
                         .opacity(showFloatingHatIcon ? 1 : 0)
                 }
             }
         }
-        .frame(width: THUMB_SIZE.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
+//        .frame(minWidth: THUMB_SIZE.width / 2, idealWidth: THUMB_SIZE.width / 2, maxWidth: THUMB_SIZE.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
         .padding(.horizontal)
         .fixedSize()
         .onHover { hovering in
