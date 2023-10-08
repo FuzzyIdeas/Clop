@@ -81,17 +81,10 @@ struct CompactResult: View {
     }
     @ViewBuilder var sizeDiff: some View {
         if let oldSize = optimiser.oldSize {
-            HStack(spacing: 3) {
-                Text("\(oldSize.width.i)×\(oldSize.height.i)")
-                if let newSize = optimiser.newSize, newSize != oldSize {
-                    SwiftUI.Image(systemName: "arrow.right")
-                    Text("\(newSize.width.i)×\(newSize.height.i)")
-                }
-            }
-            .font(.mono(11, weight: .medium))
-            .foregroundColor(.secondary)
-            .lineLimit(1)
-            .fixedSize()
+            ResolutionField(optimiser: optimiser, size: oldSize)
+                .font(.mono(11, weight: .medium))
+                .foregroundColor(.secondary)
+                .fixedSize()
         }
     }
 

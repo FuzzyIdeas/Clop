@@ -100,8 +100,20 @@ extension Defaults.Keys {
     static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [.five, .three])
     static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: DEFAULT_GLOBAL_KEYS)
 
+    static let savedCropSizes = Key<[CropSize]>("savedCropSizes", default: DEFAULT_CROP_SIZES)
+
     static let syncSettingsCloud = Key<Bool>("syncSettingsCloud", default: true)
 }
+
+let DEFAULT_CROP_SIZES: [CropSize] = [
+    CropSize(width: 1920, height: 1080, name: "1080p"),
+    CropSize(width: 1280, height: 720, name: "720p"),
+    CropSize(width: 1200, height: 630, name: "OpenGraph"),
+    CropSize(width: 1600, height: 900, name: "Twitter"),
+    CropSize(width: 128, height: 128, name: "Small Square"),
+    CropSize(width: 512, height: 512, name: "Medium Square"),
+    CropSize(width: 1024, height: 1024, name: "Large Square"),
+]
 
 public enum ConvertedFileBehaviour: String, Defaults.Serializable {
     case temporary
