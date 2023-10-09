@@ -1,7 +1,7 @@
 <p align="center">
     <a href="https://lowtechguys.com/clop"><img width="128" height="128" src="Clop/Assets.xcassets/clop.imageset/clop_256.png" style="filter: drop-shadow(0px 2px 4px rgba(80, 50, 6, 0.2));"></a>
     <h1 align="center"><code style="text-shadow: 0px 3px 10px rgba(8, 0, 6, 0.35); font-size: 3rem; font-family: ui-monospace, Menlo, monospace; font-weight: 800; background: transparent; color: #4d3e56; padding: 0.2rem 0.2rem; border-radius: 6px">Clop</code></h1>
-    <h4 align="center" style="padding: 0; margin: 0; font-family: ui-monospace, monospace;">Image, video and clipboard optimiser</h4>
+    <h4 align="center" style="padding: 0; margin: 0; font-family: ui-monospace, monospace;">Image, video, PDF and clipboard optimiser</h4>
     <h6 align="center" style="padding: 0; margin: 0; font-family: ui-monospace, monospace; font-weight: 400;">Copy large, paste small, send fast</h6>
 </p>
 
@@ -33,12 +33,6 @@ Use handy hotkeys or the floating buttons to downscale the image or video and ge
 
 * <kbd>-</kbd> downscales incrementally from 90% until 10% of the original resolution
 * <kbd>1</kbd>..<kbd>9</kbd> are for downscaling to specific sizes
-
-For best performance and quality, install [libvips](https://www.libvips.org/):
-
-```sh
-brew install vips
-```
 
 ## Power user features
 
@@ -80,10 +74,10 @@ After the **14-day trial**, the app will continue to work with the free features
 |---------|----------|--------------|
 | Clipboard optimisation | ✅ | ✅ |
 | Downscale images | ✅ | ✅ |
-| Optimise screen recordings | ✅ | 2 per session |
-| Optimise screenshot files | ✅ | 2 per session |
-| On-demand optimisation | ✅ | 2 per session |
-| Shortcuts support | ✅ | 2 per session |
+| Optimise screen recordings | ✅ | 5 per session |
+| Optimise screenshot files | ✅ | 5 per session |
+| On-demand optimisation | ✅ | 5 per session |
+| Shortcuts support | ✅ | 5 per session |
 
 
 ## Technical details
@@ -94,6 +88,9 @@ Clop uses the following open source tools for optimising files, images and video
 * `jpegoptim` for JPEG
 * `gifsicle` for GIF
 * `ffmpeg` for videos
+* `libvips` for resizing images
+* `gifski` for converting videos to GIFs
+* `ghostscript` for optimising PDFs
 
 It may also use `libvips` for resizing images if it is installed on your system.
 
