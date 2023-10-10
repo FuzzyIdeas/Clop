@@ -56,7 +56,7 @@ class AppDelegate: LowtechProAppDelegate {
     var lastDragChangeCount = NSPasteboard(name: .drag).changeCount
 
     @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
-        guard NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 2 else {
+        guard NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 5 else {
             return
         }
 

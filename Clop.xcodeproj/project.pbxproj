@@ -15,6 +15,7 @@
 		C70B5F312AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C70B5F322AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
+		C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */; };
 		C7333E422A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7333E3E2A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 */; };
 		C7333E432A98A1D400B1D5BE /* bin-arm64.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */; };
 		C7333E442A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7333E402A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 */; };
@@ -122,6 +123,8 @@
 		C70B5F332AC1B56C00345739 /* Optimisable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Optimisable.swift; sourceTree = "<group>"; };
 		C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
 		C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Clop-Bridging-Header.h"; sourceTree = "<group>"; };
+		C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload to Backblaze.shortcut"; sourceTree = "<group>"; };
+		C7319E8A2AD5323D0085B707 /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
 		C7333E3E2A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "bin-x86.tar.xz.sha256"; sourceTree = "<group>"; };
 		C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */ = {isa = PBXFileReference; lastKnownFileType = file; path = "bin-arm64.tar.xz"; sourceTree = "<group>"; };
 		C7333E402A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "bin-arm64.tar.xz.sha256"; sourceTree = "<group>"; };
@@ -228,6 +231,7 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
+				C7319E8A2AD5323D0085B707 /* Lowtech */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				C7AB6623288301590041BEC8 /* Clop */,
 				C70B5F1B2AC014BF00345739 /* FinderOptimiser */,
@@ -301,6 +305,7 @@
 			isa = PBXGroup;
 			children = (
 				C7C8AD612ABC9B34003ECDE6 /* Upload to SSH server.shortcut */,
+				C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */,
 				C7C8AD5B2ABC78CF003ECDE6 /* Clop - video.shortcut */,
 				C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */,
 				C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */,
@@ -438,6 +443,7 @@
 			files = (
 				C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */,
 				C7333E452A98A1D400B1D5BE /* bin-x86.tar.xz in Resources */,
+				C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */,
 				C7C8AD622ABC9B34003ECDE6 /* Upload to SSH server.shortcut in Resources */,
 				C7C8AD5F2ABC78CF003ECDE6 /* Clop - PDF.shortcut in Resources */,
 				C7333E442A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 in Resources */,
@@ -546,7 +552,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0;
+				CURRENT_PROJECT_VERSION = 2.2.1;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -562,7 +568,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -579,7 +585,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0;
+				CURRENT_PROJECT_VERSION = 2.2.1;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -595,7 +601,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -777,7 +783,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0;
+				CURRENT_PROJECT_VERSION = 2.2.1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -798,7 +804,7 @@
 				);
 				LLVM_LTO = YES_THIN;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -815,7 +821,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.0;
+				CURRENT_PROJECT_VERSION = 2.2.1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -836,7 +842,7 @@
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.0;
+				MARKETING_VERSION = 2.2.1;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";

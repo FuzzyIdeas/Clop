@@ -6,6 +6,7 @@ endef
 .EXPORT_ALL_VARIABLES:
 
 BETA=
+DELTAS=5
 
 ifeq (, $(VERSION))
 VERSION=$(shell rg -o --no-filename 'MARKETING_VERSION = ([^;]+).+' -r '$$1' *.xcodeproj/project.pbxproj | head -1 | sd 'b\d+' '')
@@ -44,12 +45,12 @@ appcast: Releases/Clop-$(FULL_VERSION).html
 	rm Releases/Clop.dmg || true
 ifneq (, $(BETA))
 	rm Releases/Clop$(FULL_VERSION)*.delta >/dev/null 2>/dev/null || true
-	generate_appcast --channel beta --maximum-versions 10 --maximum-deltas 5 --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
+	generate_appcast --channel beta --maximum-versions 10 --maximum-deltas $(DELTAS) --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
 else
 	rm Releases/Clop$(FULL_VERSION)*.delta >/dev/null 2>/dev/null || true
 	rm Releases/Clop-*b*.dmg >/dev/null 2>/dev/null || true
 	rm Releases/Clop*b*.delta >/dev/null 2>/dev/null || true
-	generate_appcast --maximum-versions 10 --maximum-deltas 5 --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
+	generate_appcast --maximum-versions 10 --maximum-deltas $(DELTAS) --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
 	cp Releases/Clop-$(FULL_VERSION).dmg Releases/Clop.dmg
 endif
 
@@ -70,6 +71,7 @@ else
 endif
 
 Clop/bin-%.tar.xz: $(wildcard Clop/bin-%/*)
-	cd Clop/bin-$*/; codesign -fs $$CODESIGN_CERT --options runtime --timestamp *; tar acvf ../bin-$*.tar.xz *
+	fd -t file . Clop/bin-$* -x codesign -fs "$$CODESIGN_CERT" --options runtime --timestamp '{}'
+	rm Clop/bin-$*.tar.xz; cd Clop/bin-$*/; tar acvf ../bin-$*.tar.xz *
 	sha256sum Clop/bin-$*.tar.xz | cut -d' ' -f1 > Clop/bin-$*.tar.xz.sha256
 bin: Clop/bin-arm64.tar.xz Clop/bin-x86.tar.xz

@@ -402,20 +402,26 @@ class Image: CustomStringConvertible {
         if let newSize {
             resizeArgs = ["--resize", "\(newSize.width.i)x\(newSize.height.i)"]
         } else if let cropSize, let fromSize {
-            let cropString: String
             let cropSize = cropSize.evenSize
-            if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
-                let newAspectRatio = cropSize.width / cropSize.height
-                let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
-                cropString = "\(widthDiff),0+-\(widthDiff)x0"
-            } else {
-                let newAspectRatio = cropSize.height / cropSize.width
-                let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
-                cropString = "0,\(heightDiff)+0x-\(heightDiff)"
-            }
+            if cropSize.width > 0, cropSize.height > 0 {
+                let cropString: String
+                if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
+                    let newAspectRatio = cropSize.width / cropSize.height
+                    let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
+                    cropString = "\(widthDiff),0+-\(widthDiff)x0"
+                } else {
+                    let newAspectRatio = cropSize.height / cropSize.width
+                    let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
+                    cropString = "0,\(heightDiff)+0x-\(heightDiff)"
+                }
 
-            resizeArgs = ["--crop", cropString, "--resize", "\(cropSize.width.i)x\(cropSize.height.i)"]
-            size = cropSize
+                resizeArgs = ["--crop", cropString, "--resize", "\(cropSize.width.i)x\(cropSize.height.i)"]
+                size = cropSize
+            } else {
+                let scaleFactor = cropSize.width == 0 ? cropSize.height / fromSize.height : cropSize.width / fromSize.width
+                resizeArgs = ["--scale", "\(scaleFactor.d.str(decimals: 2))"]
+                size = fromSize.scaled(by: scaleFactor)
+            }
         } else if let scaleFactor {
             resizeArgs = ["--scale", "\(scaleFactor.str(decimals: 2))"]
             size = (fromSize ?? size).scaled(by: scaleFactor)
@@ -1018,7 +1024,10 @@ extension FilePath {
         scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
     }
 
-    let scaleString = cropSize != nil ? "\(cropSize!.width.i)x\(cropSize!.height.i)" : "\((scalingFactor * 100).intround)%"
+    let scaleString = cropSize != nil
+        ? "\(cropSize!.width > 0 ? cropSize!.width.i.s : "Auto")×\(cropSize!.height > 0 ? cropSize!.height.i.s : "Auto")"
+        : "\((scalingFactor * 100).intround)%"
+
     let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source, indeterminateProgress: true)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {
@@ -1043,9 +1052,12 @@ extension FilePath {
             OM.current = optimiser
         }
         do {
-            if let cropSize {
+            if let cropSize, cropSize.width > 0, cropSize.height > 0 {
                 resized = try img.resize(toSize: cropSize, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
             } else {
+                if let cropSize {
+                    scalingFactor = cropSize.width == 0 ? cropSize.height / img.size.height : cropSize.width / img.size.width
+                }
                 resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
             }
 
