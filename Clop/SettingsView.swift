@@ -98,6 +98,9 @@ struct DirListView: View {
                     `# Ignore all files with the .jpg extension`
                     `*.jpg`
                     ` `
+                    `# Ignore all folders and subfolders (like a non-recursive option)`
+                    `*/`
+                    ` `
                     `# Exclude all files in a "DontOptimise" directory`
                     `DontOptimise/`
                     ` `
@@ -152,7 +155,10 @@ struct DirListView: View {
                     )
 
                 Button(
-                    action: { dirs = Set(dirs).without(selectedDirs) },
+                    action: {
+                        dirs = Set(dirs).without(selectedDirs)
+                        selectedDirs = []
+                    },
                     label: { SwiftUI.Image(systemName: "minus").font(.bold(12)) }
                 )
                 .disabled(selectedDirs.isEmpty)
