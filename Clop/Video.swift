@@ -172,19 +172,23 @@ class Video: Optimisable {
 
         var filters = [String]()
         if let cropSize, let fromSize = size {
-            let cropString: String
             let cropSize = cropSize.evenSize
-            if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
-                let newAspectRatio = cropSize.width / cropSize.height
-                let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
-                cropString = "in_w-\(widthDiff * 2):in_h:\(widthDiff):0"
-            } else {
-                let newAspectRatio = cropSize.height / cropSize.width
-                let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
-                cropString = "in_w:in_h-\(heightDiff * 2):0:\(heightDiff)"
-            }
+            if cropSize.width > 0, cropSize.height > 0 {
+                let cropString: String
+                if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
+                    let newAspectRatio = cropSize.width / cropSize.height
+                    let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
+                    cropString = "in_w-\(widthDiff * 2):in_h:\(widthDiff):0"
+                } else {
+                    let newAspectRatio = cropSize.height / cropSize.width
+                    let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
+                    cropString = "in_w:in_h-\(heightDiff * 2):0:\(heightDiff)"
+                }
 
-            filters += ["crop=\(cropString)", "scale=w=\(cropSize.width.i.s):h=\(cropSize.height.i.s)"]
+                filters += ["crop=\(cropString)", "scale=w=\(cropSize.width.i.s):h=\(cropSize.height.i.s)"]
+            } else {
+                filters.append("scale=w=\(cropSize.width == 0 ? "-2" : cropSize.width.i.s):h=\(cropSize.height == 0 ? "-2" : cropSize.height.i.s)")
+            }
         } else if let size = newSize {
             filters.append("scale=w=\(size.width.i.s):h=\(size.height.i.s)")
         }
@@ -547,7 +551,10 @@ var processTerminated = Set<pid_t>()
     }
 
     let itemType = ItemType.from(filePath: video.path)
-    let scaleString = cropSize != nil ? "\(cropSize!.width.i)x\(cropSize!.height.i)" : "\((scalingFactor * 100).intround)%"
+    let scaleString = cropSize != nil
+        ? "\(cropSize!.width > 0 ? cropSize!.width.i.s : "Auto")×\(cropSize!.height > 0 ? cropSize!.height.i.s : "Auto")"
+        : "\((scalingFactor * 100).intround)%"
+
     let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
     if aggressive {

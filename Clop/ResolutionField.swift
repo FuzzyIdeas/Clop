@@ -4,11 +4,17 @@ import Lowtech
 import SwiftUI
 
 struct ResolutionField: View {
-    @ObservedObject var optimiser: Optimiser
-    @FocusState var focused: Bool
+    enum Field: Hashable {
+        case width
+        case height
+        case name
+    }
 
-    @State var tempWidth = 0
-    @State var tempHeight = 0
+    @ObservedObject var optimiser: Optimiser
+    @FocusState private var focused: Field?
+
+    @State private var tempWidth = 0
+    @State private var tempHeight = 0
     @State var size: NSSize = .zero
     @State var name = ""
 
@@ -32,6 +38,7 @@ struct ResolutionField: View {
                 .lineLimit(1)
             }
         )
+        .focusable(false)
     }
 
     var editor: some View {
@@ -39,21 +46,16 @@ struct ResolutionField: View {
             HStack {
                 TextField("", value: $tempWidth, formatter: NumberFormatter(), prompt: Text("Width"))
                     .textFieldStyle(.roundedBorder)
-                    .focused($focused)
-                    .defaultFocus($focused, true)
+                    .focused($focused, equals: .width)
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
                 Text("×")
                 TextField("", value: $tempHeight, formatter: NumberFormatter(), prompt: Text("Height"))
                     .textFieldStyle(.roundedBorder)
+                    .focused($focused, equals: .height)
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
             }
-            Text("Width and height need to be\nsmaller than the original size")
-                .round(10)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 5)
 
             VStack(alignment: .leading) {
                 ForEach(savedCropSizes.filter { $0.width <= size.width.i && $0.height <= size.height.i }.sorted(by: \.area)) { size in
@@ -63,20 +65,27 @@ struct ResolutionField: View {
 
             Divider()
 
-            Button("Crop and resize to \(tempWidth)×\(tempHeight)") {
-                guard !preview else { return }
-                optimiser.crop(to: NSSize(width: tempWidth, height: tempHeight))
+            Button("Crop and resize to \(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)") {
+                guard !preview, tempWidth > 0 || tempHeight > 0 else { return }
+
+                if tempWidth != 0, tempHeight != 0 {
+                    optimiser.crop(to: NSSize(width: tempWidth, height: tempHeight))
+                } else {
+                    optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
+                }
             }
             .buttonStyle(.bordered)
             .fontDesign(.rounded)
             .monospacedDigit()
+            .disabled(optimiser.running || (tempWidth == 0 && tempHeight == 0))
 
             HStack {
                 TextField("", text: $name, prompt: Text("Name"))
                     .textFieldStyle(.roundedBorder)
+                    .focused($focused, equals: .name)
                     .frame(width: 100, alignment: .leading)
                 Button("Save") {
-                    guard !preview, !name.isEmpty, tempWidth > 0, tempHeight > 0
+                    guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
                     else { return }
 
                     savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
@@ -86,7 +95,11 @@ struct ResolutionField: View {
             }
         }
         .padding()
+        .defaultFocus($focused, .width)
     }
+
+    @State private var hoveringHelpButton = false
+    @State private var lastFocusState: Field?
 
     @ViewBuilder var editorViewer: some View {
         viewer
@@ -103,18 +116,40 @@ struct ResolutionField: View {
                 self.size = size
             }
             .popover(isPresented: $optimiser.editingResolution, arrowEdge: .bottom) {
-                editor
-                    .onChange(of: tempWidth) { width in
-                        if let size = optimiser.oldSize, width > size.width.i {
-                            tempWidth = size.width.i
+                ZStack(alignment: .topTrailing) {
+                    editor
+                    SwiftUI.Image(systemName: "questionmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .padding(5)
+                        .onHover { hovering in
+                            hoveringHelpButton = hovering
                         }
+                        .helpTag(
+                            isPresented: $hoveringHelpButton,
+                            alignment: .topTrailing,
+                            offset: CGSize(width: -5, height: 45),
+                            """
+                            Width and height need to be smaller
+                            than the original size.
+
+                            Set the width or height to 0 to have it
+                            calculated automatically while keeping
+                            the original aspect ratio.
+                            """
+                        )
+                }
+                .onChange(of: tempWidth) { width in
+                    if let size = optimiser.oldSize, width > size.width.i {
+                        tempWidth = size.width.i
                     }
-                    .onChange(of: tempHeight) { height in
-                        if let size = optimiser.oldSize, height > size.height.i {
-                            tempHeight = size.height.i
-                        }
+                }
+                .onChange(of: tempHeight) { height in
+                    if let size = optimiser.oldSize, height > size.height.i {
+                        tempHeight = size.height.i
                     }
-                    .foregroundColor(.primary)
+                }
+                .foregroundColor(.primary)
             }
     }
 
@@ -167,6 +202,6 @@ struct CropSize: Codable, Hashable, Defaults.Serializable, Identifiable {
     let height: Int
     let name: String
 
-    var id: String { "\(width)×\(height)" }
-    var area: Int { width * height }
+    var id: String { "\(width == 0 ? "Auto" : width.s)×\(height == 0 ? "Auto" : height.s)" }
+    var area: Int { (width ?! height) * (height ?! width) }
 }
