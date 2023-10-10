@@ -304,24 +304,27 @@ struct CompactResultList: View {
 
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
+        let hasRunningOptimisers = visibleCount > (doneCount + failedCount)
 
         VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
             FlipGroup(if: floatingResultsCorner.isTop) {
                 HStack {
-                    Button("Stop all") {
-                        OM.optimisers.filter(\.running).forEach { optimiser in
-                            optimiser.stop(remove: false)
-                            if optimiser.url == nil, let originalURL = optimiser.originalURL {
-                                optimiser.url = originalURL
-                            }
-                            if optimiser.oldBytes == 0, let path = (optimiser.url ?? optimiser.originalURL)?.existingFilePath, let size = path.fileSize() {
-                                optimiser.oldBytes = size
-                            }
+                    if hasRunningOptimisers {
+                        Button("Stop all") {
+                            OM.optimisers.filter(\.running).forEach { optimiser in
+                                optimiser.stop(remove: false)
+                                if optimiser.url == nil, let originalURL = optimiser.originalURL {
+                                    optimiser.url = originalURL
+                                }
+                                if optimiser.oldBytes == 0, let path = (optimiser.url ?? optimiser.originalURL)?.existingFilePath, let size = path.fileSize() {
+                                    optimiser.oldBytes = size
+                                }
 
-                            optimiser.running = false
+                                optimiser.running = false
+                            }
                         }
                     }
-                    Button("Clear all") {
+                    Button(hasRunningOptimisers ? "Stop and clear" : "Clear all") {
                         OM.clearVisibleOptimisers(stop: true)
                     }
                     .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")

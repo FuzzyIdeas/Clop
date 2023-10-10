@@ -90,6 +90,7 @@ struct FloatingResultContainer: View {
                     .transition(
                         .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
                     )
+                    .padding(.bottom, 10)
             }
         }
         .onHover { hovering in

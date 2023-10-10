@@ -1228,10 +1228,10 @@ func optimiseURL(
             }
             clipResult = .image(img)
 
-            let result: Image? = if let scalingFactor, scalingFactor < 1 {
-                try await downscaleImage(img, toFactor: scalingFactor, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
-            } else if let cropSize, cropSize < img.size {
+            let result: Image? = if let cropSize, cropSize < img.size {
                 try await downscaleImage(img, toFactor: cropSize.area / img.size.area, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+            } else if let scalingFactor, scalingFactor < 1 {
+                try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
                 try await optimiseImage(
                     img,
@@ -1251,10 +1251,10 @@ func optimiseURL(
         case .video:
             clipResult = .file(downloadPath)
 
-            let result: Video? = if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
-            } else if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id), let size = video.size, cropSize < size {
+            let result: Video? = if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id), let size = video.size, cropSize < size {
                 try await downscaleVideo(video, id: optimiser.id, toFactor: cropSize.area / size.area, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+            } else if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
+                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, cropTo: nil, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
                 try await changePlaybackSpeedVideo(
                     video,
@@ -1531,9 +1531,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
-                if let scalingFactor, scalingFactor < 1 {
-                    try await downscaleImage(img, toFactor: scalingFactor, cropTo: cropSize, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
-                } else if let cropSize, cropSize < img.size {
+                if let cropSize, cropSize < img.size {
                     try await downscaleImage(
                         img,
                         toFactor: cropSize.area / img.size.area,
@@ -1544,6 +1542,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         aggressiveOptimisation: aggressiveOptimisation,
                         source: source
                     )
+                } else if let scalingFactor, scalingFactor < 1 {
+                    try await downscaleImage(img, toFactor: scalingFactor, cropTo: nil, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else {
                     try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 }
@@ -1558,24 +1558,24 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 let video = await (try? Video.byFetchingMetadata(path: path)) ?? Video(path: path)
 
-                if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleVideo(
-                        video,
-                        copyToClipboard: copyToClipboard,
-                        id: id,
-                        toFactor: scalingFactor,
-                        cropTo: cropSize,
-                        hideFloatingResult: hideFloatingResult,
-                        aggressiveOptimisation: aggressiveOptimisation,
-                        source: source
-                    )
-                } else if let cropSize, let size = video.size, cropSize < size {
+                if let cropSize, let size = video.size, cropSize < size {
                     return try await downscaleVideo(
                         video,
                         copyToClipboard: copyToClipboard,
                         id: id,
                         toFactor: cropSize.area / size.area,
                         cropTo: cropSize,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        source: source
+                    )
+                } else if let scalingFactor, scalingFactor < 1 {
+                    return try await downscaleVideo(
+                        video,
+                        copyToClipboard: copyToClipboard,
+                        id: id,
+                        toFactor: scalingFactor,
+                        cropTo: nil,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
                         source: source

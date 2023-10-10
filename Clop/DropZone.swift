@@ -95,7 +95,7 @@ struct DropZoneView: View {
         .if(enableDragAndDrop) {
             $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], isTargeted: $dragManager.dragHovering.animation(.jumpySpring)) { itemProviders in
                 dragManager.dropped = true
-                if dragManager.optimisationCount == 2 {
+                if dragManager.optimisationCount == 5 {
                     dragManager.optimisationCount += 1
                 }
                 return optimiseDroppedItems(itemProviders)

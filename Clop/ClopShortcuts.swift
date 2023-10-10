@@ -104,7 +104,7 @@ struct CropOptimiseFileIntent: AppIntent {
     init() {}
 
     static var title: LocalizedStringResource = "Crop and optimise video or image"
-    static var description = IntentDescription("Resizes and does a smart crop on an image or video received as input.")
+    static var description = IntentDescription("Resizes and does a smart crop on an image or video received as input. Use 0 for width or height to have it calculated automatically while keeping the original aspect ratio.")
 
     static var parameterSummary: some ParameterSummary {
         Summary("Crop \(\.$item) to \(\.$width)x\(\.$height) and optimise") {
