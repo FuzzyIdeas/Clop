@@ -96,7 +96,7 @@ struct OptimisationRequest: Codable, Identifiable {
     let id: String
     let urls: [URL]
     var originalUrls: [URL: URL] = [:] // [tempURL: originalURL]
-    let size: NSSize?
+    let size: CropSize?
     let downscaleFactor: Double?
     let changePlaybackSpeedFactor: Double?
     let hideFloatingResult: Bool
@@ -454,3 +454,65 @@ let DEVICE_SIZES = [
     "iPod touch 4": NSSize(width: 640, height: 960),
     "iPhone 4": NSSize(width: 640, height: 960),
 ]
+
+struct CropSize: Codable, Hashable, Identifiable {
+    init(width: Int, height: Int, name: String = "", longEdge: Bool = false) {
+        self.width = width
+        self.height = height
+        self.name = name
+        self.longEdge = longEdge
+    }
+
+    init(width: Double, height: Double, name: String = "", longEdge: Bool = false) {
+        self.width = width.evenInt
+        self.height = height.evenInt
+        self.name = name
+        self.longEdge = longEdge
+    }
+
+    static let zero = CropSize(width: 0, height: 0)
+
+    let width: Int
+    let height: Int
+    var name = ""
+    var longEdge = false
+
+    var id: String { "\(width == 0 ? "Auto" : width.s)×\(height == 0 ? "Auto" : height.s)" }
+    var area: Int { (width == 0 ? height : width) * (height == 0 ? width : height) }
+    var ns: NSSize { NSSize(width: width, height: height) }
+    var cg: CGSize { CGSize(width: width, height: height) }
+    var aspectRatio: Double { width.d / height.d }
+
+    func factor(from size: NSSize) -> Double {
+        if longEdge {
+            return width == 0 ? height.d / max(size.width, size.height) : width.d / max(size.width, size.height)
+        }
+        if width == 0 {
+            return height.d / size.height
+        }
+        if height == 0 {
+            return width.d / size.width
+        }
+        return (width.d * height.d) / (size.width * size.height)
+    }
+
+    func computedSize(from size: NSSize) -> NSSize {
+        guard width == 0 || height == 0 || longEdge else {
+            return ns
+        }
+        return size.scaled(by: factor(from: size))
+    }
+
+}
+
+func < (_ cropSize: CropSize, _ size: NSSize) -> Bool {
+    cropSize.longEdge
+        ? (cropSize.width == 0 ? cropSize.height : cropSize.width).d < max(size.width, size.height)
+        : cropSize.width.d < size.width && cropSize.height.d < size.height
+}
+
+extension NSSize {
+    func cropSize(name: String = "", longEdge: Bool = false) -> CropSize {
+        CropSize(width: width.evenInt, height: height.evenInt, name: name, longEdge: longEdge)
+    }
+}

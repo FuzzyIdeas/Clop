@@ -860,7 +860,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
     }
 
-    func crop(to size: NSSize) {
+    func crop(to size: CropSize) {
         guard let url, url.isFileURL, url.filePath.exists else { return }
 
         let clip = ClipboardType.fromURL(url)
@@ -870,7 +870,6 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 clip,
                 id: id,
                 hideFloatingResult: false,
-                downscaleTo: nil,
                 cropTo: size,
                 aggressiveOptimisation: aggresive,
                 optimisationCount: &manualOptimisationCount,
@@ -1199,7 +1198,7 @@ func optimiseURL(
     copyToClipboard: Bool = false,
     hideFloatingResult: Bool = false,
     downscaleTo scalingFactor: Double? = nil,
-    cropTo cropSize: NSSize? = nil,
+    cropTo cropSize: CropSize? = nil,
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     source: String? = nil
@@ -1228,8 +1227,8 @@ func optimiseURL(
             }
             clipResult = .image(img)
 
-            let result: Image? = if let cropSize, cropSize < img.size {
-                try await downscaleImage(img, toFactor: cropSize.area / img.size.area, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+            let result: Image? = if let cropSize, cropSize.cg < img.size {
+                try await downscaleImage(img, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let scalingFactor, scalingFactor < 1 {
                 try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
@@ -1251,10 +1250,14 @@ func optimiseURL(
         case .video:
             clipResult = .file(downloadPath)
 
-            let result: Video? = if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id), let size = video.size, cropSize < size {
-                try await downscaleVideo(video, id: optimiser.id, toFactor: cropSize.area / size.area, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+            let result: Video? = if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id), let size = video.size {
+                if cropSize < size {
+                    try await downscaleVideo(video, id: optimiser.id, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                } else {
+                    throw ClopError.alreadyResized(downloadPath)
+                }
             } else if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, cropTo: nil, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
                 try await changePlaybackSpeedVideo(
                     video,
@@ -1484,7 +1487,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     id: String,
     hideFloatingResult: Bool = false,
     downscaleTo scalingFactor: Double? = nil,
-    cropTo cropSize: NSSize? = nil,
+    cropTo cropSize: CropSize? = nil,
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     optimisationCount: inout Int,
@@ -1504,13 +1507,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
     switch item {
     case let .image(img):
-        let result = try await proGuard(count: &optimisationCount, limit: 5, url: img.path.url) {
-            if let scalingFactor, scalingFactor < 1 {
-                try await downscaleImage(img, toFactor: scalingFactor, cropTo: cropSize, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
-            } else if let cropSize, cropSize < img.size {
-                try await downscaleImage(
+        let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: img.path.url) {
+            if let cropSize {
+                guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
+                return try await downscaleImage(
                     img,
-                    toFactor: cropSize.area / img.size.area,
                     cropTo: cropSize,
                     copyToClipboard: copyToClipboard,
                     id: id,
@@ -1518,8 +1519,10 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                     aggressiveOptimisation: aggressiveOptimisation,
                     source: source
                 )
+            } else if let scalingFactor, scalingFactor < 1 {
+                return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
-                try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                return try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             }
         }
         guard let result else { return nil }
@@ -1530,11 +1533,12 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 nope(notice: "Already optimised", thumbnail: img.image, url: path.url, type: .image(img.type))
                 throw ClopError.alreadyOptimised(path)
             }
-            let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
-                if let cropSize, cropSize < img.size {
-                    try await downscaleImage(
+            let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
+                if let cropSize {
+                    guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
+
+                    return try await downscaleImage(
                         img,
-                        toFactor: cropSize.area / img.size.area,
                         cropTo: cropSize,
                         copyToClipboard: copyToClipboard,
                         id: id,
@@ -1543,9 +1547,9 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         source: source
                     )
                 } else if let scalingFactor, scalingFactor < 1 {
-                    try await downscaleImage(img, toFactor: scalingFactor, cropTo: nil, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else {
-                    try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 }
             }
             guard let result else { return nil }
@@ -1555,15 +1559,15 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 nope(notice: "Already optimised", url: path.url, type: .video(.mpeg4Movie))
                 throw ClopError.alreadyOptimised(path)
             }
-            let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
+            let result: Video? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 let video = await (try? Video.byFetchingMetadata(path: path)) ?? Video(path: path)
 
-                if let cropSize, let size = video.size, cropSize < size {
+                if let cropSize, let size = video.size {
+                    guard cropSize < size else { throw ClopError.alreadyResized(path) }
                     return try await downscaleVideo(
                         video,
                         copyToClipboard: copyToClipboard,
                         id: id,
-                        toFactor: cropSize.area / size.area,
                         cropTo: cropSize,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
@@ -1575,7 +1579,6 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         copyToClipboard: copyToClipboard,
                         id: id,
                         toFactor: scalingFactor,
-                        cropTo: nil,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
                         source: source
@@ -1703,6 +1706,8 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                         oldBytes: opt.oldBytes, newBytes: opt.newBytes,
                         oldWidthHeight: opt.oldSize, newWidthHeight: opt.newSize
                     )
+                } catch let error as ClopError {
+                    throw BatchOptimisationError.wrappedClopError(error, url)
                 } catch {
                     throw BatchOptimisationError.wrappedError(error, url)
                 }
@@ -1723,6 +1728,13 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                 }
             } catch is CancellationError {
                 continue
+            } catch let BatchOptimisationError.wrappedClopError(error, url) {
+                if req.source == "cli" {
+                    try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.description, forURL: url).jsonData)
+                } else {
+                    try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.description, forURL: url).jsonData)
+                }
+                log.error("Error \(error.description) for \(url)")
             } catch let BatchOptimisationError.wrappedError(error, url) {
                 if req.source == "cli" {
                     try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
@@ -1739,6 +1751,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
 
 enum BatchOptimisationError: Error {
     case wrappedError(Error, URL)
+    case wrappedClopError(ClopError, URL)
 }
 
 let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)

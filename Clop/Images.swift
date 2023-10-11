@@ -393,7 +393,7 @@ class Image: CustomStringConvertible {
         Image(data: data, path: path, nsImage: image, type: type, optimised: optimised, retinaDownscaled: retinaDownscaled)
     }
 
-    func optimiseGIF(optimiser: Optimiser, resizeTo newSize: CGSize? = nil, scaleTo scaleFactor: Double? = nil, cropTo cropSize: NSSize? = nil, fromSize: CGSize? = nil, aggressiveOptimisation: Bool? = nil) throws -> Image {
+    func optimiseGIF(optimiser: Optimiser, resizeTo newSize: CGSize? = nil, scaleTo scaleFactor: Double? = nil, cropTo cropSize: CropSize? = nil, fromSize: CGSize? = nil, aggressiveOptimisation: Bool? = nil) throws -> Image {
         let tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.gif")
 
         var resizedFile: FilePath? = nil
@@ -402,24 +402,24 @@ class Image: CustomStringConvertible {
         if let newSize {
             resizeArgs = ["--resize", "\(newSize.width.i)x\(newSize.height.i)"]
         } else if let cropSize, let fromSize {
-            let cropSize = cropSize.evenSize
-            if cropSize.width > 0, cropSize.height > 0 {
+            let s = cropSize.ns
+            if s.width > 0, s.height > 0, !cropSize.longEdge {
                 let cropString: String
-                if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
-                    let newAspectRatio = cropSize.width / cropSize.height
+                if (fromSize.width / s.width) > (fromSize.height / s.height) {
+                    let newAspectRatio = s.width / s.height
                     let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
                     cropString = "\(widthDiff),0+-\(widthDiff)x0"
                 } else {
-                    let newAspectRatio = cropSize.height / cropSize.width
+                    let newAspectRatio = s.height / s.width
                     let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
                     cropString = "0,\(heightDiff)+0x-\(heightDiff)"
                 }
 
-                resizeArgs = ["--crop", cropString, "--resize", "\(cropSize.width.i)x\(cropSize.height.i)"]
-                size = cropSize
+                resizeArgs = ["--crop", cropString, "--resize", "\(s.width.i)x\(s.height.i)"]
+                size = s
             } else {
-                let scaleFactor = cropSize.width == 0 ? cropSize.height / fromSize.height : cropSize.width / fromSize.width
-                resizeArgs = ["--scale", "\(scaleFactor.d.str(decimals: 2))"]
+                let scaleFactor = cropSize.factor(from: fromSize)
+                resizeArgs = ["--scale", "\(scaleFactor.str(decimals: 2))"]
                 size = fromSize.scaled(by: scaleFactor)
             }
         } else if let scaleFactor {
@@ -648,7 +648,7 @@ class Image: CustomStringConvertible {
     }
 
     func resize(toFraction fraction: Double, optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
-        let size = NSSize(width: (size.width * fraction).evenInt, height: (size.height * fraction).evenInt)
+        let size = CropSize(width: (size.width * fraction).evenInt, height: (size.height * fraction).evenInt)
         let pathForResize = FilePath.forResize.appending(path.nameWithoutSize)
         try path.copy(to: pathForResize, force: true)
 
@@ -659,14 +659,17 @@ class Image: CustomStringConvertible {
         return try resize(toSize: size, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
     }
 
-    func resize(toSize size: NSSize, optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
+    func resize(toSize size: CropSize, optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
         let pathForResize = FilePath.forResize.appending(path.nameWithoutSize)
-        try path.copy(to: pathForResize, force: true)
+        if path != pathForResize {
+            try path.copy(to: pathForResize, force: true)
+        }
 
         if type == .gif, let gif = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
             return try gif.optimiseGIF(optimiser: optimiser, cropTo: size, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
         }
 
+        let size = size.computedSize(from: self.size)
         let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
         let proc = try tryProc(VIPSTHUMBNAIL.string, args: ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", "attention", pathForResize.string], tries: 3) { proc in
             mainActor { optimiser.processes = [proc] }
@@ -674,9 +677,14 @@ class Image: CustomStringConvertible {
         guard proc.terminationStatus == 0 else {
             throw ClopProcError.processError(proc)
         }
-        pathForResize.waitForFile(for: 2.0)
 
-        guard let pbImage = Image(path: pathForResize.withSize(size), optimised: false, retinaDownscaled: retinaDownscaled) else {
+        let resizedPath = pathForResize.withSize(size)
+        resizedPath.waitForFile(for: 2.0)
+        if resizedPath != pathForResize {
+            try resizedPath.copy(to: pathForResize, force: true)
+        }
+
+        guard let pbImage = Image(path: pathForResize, optimised: false, retinaDownscaled: retinaDownscaled) else {
             throw ClopError.downscaleFailed(pathForResize)
         }
         return try pbImage.optimise(optimiser: optimiser, allowLarger: false, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
@@ -1004,7 +1012,7 @@ extension FilePath {
 @MainActor func downscaleImage(
     _ img: Image,
     toFactor factor: Double? = nil,
-    cropTo cropSize: NSSize? = nil,
+    cropTo cropSize: CropSize? = nil,
     saveTo savePath: FilePath? = nil,
     copyToClipboard: Bool = false,
     id: String? = nil,
@@ -1013,7 +1021,9 @@ extension FilePath {
     source: String? = nil
 ) async throws -> Image? {
     imageResizeDebouncers[img.path.string]?.cancel()
-    if let factor {
+    if let cropSize {
+        scalingFactor = cropSize.factor(from: img.size)
+    } else if let factor {
         scalingFactor = factor
     } else if let currentFactor = opt(id ?? img.path.string)?.downscaleFactor {
         scalingFactor = max(currentFactor > 0.5 ? currentFactor - 0.25 : currentFactor - 0.1, 0.1)
@@ -1024,9 +1034,11 @@ extension FilePath {
         scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
     }
 
-    let scaleString = cropSize != nil
-        ? "\(cropSize!.width > 0 ? cropSize!.width.i.s : "Auto")×\(cropSize!.height > 0 ? cropSize!.height.i.s : "Auto")"
-        : "\((scalingFactor * 100).intround)%"
+    let scaleString = if let size = cropSize?.computedSize(from: img.size) {
+        "\(size.width > 0 ? size.width.i.s : "Auto")×\(size.height > 0 ? size.height.i.s : "Auto")"
+    } else {
+        "\((scalingFactor * 100).intround)%"
+    }
 
     let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source, indeterminateProgress: true)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
@@ -1055,8 +1067,8 @@ extension FilePath {
             if let cropSize, cropSize.width > 0, cropSize.height > 0 {
                 resized = try img.resize(toSize: cropSize, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
             } else {
-                if let cropSize {
-                    scalingFactor = cropSize.width == 0 ? cropSize.height / img.size.height : cropSize.width / img.size.width
+                if let s = cropSize?.ns {
+                    scalingFactor = s.width == 0 ? s.height / img.size.height : s.width / img.size.width
                 }
                 resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
             }

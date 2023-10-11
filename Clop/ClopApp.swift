@@ -346,6 +346,7 @@ class AppDelegate: LowtechProAppDelegate {
                 exit(0)
             }
             syncSettings()
+            Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
         }
 
         paddleVendorID = "122873"

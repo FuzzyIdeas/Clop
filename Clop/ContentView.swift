@@ -26,6 +26,7 @@ struct MenuView: View {
     @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
     @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
     @Default(.useAggresiveOptimisationMP4) var useAggresiveOptimisationMP4
+    @Default(.cliInstalled) var cliInstalled
 
     @State var cliInstallResult: String?
 
@@ -102,19 +103,23 @@ struct MenuView: View {
         }
 
         Section("Automation") {
-            Button("Install command-line integration") {
-                do {
-                    try installCLIBinary()
-                    cliInstallResult = "CLI installed (type `clop` in a new terminal)"
-                } catch let error as InstallCLIError {
-                    cliInstallResult = error.message
-                } catch {
-                    cliInstallResult = "Installation failed"
+            if !cliInstalled {
+                Button("Install command-line integration") {
+                    do {
+                        try installCLIBinary()
+                        cliInstallResult = "CLI installed at \(CLOP_CLI_BIN_SHELL)"
+                    } catch let error as InstallCLIError {
+                        cliInstallResult = error.message
+                    } catch {
+                        cliInstallResult = "Installation failed"
+                    }
+                    showNotice(cliInstallResult!)
                 }
-                showNotice(cliInstallResult!)
             }
             if let cliInstallResult {
                 Text(cliInstallResult).disabled(true)
+            } else if cliInstalled {
+                Text("CLI installed at \(CLOP_CLI_BIN_SHELL)").disabled(true)
             }
         }
 
