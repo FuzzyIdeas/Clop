@@ -309,6 +309,11 @@ struct CompactResultList: View {
         VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
             FlipGroup(if: floatingResultsCorner.isTop) {
                 HStack {
+                    if floatingResultsCorner.isTrailing {
+                        UpdateButton(short: !showCompactImages)
+                        Spacer()
+                    }
+
                     if hasRunningOptimisers {
                         Button("Stop all") {
                             OM.optimisers.filter(\.running).forEach { optimiser in
@@ -328,11 +333,17 @@ struct CompactResultList: View {
                         OM.clearVisibleOptimisers(stop: true)
                     }
                     .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
+
+                    if !floatingResultsCorner.isTrailing {
+                        Spacer()
+                        UpdateButton(short: !showCompactImages)
+                    }
                 }
                 .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
                 .font(.medium(11))
                 .opacity(hovering && showList ? 1 : 0)
                 .focusable(false)
+                .frame(width: size.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
 
                 let opts: [(opt: Optimiser, isLast: Bool, isEven: Bool)] = optimisers.isEmpty
                     ? []

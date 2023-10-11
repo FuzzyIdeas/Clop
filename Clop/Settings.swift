@@ -101,6 +101,7 @@ extension Defaults.Keys {
     static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: DEFAULT_GLOBAL_KEYS)
 
     static let savedCropSizes = Key<[CropSize]>("savedCropSizes", default: DEFAULT_CROP_SIZES)
+    static let pauseAutomaticOptimisations = Key<Bool>("pauseAutomaticOptimisations", default: false)
 
     static let syncSettingsCloud = Key<Bool>("syncSettingsCloud", default: true)
 }
@@ -162,6 +163,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .optimiseVideoClipboard,
     .pdfDirs,
     .quickResizeKeys,
+    .savedCropSizes,
     .shortcutToRunOnImage,
     .shortcutToRunOnVideo,
     .shortcutToRunOnPdf,

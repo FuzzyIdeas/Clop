@@ -99,7 +99,7 @@ struct DirListView: View {
                     `*.jpg`
                     ` `
                     `# Ignore all folders and subfolders (like a non-recursive option)`
-                    `*/`
+                    `*/*`
                     ` `
                     `# Exclude all files in a "DontOptimise" directory`
                     `DontOptimise/`
