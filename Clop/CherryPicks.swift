@@ -107,4 +107,46 @@ extension NSSize {
     var aspectRatio: Double {
         width / height
     }
+    func scaled(by factor: Double) -> CGSize {
+        CGSize(width: (width * factor).evenInt, height: (height * factor).evenInt)
+    }
+}
+
+extension Int {
+    var s: String {
+        String(self)
+    }
+    var d: Double {
+        Double(self)
+    }
+}
+
+extension Double {
+    @inline(__always) @inlinable var intround: Int {
+        rounded().i
+    }
+
+    @inline(__always) @inlinable var i: Int {
+        Int(self)
+    }
+
+    var evenInt: Int {
+        let x = intround
+        return x + x % 2
+    }
+}
+
+extension CGFloat {
+    @inline(__always) @inlinable var intround: Int {
+        rounded().i
+    }
+
+    @inline(__always) @inlinable var i: Int {
+        Int(self)
+    }
+
+    var evenInt: Int {
+        let x = intround
+        return x + x % 2
+    }
 }
