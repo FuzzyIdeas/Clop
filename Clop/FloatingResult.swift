@@ -7,6 +7,7 @@
 
 import Defaults
 import Lowtech
+import LowtechIndie
 import LowtechPro
 import SwiftUI
 
@@ -61,6 +62,26 @@ struct FloatingResultList: View {
         }
     }
 }
+
+struct UpdateButton: View {
+    var short = false
+    @ObservedObject var um: UpdateManager = UM
+    @State var hovering = false
+
+    var body: some View {
+        if let updateVersion = um.newVersion {
+            Button(short ? "v\(updateVersion) available" : "v\(updateVersion) update available") {
+                checkForUpdates()
+            }
+            .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
+            .font(.medium(11))
+            .opacity(hovering ? 1 : 0.5)
+            .focusable(false)
+            .onHover { hovering = $0 }
+        }
+    }
+}
+
 struct FloatingResultContainer: View {
     @ObservedObject var om = OM
     @ObservedObject var dragManager = DM
@@ -72,8 +93,18 @@ struct FloatingResultContainer: View {
     var body: some View {
         let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
         VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: 10) {
+            if !isPreview, dragManager.dragging, floatingResultsCorner.isTop {
+                DropZoneView()
+                    .transition(
+                        .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
+                    )
+                    .padding(.bottom, 10)
+            }
+
             if optimisers.isNotEmpty {
-                if (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults {
+                let compact = (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults
+
+                if compact {
                     CompactResultList(optimisers: optimisers, progress: om.progress, doneCount: om.doneCount, failedCount: om.failedCount, visibleCount: om.visibleCount).preview(isPreview)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 15)
@@ -82,10 +113,12 @@ struct FloatingResultContainer: View {
                         }
                 } else {
                     FloatingResultList(optimisers: optimisers).preview(isPreview)
+                    UpdateButton().padding(floatingResultsCorner.isTrailing ? .trailing : .leading, 54)
                 }
+
             }
 
-            if !isPreview, dragManager.dragging {
+            if !isPreview, dragManager.dragging, !floatingResultsCorner.isTop {
                 DropZoneView()
                     .transition(
                         .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
