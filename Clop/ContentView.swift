@@ -27,6 +27,7 @@ struct MenuView: View {
     @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
     @Default(.useAggresiveOptimisationMP4) var useAggresiveOptimisationMP4
     @Default(.cliInstalled) var cliInstalled
+    @Default(.pauseAutomaticOptimisations) var pauseAutomaticOptimisations
 
     @State var cliInstallResult: String?
 
@@ -103,6 +104,7 @@ struct MenuView: View {
         }
 
         Section("Automation") {
+            Toggle("Pause automatic optimisations", isOn: $pauseAutomaticOptimisations)
             if !cliInstalled {
                 Button("Install command-line integration") {
                     do {
@@ -145,7 +147,7 @@ struct MenuView: View {
             focus()
         }
 
-        Button(um.newVersion != nil ? "v\(um.newVersion!) available" : "Check for updates") {
+        Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {
             checkForUpdates()
         }
         Button("Quit") {
