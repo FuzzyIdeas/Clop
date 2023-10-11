@@ -142,7 +142,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 clip,
                 id: item,
                 hideFloatingResult: hideFloatingResult,
-                cropTo: NSSize(width: width, height: height),
+                cropTo: CropSize(width: width, height: height),
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,

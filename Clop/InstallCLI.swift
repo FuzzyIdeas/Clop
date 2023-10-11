@@ -12,6 +12,7 @@ let CLOP_CLI_BIN = "\(Bundle.main.sharedSupportPath!)/ClopCLI"
 let CLI_BIN_DIR = "\(HOME)/.local/bin"
 let CLI_BIN_DIR_ENV = "$HOME/.local/bin"
 let CLOP_CLI_BIN_LINK = "\(CLI_BIN_DIR)/clop"
+let CLOP_CLI_BIN_SHELL = "~/.local/bin/clop"
 let ZSHRC = "\(HOME)/.zshrc"
 let BASHRC = "\(HOME)/.bashrc"
 let FISHRC = "\(HOME)/.config/fish/config.fish"
@@ -72,7 +73,7 @@ func handleCLIInstall() {
 
     do {
         try installCLIBinary()
-        print("CLI installed at \(CLOP_CLI_BIN_LINK)")
+        print("CLI installed at \(CLOP_CLI_BIN_SHELL)")
 
         if let shell = ProcessInfo.processInfo.environment["SHELL"] {
             do {

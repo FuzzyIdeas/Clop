@@ -69,7 +69,7 @@ struct ResolutionField: View {
                 guard !preview, tempWidth > 0 || tempHeight > 0 else { return }
 
                 if tempWidth != 0, tempHeight != 0 {
-                    optimiser.crop(to: NSSize(width: tempWidth, height: tempHeight))
+                    optimiser.crop(to: CropSize(width: tempWidth, height: tempHeight))
                 } else {
                     optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
                 }
@@ -197,11 +197,4 @@ struct ResolutionField: View {
 
 }
 
-struct CropSize: Codable, Hashable, Defaults.Serializable, Identifiable {
-    let width: Int
-    let height: Int
-    let name: String
-
-    var id: String { "\(width == 0 ? "Auto" : width.s)×\(height == 0 ? "Auto" : height.s)" }
-    var area: Int { (width ?! height) * (height ?! width) }
-}
+extension CropSize: Defaults.Serializable {}
