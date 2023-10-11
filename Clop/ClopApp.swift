@@ -321,6 +321,8 @@ class AppDelegate: LowtechProAppDelegate {
     }
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
+        UM.newVersion = "2.2.2"
+
         if !SWIFTUI_PREVIEW {
             handleCLIInstall()
             unarchiveBinaries()
@@ -449,6 +451,15 @@ class AppDelegate: LowtechProAppDelegate {
                 }
             }
             .store(in: &observers)
+        pub(.pauseAutomaticOptimisations)
+            .sink { paused in
+                if paused.newValue {
+                    clipboardWatcher?.invalidate()
+                } else {
+                    self.initClipboardOptimiser()
+                }
+            }
+            .store(in: &observers)
         initMachPortListener()
 
         #if !DEBUG
@@ -551,7 +562,7 @@ class AppDelegate: LowtechProAppDelegate {
             }
         }
 
-        if Defaults[.enableClipboardOptimiser] {
+        if Defaults[.enableClipboardOptimiser], !Defaults[.pauseAutomaticOptimisations] {
             initClipboardOptimiser()
         }
 
@@ -637,8 +648,22 @@ class FileOptimisationWatcher {
             self?.paths = change.newValue
             self?.startWatching()
         }.store(in: &observers)
+
         pub(maxFilesToHandleKey).sink { [weak self] change in
             self?.maxFilesToHandle = change.newValue
+        }.store(in: &observers)
+
+        pub(.pauseAutomaticOptimisations).sink { [weak self] change in
+            guard let self else { return }
+
+            if change.newValue {
+                if watching {
+                    EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+                    watching = false
+                }
+            } else {
+                startWatching()
+            }
         }.store(in: &observers)
 
         startWatching()
@@ -688,7 +713,7 @@ class FileOptimisationWatcher {
             watching = false
         }
 
-        guard !paths.isEmpty else { return }
+        guard !paths.isEmpty, !Defaults[.pauseAutomaticOptimisations] else { return }
 
         try! EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
             guard !SWIFTUI_PREVIEW else { return }
