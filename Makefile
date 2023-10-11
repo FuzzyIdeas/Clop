@@ -70,8 +70,11 @@ else
 	pandoc -f gfm -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css ReleaseNotes/$(VERSION).md
 endif
 
-Clop/bin-%.tar.xz: $(wildcard Clop/bin-%/*)
-	fd -t file . Clop/bin-$* -x codesign -fs "$$CODESIGN_CERT" --options runtime --timestamp '{}'
+Clop/bin-x86.tar.xz: $(wildcard Clop/bin-x86/*) $(wildcard Clop/bin-x86/*/*)
+Clop/bin-arm64.tar.xz: $(wildcard Clop/bin-arm64/*) $(wildcard Clop/bin-arm64/*/*)
+
+Clop/bin-%.tar.xz:
+	fd -t file . Clop/bin-$* -x sh -c 'codesign -v "{}" || codesign -fs "$$CODESIGN_CERT" --options runtime --timestamp "{}"'
 	rm Clop/bin-$*.tar.xz; cd Clop/bin-$*/; tar acvf ../bin-$*.tar.xz *
 	sha256sum Clop/bin-$*.tar.xz | cut -d' ' -f1 > Clop/bin-$*.tar.xz.sha256
 bin: Clop/bin-arm64.tar.xz Clop/bin-x86.tar.xz
