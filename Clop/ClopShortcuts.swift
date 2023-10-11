@@ -107,11 +107,21 @@ struct CropOptimiseFileIntent: AppIntent {
     static var description = IntentDescription("Resizes and does a smart crop on an image or video received as input. Use 0 for width or height to have it calculated automatically while keeping the original aspect ratio.")
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Crop \(\.$item) to \(\.$width)x\(\.$height) and optimise") {
-            \.$hideFloatingResult
-            \.$aggressiveOptimisation
-            \.$copyToClipboard
-        }
+        When(\.$longEdge, .equalTo, true, {
+            Summary("Crop \(\.$item) to \(\.$size) over the longest edge and optimise") {
+                \.$hideFloatingResult
+                \.$aggressiveOptimisation
+                \.$copyToClipboard
+                \.$longEdge
+            }
+        }, otherwise: {
+            Summary("Crop \(\.$item) to \(\.$width)x\(\.$height) and optimise") {
+                \.$hideFloatingResult
+                \.$aggressiveOptimisation
+                \.$copyToClipboard
+                \.$longEdge
+            }
+        })
     }
 
     @Parameter(title: "Video or image path, URL or base64 data")
@@ -126,11 +136,17 @@ struct CropOptimiseFileIntent: AppIntent {
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
 
+    @Parameter(title: "Resize over long edge")
+    var longEdge: Bool
+
     @Parameter(title: "Width")
     var width: Int
 
     @Parameter(title: "Height")
     var height: Int
+
+    @Parameter(title: "Size")
+    var size: Int
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
@@ -142,7 +158,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 clip,
                 id: item,
                 hideFloatingResult: hideFloatingResult,
-                cropTo: CropSize(width: width, height: height),
+                cropTo: CropSize(width: longEdge ? size : width, height: longEdge ? size : height, longEdge: longEdge),
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
