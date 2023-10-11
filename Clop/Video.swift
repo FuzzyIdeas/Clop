@@ -134,12 +134,47 @@ class Video: Optimisable {
         return image
     }
 
+    func getScaleFilters(cropSize: CropSize?, newSize: NSSize? = nil) -> [String] {
+        guard let cropSize, let fromSize = size else {
+            guard let size = newSize else { return [] } // no resize
+            return ["scale=w=\(size.width.i.s):h=\(size.height.i.s)"] // resize to specific size
+        }
+
+        let s = cropSize.ns
+        guard s.width > 0, s.height > 0, !cropSize.longEdge else {
+            // crop by specifying only one size, keeping aspect ratio
+            let scaleFactor = cropSize.factor(from: fromSize)
+
+            if !cropSize.longEdge {
+                return ["scale=w=\(s.width == 0 ? "-2" : s.width.i.s):h=\(s.height == 0 ? "-2" : s.height.i.s)"]
+            } else if fromSize.width > fromSize.height {
+                return ["scale=w=\(cropSize.width ?! cropSize.height):h=-2"]
+            } else {
+                return ["scale=w=-2:h=\(cropSize.height ?! cropSize.width)"]
+            }
+        }
+
+        // crop and resize to specific size
+        let cropString: String
+        if (fromSize.width / s.width) > (fromSize.height / s.height) {
+            let newAspectRatio = s.width / s.height
+            let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
+            cropString = "in_w-\(widthDiff * 2):in_h:\(widthDiff):0"
+        } else {
+            let newAspectRatio = s.height / s.width
+            let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
+            cropString = "in_w:in_h-\(heightDiff * 2):0:\(heightDiff)"
+        }
+
+        return ["crop=\(cropString)", "scale=w=\(s.width.i.s):h=\(s.height.i.s)"]
+    }
+
     func optimise(
         optimiser: Optimiser,
         forceMP4: Bool = false,
         backup: Bool = true,
         resizeTo newSize: CGSize? = nil,
-        cropTo cropSize: NSSize? = nil,
+        cropTo cropSize: CropSize? = nil,
         changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
         originalPath: FilePath? = nil,
         aggressiveOptimisation: Bool? = nil
@@ -170,33 +205,9 @@ class Video: Optimisable {
             additionalArgs += ["-fpsmax", "\(newFPS!)"]
         }
 
-        var filters = [String]()
-        if let cropSize, let fromSize = size {
-            let cropSize = cropSize.evenSize
-            if cropSize.width > 0, cropSize.height > 0 {
-                let cropString: String
-                if (fromSize.width / cropSize.width) > (fromSize.height / cropSize.height) {
-                    let newAspectRatio = cropSize.width / cropSize.height
-                    let widthDiff = ((fromSize.width - (newAspectRatio * fromSize.height)) / 2).i
-                    cropString = "in_w-\(widthDiff * 2):in_h:\(widthDiff):0"
-                } else {
-                    let newAspectRatio = cropSize.height / cropSize.width
-                    let heightDiff = ((fromSize.height - (newAspectRatio * fromSize.width)) / 2).i
-                    cropString = "in_w:in_h-\(heightDiff * 2):0:\(heightDiff)"
-                }
-
-                filters += ["crop=\(cropString)", "scale=w=\(cropSize.width.i.s):h=\(cropSize.height.i.s)"]
-            } else {
-                filters.append("scale=w=\(cropSize.width == 0 ? "-2" : cropSize.width.i.s):h=\(cropSize.height == 0 ? "-2" : cropSize.height.i.s)")
-            }
-        } else if let size = newSize {
-            filters.append("scale=w=\(size.width.i.s):h=\(size.height.i.s)")
-        }
+        var filters = getScaleFilters(cropSize: cropSize, newSize: newSize)
 
         if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor > 0 {
-//            if changePlaybackSpeedFactor < 1, let fps, let newFPS {
-//                filters.append("minterpolate='fps=\(min(fps, newFPS).d * changePlaybackSpeedFactor)'")
-//            }
             filters.append("setpts=PTS/\(String(format: "%.2f", changePlaybackSpeedFactor))")
         }
 
@@ -247,7 +258,12 @@ class Video: Optimisable {
         if Defaults[.capVideoFPS], let fps, let new = newFPS, new > fps {
             newFPS = fps
         }
-        let metadata = VideoMetadata(resolution: cropSize ?? newSize ?? size ?? .zero, fps: newFPS ?? fps ?? 0)
+        let resultingSize = if let size, let cropSize {
+            cropSize.computedSize(from: size)
+        } else {
+            newSize ?? size ?? .zero
+        }
+        let metadata = VideoMetadata(resolution: resultingSize, fps: newFPS ?? fps ?? 0)
         let convertedFrom = forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil
         var newVideo = Video(path: outputPath, metadata: metadata, convertedFrom: convertedFrom)
 
@@ -530,7 +546,7 @@ var processTerminated = Set<pid_t>()
     copyToClipboard: Bool = false,
     id: String? = nil,
     toFactor factor: Double? = nil,
-    cropTo cropSize: NSSize? = nil,
+    cropTo cropSize: CropSize? = nil,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
@@ -542,7 +558,9 @@ var processTerminated = Set<pid_t>()
 
     let pathString = video.path.string
     videoOptimiseDebouncers[pathString]?.cancel()
-    if let factor {
+    if let cropSize {
+        scalingFactor = cropSize.factor(from: resolution)
+    } else if let factor {
         scalingFactor = factor
     } else if let currentFactor = opt(id ?? pathString)?.downscaleFactor {
         scalingFactor = max(currentFactor > 0.5 ? currentFactor - 0.25 : currentFactor - 0.1, 0.1)
@@ -551,9 +569,11 @@ var processTerminated = Set<pid_t>()
     }
 
     let itemType = ItemType.from(filePath: video.path)
-    let scaleString = cropSize != nil
-        ? "\(cropSize!.width > 0 ? cropSize!.width.i.s : "Auto")×\(cropSize!.height > 0 ? cropSize!.height.i.s : "Auto")"
-        : "\((scalingFactor * 100).intround)%"
+    let scaleString = if let size = cropSize?.computedSize(from: resolution) {
+        "\(size.width > 0 ? size.width.i.s : "Auto")×\(size.height > 0 ? size.height.i.s : "Auto")"
+    } else {
+        "\((scalingFactor * 100).intround)%"
+    }
 
     let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source)
     let aggressive = aggressiveOptimisation ?? optimiser.aggresive
@@ -575,7 +595,7 @@ var processTerminated = Set<pid_t>()
         }
 
         var optimisedVideo: Video?
-        let newSize = resolution.scaled(by: scalingFactor)
+        let newSize = cropSize?.computedSize(from: resolution) ?? resolution.scaled(by: scalingFactor)
         let fileSize = video.fileSize
         do {
             optimisedVideo = try video.optimise(

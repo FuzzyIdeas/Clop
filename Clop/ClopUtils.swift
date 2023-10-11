@@ -99,6 +99,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case noClipboardImage(FilePath)
     case noProcess(String)
     case alreadyOptimised(FilePath)
+    case alreadyResized(FilePath)
     case unknownImageType(FilePath)
     case skippedType(String)
     case imageSizeLarger(FilePath)
@@ -128,6 +129,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             return "Can't start process: \(string)"
         case let .alreadyOptimised(p):
             return "Image is already optimised: \(p)"
+        case let .alreadyResized(p):
+            return "Image is already at the correct size or smaller: \(p)"
         case let .imageSizeLarger(p):
             return "Optimised image size is larger: \(p)"
         case let .videoSizeLarger(p):
@@ -170,6 +173,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Can't start process"
         case .alreadyOptimised:
             "Already optimised"
+        case .alreadyResized:
+            "Image is already at the correct size or smaller"
         case .imageSizeLarger:
             "Already optimised"
         case .videoSizeLarger:

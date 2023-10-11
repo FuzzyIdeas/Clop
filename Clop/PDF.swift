@@ -257,7 +257,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.0
     debounceMS: Int = 0,
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
-    cropTo cropSize: NSSize? = nil,
+    cropTo cropSize: CropSize? = nil,
     aggressiveOptimisation: Bool? = nil,
     source: String? = nil
 ) async throws -> PDF? {

@@ -366,8 +366,8 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
 
-        @Flag(name: .shortAndLong, inversion: .prefixedNo, help: "Print progress to stderr")
-        var progress = true
+        @Flag(name: .shortAndLong, help: "Don't print progress to stderr")
+        var noProgress = false
 
         @Flag(name: .long, help: "Process files and items in the background")
         var async = false
@@ -378,11 +378,17 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
         var copy = false
 
-        @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
+        @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs\n")
         var skipErrors = false
 
+        @Flag(
+            name: .shortAndLong,
+            help: "When the size is specified as a single number, it will crop the longer of width or height to that number.\nThe shorter edge will be calculated automatically while keeping the original aspect ratio.\n\nExample: `clop crop --long-edge --size 1920` will crop a landscape 2400x1350 image to 1920x1080, and a portrait 1350x2400 image to 1080x1920\n"
+        )
+        var longEdge = false
+
         @Option(
-            help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50\nUse 0 for width or height to have it calculated automatically while keeping the original aspect ratio. (e.g. `128x0` or `0x720`)"
+            help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50\n\nUse 0 for width or height to have it calculated automatically while keeping the original aspect ratio. (e.g. `128x0` or `0x720`)\n"
         )
         var size: NSSize
 
@@ -396,11 +402,11 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try sendRequest(urls: urls, showProgress: progress, async: async, gui: gui, operation: "cropping") {
+            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, operation: "cropping") {
                 OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
-                    size: size,
+                    size: size.cropSize(longEdge: longEdge),
                     downscaleFactor: 0.9,
                     changePlaybackSpeedFactor: nil,
                     hideFloatingResult: !gui,
@@ -416,8 +422,8 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
 
-        @Flag(name: .shortAndLong, inversion: .prefixedNo, help: "Print progress to stderr")
-        var progress = true
+        @Flag(name: .shortAndLong, help: "Don't print progress to stderr")
+        var noProgress = false
 
         @Flag(name: .long, help: "Process files and items in the background")
         var async = false
@@ -444,7 +450,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try sendRequest(urls: urls, showProgress: progress, async: async, gui: gui, operation: "downscaling") {
+            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, operation: "downscaling") {
                 OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
@@ -464,8 +470,8 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
 
-        @Flag(name: .shortAndLong, inversion: .prefixedNo, help: "Print progress to stderr")
-        var progress = true
+        @Flag(name: .shortAndLong, help: "Don't print progress to stderr")
+        var noProgress = false
 
         @Flag(name: .long, help: "Process files and items in the background")
         var async = false
@@ -501,11 +507,11 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try sendRequest(urls: urls, showProgress: progress, async: async, gui: gui, operation: "optimisation") {
+            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, operation: "optimisation") {
                 OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
-                    size: crop,
+                    size: crop?.cropSize(),
                     downscaleFactor: downscaleFactor,
                     changePlaybackSpeedFactor: changePlaybackSpeedFactor,
                     hideFloatingResult: !gui,
