@@ -321,8 +321,6 @@ class AppDelegate: LowtechProAppDelegate {
     }
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
-        UM.newVersion = "2.2.2"
-
         if !SWIFTUI_PREVIEW {
             handleCLIInstall()
             unarchiveBinaries()
