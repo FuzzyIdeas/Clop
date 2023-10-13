@@ -401,22 +401,31 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
 }
 
 let ARCH = NSRunningApplication.current.executableArchitecture == NSBundleExecutableArchitectureARM64 ? "arm64" : "x86"
-let BIN_ARCHIVE = Bundle.main.url(forResource: "bin-\(ARCH)", withExtension: "tar.xz")! // /Applications/Clop.app/Contents/Resources/bin-arm64.tar.xz
-let BIN_ARCHIVE_HASH_PATH = Bundle.main.url(forResource: "bin-\(ARCH)", withExtension: "tar.xz.sha256")! // /Applications/Clop.app/Contents/Resources/bin-arm64.tar.xz.sha256
-let BIN_DIR = fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("bin-\(ARCH)") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-arm64/
-let OLD_BIN_DIR = fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("com.lowtechguys.Clop") // ~/Library/Application Scripts/com.lowtechguys.Clop/com.lowtechguys.Clop/
+let BIN_ARCHIVE = Bundle.main.url(forResource: "bin", withExtension: "tar.xz")! // /Applications/Clop.app/Contents/Resources/bin.tar.xz
+let BIN_ARCHIVE_HASH_PATH = Bundle.main.url(forResource: "bin", withExtension: "tar.xz.sha256")! // /Applications/Clop.app/Contents/Resources/bin.tar.xz.sha256
+let GLOBAL_BIN_DIR = fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/
+let BIN_DIR = GLOBAL_BIN_DIR.appendingPathComponent(ARCH) // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/arm64
+let OLD_BIN_DIRS = [
+    fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("com.lowtechguys.Clop"), // ~/Library/Application Scripts/com.lowtechguys.Clop/com.lowtechguys.Clop/
+    fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("bin-arm64"), // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-arm64
+    fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("bin-x86"), // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-x86
+]
 let BIN_ARCHIVE_HASH = fm.contents(atPath: BIN_ARCHIVE_HASH_PATH.path)! // f62955f10479b7df4d516f8a714290f2402faaf8960c6c44cae3dfc68f45aabd
-let BIN_HASH_FILE = BIN_DIR.appendingPathComponent("sha256hash") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-arm64/sha256hash
+let BIN_HASH_FILE = BIN_DIR.appendingPathComponent("sha256hash") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/sha256hash
 
 func unarchiveBinaries() {
-    if fm.fileExists(atPath: OLD_BIN_DIR.path) {
-        try? fm.removeItem(at: OLD_BIN_DIR)
+    for dir in OLD_BIN_DIRS {
+        if fm.fileExists(atPath: dir.path) {
+            try? fm.removeItem(at: dir)
+        }
     }
-    if !fm.fileExists(atPath: BIN_DIR.path) {
-        try! fm.createDirectory(at: BIN_DIR, withIntermediateDirectories: true, attributes: nil)
+
+    if !fm.fileExists(atPath: GLOBAL_BIN_DIR.path) {
+        try! fm.createDirectory(at: GLOBAL_BIN_DIR, withIntermediateDirectories: true, attributes: nil)
     }
+
     if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
-        let _ = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", BIN_DIR.path], wait: true)
+        let _ = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], wait: true)
         fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
     }
 }
