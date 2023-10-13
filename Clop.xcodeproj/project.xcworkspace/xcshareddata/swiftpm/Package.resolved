@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/AppReceiptValidator.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "74e9b64756a90a801c64bf089311bd1993e86faa"
+        "revision" : "46930f601a0626e9eaa6810721d75c651b726755",
+        "version" : "1.1.4"
       }
     },
     {
@@ -16,15 +16,6 @@
       "state" : {
         "revision" : "1fa1e9c68c27cbed56e2a997605ae2e808cf4d98",
         "version" : "1.8.2"
-      }
-    },
-    {
-      "identity" : "blueecc",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kitura/BlueECC",
-      "state" : {
-        "branch" : "master",
-        "revision" : "1485268a54f8135435a825a855e733f026fa6cc8"
       }
     },
     {
@@ -59,8 +50,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/LaunchAtLogin-Modern",
       "state" : {
-        "branch" : "main",
-        "revision" : "9c41991631605c8ccfe0347bbcb5c659169f2ec5"
+        "revision" : "638e6c426b8d113eae255baeba59ed2d9d9a7c4d",
+        "version" : "1.0.0"
       }
     },
     {
@@ -68,8 +59,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
       "state" : {
-        "branch" : "dev",
-        "revision" : "fda73dc564372e98b5e5e6f5452a19f6b92a0382"
+        "revision" : "c7db1c83f6a53a85bce2be8e3d32d49980a396a3",
+        "version" : "4.0.1"
       }
     },
     {
@@ -77,8 +68,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/PaddleSPM",
       "state" : {
-        "branch" : "main",
-        "revision" : "442ee896d2f75302c4b3ac83413661b7964cc766"
+        "revision" : "de273d843db477a7e2aaeb5971996b118f410f9f",
+        "version" : "4.4.1"
       }
     },
     {
@@ -95,8 +86,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "0a915b93ff3abee1a9752448e47808334d306980",
-        "version" : "8.13.0"
+        "revision" : "7b0d185631a6d4b7756468efa464a68725c061d2",
+        "version" : "8.13.1"
       }
     },
     {
