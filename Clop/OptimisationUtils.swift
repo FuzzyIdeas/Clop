@@ -614,14 +614,12 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 )
             }
             if type.isVideo {
-                guard let video = try await (
-                    oldSize == nil
-                        ? Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id)
-                        : Video(path: path, metadata: VideoMetadata(resolution: oldSize!, fps: 0), fileSize: oldBytes, id: self.id)
-                )
-                else {
-                    return
+                let video = if let oldSize {
+                    Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0), fileSize: oldBytes, thumb: false)
+                } else {
+                    try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id)
                 }
+                guard let video else { return }
 
                 if let factor {
                     downscaleFactor = factor
@@ -683,8 +681,15 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             return
         }
         if type.isVideo, path.exists {
-            let video = Video(path: path, metadata: VideoMetadata(resolution: oldSize!, fps: 0), fileSize: oldBytes, thumb: false)
-            Task.init { try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+            Task.init {
+                let video = if let oldSize {
+                    Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0), fileSize: oldBytes, thumb: false)
+                } else {
+                    try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)
+                }
+                guard let video else { return }
+                let _ = try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
+            }
         }
     }
 
