@@ -323,6 +323,8 @@ class AppDelegate: LowtechProAppDelegate {
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
             handleCLIInstall()
+
+            NSApplication.shared.windows.first?.close()
             unarchiveBinaries()
             print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
             shouldRestartOnCrash = true
@@ -332,7 +334,7 @@ class AppDelegate: LowtechProAppDelegate {
                 .forEach {
                     $0.forceTerminate()
                 }
-            let _ = shell("/usr/bin/pkill", args: ["-fl", "Clop/bin-(arm64|x86)/.+"], wait: false)
+            let _ = shell("/usr/bin/pkill", args: ["-fl", "Clop/bin/(arm64|x86)/.+"], wait: false)
             signal(SIGTERM) { _ in
                 (OM.optimisers + OM.removedOptimisers).forEach { opt in
                     opt.stop(animateRemoval: false)
@@ -388,9 +390,7 @@ class AppDelegate: LowtechProAppDelegate {
         UM.updater = updateController.updater
         PM.pro = pro
 
-        if let window = NSApplication.shared.windows.first {
-            window.close()
-        }
+        NSApplication.shared.windows.first?.close()
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
 
         guard !SWIFTUI_PREVIEW else { return }

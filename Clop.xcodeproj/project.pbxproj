@@ -16,10 +16,8 @@
 		C70B5F322AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
 		C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */; };
-		C7333E422A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7333E3E2A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 */; };
-		C7333E432A98A1D400B1D5BE /* bin-arm64.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */; };
-		C7333E442A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7333E402A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 */; };
-		C7333E452A98A1D400B1D5BE /* bin-x86.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7333E412A98A1D400B1D5BE /* bin-x86.tar.xz */; };
+		C7319E8D2AD995B60085B707 /* bin.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */; };
+		C7319E8E2AD995B60085B707 /* bin.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7319E8C2AD995B60085B707 /* bin.tar.xz */; };
 		C7333E472A98C90500B1D5BE /* PDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7333E462A98C90500B1D5BE /* PDF.swift */; };
 		C733B3D22A50789C002A0585 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
 		C7760AB62A5C4EE500851F8C /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB52A5C4EE500851F8C /* Images.swift */; };
@@ -125,10 +123,8 @@
 		C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Clop-Bridging-Header.h"; sourceTree = "<group>"; };
 		C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload to Backblaze.shortcut"; sourceTree = "<group>"; };
 		C7319E8A2AD5323D0085B707 /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
-		C7333E3E2A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "bin-x86.tar.xz.sha256"; sourceTree = "<group>"; };
-		C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */ = {isa = PBXFileReference; lastKnownFileType = file; path = "bin-arm64.tar.xz"; sourceTree = "<group>"; };
-		C7333E402A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "bin-arm64.tar.xz.sha256"; sourceTree = "<group>"; };
-		C7333E412A98A1D400B1D5BE /* bin-x86.tar.xz */ = {isa = PBXFileReference; lastKnownFileType = file; path = "bin-x86.tar.xz"; sourceTree = "<group>"; };
+		C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = bin.tar.xz.sha256; sourceTree = "<group>"; };
+		C7319E8C2AD995B60085B707 /* bin.tar.xz */ = {isa = PBXFileReference; lastKnownFileType = file; path = bin.tar.xz; sourceTree = "<group>"; };
 		C7333E462A98C90500B1D5BE /* PDF.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PDF.swift; sourceTree = "<group>"; };
 		C733B3D12A50789C002A0585 /* Video.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
 		C7760AB52A5C4EE500851F8C /* Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
@@ -254,6 +250,8 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C7319E8C2AD995B60085B707 /* bin.tar.xz */,
+				C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */,
 				C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */,
 				C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
@@ -264,10 +262,6 @@
 				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
 				C7DF1A212AB6F6A200AF8EDC /* required.swift */,
 				C7333E462A98C90500B1D5BE /* PDF.swift */,
-				C7333E3F2A98A1D400B1D5BE /* bin-arm64.tar.xz */,
-				C7333E402A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 */,
-				C7333E412A98A1D400B1D5BE /* bin-x86.tar.xz */,
-				C7333E3E2A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 */,
 				C7AB663A288460F30041BEC8 /* Info.plist */,
 				C7AB6624288301590041BEC8 /* ClopApp.swift */,
 				C733B3D12A50789C002A0585 /* Video.swift */,
@@ -442,16 +436,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */,
-				C7333E452A98A1D400B1D5BE /* bin-x86.tar.xz in Resources */,
 				C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */,
 				C7C8AD622ABC9B34003ECDE6 /* Upload to SSH server.shortcut in Resources */,
 				C7C8AD5F2ABC78CF003ECDE6 /* Clop - PDF.shortcut in Resources */,
-				C7333E442A98A1D400B1D5BE /* bin-arm64.tar.xz.sha256 in Resources */,
-				C7333E432A98A1D400B1D5BE /* bin-arm64.tar.xz in Resources */,
-				C7333E422A98A1D400B1D5BE /* bin-x86.tar.xz.sha256 in Resources */,
 				C7C8AD602ABC78CF003ECDE6 /* Clop - image.shortcut in Resources */,
 				C7C8AD5E2ABC78CF003ECDE6 /* Clop - video.shortcut in Resources */,
+				C7319E8D2AD995B60085B707 /* bin.tar.xz.sha256 in Resources */,
 				C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */,
+				C7319E8E2AD995B60085B707 /* bin.tar.xz in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
