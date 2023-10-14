@@ -89,11 +89,19 @@ struct FloatingResultContainer: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showImages) var showImages
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
+    @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
+
+    var shouldShowDropZone: Bool {
+        guard !isPreview, dragManager.dragging else {
+            return false
+        }
+        return dragManager.optionDropzonePressed
+    }
 
     var body: some View {
         let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
         VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: 10) {
-            if !isPreview, dragManager.dragging, floatingResultsCorner.isTop {
+            if shouldShowDropZone, floatingResultsCorner.isTop {
                 DropZoneView()
                     .transition(
                         .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
@@ -118,7 +126,7 @@ struct FloatingResultContainer: View {
 
             }
 
-            if !isPreview, dragManager.dragging, !floatingResultsCorner.isTop {
+            if shouldShowDropZone, !floatingResultsCorner.isTop {
                 DropZoneView()
                     .transition(
                         .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
