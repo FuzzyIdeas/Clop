@@ -123,11 +123,11 @@ class AppDelegate: LowtechProAppDelegate {
             DM.itemsToOptimise = []
         }
     }
-    @MainActor lazy var stopDragMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-        guard event.modifierFlags.contains(.option), !DM.dragHovering else { return }
-
-        DM.dragging = false
-    }
+//    @MainActor lazy var stopDragMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
+//        guard !Defaults[.onlyShowDropZoneOnOption], event.modifierFlags.contains(.option), !DM.dragHovering else { return }
+//
+//        DM.dragging = false
+//    }
 
     @Setting(.optimiseVideoClipboard) var optimiseVideoClipboard
 
@@ -425,17 +425,17 @@ class AppDelegate: LowtechProAppDelegate {
         if Defaults[.enableDragAndDrop] {
             dragMonitor.start()
             mouseUpMonitor.start()
-            stopDragMonitor.start()
+//            stopDragMonitor.start()
         }
         pub(.enableDragAndDrop)
             .sink { enabled in
                 if enabled.newValue {
                     self.dragMonitor.start()
-                    self.stopDragMonitor.start()
+//                    self.stopDragMonitor.start()
                     self.mouseUpMonitor.start()
                 } else {
                     self.dragMonitor.stop()
-                    self.stopDragMonitor.stop()
+//                    self.stopDragMonitor.stop()
                     self.mouseUpMonitor.stop()
                 }
             }
@@ -478,6 +478,7 @@ class AppDelegate: LowtechProAppDelegate {
         if window.title == "Settings" {
             mainActor {
                 settingsViewManager.windowOpen = false
+                NSApp.setActivationPolicy(.accessory)
             }
         }
     }
@@ -487,6 +488,8 @@ class AppDelegate: LowtechProAppDelegate {
         if window.title == "Settings" {
             mainActor {
                 settingsViewManager.windowOpen = true
+                NSApp.setActivationPolicy(.regular)
+
                 log.debug("Starting settings tab key monitor")
                 tabKeyMonitor.start()
             }
