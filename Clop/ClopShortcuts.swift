@@ -140,25 +140,31 @@ struct CropOptimiseFileIntent: AppIntent {
     var longEdge: Bool
 
     @Parameter(title: "Width")
-    var width: Int
+    var width: Int?
 
     @Parameter(title: "Height")
-    var height: Int
+    var height: Int?
 
     @Parameter(title: "Size")
-    var size: Int
+    var size: Int?
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
-        let clip = ClipboardType.fromString(item)
+        if longEdge, (size ?? 0) == 0 {
+            throw $size.needsValueError()
+        }
+        if !longEdge, (width ?? 0) == 0, (height ?? 0) == 0 {
+            throw IntentError.message("You need to specify at least one non-zero width or height")
+        }
 
+        let clip = ClipboardType.fromString(item)
         let result: ClipboardType?
         do {
             result = try await optimiseItem(
                 clip,
                 id: item,
                 hideFloatingResult: hideFloatingResult,
-                cropTo: CropSize(width: longEdge ? size : width, height: longEdge ? size : height, longEdge: longEdge),
+                cropTo: CropSize(width: (longEdge ? size : width) ?? 0, height: (longEdge ? size : height) ?? 0, longEdge: longEdge),
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,

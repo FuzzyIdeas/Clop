@@ -118,7 +118,7 @@ class AppDelegate: LowtechProAppDelegate {
     }
     @MainActor lazy var mouseUpMonitor = GlobalEventMonitor(mask: [.leftMouseUp]) { event in
         self.draggingSet.send(false)
-        if !DM.dragHovering {
+        if !DM.dragHovering, DM.itemsToOptimise.isNotEmpty {
             DM.dragging = false
             DM.itemsToOptimise = []
         }
