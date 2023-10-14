@@ -6,12 +6,41 @@ import System
 import UniformTypeIdentifiers
 
 class DragManager: ObservableObject {
-    @MainActor @Published var dragging = false
     @MainActor @Published var dragHovering = false
     @MainActor @Published var itemsToOptimise: [ClipboardType] = []
     @Atomic var optimisationCount = 0
 
     @MainActor @Published var dropped = true
+
+    @MainActor @Published var optionDropzonePressed = false {
+        didSet {
+            guard optionDropzonePressed != oldValue else {
+                return
+            }
+            if optionDropzonePressed {
+                log.debug("Option pressed, showing drop zone")
+            } else {
+                log.debug("Option pressed, hiding drop zone")
+            }
+        }
+    }
+    @MainActor @Published var dragging = false {
+        didSet {
+            guard dragging != oldValue else {
+                return
+            }
+            if dragging {
+                if !Defaults[.onlyShowDropZoneOnOption] {
+                    optionDropzonePressed = true
+                }
+                dropZoneKeyGlobalMonitor.start()
+                dropZoneKeyLocalMonitor.start()
+            } else {
+                dropZoneKeyGlobalMonitor.stop()
+                dropZoneKeyLocalMonitor.stop()
+            }
+        }
+    }
 }
 
 @MainActor
