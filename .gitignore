@@ -5,3 +5,4 @@ Clop/bin-*/*
 *.bkp
 Releases/*.html
 required.swift
+Releases/old_updates/

@@ -2,6 +2,17 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <item>
+            <title>2.2.4</title>
+            <pubDate>Sat, 14 Oct 2023 11:11:13 +0300</pubDate>
+            <link>https://lowtechguys.com/clop</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>2.2.4</sparkle:version>
+            <sparkle:shortVersionString>2.2.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.2.4.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.2.4.dmg" length="83673298" type="application/octet-stream" sparkle:edSignature="oDVXttBwW9y0bArM6gxixhT1pHbkQBMe61l7aeJWgv7lNYRNqVR373wplcpyhWpX9AW7iOyu1wxToFHqWWvtAw=="/>
+        </item>
+        <item>
             <title>2.2.3</title>
             <pubDate>Thu, 12 Oct 2023 08:34:48 +0300</pubDate>
             <link>https://lowtechguys.com/clop</link>
