@@ -196,12 +196,12 @@ var hoveredOptimiserID: String? {
     }
 }
 
-@MainActor var lastModifierFlags: NSEvent.ModifierFlags = []
+@MainActor var lastQuicklookModifierFlags: NSEvent.ModifierFlags = []
 @MainActor var possibleShiftQuickLook = true
 @MainActor var hoverKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
-        lastModifierFlags = flags
+        lastQuicklookModifierFlags = flags
         if flags.isEmpty {
             possibleShiftQuickLook = true
         }
@@ -211,7 +211,7 @@ var hoveredOptimiserID: String? {
         possibleShiftQuickLook = false
     }
 
-    if possibleShiftQuickLook, lastModifierFlags == [.shift], flags == [] {
+    if possibleShiftQuickLook, lastQuicklookModifierFlags == [.shift], flags == [] {
         if QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared(), ql.isVisible {
             QLPreviewPanel.shared().close()
         } else if let opt = OM.hovered, !opt.editingFilename {
@@ -222,7 +222,7 @@ var hoveredOptimiserID: String? {
 @MainActor var hoverKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
-        lastModifierFlags = flags
+        lastQuicklookModifierFlags = flags
         if flags.isEmpty {
             possibleShiftQuickLook = true
         }
@@ -232,12 +232,54 @@ var hoveredOptimiserID: String? {
         possibleShiftQuickLook = false
     }
 
-    if possibleShiftQuickLook, lastModifierFlags == [.shift], flags == [] {
+    if possibleShiftQuickLook, lastQuicklookModifierFlags == [.shift], flags == [] {
         if QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared(), ql.isVisible {
             QLPreviewPanel.shared().close()
         } else if let opt = OM.hovered, !opt.editingFilename {
             opt.quicklook()
         }
+        return nil
+    }
+    return event
+}
+
+@MainActor var lastDropzoneModifierFlags: NSEvent.ModifierFlags = []
+@MainActor var possibleOptionDropzone = true
+
+@MainActor var dropZoneKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
+    let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+    print("DROP ZONE FLAGS", flags)
+    print("DROP ZONE LAST FLAGS", lastDropzoneModifierFlags)
+    defer {
+        lastDropzoneModifierFlags = flags
+        if flags.isEmpty {
+            possibleOptionDropzone = true
+        }
+    }
+
+    if flags.isNotEmpty, flags != [.option] {
+        possibleOptionDropzone = false
+    }
+
+    if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
+        DM.optionDropzonePressed.toggle()
+    }
+}
+@MainActor var dropZoneKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
+    let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+    defer {
+        lastDropzoneModifierFlags = flags
+        if flags.isEmpty {
+            possibleOptionDropzone = true
+        }
+    }
+
+    if flags.isNotEmpty, flags != [.option] {
+        possibleOptionDropzone = false
+    }
+
+    if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
+        DM.optionDropzonePressed.toggle()
         return nil
     }
     return event

@@ -230,7 +230,7 @@ struct PDFSettingsView: View {
 
                 Toggle(isOn: $useAggresiveOptimisationPDF) {
                     Text("Use more aggressive optimisation").regular(13)
-                        + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular)
+                        + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
         }.padding(4)
@@ -287,16 +287,16 @@ struct VideoSettingsView: View {
                 #if arch(arm64)
                     Toggle(isOn: $adaptiveVideoSize) {
                         Text("Adaptive optimisation").regular(13)
-                            + Text("\nUses the CPU intensive encoder for short workloads, and the battery efficient one for larger files").round(11, weight: .regular)
+                            + Text("\nUses the CPU intensive encoder for short workloads, and the battery efficient one for larger files").round(11, weight: .regular).foregroundColor(.secondary)
                     }
                     Toggle(isOn: $useCPUIntensiveEncoder.animation(.spring())) {
                         Text("Use CPU intensive encoder").regular(13)
-                            + Text("\nGenerates smaller files with better visual quality but takes longer and uses more CPU").round(11, weight: .regular)
+                            + Text("\nGenerates smaller files with better visual quality but takes longer and uses more CPU").round(11, weight: .regular).foregroundColor(.secondary)
                     }
                     if useCPUIntensiveEncoder {
                         Toggle(isOn: $useAggresiveOptimisationMP4) {
                             Text("Aggressive optimisation").regular(13)
-                                + Text("\nDecrease visual quality and increase processing time for even smaller files").round(11, weight: .regular)
+                                + Text("\nDecrease visual quality and increase processing time for even smaller files").round(11, weight: .regular).foregroundColor(.secondary)
                         }
                         .disabled(!useCPUIntensiveEncoder)
                         .padding(.leading)
@@ -304,7 +304,7 @@ struct VideoSettingsView: View {
                 #else
                     Toggle(isOn: $useAggresiveOptimisationMP4) {
                         Text("Use more aggressive optimisation").regular(13)
-                            + Text("\nGenerates smaller files with slightly worse visual quality but takes longer and uses more CPU").round(11, weight: .regular)
+                            + Text("\nGenerates smaller files with slightly worse visual quality but takes longer and uses more CPU").round(11, weight: .regular).foregroundColor(.secondary)
                     }
                 #endif
                 Toggle(isOn: $capVideoFPS.animation(.spring())) {
@@ -376,7 +376,7 @@ struct SectionHeader: View {
 
     var body: some View {
         Text(title).round(15, weight: .semibold)
-            + (subtitle.map { Text("\n\($0)").font(.caption) } ?? Text(""))
+            + (subtitle.map { Text("\n\($0)").font(.caption).foregroundColor(.secondary) } ?? Text(""))
     }
 }
 
@@ -448,12 +448,12 @@ struct ImagesSettingsView: View {
             Section(header: SectionHeader(title: "File name handling")) {
                 Toggle(isOn: $copyImageFilePath) {
                     Text("Copy image paths").regular(13)
-                        + Text("\nWhen copying optimised image data, also copy the path of the image file").round(11, weight: .regular)
+                        + Text("\nWhen copying optimised image data, also copy the path of the image file").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 Toggle(isOn: $useCustomNameTemplateForClipboardImages.animation(.default)) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Custom name template").regular(13)
-                            + Text("\nRename the file using this template before copying the path to the clipboard").round(11, weight: .regular)
+                            + Text("\nRename the file using this template before copying the path to the clipboard").round(11, weight: .regular).foregroundColor(.secondary)
 
                         HStack {
                             TextField("", text: $customNameTemplateForClipboardImages, prompt: Text(DEFAULT_NAME_TEMPLATE))
@@ -533,11 +533,11 @@ struct ImagesSettingsView: View {
                 }
                 Toggle(isOn: $adaptiveImageSize) {
                     Text("Adaptive optimisation").regular(13)
-                        + Text("\nOptimise detail heavy images as JPEG and low-detail ones as PNG").round(11, weight: .regular)
+                        + Text("\nOptimise detail heavy images as JPEG and low-detail ones as PNG").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 Toggle(isOn: $downscaleRetinaImages) {
                     Text("Downscale HiDPI images to 72 DPI").regular(13)
-                        + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular)
+                        + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular).foregroundColor(.secondary)
                 }
 
             }
@@ -891,6 +891,7 @@ struct GeneralSettingsView: View {
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
     @Default(.autoCopyToClipboard) var autoCopyToClipboard
     @Default(.enableDragAndDrop) var enableDragAndDrop
+    @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
     @Default(.stripMetadata) var stripMetadata
     @Default(.syncSettingsCloud) var syncSettingsCloud
 
@@ -902,35 +903,41 @@ struct GeneralSettingsView: View {
             Section(header: SectionHeader(title: "Clipboard")) {
                 Toggle(isOn: $enableClipboardOptimiser) {
                     Text("Enable clipboard optimiser").regular(13)
-                        + Text("\nWatch for copied images and optimise them automatically").round(11, weight: .regular)
+                        + Text("\nWatch for copied images and optimise them automatically").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 Toggle(isOn: $optimiseTIFF) {
                     Text("Optimise copied TIFF data").regular(13)
-                        + Text("\nUsually coming from graphical design apps, it's sometimes better to not optimise it").round(11, weight: .regular)
+                        + Text("\nUsually coming from graphical design apps, it's sometimes better to not optimise it").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
                 Toggle(isOn: $optimiseVideoClipboard) {
                     Text("Optimise copied video files").regular(13)
-                        + Text("\nSystem pasteboard can't hold video data, only video file paths. This option automatically optimises copied paths").round(11, weight: .regular)
+                        + Text("\nSystem pasteboard can't hold video data, only video file paths. This option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
                 Toggle(isOn: $optimiseImagePathClipboard) {
                     Text("Optimise copied image files").regular(13)
-                        + Text("\nCopying images from Finder results in file paths instead of image data. This option automatically optimises copied paths").round(11, weight: .regular)
+                        + Text("\nCopying images from Finder results in file paths instead of image data. This option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
             }
             Section(header: SectionHeader(title: "Integrations")) {
                 Toggle(isOn: $enableDragAndDrop) {
                     Text("Enable drop zone").regular(13)
-                        + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular)
+                        + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                Toggle(isOn: $onlyShowDropZoneOnOption) {
+                    Text("Press ⌥ Option while dragging to show drop zone").regular(13)
+                        + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                .padding(.leading, 20)
+                .disabled(!enableDragAndDrop)
                 Toggle(isOn: $autoCopyToClipboard) {
                     Text("Auto Copy optimised files to clipboard").regular(13)
-                        + Text("\nCopy files resulting from drop zone or file watch optimisation so they can be pasted right after optimisation ends").round(11, weight: .regular)
+                        + Text("\nCopy files resulting from drop zone or file watch optimisation so they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
             Section(header: SectionHeader(title: "Optimisation")) {
                 Toggle(isOn: $stripMetadata) {
                     Text("Strip EXIF Metadata").regular(13)
-                        + Text("\nDeleted identifiable metadata from files (e.g. camera that took the photo, location, date and time etc.)").round(11, weight: .regular)
+                        + Text("\nDeleted identifiable metadata from files (e.g. camera that took the photo, location, date and time etc.)").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
         }

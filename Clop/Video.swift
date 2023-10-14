@@ -71,7 +71,8 @@ class Video: Optimisable {
                 return false
             }
             if let size, let duration, fileSize > 0 {
-                return size.area.i * max(duration.intround, 0) * fileSize < 1920 * 1080 * 10 * 5_000_000
+                let bits = (size.area.i &* max(duration.intround, 0) &* fileSize)
+                return bits < 1920 * 1080 * 10 * 5_000_000 && bits > 500_000
             }
             return (size?.area.i ?? Int.max) < (1920 * 1080) || (metadata?.duration ?? 999_999) < 10 || fileSize < 5_000_000
         }
@@ -143,8 +144,6 @@ class Video: Optimisable {
         let s = cropSize.ns
         guard s.width > 0, s.height > 0, !cropSize.longEdge else {
             // crop by specifying only one size, keeping aspect ratio
-            let scaleFactor = cropSize.factor(from: fromSize)
-
             if !cropSize.longEdge {
                 return ["scale=w=\(s.width == 0 ? "-2" : s.width.i.s):h=\(s.height == 0 ? "-2" : s.height.i.s)"]
             } else if fromSize.width > fromSize.height {
