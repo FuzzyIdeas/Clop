@@ -318,14 +318,7 @@ struct CompactResultList: View {
                         Button("Stop all") {
                             OM.optimisers.filter(\.running).forEach { optimiser in
                                 optimiser.stop(remove: false)
-                                if optimiser.url == nil, let originalURL = optimiser.originalURL {
-                                    optimiser.url = originalURL
-                                }
-                                if optimiser.oldBytes == 0, let path = (optimiser.url ?? optimiser.originalURL)?.existingFilePath, let size = path.fileSize() {
-                                    optimiser.oldBytes = size
-                                }
-
-                                optimiser.running = false
+                                optimiser.uiStop()
                             }
                         }
                     }

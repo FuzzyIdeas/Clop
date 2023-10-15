@@ -14,14 +14,7 @@ struct CloseStopButton: View {
 
                 hoveredOptimiserID = nil
                 optimiser.stop(remove: !OM.compactResults || !optimiser.running, animateRemoval: true)
-
-                if optimiser.url == nil, let originalURL = optimiser.originalURL {
-                    optimiser.url = originalURL
-                }
-                if optimiser.oldBytes == 0, let path = (optimiser.url ?? optimiser.originalURL)?.existingFilePath, let size = path.fileSize() {
-                    optimiser.oldBytes = size
-                }
-                optimiser.running = false
+                optimiser.uiStop()
             },
             label: { SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(9)) }
         )

@@ -488,8 +488,8 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
         var skipErrors = false
 
-        @Option(help: "Speeds up the video by a certain amount (1 means no change, 2 means twice as fast, 0.5 means 2x slower)")
-        var changePlaybackSpeedFactor: Double? = nil
+        @Option(help: "Speeds up or slow down the video by a certain amount (1 means no change, 2 means twice as fast, 0.5 means 2x slower)")
+        var playbackSpeedFactor: Double? = nil
 
         @Option(help: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
         var downscaleFactor: Double? = nil
@@ -513,7 +513,7 @@ struct Clop: ParsableCommand {
                     urls: urls,
                     size: crop?.cropSize(),
                     downscaleFactor: downscaleFactor,
-                    changePlaybackSpeedFactor: changePlaybackSpeedFactor,
+                    changePlaybackSpeedFactor: playbackSpeedFactor,
                     hideFloatingResult: !gui,
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
@@ -669,7 +669,7 @@ enum CLIError: Error {
 
 func stopCurrentRequests(_ signal: Int32) {
     let req = StopOptimisationRequest(ids: currentRequestIDs, remove: false)
-    try? OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
+    try? OPTIMISATION_STOP_PORT.sendAndForget(data: req.jsonData)
     Clop.exit()
 }
 
