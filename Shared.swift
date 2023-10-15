@@ -38,6 +38,7 @@ func awaitSync(_ action: @escaping () async -> Void) {
 }
 
 let OPTIMISATION_PORT_ID = "com.lowtechguys.Clop.optimisationService"
+let OPTIMISATION_STOP_PORT_ID = "com.lowtechguys.Clop.optimisationServiceStop"
 let OPTIMISATION_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponse"
 let OPTIMISATION_CLI_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponseCLI"
 

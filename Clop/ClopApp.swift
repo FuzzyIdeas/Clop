@@ -132,6 +132,7 @@ class AppDelegate: LowtechProAppDelegate {
     @Setting(.optimiseVideoClipboard) var optimiseVideoClipboard
 
     var machPortThread: Thread?
+    var machPortStopThread: Thread?
 
     @MainActor
     static func handleStopOptimisationRequest(_ req: StopOptimisationRequest) {
@@ -143,6 +144,7 @@ class AppDelegate: LowtechProAppDelegate {
             }
 
             opt.stop(remove: req.remove)
+            opt.uiStop()
         }
     }
 
@@ -306,8 +308,6 @@ class AppDelegate: LowtechProAppDelegate {
                 var result: Data? = nil
                 if let req = OptimisationRequest.from(data) {
                     result = Self.handleOptimisationRequest(req)
-                } else if let req = StopOptimisationRequest.from(data) {
-                    mainActor { Self.handleStopOptimisationRequest(req) }
                 }
 
                 guard let result else {
@@ -317,7 +317,20 @@ class AppDelegate: LowtechProAppDelegate {
             }
             RunLoop.current.run()
         }
+        machPortStopThread = Thread {
+            OPTIMISATION_STOP_PORT.listen { data in
+                guard let data, let req = StopOptimisationRequest.from(data) else {
+                    return nil
+                }
+
+                mainActor { Self.handleStopOptimisationRequest(req) }
+                return nil
+            }
+            RunLoop.current.run()
+        }
+
         machPortThread?.start()
+        machPortStopThread?.start()
     }
 
     override func applicationDidFinishLaunching(_ notification: Notification) {

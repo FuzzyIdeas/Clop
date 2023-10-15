@@ -677,6 +677,15 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
     }
 
+    func uiStop() {
+        if url == nil, let originalURL {
+            url = originalURL
+        }
+        if oldBytes == 0, let path = (url ?? originalURL)?.existingFilePath, let size = path.fileSize() {
+            oldBytes = size
+        }
+        running = false
+    }
     func stop(remove: Bool = true, animateRemoval: Bool = true) {
         if running {
             for process in processes {
@@ -1708,6 +1717,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             hideFloatingResult: req.hideFloatingResult,
                             downscaleTo: req.downscaleFactor,
                             cropTo: req.size,
+                            changePlaybackSpeedBy: req.changePlaybackSpeedFactor,
                             aggressiveOptimisation: req.aggressiveOptimisation,
                             optimisationCount: &cliOptimisationCount,
                             copyToClipboard: req.copyToClipboard,
@@ -1802,5 +1812,6 @@ enum BatchOptimisationError: Error {
 }
 
 let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
+let OPTIMISATION_STOP_PORT = LocalMachPort(portLocation: OPTIMISATION_STOP_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)

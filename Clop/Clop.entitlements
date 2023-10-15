@@ -16,6 +16,7 @@
 		<key>com.apple.security.temporary-exception.mach-register.global-name</key>
 		<array>
 			<string>com.lowtechguys.Clop.optimisationService</string>
+			<string>com.lowtechguys.Clop.optimisationServiceStop</string>
 		</array>
 	</dict>
 </plist>
