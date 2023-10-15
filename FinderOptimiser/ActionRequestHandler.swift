@@ -126,7 +126,7 @@ actor RequestSender {
             awaitSync {
                 let ids = await self.urls.map(\.absoluteString)
                 let req = StopOptimisationRequest(ids: ids, remove: true)
-                try? OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
+                try? OPTIMISATION_STOP_PORT.sendAndForget(data: req.jsonData)
                 exit(0)
             }
         }

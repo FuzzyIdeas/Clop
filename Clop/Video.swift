@@ -188,7 +188,7 @@ class Video: Optimisable {
         try path.setOptimisationStatusXattr("pending")
 
         let outputPath = forceMP4 ? FilePath.videos.appending("\(name.stem).mp4") : path
-        var inputPath = originalPath ?? ((path == outputPath && backup) ? (path.backup(operation: .copy) ?? path) : path)
+        var inputPath = originalPath ?? ((path == outputPath || backup) ? (path.backup(operation: .copy) ?? path) : path)
         var additionalArgs = [String]()
 
         var newFPS = fps
@@ -600,11 +600,10 @@ var processTerminated = Set<pid_t>()
             optimisedVideo = try video.optimise(
                 optimiser: optimiser,
                 forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
-                backup: false,
                 resizeTo: newSize,
                 cropTo: cropSize,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
-                originalPath: originalPath,
+                originalPath: ["cli", "finder", "service", "drop zone"].contains(source) ? video.path : originalPath,
                 aggressiveOptimisation: aggressive
             )
             if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
@@ -710,10 +709,9 @@ var processTerminated = Set<pid_t>()
             optimisedVideo = try video.optimise(
                 optimiser: optimiser,
                 forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
-                backup: false,
                 resizeTo: resolution,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
-                originalPath: originalPath,
+                originalPath: ["cli", "finder", "service", "drop zone"].contains(source) ? video.path : originalPath,
                 aggressiveOptimisation: aggressive
             )
             if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
