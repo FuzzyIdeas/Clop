@@ -33,6 +33,7 @@ func isURLOptimisable(_ url: URL, type: UTType? = nil) -> Bool {
     return IMAGE_VIDEO_FORMATS.contains(type) || type == .pdf
 }
 
+extension PageLayout: ExpressibleByArgument {}
 extension FilePath: ExpressibleByArgument {
     public init?(argument: String) {
         guard FileManager.default.fileExists(atPath: argument) else {
@@ -268,6 +269,14 @@ struct Clop: ParsableCommand {
         @Flag(name: .long, help: "List possible paper sizes that can be passed to --paper-size")
         var listPaperSizes = false
 
+        @Option(help: """
+        Allows forcing a page layout on all PDF pages:
+            auto: Crop pages based on their longest edge, so that horizontal pages stay horizontal and vertical pages stay vertical
+            portrait: Force all pages to be cropped to vertical or portrait layout
+            landscape: Force all pages to be cropped to horizontal or landscape layout
+        """)
+        var pageLayout = PageLayout.auto
+
         @Option(name: .shortAndLong, help: "Output file path (defaults to modifying the PDF in place). In case of cropping multiple files, this needs to be a folder.")
         var output: String? = nil
 
@@ -362,7 +371,7 @@ struct Clop: ParsableCommand {
 
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
                 print("Cropping \(pdf.documentURL!.path) to aspect ratio \(ratio!)", terminator: outputDir == nil ? "\n" : "")
-                pdf.cropTo(aspectRatio: ratio)
+                pdf.cropTo(aspectRatio: ratio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
 
                 if let outputDir {
                     let output = outputDir.appending(pdf.documentURL!.lastPathComponent)
