@@ -104,6 +104,7 @@ struct OptimisationRequest: Codable, Identifiable {
     let copyToClipboard: Bool
     let aggressiveOptimisation: Bool
     let source: String
+    var output: String?
 }
 
 func isClopRunning() -> Bool {
