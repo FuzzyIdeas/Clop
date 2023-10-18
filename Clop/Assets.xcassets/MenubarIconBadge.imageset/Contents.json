@@ -1,12 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "clop-badge.png",
+      "filename" : "clop-badge@22px.png",
       "idiom" : "mac",
       "scale" : "1x"
     },
     {
-      "filename" : "clop-badge 1.png",
+      "filename" : "clop-badge.png",
       "idiom" : "mac",
       "scale" : "2x"
     }
