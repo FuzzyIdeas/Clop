@@ -31,6 +31,23 @@ class WindowManager: ObservableObject {
 }
 let WM = WindowManager()
 
+extension NSPasteboard {
+    func debug() {
+        #if DEBUG
+            print(name.rawValue)
+            guard let pasteboardItems else {
+                print("No items")
+                return
+            }
+            pasteboardItems.forEach { item in
+                item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
+                    print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
+                }
+            }
+        #endif
+    }
+}
+
 class AppDelegate: LowtechProAppDelegate {
     var didBecomeActiveAtLeastOnce = false
 
@@ -61,25 +78,18 @@ class AppDelegate: LowtechProAppDelegate {
         }
 
         let drag = NSPasteboard(name: .drag)
+        drag.debug()
         guard self.lastDragChangeCount != drag.changeCount else {
             return
         }
         DM.dropped = false
         self.lastDragChangeCount = drag.changeCount
 
-        guard let items = drag.pasteboardItems, !items.contains(where: { $0.types.set.hasElements(from: [.promise, .promisedFileName, .promisedFileURL, .promisedSuggestedFileName, .promisedMetadata, .finderNode]) }) else {
+        guard let items = drag.pasteboardItems, !items.contains(where: { $0.types.set.hasElements(from: [.promise, .promisedFileName, .promisedFileURL, .promisedSuggestedFileName, .promisedMetadata]) }) else {
             DM.itemsToOptimise = []
             self.draggingSet.send(true)
             return
         }
-
-        #if DEBUG
-            items.forEach { item in
-                item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
-                    print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
-                }
-            }
-        #endif
 
         let toOptimise: [ClipboardType] = items.compactMap { item -> ClipboardType? in
             let types = item.types
