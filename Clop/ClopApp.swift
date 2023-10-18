@@ -67,7 +67,7 @@ class AppDelegate: LowtechProAppDelegate {
         DM.dropped = false
         self.lastDragChangeCount = drag.changeCount
 
-        guard let items = drag.pasteboardItems, !items.contains(where: { $0.types.set.hasElements(from: [.promise, .promisedFileName, .promisedFileURL, .promisedSuggestedFileName, .promisedMetadata]) }) else {
+        guard let items = drag.pasteboardItems, !items.contains(where: { $0.types.set.hasElements(from: [.promise, .promisedFileName, .promisedFileURL, .promisedSuggestedFileName, .promisedMetadata, .finderNode]) }) else {
             DM.itemsToOptimise = []
             self.draggingSet.send(true)
             return
