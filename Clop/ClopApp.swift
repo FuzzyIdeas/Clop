@@ -198,6 +198,8 @@ class AppDelegate: LowtechProAppDelegate {
             opt.save()
         case .f:
             opt.showInFinder()
+        case .u:
+            opt.uploadWithDropshare()
         case .o:
             guard let url = opt.url ?? opt.originalURL else { return }
             NSWorkspace.shared.open(url)
@@ -438,17 +440,14 @@ class AppDelegate: LowtechProAppDelegate {
         if Defaults[.enableDragAndDrop] {
             dragMonitor.start()
             mouseUpMonitor.start()
-//            stopDragMonitor.start()
         }
         pub(.enableDragAndDrop)
             .sink { enabled in
                 if enabled.newValue {
                     self.dragMonitor.start()
-//                    self.stopDragMonitor.start()
                     self.mouseUpMonitor.start()
                 } else {
                     self.dragMonitor.stop()
-//                    self.stopDragMonitor.stop()
                     self.mouseUpMonitor.stop()
                 }
             }
@@ -480,6 +479,7 @@ class AppDelegate: LowtechProAppDelegate {
         #endif
         setupServiceProvider()
         startShortcutWatcher()
+        Dropshare.fetchAppURL()
 
         // listen for NSWindow.willCloseNotification to release the window
         NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: nil)
@@ -800,7 +800,7 @@ class FileOptimisationWatcher {
     }
 
     let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
-    optimiser.finish(error: "Free version limits reached", notice: "Only 2 file optimisations per session\nare included in the free version", keepFor: 5000)
+    optimiser.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version", keepFor: 5000)
 }
 
 #if DEBUG
@@ -825,6 +825,7 @@ struct ClopApp: App {
     @AppStorage("showMenubarIcon") var showMenubarIcon = Defaults[.showMenubarIcon]
 
     @ObservedObject var om = OM
+    @ObservedObject var pm = PM
     @ObservedObject var wm = WM
 
     var body: some Scene {
@@ -837,7 +838,7 @@ struct ClopApp: App {
 
         MenuBarExtra(isInserted: $showMenubarIcon, content: {
             MenuView()
-        }, label: { SwiftUI.Image(nsImage: NSImage(named: !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? "MenubarIconBadge" : "MenubarIcon")!) })
+        }, label: { SwiftUI.Image(nsImage: NSImage(named: !(pm.pro?.active ?? false) && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? "MenubarIconBadge" : "MenubarIcon")!) })
             .menuBarExtraStyle(.menu)
             .onChange(of: showMenubarIcon) { show in
                 if !show {

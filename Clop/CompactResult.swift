@@ -540,7 +540,7 @@ struct CompactPreview: View {
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
         let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)
-        proErrorOpt.finish(error: "Free version limits reached", notice: "Only 2 file optimisations per session\nare included in the free version")
+        proErrorOpt.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version")
 
         let noticeOpt = Optimiser(id: "notice", type: .unknown, operation: "")
         noticeOpt.finish(notice: "**Paused**\nNext clipboard event will be ignored")
