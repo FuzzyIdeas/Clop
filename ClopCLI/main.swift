@@ -232,6 +232,19 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, operat
     }
 }
 
+func checkOutputIsDir(_ output: String?, urls: [URL]) throws {
+    guard let output, output.contains("/"), !output.contains("%"), urls.count > 1 else {
+        return
+    }
+
+    var isDir: ObjCBool = false
+    let exists = FileManager.default.fileExists(atPath: output, isDirectory: &isDir)
+    if exists, !isDir.boolValue {
+        throw ValidationError("Output path must be a folder when cropping multiple files")
+    }
+    try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true, attributes: nil)
+}
+
 struct Clop: ParsableCommand {
     struct CropPdf: ParsableCommand {
         @Option(help: "Crops pages to fit the screen of a specific device (e.g. iPad Air)")
@@ -255,7 +268,7 @@ struct Clop: ParsableCommand {
         @Flag(name: .long, help: "List possible paper sizes that can be passed to --paper-size")
         var listPaperSizes = false
 
-        @Option(help: "Output file path (defaults to modifying the PDF in place). In case of cropping multiple files, this needs to be a folder.")
+        @Option(name: .shortAndLong, help: "Output file path (defaults to modifying the PDF in place). In case of cropping multiple files, this needs to be a folder.")
         var output: String? = nil
 
         @Argument(help: "PDFs to crop (can be a folder)")
@@ -390,7 +403,7 @@ struct Clop: ParsableCommand {
         )
         var longEdge = false
 
-        @Option(help: """
+        @Option(name: .shortAndLong, help: """
         Output file path or template (defaults to modifying the file in place). In case of cropping multiple files, this needs to be a folder or a template.
 
         The template may contain the following tokens on the filename:
@@ -424,20 +437,6 @@ struct Clop: ParsableCommand {
         @Argument(help: "Images, videos, PDFs or URLs to crop (can be a folder)")
         var items: [String] = []
 
-        var cropSizeStr: String {
-            let size = size.evenSize
-            if longEdge {
-                return "\(size.width)"
-            }
-            if size.width == 0 {
-                return "\(size.height)"
-            }
-            if size.height == 0 {
-                return "\(size.width)"
-            }
-            return "\(size.width)x\(size.height)"
-        }
-
         mutating func validate() throws {
             if longEdge, size.width != size.height {
                 throw ValidationError("When using --long-edge, the size must be a single number")
@@ -445,7 +444,9 @@ struct Clop: ParsableCommand {
             if size == .zero {
                 throw ValidationError("Invalid size, must be greater than 0")
             }
+
             urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+            try checkOutputIsDir(output, urls: urls)
         }
 
         mutating func run() throws {
@@ -460,7 +461,7 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: output?.replacing("%z", with: cropSizeStr)
+                    output: output
                 )
             }
         }
@@ -488,7 +489,7 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
         var skipErrors = false
 
-        @Option(help: """
+        @Option(name: .shortAndLong, help: """
         Output file path or template (defaults to modifying the file in place). In case of cropping multiple files, this needs to be a folder or a template.
 
         The template may contain the following tokens on the filename:
@@ -520,15 +521,12 @@ struct Clop: ParsableCommand {
         @Argument(help: "Images, videos or URLs to downscale (can be a folder)")
         var items: [String] = []
 
-        var factorStr: String {
-            String(format: (factor * 10).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.1f" : ((factor * 100).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.2f" : "%.3f"), factor)
-        }
-
         mutating func validate() throws {
             guard factor >= 0.01, factor <= 0.99 else {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
             }
             urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+            try checkOutputIsDir(output, urls: urls)
         }
 
         mutating func run() throws {
@@ -543,7 +541,7 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: output?.replacingOccurrences(of: "%s", with: factorStr)
+                    output: output
                 )
             }
         }
@@ -580,7 +578,7 @@ struct Clop: ParsableCommand {
         @Option(help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50")
         var crop: NSSize? = nil
 
-        @Option(help: """
+        @Option(name: .shortAndLong, help: """
         Output file path or template (defaults to modifying the file in place). In case of cropping multiple files, this needs to be a folder or a template.
 
         The template may contain the following tokens on the filename:
@@ -611,34 +609,6 @@ struct Clop: ParsableCommand {
         @Argument(help: "Images, videos, PDFs or URLs to optimise (can be a folder)")
         var items: [String] = []
 
-        var factorStr: String {
-            guard let factor = downscaleFactor else {
-                return ""
-            }
-            return String(format: (factor * 10).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.1f" : ((factor * 100).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.2f" : "%.3f"), factor)
-        }
-
-        var playbackSpeedStr: String {
-            guard let factor = playbackSpeedFactor else {
-                return ""
-            }
-            return String(format: (factor * 10).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.1f" : ((factor * 100).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.2f" : "%.3f"), factor)
-        }
-
-        var cropSizeStr: String {
-            guard let size = crop?.evenSize else {
-                return ""
-            }
-
-            if size.width == 0 {
-                return "\(size.height)"
-            }
-            if size.height == 0 {
-                return "\(size.width)"
-            }
-            return "\(size.width)x\(size.height)"
-        }
-
         mutating func validate() throws {
             if let size = crop, size == .zero {
                 throw ValidationError("Invalid size, must be greater than 0")
@@ -647,6 +617,7 @@ struct Clop: ParsableCommand {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
             }
             urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+            try checkOutputIsDir(output, urls: urls)
         }
 
         mutating func run() throws {
@@ -661,10 +632,7 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: output?
-                        .replacingOccurrences(of: "%s", with: factorStr)
-                        .replacingOccurrences(of: "%z", with: cropSizeStr)
-                        .replacingOccurrences(of: "%x", with: playbackSpeedStr)
+                    output: output
                 )
             }
         }
