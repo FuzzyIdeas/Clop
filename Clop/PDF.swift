@@ -178,12 +178,12 @@ class PDF: Optimisable {
     lazy var document: PDFDocument? = PDFDocument(url: path.url)
 
     @discardableResult
-    func cropTo(aspectRatio: Double, saveTo newPath: FilePath? = nil) -> Bool {
+    func cropTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false, saveTo newPath: FilePath? = nil) -> Bool {
         guard let document else {
             return false
         }
 
-        document.cropTo(aspectRatio: aspectRatio)
+        document.cropTo(aspectRatio: aspectRatio, alwaysPortrait: alwaysPortrait, alwaysLandscape: alwaysLandscape)
         return document.write(to: newPath?.url ?? path.url)
     }
 

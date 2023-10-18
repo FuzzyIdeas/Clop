@@ -284,24 +284,39 @@ struct CropPDFIntent: AppIntent {
 
     static var parameterSummary: some ParameterSummary {
         When(\.$overwrite, .equalTo, true, {
-            Summary("Crop \(\.$item) for \(\.$aspectRatio) and \(\.$overwrite)") {
-                \.$hideFloatingResult
-            }
+            When(\.$usePaperSize, .equalTo, true, {
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite)") { \.$pageLayout }
+            }, otherwise: {
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite)") { \.$pageLayout }
+            })
         }, otherwise: {
-            Summary("Crop \(\.$item) for \(\.$aspectRatio) and \(\.$overwrite) \(\.$output)") {
-                \.$hideFloatingResult
-            }
+            When(\.$usePaperSize, .equalTo, true, {
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite) \(\.$output)") { \.$pageLayout }
+            }, otherwise: {
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite) \(\.$output)") { \.$pageLayout }
+            })
         })
     }
 
     @Parameter(title: "PDF")
     var item: IntentFile
 
-    @Parameter(title: "Hide floating result")
-    var hideFloatingResult: Bool
+    @Parameter(title: "Paper size or device", displayName: .init(true: "to paper size", false: "for device"))
+    var usePaperSize: Bool
 
-    @Parameter(title: "Aspect ratio")
-    var aspectRatio: Double
+    @Parameter(title: "Page layout", description: """
+    Allows forcing a page layout on all PDF pages:
+        auto: Crop pages based on their longest edge, so that horizontal pages stay horizontal and vertical pages stay vertical
+        portrait: Force all pages to be cropped to vertical or portrait layout
+        landscape: Force all pages to be cropped to horizontal or landscape layout
+    """, default: PageLayout.auto)
+    var pageLayout: PageLayout
+
+    @Parameter(title: "Paper", default: PaperSize.a4)
+    var paperSize: PaperSize?
+
+    @Parameter(title: "Device", default: Device.iPadAir)
+    var device: Device?
 
     @Parameter(title: "Output path", description: "Where to save the cropped PDF (defaults to modifying the PDF in place).")
     var output: String?
@@ -311,6 +326,10 @@ struct CropPDFIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        guard let aspectRatio = usePaperSize ? paperSize?.aspectRatio : device?.aspectRatio else {
+            throw IntentError.message("Invalid aspect ratio")
+        }
+
         let url = item.url
         guard let pdf = PDFDocument(url: url) else {
             throw IntentError.message("Couldn't parse PDF")
@@ -322,7 +341,7 @@ struct CropPDFIntent: AppIntent {
         }
 
         log.debug("Cropping \(pdf.documentURL?.path ?? "PDF") to aspect ratio \(aspectRatio)")
-        pdf.cropTo(aspectRatio: aspectRatio)
+        pdf.cropTo(aspectRatio: aspectRatio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
 
         log.debug("Writing PDF to \(outputURL.path)")
         pdf.write(to: outputURL)
@@ -551,5 +570,115 @@ struct OptimiseURLIntent: AppIntent {
         default:
             throw IntentError.message("Bad optimisation result")
         }
+    }
+}
+
+extension PageLayout: AppEnum {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Page Layout"
+    }
+
+    static var caseDisplayRepresentations: [PageLayout: DisplayRepresentation] {
+        [
+            .auto: DisplayRepresentation(
+                title: "Auto",
+                subtitle: "Crop pages based on their longest edge",
+                image: .init(systemName: "sparkles.rectangle.stack.fill")
+            ),
+            .portrait: DisplayRepresentation(
+                title: "Portrait",
+                subtitle: "Force all pages to be vertical",
+                image: .init(systemName: "rectangle.portrait.arrowtriangle.2.inward")
+            ),
+            .landscape: DisplayRepresentation(
+                title: "Landscape",
+                subtitle: "Force all pages to be horizontal",
+                image: .init(systemName: "rectangle.arrowtriangle.2.inward")
+            ),
+        ]
+    }
+}
+
+extension Device: AppEnum {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Device"
+    }
+
+    static var caseDisplayRepresentations: [Device: DisplayRepresentation] {
+        [
+            .iPhone15ProMax: "iPhone 15 Pro Max", .iPhone15Pro: "iPhone 15 Pro", .iPhone15Plus: "iPhone 15 Plus", .iPhone15: "iPhone 15",
+            .iPadPro: "iPad Pro", .iPadPro6129Inch: "iPad Pro 6 12.9inch", .iPadPro611Inch: "iPad Pro 6 11inch",
+            .iPad: "iPad", .iPad10: "iPad 10",
+            .iPhone14Plus: "iPhone 14 Plus", .iPhone14ProMax: "iPhone 14 Pro Max", .iPhone14Pro: "iPhone 14 Pro", .iPhone14: "iPhone 14",
+            .iPhoneSe3: "iPhone SE 3",
+            .iPadAir: "iPad Air", .iPadAir5: "iPad Air 5",
+            .iPhone13: "iPhone 13", .iPhone13Mini: "iPhone 13 mini", .iPhone13ProMax: "iPhone 13 Pro Max", .iPhone13Pro: "iPhone 13 Pro",
+            .iPad9: "iPad 9", .iPadPro5129Inch: "iPad Pro 5 12.9inch", .iPadPro511Inch: "iPad Pro 5 11inch", .iPadAir4: "iPad Air 4",
+            .iPhone12: "iPhone 12", .iPhone12Mini: "iPhone 12 mini", .iPhone12ProMax: "iPhone 12 Pro Max", .iPhone12Pro: "iPhone 12 Pro",
+            .iPad8: "iPad 8",
+            .iPhoneSe2: "iPhone SE 2",
+            .iPadPro4129Inch: "iPad Pro 4 12.9inch", .iPadPro411Inch: "iPad Pro 4 11inch",
+            .iPad7: "iPad 7",
+            .iPhone11ProMax: "iPhone 11 Pro Max", .iPhone11Pro: "iPhone 11 Pro", .iPhone11: "iPhone 11",
+            .iPodTouch7: "iPod touch 7",
+            .iPadMini: "iPad mini", .iPadMini6: "iPad mini 6", .iPadMini5: "iPad mini 5", .iPadAir3: "iPad Air 3", .iPadPro3129Inch: "iPad Pro 3 12.9inch", .iPadPro311Inch: "iPad Pro 3 11inch",
+            .iPhoneXr: "iPhone XR", .iPhoneXsMax: "iPhone XS Max", .iPhoneXs: "iPhone XS",
+            .iPad6: "iPad 6",
+            .iPhoneX: "iPhone X", .iPhone8Plus: "iPhone 8 Plus", .iPhone8: "iPhone 8",
+            .iPadPro2129Inch: "iPad Pro 2 12.9inch",
+            .iPadPro2105Inch: "iPad Pro 2 10.5inch",
+            .iPad5: "iPad 5",
+            .iPhone7Plus: "iPhone 7 Plus",
+            .iPhone7: "iPhone 7",
+            .iPhoneSe1: "iPhone SE 1",
+            .iPadPro197Inch: "iPad Pro 1 9.7inch",
+            .iPadPro1129Inch: "iPad Pro 1 12.9inch",
+            .iPhone6SPlus: "iPhone 6s Plus",
+            .iPhone6S: "iPhone 6s",
+            .iPadMini4: "iPad mini 4",
+            .iPodTouch6: "iPod touch 6",
+            .iPadAir2: "iPad Air 2",
+            .iPadMini3: "iPad mini 3",
+            .iPhone6Plus: "iPhone 6 Plus",
+            .iPhone6: "iPhone 6",
+            .iPadMini2: "iPad mini 2",
+            .iPadAir1: "iPad Air 1",
+            .iPhone5C: "iPhone 5C",
+            .iPhone5S: "iPhone 5S",
+            .iPad4: "iPad 4",
+            .iPodTouch5: "iPod touch 5",
+            .iPhone5: "iPhone 5",
+            .iPad3: "iPad 3",
+            .iPhone4S: "iPhone 4S",
+            .iPad2: "iPad 2",
+            .iPodTouch4: "iPod touch 4",
+            .iPhone4: "iPhone 4",
+        ]
+    }
+}
+
+extension PaperSize: AppEnum {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Paper Size"
+    }
+
+    static var caseDisplayRepresentations: [PaperSize: DisplayRepresentation] {
+        [
+            .a0: "A0", .a1: "A1", .a2: "A2", .a3: "A3", .a4: "A4", .a5: "A5", .a6: "A6", .a7: "A7", .a8: "A8", .a9: "A9", .a10: "A10", .a11: "A11", .a12: "A12", .a13: "A13",
+            ._2A0: "2A0", ._4A0: "4A0", .a0plus: "A0+", .a1plus: "A1+", .a3plus: "A3+",
+            .b0: "B0", .b1: "B1", .b2: "B2", .b3: "B3", .b4: "B4", .b5: "B5", .b6: "B6", .b7: "B7", .b8: "B8", .b9: "B9", .b10: "B10", .b11: "B11", .b12: "B12", .b13: "B13",
+            .b0plus: "B0+", .b1plus: "B1+", .b2plus: "B2+", .letter: "Letter",
+            .legal: "Legal", .tabloid: "Tabloid", .ledger: "Ledger", .juniorLegal: "Junior Legal", .halfLetter: "Half Letter", .governmentLetter: "Government Letter", .governmentLegal: "Government Legal",
+            .ansiA: "ANSI A", .ansiB: "ANSI B", .ansiC: "ANSI C", .ansiD: "ANSI D", .ansiE: "ANSI E", .archA: "Arch A",
+            .archB: "Arch B", .archC: "Arch C", .archD: "Arch D", .archE: "Arch E", .archE1: "Arch E1", .archE2: "Arch E2", .archE3: "Arch E3", .passport: "Passport",
+            ._2R: "2R", .ldDsc: "LD, DSC", ._3RL: "3R, L", .lw: "LW", .kgd: "KGD", ._4RKg: "4R, KG", ._2LdDscw: "2LD, DSCW", ._5R2L: "5R, 2L", ._2Lw: "2LW", ._6R: "6R", ._8R6P: "8R, 6P", .s8R6Pw: "S8R, 6PW", ._11R: "11R",
+            .a3SuperB: "A3+ Super B",
+            .berliner: "Berliner", .broadsheet: "Broadsheet", .usBroadsheet: "US Broadsheet", .britishBroadsheet: "British Broadsheet", .southAfricanBroadsheet: "South African Broadsheet",
+            .ciner: "Ciner", .compact: "Compact", .nordisch: "Nordisch", .rhenish: "Rhenish", .swiss: "Swiss",
+            .newspaperTabloid: "Newspaper Tabloid", .canadianTabloid: "Canadian Tabloid", .norwegianTabloid: "Norwegian Tabloid", .newYorkTimes: "New York Times", .wallStreetJournal: "Wall Street Journal",
+            .folio: "Folio", .quarto: "Quarto", .imperialOctavo: "Imperial Octavo", .superOctavo: "Super Octavo", .royalOctavo: "Royal Octavo", .mediumOctavo: "Medium Octavo", .octavo: "Octavo", .crownOctavo: "Crown Octavo",
+            ._12Mo: "12mo", ._16Mo: "16mo", ._18Mo: "18mo", ._32Mo: "32mo", ._48Mo: "48mo", ._64Mo: "64mo",
+            .aFormat: "A Format", .bFormat: "B Format", .cFormat: "C Format",
+        ]
     }
 }
