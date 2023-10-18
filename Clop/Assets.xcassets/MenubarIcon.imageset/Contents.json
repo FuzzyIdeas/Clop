@@ -1,12 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "clop_22.png",
+      "filename" : "clop-menubar@22px.png",
       "idiom" : "mac",
       "scale" : "1x"
     },
     {
-      "filename" : "clop 1.png",
+      "filename" : "clop-menubar.png",
       "idiom" : "mac",
       "scale" : "2x"
     }
