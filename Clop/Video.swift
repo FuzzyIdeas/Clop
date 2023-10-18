@@ -681,7 +681,7 @@ var processTerminated = Set<pid_t>()
             : (
                 changePlaybackSpeedFactor == 1
                     ? "Reverting to original speed"
-                    : "Slowing down by \(changePlaybackSpeedFactor < 2 ? changePlaybackSpeedFactor.str(decimals: 2) : changePlaybackSpeedFactor.i.s)x"
+                    : "Slowing down to \(changePlaybackSpeedFactor != 0.5 ? changePlaybackSpeedFactor.str(decimals: 2) : "0.5")x"
             ),
         hidden: hideFloatingResult, source: source
     )

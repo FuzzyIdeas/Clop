@@ -113,6 +113,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case conversionFailed(FilePath)
     case proError(String)
     case downscaleFailed(FilePath)
+    case dropshareNotRunning(FilePath)
     case unknownType
 
     var localizedDescription: String { description }
@@ -157,6 +158,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             return "Downscale failed: \(p)"
         case let .optimisationFailed(p):
             return "Optimisation failed: \(p)"
+        case let .dropshareNotRunning(p):
+            return "Dropshare is not running, upload failed: \(p)"
         case .unknownType:
             return "Unknown type"
         }
@@ -201,6 +204,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Downscale failed"
         case .optimisationFailed:
             "Optimisation failed"
+        case .dropshareNotRunning:
+            "Dropshare not running"
         case .unknownType:
             "Unknown type"
         }

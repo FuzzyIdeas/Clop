@@ -32,6 +32,8 @@
 		C78211092A5B21A4008DB106 /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
 		C78B29FF2AD0826F00B6A19B /* InstallCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */; };
 		C78B2A022AD1F02E00B6A19B /* ResolutionField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */; };
+		C78C62612ADEB3E7000519D0 /* Uploads.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78C62602ADEB3E7000519D0 /* Uploads.swift */; };
+		C78C62632ADEE250000519D0 /* Upload with Dropshare.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C78C62622ADEE250000519D0 /* Upload with Dropshare.shortcut */; };
 		C7956A422AC208DD00C0EDF2 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7956A412AC208DD00C0EDF2 /* main.swift */; };
 		C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C7956A4A2AC209F200C0EDF2 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = C7956A492AC209F200C0EDF2 /* ArgumentParser */; };
@@ -136,6 +138,8 @@
 		C78211082A5B21A4008DB106 /* Xattr.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Xattr.swift; sourceTree = "<group>"; };
 		C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InstallCLI.swift; sourceTree = "<group>"; };
 		C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResolutionField.swift; sourceTree = "<group>"; };
+		C78C62602ADEB3E7000519D0 /* Uploads.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Uploads.swift; sourceTree = "<group>"; };
+		C78C62622ADEE250000519D0 /* Upload with Dropshare.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload with Dropshare.shortcut"; sourceTree = "<group>"; };
 		C7956A3F2AC208DD00C0EDF2 /* ClopCLI */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ClopCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7956A412AC208DD00C0EDF2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClopCLI.entitlements; sourceTree = "<group>"; };
@@ -283,6 +287,7 @@
 				C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */,
 				C70B5F332AC1B56C00345739 /* Optimisable.swift */,
 				C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */,
+				C78C62602ADEB3E7000519D0 /* Uploads.swift */,
 			);
 			path = Clop;
 			sourceTree = "<group>";
@@ -298,6 +303,7 @@
 		C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */ = {
 			isa = PBXGroup;
 			children = (
+				C78C62622ADEE250000519D0 /* Upload with Dropshare.shortcut */,
 				C7C8AD612ABC9B34003ECDE6 /* Upload to SSH server.shortcut */,
 				C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */,
 				C7C8AD5B2ABC78CF003ECDE6 /* Clop - video.shortcut */,
@@ -444,6 +450,7 @@
 				C7319E8D2AD995B60085B707 /* bin.tar.xz.sha256 in Resources */,
 				C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */,
 				C7319E8E2AD995B60085B707 /* bin.tar.xz in Resources */,
+				C78C62632ADEE250000519D0 /* Upload with Dropshare.shortcut in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -504,6 +511,7 @@
 				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
 				C7AB38D12AC8320B00F299CE /* FileNameField.swift in Sources */,
 				C7333E472A98C90500B1D5BE /* PDF.swift in Sources */,
+				C78C62612ADEB3E7000519D0 /* Uploads.swift in Sources */,
 				C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */,
 				C7AB38D22AC8320B00F299CE /* DropZone.swift in Sources */,
 				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
@@ -544,7 +552,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.4;
+				CURRENT_PROJECT_VERSION = 2.2.5;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -560,7 +568,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.4;
+				MARKETING_VERSION = 2.2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -577,7 +585,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.4;
+				CURRENT_PROJECT_VERSION = 2.2.5;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -593,7 +601,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.4;
+				MARKETING_VERSION = 2.2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -775,7 +783,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.4;
+				CURRENT_PROJECT_VERSION = 2.2.5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -796,7 +804,7 @@
 				);
 				LLVM_LTO = YES_THIN;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.4;
+				MARKETING_VERSION = 2.2.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -813,7 +821,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.4;
+				CURRENT_PROJECT_VERSION = 2.2.5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -834,7 +842,7 @@
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.4;
+				MARKETING_VERSION = 2.2.5;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";

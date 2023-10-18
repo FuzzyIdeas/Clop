@@ -26,7 +26,7 @@ let VIDEO_PASTEBOARD_TYPES = VIDEO_FORMATS.compactMap { NSPasteboard.PasteboardT
 let IMAGE_PASTEBOARD_TYPES = IMAGE_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
 let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PASTEBOARD_TYPES + VIDEO_PASTEBOARD_TYPES + [.fileContents]).set
 
-let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x, .r, .f, .o, .comma]
+let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x, .r, .f, .o, .comma, .u]
 let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x, .r, .escape]
 
 extension Defaults.Keys {
@@ -92,7 +92,9 @@ extension Defaults.Keys {
     static let neverShowProError = Key<Bool>("neverShowProError", default: false)
 
     static let dismissFloatingResultOnDrop = Key<Bool>("dismissFloatingResultOnDrop", default: true)
+    static let dismissFloatingResultOnUpload = Key<Bool>("dismissFloatingResultOnUpload", default: true)
     static let dismissCompactResultOnDrop = Key<Bool>("dismissCompactResultOnDrop", default: false)
+    static let dismissCompactResultOnUpload = Key<Bool>("dismissCompactResultOnUpload", default: false)
 
     static let autoCopyToClipboard = Key<Bool>("autoCopyToClipboard", default: true)
     static let cliInstalled = Key<Bool>("cliInstalled", default: true)
