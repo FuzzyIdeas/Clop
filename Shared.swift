@@ -217,9 +217,9 @@ extension URL {
 import PDFKit
 
 extension NSSize {
-    func cropTo(aspectRatio: Double) -> NSRect {
-        let sizeAspectRatio = self.aspectRatio
-        if sizeAspectRatio > aspectRatio {
+    func cropToPortrait(aspectRatio: Double) -> NSRect {
+        let selfAspectRatio = width / height
+        if selfAspectRatio > aspectRatio {
             let width = height * aspectRatio
             let x = (self.width - width) / 2
             return NSRect(x: x, y: 0, width: width, height: height)
@@ -228,6 +228,33 @@ extension NSSize {
             let y = (self.height - height) / 2
             return NSRect(x: 0, y: y, width: width, height: height)
         }
+    }
+
+    func cropToLandscape(aspectRatio: Double) -> NSRect {
+        let selfAspectRatio = height / width
+        if selfAspectRatio > aspectRatio {
+            let height = width * aspectRatio
+            let y = (self.height - height) / 2
+            return NSRect(x: 0, y: y, width: width, height: height)
+        } else {
+            let width = height / aspectRatio
+            let x = (self.width - width) / 2
+            return NSRect(x: x, y: 0, width: width, height: height)
+        }
+    }
+
+    var isLandscape: Bool { width > height }
+    var isPortrait: Bool { width < height }
+
+    func cropTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false) -> NSRect {
+        if alwaysPortrait {
+            cropToPortrait(aspectRatio: aspectRatio)
+        } else if alwaysLandscape {
+            cropToLandscape(aspectRatio: aspectRatio)
+        } else {
+            isLandscape ? cropToLandscape(aspectRatio: aspectRatio) : cropToPortrait(aspectRatio: aspectRatio)
+        }
+
     }
 
     var evenSize: NSSize {
@@ -241,14 +268,21 @@ extension NSSize {
     }
 }
 
+@frozen
+enum PageLayout: String, Codable, CaseIterable, Sendable {
+    case portrait
+    case landscape
+    case auto
+}
+
 extension PDFDocument {
-    func cropTo(aspectRatio: Double) {
+    func cropTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false) {
         guard pageCount > 0 else { return }
 
         for i in 0 ..< pageCount {
             let page = page(at: i)!
             let size = page.bounds(for: .mediaBox).size
-            let cropRect = size.cropTo(aspectRatio: aspectRatio)
+            let cropRect = size.cropTo(aspectRatio: aspectRatio, alwaysPortrait: alwaysPortrait, alwaysLandscape: alwaysLandscape)
             page.setBounds(cropRect, for: .cropBox)
         }
     }
@@ -517,4 +551,202 @@ extension NSSize {
     func cropSize(name: String = "", longEdge: Bool = false) -> CropSize {
         CropSize(width: width.evenInt, height: height.evenInt, name: name, longEdge: longEdge)
     }
+}
+
+enum Device: String, Codable, Sendable, CaseIterable {
+    case iPhone15ProMax = "iPhone 15 Pro Max"
+    case iPhone15Pro = "iPhone 15 Pro"
+    case iPhone15Plus = "iPhone 15 Plus"
+    case iPhone15 = "iPhone 15"
+    case iPadPro = "iPad Pro"
+    case iPadPro6129Inch = "iPad Pro 6 12.9inch"
+    case iPadPro611Inch = "iPad Pro 6 11inch"
+    case iPad
+    case iPad10 = "iPad 10"
+    case iPhone14Plus = "iPhone 14 Plus"
+    case iPhone14ProMax = "iPhone 14 Pro Max"
+    case iPhone14Pro = "iPhone 14 Pro"
+    case iPhone14 = "iPhone 14"
+    case iPhoneSe3 = "iPhone SE 3"
+    case iPadAir = "iPad Air"
+    case iPadAir5 = "iPad Air 5"
+    case iPhone13 = "iPhone 13"
+    case iPhone13Mini = "iPhone 13 mini"
+    case iPhone13ProMax = "iPhone 13 Pro Max"
+    case iPhone13Pro = "iPhone 13 Pro"
+    case iPad9 = "iPad 9"
+    case iPadPro5129Inch = "iPad Pro 5 12.9inch"
+    case iPadPro511Inch = "iPad Pro 5 11inch"
+    case iPadAir4 = "iPad Air 4"
+    case iPhone12 = "iPhone 12"
+    case iPhone12Mini = "iPhone 12 mini"
+    case iPhone12ProMax = "iPhone 12 Pro Max"
+    case iPhone12Pro = "iPhone 12 Pro"
+    case iPad8 = "iPad 8"
+    case iPhoneSe2 = "iPhone SE 2"
+    case iPadPro4129Inch = "iPad Pro 4 12.9inch"
+    case iPadPro411Inch = "iPad Pro 4 11inch"
+    case iPad7 = "iPad 7"
+    case iPhone11ProMax = "iPhone 11 Pro Max"
+    case iPhone11Pro = "iPhone 11 Pro"
+    case iPhone11 = "iPhone 11"
+    case iPodTouch7 = "iPod touch 7"
+    case iPadMini = "iPad mini"
+    case iPadMini6 = "iPad mini 6"
+    case iPadMini5 = "iPad mini 5"
+    case iPadAir3 = "iPad Air 3"
+    case iPadPro3129Inch = "iPad Pro 3 12.9inch"
+    case iPadPro311Inch = "iPad Pro 3 11inch"
+    case iPhoneXr = "iPhone XR"
+    case iPhoneXsMax = "iPhone XS Max"
+    case iPhoneXs = "iPhone XS"
+    case iPad6 = "iPad 6"
+    case iPhoneX = "iPhone X"
+    case iPhone8Plus = "iPhone 8 Plus"
+    case iPhone8 = "iPhone 8"
+    case iPadPro2129Inch = "iPad Pro 2 12.9inch"
+    case iPadPro2105Inch = "iPad Pro 2 10.5inch"
+    case iPad5 = "iPad 5"
+    case iPhone7Plus = "iPhone 7 Plus"
+    case iPhone7 = "iPhone 7"
+    case iPhoneSe1 = "iPhone SE 1"
+    case iPadPro197Inch = "iPad Pro 1 9.7inch"
+    case iPadPro1129Inch = "iPad Pro 1 12.9inch"
+    case iPhone6SPlus = "iPhone 6s Plus"
+    case iPhone6S = "iPhone 6s"
+    case iPadMini4 = "iPad mini 4"
+    case iPodTouch6 = "iPod touch 6"
+    case iPadAir2 = "iPad Air 2"
+    case iPadMini3 = "iPad mini 3"
+    case iPhone6Plus = "iPhone 6 Plus"
+    case iPhone6 = "iPhone 6"
+    case iPadMini2 = "iPad mini 2"
+    case iPadAir1 = "iPad Air 1"
+    case iPhone5C = "iPhone 5C"
+    case iPhone5S = "iPhone 5S"
+    case iPad4 = "iPad 4"
+    case iPodTouch5 = "iPod touch 5"
+    case iPhone5 = "iPhone 5"
+    case iPad3 = "iPad 3"
+    case iPhone4S = "iPhone 4S"
+    case iPad2 = "iPad 2"
+    case iPodTouch4 = "iPod touch 4"
+    case iPhone4 = "iPhone 4"
+
+    var aspectRatio: Double {
+        DEVICE_SIZES[rawValue]!.aspectRatio
+    }
+
+}
+
+enum PaperSize: String, Codable, Sendable, CaseIterable {
+    case a0 = "A0"
+    case a1 = "A1"
+    case a2 = "A2"
+    case a3 = "A3"
+    case a4 = "A4"
+    case a5 = "A5"
+    case a6 = "A6"
+    case a7 = "A7"
+    case a8 = "A8"
+    case a9 = "A9"
+    case a10 = "A10"
+    case a11 = "A11"
+    case a12 = "A12"
+    case a13 = "A13"
+    case _2A0 = "2A0"
+    case _4A0 = "4A0"
+    case a0plus = "A0+"
+    case a1plus = "A1+"
+    case a3plus = "A3+"
+    case b0 = "B0"
+    case b1 = "B1"
+    case b2 = "B2"
+    case b3 = "B3"
+    case b4 = "B4"
+    case b5 = "B5"
+    case b6 = "B6"
+    case b7 = "B7"
+    case b8 = "B8"
+    case b9 = "B9"
+    case b10 = "B10"
+    case b11 = "B11"
+    case b12 = "B12"
+    case b13 = "B13"
+    case b0plus = "B0+"
+    case b1plus = "B1+"
+    case b2plus = "B2+"
+    case letter = "Letter"
+    case legal = "Legal"
+    case tabloid = "Tabloid"
+    case ledger = "Ledger"
+    case juniorLegal = "Junior Legal"
+    case halfLetter = "Half Letter"
+    case governmentLetter = "Government Letter"
+    case governmentLegal = "Government Legal"
+    case ansiA = "ANSI A"
+    case ansiB = "ANSI B"
+    case ansiC = "ANSI C"
+    case ansiD = "ANSI D"
+    case ansiE = "ANSI E"
+    case archA = "Arch A"
+    case archB = "Arch B"
+    case archC = "Arch C"
+    case archD = "Arch D"
+    case archE = "Arch E"
+    case archE1 = "Arch E1"
+    case archE2 = "Arch E2"
+    case archE3 = "Arch E3"
+    case passport = "Passport"
+    case _2R = "2R"
+    case ldDsc = "LD, DSC"
+    case _3RL = "3R, L"
+    case lw = "LW"
+    case kgd = "KGD"
+    case _4RKg = "4R, KG"
+    case _2LdDscw = "2LD, DSCW"
+    case _5R2L = "5R, 2L"
+    case _2Lw = "2LW"
+    case _6R = "6R"
+    case _8R6P = "8R, 6P"
+    case s8R6Pw = "S8R, 6PW"
+    case _11R = "11R"
+    case a3SuperB = "A3+ Super B"
+    case berliner = "Berliner"
+    case broadsheet = "Broadsheet"
+    case usBroadsheet = "US Broadsheet"
+    case britishBroadsheet = "British Broadsheet"
+    case southAfricanBroadsheet = "South African Broadsheet"
+    case ciner = "Ciner"
+    case compact = "Compact"
+    case nordisch = "Nordisch"
+    case rhenish = "Rhenish"
+    case swiss = "Swiss"
+    case newspaperTabloid = "Newspaper Tabloid"
+    case canadianTabloid = "Canadian Tabloid"
+    case norwegianTabloid = "Norwegian Tabloid"
+    case newYorkTimes = "New York Times"
+    case wallStreetJournal = "Wall Street Journal"
+    case folio = "Folio"
+    case quarto = "Quarto"
+    case imperialOctavo = "Imperial Octavo"
+    case superOctavo = "Super Octavo"
+    case royalOctavo = "Royal Octavo"
+    case mediumOctavo = "Medium Octavo"
+    case octavo = "Octavo"
+    case crownOctavo = "Crown Octavo"
+    case _12Mo = "12mo"
+    case _16Mo = "16mo"
+    case _18Mo = "18mo"
+    case _32Mo = "32mo"
+    case _48Mo = "48mo"
+    case _64Mo = "64mo"
+    case aFormat = "A Format"
+    case bFormat = "B Format"
+    case cFormat = "C Format"
+
+    var aspectRatio: Double {
+        PAPER_SIZES[rawValue]!.aspectRatio
+    }
+
 }
