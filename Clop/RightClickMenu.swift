@@ -117,6 +117,11 @@ struct RightClickMenuView: View {
             .keyboardShortcut("a")
             .disabled(optimiser.aggresive)
 
+            Button("Upload with Dropshare") {
+                optimiser.uploadWithDropshare()
+            }
+            .keyboardShortcut("u")
+
             Menu("Run workflow") {
                 WorkflowMenu(optimiser: optimiser)
             }

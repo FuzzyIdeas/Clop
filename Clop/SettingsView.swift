@@ -392,8 +392,10 @@ enum FileNameToken: String {
     case amPm = "%p"
     case randomCharacters = "%r"
     case autoIncrementingNumber = "%i"
+    case filename = "%f"
+    case ext = "%e"
 }
-func generateFileName(template: String) -> String {
+func generateFileName(template: String, for path: FilePath? = nil) -> String {
     var name = template
     let date = Date()
     let calendar = Calendar.current
@@ -411,6 +413,8 @@ func generateFileName(template: String) -> String {
         .replacingOccurrences(of: FileNameToken.amPm.rawValue, with: components.hour! > 12 ? "PM" : "AM")
         .replacingOccurrences(of: FileNameToken.randomCharacters.rawValue, with: NanoID.new(alphabet: .lowercasedLatinLetters, size: 5))
         .replacingOccurrences(of: FileNameToken.autoIncrementingNumber.rawValue, with: num.s)
+        .replacingOccurrences(of: FileNameToken.filename.rawValue, with: path?.stem ?? "")
+        .replacingOccurrences(of: FileNameToken.ext.rawValue, with: path?.extension ?? "")
         .safeFilename
 
     if !SWIFTUI_PREVIEW, template.contains(FileNameToken.autoIncrementingNumber.rawValue) {
@@ -774,8 +778,11 @@ struct FloatingSettingsView: View {
     @Default(.autoClearAllCompactResultsAfter) var autoClearAllCompactResultsAfter
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
+
     @Default(.dismissFloatingResultOnDrop) var dismissFloatingResultOnDrop
+    @Default(.dismissFloatingResultOnUpload) var dismissFloatingResultOnUpload
     @Default(.dismissCompactResultOnDrop) var dismissCompactResultOnDrop
+    @Default(.dismissCompactResultOnUpload) var dismissCompactResultOnUpload
 
     @State var compact = SWIFTUI_PREVIEW
 
@@ -799,7 +806,9 @@ struct FloatingSettingsView: View {
             Section(header: SectionHeader(title: "Full layout")) {
                 Toggle("Show hat icon", isOn: $showFloatingHatIcon)
                 Toggle("Show images", isOn: $showImages)
-                Toggle("Dismiss after dragging outside", isOn: $dismissFloatingResultOnDrop)
+                Text("Dismiss result after")
+                Toggle("drag and drop outside", isOn: $dismissFloatingResultOnDrop).padding(.leading, 20)
+                Toggle("upload to Dropshare", isOn: $dismissFloatingResultOnUpload).padding(.leading, 20)
 
                 Toggle("Auto hide", isOn: $autoHideFloatingResults)
                 Picker("files after", selection: $autoHideFloatingResultsAfter) {
@@ -828,7 +837,9 @@ struct FloatingSettingsView: View {
 
             Section(header: SectionHeader(title: "Compact layout")) {
                 Toggle("Show images", isOn: $showCompactImages)
-                Toggle("Dismiss after dragging outside", isOn: $dismissCompactResultOnDrop)
+                Text("Dismiss result after")
+                Toggle("drag and drop outside", isOn: $dismissCompactResultOnDrop).padding(.leading, 20)
+                Toggle("upload to Dropshare", isOn: $dismissCompactResultOnUpload).padding(.leading, 20)
 
                 Picker("Auto clear all after", selection: $autoClearAllCompactResultsAfter) {
                     Text("5 seconds").tag(5)

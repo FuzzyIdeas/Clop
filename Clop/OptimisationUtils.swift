@@ -826,6 +826,20 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
+    func uploadWithDropshare() {
+        guard let file = url?.existingFilePath else { return }
+        guard Dropshare.appURL != nil else {
+            NSWorkspace.shared.open("https://dropshare.app/".url!)
+            return
+        }
+        tryAsync {
+            try await Dropshare.upload(file)
+        }
+        if OM.compactResults ? Defaults[.dismissCompactResultOnUpload] : Defaults[.dismissFloatingResultOnUpload] {
+            remove(after: 100, withAnimation: true)
+        }
+    }
+
     func save() {
         guard let url, let path = url.existingFilePath else { return }
 
@@ -1080,6 +1094,23 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         }
     }
 
+    func uploadWithDropshare() {
+        guard !visibleOptimisers.isEmpty else { return }
+        guard Dropshare.appURL != nil else {
+            NSWorkspace.shared.open("https://dropshare.app/".url!)
+            return
+        }
+
+        let files = visibleOptimisers.compactMap(\.url?.existingFilePath)
+
+        tryAsync {
+            try await Dropshare.upload(files)
+        }
+        if Defaults[.dismissCompactResultOnUpload] {
+            clearVisibleOptimisers()
+        }
+    }
+
     func removeVisibleOptimisers(after ms: Int) {
         lastRemoveAfterMs = ms
         remover = mainAsyncAfter(ms: ms) { [self] in
@@ -1257,13 +1288,14 @@ func optimiseURL(
     cropTo cropSize: CropSize? = nil,
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
-    source: String? = nil
+    source: String? = nil,
+    output: String? = nil
 ) async throws -> ClipboardType? {
     showFloatingThumbnails(force: true)
 
     var clipResult: ClipboardType?
     do {
-        guard let (downloadPath, type, optimiser) = try await downloadFile(from: url, hideFloatingResult: hideFloatingResult) else {
+        guard let (downloadPath, type, optimiser) = try await downloadFile(from: url, hideFloatingResult: hideFloatingResult, output: output) else {
             return nil
         }
         let downloadURL = downloadPath.url
@@ -1384,6 +1416,15 @@ enum ClipboardType: Equatable {
         }
     }
 
+    var path: FilePath {
+        switch self {
+        case let .image(img): img.path
+        case let .file(path): path
+        case let .url(url): FilePath.downloads / url.lastPathComponent.safeFilename
+        case .unknown: ""
+        }
+    }
+
     static func == (lhs: ClipboardType, rhs: ClipboardType) -> Bool {
         lhs.id == rhs.id
     }
@@ -1451,6 +1492,9 @@ import LowtechPro
 @discardableResult
 @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
     guard let PRO, PRO.active || count < limit else {
+        if let url {
+            OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.with(url)
+        }
         proLimitsReached(url: url)
         throw ClopError.proError("Pro limits reached")
     }
@@ -1461,7 +1505,7 @@ import LowtechPro
 
 var manualOptimisationCount = 0
 
-@MainActor func downloadFile(from url: URL, optimiser: Optimiser? = nil, hideFloatingResult: Bool = false) async throws -> (FilePath, ItemType, Optimiser)? {
+@MainActor func downloadFile(from url: URL, optimiser: Optimiser? = nil, hideFloatingResult: Bool = false, output: String? = nil) async throws -> (FilePath, ItemType, Optimiser)? {
     var optimiser: Optimiser?
     if optimiser == nil {
         optimiser = OM.optimiser(id: url.absoluteString, type: .url, operation: "Fetching", hidden: hideFloatingResult)
@@ -1487,12 +1531,22 @@ var manualOptimisationCount = 0
     let name: String = url.lastPathComponent.reversed().split(separator: ".", maxSplits: 1).last?.reversed().s ??
         url.lastPathComponent.replacingOccurrences(of: ".\(ext)", with: "", options: .caseInsensitive)
     let downloadPath = FilePath.downloads.appending("\(name).\(ext)")
-    try fileURL.filePath.move(to: downloadPath, force: true)
+
+    let outFilePath: FilePath =
+        if let path = output?.filePath, path.string.contains("/")
+    {
+        path.isDir ? path / "\(name).\(ext)" : path.dir / generateFileName(template: path.name.string, for: downloadPath)
+    } else if let output {
+        downloadPath.dir / generateFileName(template: output, for: downloadPath)
+    } else {
+        downloadPath
+    }
+    try fileURL.filePath.move(to: outFilePath, force: true)
 
     guard optimiser.running, !optimiser.inRemoval else {
         return nil
     }
-    return (downloadPath, type, optimiser)
+    return (outFilePath, type, optimiser)
 }
 
 @MainActor func quickLookLastClipboardItem() async throws {
@@ -1548,7 +1602,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     aggressiveOptimisation: Bool? = nil,
     optimisationCount: inout Int,
     copyToClipboard: Bool,
-    source: String? = nil
+    source: String? = nil,
+    output: String? = nil
 ) async throws -> ClipboardType? {
     func nope(notice: String, thumbnail: NSImage? = nil, url: URL? = nil, type: ItemType? = nil) {
         let optimiser = OM.optimiser(id: id, type: type ?? .unknown, operation: "", hidden: hideFloatingResult)
@@ -1559,6 +1614,25 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             optimiser.url = url
         }
         optimiser.finish(notice: notice)
+    }
+
+    let outFilePath: FilePath? =
+        if let path = output?.filePath, path.string.contains("/")
+    {
+        path.isDir ? path.appending(item.path.name) : path.dir / generateFileName(template: path.name.string, for: item.path)
+    } else if let output {
+        item.path.dir / generateFileName(template: output, for: item.path)
+    } else {
+        nil
+    }
+    let item: ClipboardType =
+        if let outFilePath, item.path.exists, case let .image(img) = item
+    {
+        try .image(img.copyWithPath(item.path.copy(to: outFilePath, force: true)))
+    } else if let outFilePath, item.path.exists {
+        try .file(item.path.copy(to: outFilePath, force: true))
+    } else {
+        item
     }
 
     switch item {
@@ -1679,7 +1753,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 cropTo: cropSize,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
-                source: source
+                source: source,
+                output: output
             )
         }
         return result
@@ -1721,7 +1796,8 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             aggressiveOptimisation: req.aggressiveOptimisation,
                             optimisationCount: &cliOptimisationCount,
                             copyToClipboard: req.copyToClipboard,
-                            source: req.source
+                            source: req.source,
+                            output: req.output
                         )
 
                         if let origURL = req.originalUrls[url] {
