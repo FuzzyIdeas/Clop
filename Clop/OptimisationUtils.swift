@@ -1591,6 +1591,31 @@ var manualOptimisationCount = 0
 
 var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
+func factorStr(_ factor: Double?) -> String {
+    guard let factor else {
+        return ""
+    }
+    return String(format: (factor * 10).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.1f" : ((factor * 100).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.2f" : "%.3f"), factor)
+}
+
+func cropSizeStr(_ cropSize: CropSize?) -> String {
+    guard let cropSize else {
+        return ""
+    }
+    let size = cropSize.ns.evenSize
+
+    if cropSize.longEdge {
+        return "\(size.width)"
+    }
+    if size.width == 0 {
+        return "\(size.height)"
+    }
+    if size.height == 0 {
+        return "\(size.width)"
+    }
+    return "\(size.width)x\(size.height)"
+}
+
 @discardableResult
 @MainActor func optimiseItem(
     _ item: ClipboardType,
@@ -1616,6 +1641,10 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         optimiser.finish(notice: notice)
     }
 
+    let output = output?
+        .replacingOccurrences(of: "%s", with: factorStr(scalingFactor))
+        .replacingOccurrences(of: "%z", with: cropSizeStr(cropSize))
+        .replacingOccurrences(of: "%x", with: factorStr(changePlaybackSpeedFactor))
     let outFilePath: FilePath? =
         if let path = output?.filePath, path.string.contains("/")
     {
