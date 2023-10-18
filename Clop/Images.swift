@@ -42,7 +42,8 @@ extension NSPasteboard.PasteboardType {
     static let promisedSuggestedFileName = NSPasteboard.PasteboardType(rawValue: "com.apple.pasteboard.promised-suggested-file-name")
     static let promisedMetadata = NSPasteboard.PasteboardType(rawValue: "com.apple.NSFilePromiseItemMetaData")
     static let filenames = NSPasteboard.PasteboardType(rawValue: "NSFilenamesPboardType")
-    static let finderNode = NSPasteboard.PasteboardType(rawValue: "com.apple.finder.noderef")
+    static let finderNode = NSPasteboard.PasteboardType(rawValue: "com.apple.finder.node")
+    static let finderNoderef = NSPasteboard.PasteboardType(rawValue: "com.apple.finder.noderef")
 }
 
 extension UTType {
