@@ -178,6 +178,15 @@ class PDF: Optimisable {
     lazy var document: PDFDocument? = PDFDocument(url: path.url)
 
     @discardableResult
+    func uncrop(saveTo newPath: FilePath? = nil) -> Bool {
+        guard let document else {
+            return false
+        }
+        document.uncrop()
+        return document.write(to: newPath?.url ?? path.url)
+    }
+
+    @discardableResult
     func cropTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false, saveTo newPath: FilePath? = nil) -> Bool {
         guard let document else {
             return false
@@ -290,7 +299,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.0
 
                 optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
                 if let cropSize {
-                    optimisedPDF!.cropTo(aspectRatio: cropSize.aspectRatio)
+                    optimisedPDF!.cropTo(aspectRatio: cropSize.fractionalAspectRatio)
                 }
                 if !allowLarger, cropSize == nil, optimisedPDF!.fileSize >= fileSize {
                     pdf.path.restore(force: true)
