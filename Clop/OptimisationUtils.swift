@@ -1535,9 +1535,9 @@ var manualOptimisationCount = 0
     let outFilePath: FilePath =
         if let path = output?.filePath, path.string.contains("/")
     {
-        path.isDir ? path / "\(name).\(ext)" : path.dir / generateFileName(template: path.name.string, for: downloadPath)
+        path.isDir ? path / "\(name).\(ext)" : path.dir / generateFileName(template: path.name.string, for: downloadPath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     } else if let output {
-        downloadPath.dir / generateFileName(template: output, for: downloadPath)
+        downloadPath.dir / generateFileName(template: output, for: downloadPath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     } else {
         downloadPath
     }
@@ -1591,31 +1591,6 @@ var manualOptimisationCount = 0
 
 var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
-func factorStr(_ factor: Double?) -> String {
-    guard let factor else {
-        return ""
-    }
-    return String(format: (factor * 10).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.1f" : ((factor * 100).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.2f" : "%.3f"), factor)
-}
-
-func cropSizeStr(_ cropSize: CropSize?) -> String {
-    guard let cropSize else {
-        return ""
-    }
-    let size = cropSize.ns.evenSize
-
-    if cropSize.longEdge {
-        return "\(size.width)"
-    }
-    if size.width == 0 {
-        return "\(size.height)"
-    }
-    if size.height == 0 {
-        return "\(size.width)"
-    }
-    return "\(size.width)x\(size.height)"
-}
-
 @discardableResult
 @MainActor func optimiseItem(
     _ item: ClipboardType,
@@ -1648,9 +1623,9 @@ func cropSizeStr(_ cropSize: CropSize?) -> String {
     let outFilePath: FilePath? =
         if let path = output?.filePath, path.string.contains("/")
     {
-        path.isDir ? path.appending(item.path.name) : path.dir / generateFileName(template: path.name.string, for: item.path)
+        path.isDir ? path.appending(item.path.name) : path.dir / generateFileName(template: path.name.string, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     } else if let output {
-        item.path.dir / generateFileName(template: output, for: item.path)
+        item.path.dir / generateFileName(template: output, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     } else {
         nil
     }
