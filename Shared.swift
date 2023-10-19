@@ -750,3 +750,186 @@ enum PaperSize: String, Codable, Sendable, CaseIterable {
     }
 
 }
+
+let SWIFTUI_PREVIEW = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+
+final class NanoID {
+    init(alphabet: NanoIDAlphabet..., size: Int) {
+        self.size = size
+        self.alphabet = NanoIDHelper.parse(alphabet)
+    }
+
+    static func new() -> String {
+        NanoIDHelper.generate(from: defaultAphabet, of: defaultSize)
+    }
+
+    static func new(alphabet: NanoIDAlphabet..., size: Int) -> String {
+        let charactersString = NanoIDHelper.parse(alphabet)
+        return NanoIDHelper.generate(from: charactersString, of: size)
+    }
+
+    static func new(_ size: Int) -> String {
+        NanoIDHelper.generate(from: NanoID.defaultAphabet, of: size)
+    }
+
+    static func random(maxSize: Int = 40) -> String {
+        maxSize < 10
+            ? NanoID.new(alphabet: .all, size: maxSize)
+            : NanoIDHelper.generate(from: NanoIDAlphabet.all.toString(), of: arc4random_uniform((maxSize - 10).u32).i + 10)
+    }
+
+    func new() -> String {
+        NanoIDHelper.generate(from: alphabet, of: size)
+    }
+
+    private static let defaultSize = 21
+    private static let defaultAphabet = NanoIDAlphabet.urlSafe.toString()
+
+    private var size: Int
+    private var alphabet: String
+}
+
+extension Int {
+    var u32: UInt32 { UInt32(self) }
+}
+
+extension UInt32 {
+    var i: Int { Int(self) }
+}
+
+// MARK: - NanoIDHelper
+
+private enum NanoIDHelper {
+    static func parse(_ alphabets: [NanoIDAlphabet]) -> String {
+        var stringCharacters = ""
+
+        for alphabet in alphabets {
+            stringCharacters.append(alphabet.toString())
+        }
+
+        return stringCharacters
+    }
+
+    static func generate(from alphabet: String, of length: Int) -> String {
+        var nanoID = ""
+
+        for _ in 0 ..< length {
+            let randomCharacter = NanoIDHelper.randomCharacter(from: alphabet)
+            nanoID.append(randomCharacter)
+        }
+
+        return nanoID
+    }
+
+    static func randomCharacter(from string: String) -> Character {
+        let randomNum = arc4random_uniform(string.count.u32).i
+        let randomIndex = string.index(string.startIndex, offsetBy: randomNum)
+        return string[randomIndex]
+    }
+}
+
+// MARK: - NanoIDAlphabet
+
+enum NanoIDAlphabet {
+    case urlSafe
+    case uppercasedLatinLetters
+    case lowercasedLatinLetters
+    case numbers
+    case symbols
+    case all
+
+    func toString() -> String {
+        switch self {
+        case .uppercasedLatinLetters, .lowercasedLatinLetters, .numbers, .symbols:
+            chars()
+        case .urlSafe:
+            "\(NanoIDAlphabet.uppercasedLatinLetters.chars())\(NanoIDAlphabet.lowercasedLatinLetters.chars())\(NanoIDAlphabet.numbers.chars())~_"
+        case .all:
+            "\(NanoIDAlphabet.uppercasedLatinLetters.chars())\(NanoIDAlphabet.lowercasedLatinLetters.chars())\(NanoIDAlphabet.numbers.chars())\(NanoIDAlphabet.symbols.chars())"
+        }
+    }
+
+    private func chars() -> String {
+        switch self {
+        case .uppercasedLatinLetters:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        case .lowercasedLatinLetters:
+            "abcdefghijklmnopqrstuvwxyz"
+        case .numbers:
+            "1234567890"
+        case .symbols:
+            "§±!@#$%^&*()_+-=[]{};':,.<>?`~ /|"
+        default:
+            ""
+        }
+    }
+}
+
+enum FileNameToken: String {
+    case year = "%y"
+    case monthNumeric = "%m"
+    case monthName = "%n"
+    case day = "%d"
+    case weekday = "%w"
+    case hour = "%H"
+    case minutes = "%M"
+    case seconds = "%S"
+    case amPm = "%p"
+    case randomCharacters = "%r"
+    case autoIncrementingNumber = "%i"
+    case filename = "%f"
+    case ext = "%e"
+}
+func generateFileName(template: String, for path: FilePath? = nil, autoIncrementingNumber: inout Int) -> String {
+    var name = template
+    let date = Date()
+    let calendar = Calendar.current
+    let components = calendar.dateComponents([.year, .month, .day, .weekday, .hour, .minute, .second], from: date)
+    let num = autoIncrementingNumber + 1
+
+    name = name.replacingOccurrences(of: FileNameToken.year.rawValue, with: String(format: "%04d", components.year!))
+        .replacingOccurrences(of: FileNameToken.monthNumeric.rawValue, with: String(format: "%02d", components.month!))
+        .replacingOccurrences(of: FileNameToken.monthName.rawValue, with: calendar.monthSymbols[components.month! - 1])
+        .replacingOccurrences(of: FileNameToken.day.rawValue, with: String(format: "%02d", components.day!))
+        .replacingOccurrences(of: FileNameToken.weekday.rawValue, with: String(components.weekday!))
+        .replacingOccurrences(of: FileNameToken.hour.rawValue, with: String(format: "%02d", components.hour!))
+        .replacingOccurrences(of: FileNameToken.minutes.rawValue, with: String(format: "%02d", components.minute!))
+        .replacingOccurrences(of: FileNameToken.seconds.rawValue, with: String(format: "%02d", components.second!))
+        .replacingOccurrences(of: FileNameToken.amPm.rawValue, with: components.hour! > 12 ? "PM" : "AM")
+        .replacingOccurrences(of: FileNameToken.randomCharacters.rawValue, with: NanoID.new(alphabet: .lowercasedLatinLetters, size: 5))
+        .replacingOccurrences(of: FileNameToken.autoIncrementingNumber.rawValue, with: num.s)
+        .replacingOccurrences(of: FileNameToken.filename.rawValue, with: path?.stem ?? "")
+        .replacingOccurrences(of: FileNameToken.ext.rawValue, with: path?.extension ?? "")
+        .safeFilename
+
+    if !SWIFTUI_PREVIEW, template.contains(FileNameToken.autoIncrementingNumber.rawValue) {
+        autoIncrementingNumber = num
+    }
+
+    return name
+}
+
+func factorStr(_ factor: Double?) -> String {
+    guard let factor else {
+        return ""
+    }
+    return String(format: (factor * 10).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.1f" : ((factor * 100).truncatingRemainder(dividingBy: 1) < 0.001 ? "%.2f" : "%.3f"), factor)
+}
+
+func cropSizeStr(_ cropSize: CropSize?) -> String {
+    guard let cropSize else {
+        return ""
+    }
+    let size = cropSize.ns.evenSize
+
+    if cropSize.longEdge {
+        return "\(size.width)"
+    }
+    if size.width == 0 {
+        return "\(size.height)"
+    }
+    if size.height == 0 {
+        return "\(size.width)"
+    }
+    return "\(size.width)x\(size.height)"
+}
