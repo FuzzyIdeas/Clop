@@ -88,21 +88,52 @@ extension Data {
     }
 }
 
+var SAFE_FILENAME_REGEX: Regex = try! Regex(#"[\/:{}<>*|$#&^;'"`\x00-\x09\x0B-\x0C\x0E-\x1F\n\t]"#)
+
 extension String {
+    var safeFilename: String {
+        replacing(SAFE_FILENAME_REGEX, with: { _ in "_" })
+    }
+
     var err: NSError {
         NSError(domain: self, code: 1)
     }
     var url: URL { URL(fileURLWithPath: self) }
+
+    var ns: NSString {
+        self as NSString
+    }
+
+    var filePath: FilePath? {
+        guard !isEmpty, count <= 4096 else { return nil }
+        return FilePath(trimmedPath.ns.expandingTildeInPath)
+    }
+
+    var trimmedPath: String {
+        trimmingCharacters(in: ["\"", "'", "\n", "\t", " ", "(", ")", "[", "]", "{", "}", ","])
+    }
+}
+
+extension URL {
+    var filePath: FilePath { FilePath(self)! }
+    var existingFilePath: FilePath? { FileManager.default.fileExists(atPath: path) ? FilePath(self) : nil }
+}
+
+extension FilePath {
+    var name: FilePath.Component { lastComponent! }
+    var dir: FilePath { removingLastComponent() }
+    var url: URL { URL(filePath: self)! }
+
+    var isDir: Bool {
+        var isDirectory = ObjCBool(false)
+        return FileManager.default.fileExists(atPath: string, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
 }
 
 let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
 let OPTIMISATION_STOP_PORT = LocalMachPort(portLocation: OPTIMISATION_STOP_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
-
-extension FilePath {
-    var url: URL { URL(filePath: self)! }
-}
 
 extension NSSize {
     var aspectRatio: Double {
@@ -150,4 +181,11 @@ extension CGFloat {
         let x = intround
         return x + x % 2
     }
+}
+
+public func / (_ path: FilePath, _ str: String) -> FilePath {
+    path.appending(str)
+}
+public func / (_ path: FilePath, _ component: FilePath.Component) -> FilePath {
+    path.appending(component)
 }
