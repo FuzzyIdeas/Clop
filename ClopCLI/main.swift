@@ -233,8 +233,8 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, operat
     }
 }
 
-func checkOutputIsDir(_ output: String?, urls: [URL]) throws {
-    guard let output, output.contains("/"), !output.contains("%"), urls.count > 1 else {
+func checkOutputIsDir(_ output: String?, itemCount: Int) throws {
+    guard let output, output.contains("/"), !output.contains("%"), itemCount > 1 else {
         return
     }
 
@@ -244,6 +244,17 @@ func checkOutputIsDir(_ output: String?, urls: [URL]) throws {
         throw ValidationError("Output path must be a folder when cropping multiple files")
     }
     try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true, attributes: nil)
+}
+
+extension UserDefaults {
+    var lastAutoIncrementingNumber: Int {
+        get {
+            integer(forKey: "lastAutoIncrementingNumber")
+        }
+        set {
+            set(newValue, forKey: "lastAutoIncrementingNumber")
+        }
+    }
 }
 
 struct Clop: ParsableCommand {
@@ -357,29 +368,27 @@ struct Clop: ParsableCommand {
             } else {
                 foundPDFs = pdfs
             }
+            try checkOutputIsDir(output, itemCount: foundPDFs.count)
         }
 
         mutating func run() throws {
-            var outputDir: FilePath? = nil
-            if let output, foundPDFs.count > 1 || output.last == "/" {
-                outputDir = output.first! == "/" ? FilePath(output) : FilePath(FileManager.default.currentDirectoryPath).appending(output)
-
-                if !FileManager.default.fileExists(atPath: outputDir!.string) {
-                    try FileManager.default.createDirectory(at: outputDir!.url, withIntermediateDirectories: true, attributes: nil)
-                }
-            }
-
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
-                print("Cropping \(pdf.documentURL!.path) to aspect ratio \(ratio!)", terminator: outputDir == nil ? "\n" : "")
+                let pdfPath = pdf.documentURL!.filePath
+                print("Cropping \(pdfPath.string) to aspect ratio \(factorStr(ratio!))", terminator: "")
                 pdf.cropTo(aspectRatio: ratio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
 
-                if let outputDir {
-                    let output = outputDir.appending(pdf.documentURL!.lastPathComponent)
-                    print(" -> saved to \(output.string)")
-                    pdf.write(to: output.url)
+                let outFilePath: FilePath =
+                    if let path = output?.filePath, path.string.contains("/")
+                {
+                    path.isDir ? path.appending(pdfPath.name) : path.dir / generateFileName(template: path.name.string, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
+                } else if let output {
+                    pdfPath.dir / generateFileName(template: output, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
                 } else {
-                    pdf.write(to: pdf.documentURL!)
+                    pdfPath
                 }
+
+                print(" -> saved to \(outFilePath.string)")
+                pdf.write(to: outFilePath.url)
             }
         }
     }
@@ -455,7 +464,7 @@ struct Clop: ParsableCommand {
             }
 
             urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
-            try checkOutputIsDir(output, urls: urls)
+            try checkOutputIsDir(output, itemCount: urls.count)
         }
 
         mutating func run() throws {
@@ -535,7 +544,7 @@ struct Clop: ParsableCommand {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
             }
             urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
-            try checkOutputIsDir(output, urls: urls)
+            try checkOutputIsDir(output, itemCount: urls.count)
         }
 
         mutating func run() throws {
@@ -626,7 +635,7 @@ struct Clop: ParsableCommand {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
             }
             urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
-            try checkOutputIsDir(output, urls: urls)
+            try checkOutputIsDir(output, itemCount: urls.count)
         }
 
         mutating func run() throws {
