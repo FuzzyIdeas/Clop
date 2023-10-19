@@ -257,6 +257,17 @@ extension UserDefaults {
     }
 }
 
+extension NSSize {
+    var fractionalAspectRatio: Double {
+        min(width, height) / max(width, height)
+    }
+}
+extension Double {
+    var fractionalAspectRatio: Double {
+        self > 1 ? 1 / self : self
+    }
+}
+
 struct Clop: ParsableCommand {
     struct CropPdf: ParsableCommand {
         @Option(help: "Crops pages to fit the screen of a specific device (e.g. iPad Air)")
@@ -345,7 +356,7 @@ struct Clop: ParsableCommand {
                 throw ExitCode.success
             }
 
-            ratio = DEVICE_SIZES[forDevice ?? ""]?.aspectRatio ?? PAPER_SIZES[paperSize ?? ""]?.aspectRatio ?? resolution?.aspectRatio ?? aspectRatio
+            ratio = DEVICE_SIZES[forDevice ?? ""]?.fractionalAspectRatio ?? PAPER_SIZES[paperSize ?? ""]?.fractionalAspectRatio ?? resolution?.fractionalAspectRatio ?? aspectRatio?.fractionalAspectRatio
             guard let ratio else {
                 throw ValidationError("Invalid aspect ratio, at least one of --for-device, --paper-size, --resolution or --aspect-ratio must be specified")
             }
