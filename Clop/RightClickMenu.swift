@@ -117,6 +117,10 @@ struct RightClickMenuView: View {
             .keyboardShortcut("a")
             .disabled(optimiser.aggresive)
 
+            Divider()
+
+            ShareMenu(optimiser: optimiser)
+
             Button("Upload with Dropshare") {
                 optimiser.uploadWithDropshare()
             }
@@ -124,6 +128,21 @@ struct RightClickMenuView: View {
 
             Menu("Run workflow") {
                 WorkflowMenu(optimiser: optimiser)
+            }
+        }
+    }
+}
+
+struct ShareMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        Menu("Share") {
+            ForEach(NSSharingService.sharingServices(forItems: [optimiser.url]), id: \.title) { item in
+                Button(action: { item.perform(withItems: [optimiser.url]) }) {
+                    SwiftUI.Image(nsImage: item.image)
+                    Text(item.title)
+                }
             }
         }
     }
