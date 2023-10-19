@@ -257,19 +257,104 @@ extension UserDefaults {
     }
 }
 
-extension NSSize {
-    var fractionalAspectRatio: Double {
-        min(width, height) / max(width, height)
+func getPDFsFromFolder(_ folder: FilePath, recursive: Bool) -> [FilePath] {
+    guard let enumerator = FileManager.default.enumerator(
+        at: folder.url,
+        includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey],
+        options: [.skipsPackageDescendants]
+    ) else {
+        return []
     }
-}
-extension Double {
-    var fractionalAspectRatio: Double {
-        self > 1 ? 1 / self : self
+
+    var pdfs: [FilePath] = []
+
+    for case let fileURL as URL in enumerator {
+        guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey]),
+              let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
+        else {
+            continue
+        }
+
+        if isDirectory {
+            if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
+                enumerator.skipDescendants()
+            }
+            continue
+        }
+
+        if !isRegularFile {
+            continue
+        }
+
+        if !name.lowercased().hasSuffix(".pdf") {
+            continue
+        }
+        pdfs.append(FilePath(fileURL.path))
     }
+    return pdfs
 }
 
 struct Clop: ParsableCommand {
+    struct UncropPdf: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Brings back PDFs to their original size by removing the crop box from PDFs that were cropped non-destructively."
+        )
+
+        @Option(name: .shortAndLong, help: "Output file path (defaults to modifying the PDF in place). In case of uncropping multiple files, this needs to be a folder.")
+        var output: String? = nil
+
+        @Flag(name: .shortAndLong, help: "Uncrop all PDFs in subfolders (when using a folder as input)")
+        var recursive = false
+
+        @Argument(help: "PDFs to uncrop (can be a file, folder, or list of files)")
+        var pdfs: [FilePath] = []
+
+        var foundPDFs: [FilePath] = []
+
+        mutating func validate() throws {
+            guard output == nil || !output!.isEmpty else {
+                throw ValidationError("Output path cannot be empty")
+            }
+            guard !pdfs.isEmpty else {
+                throw ValidationError("At least one PDF file or folder must be specified")
+            }
+
+            var isDir: ObjCBool = false
+            if let folder = pdfs.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
+                foundPDFs = getPDFsFromFolder(folder, recursive: recursive)
+            } else {
+                foundPDFs = pdfs
+            }
+            try checkOutputIsDir(output, itemCount: foundPDFs.count)
+        }
+
+        mutating func run() throws {
+            for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
+                let pdfPath = pdf.documentURL!.filePath
+                print("Uncropping \(pdfPath.string)", terminator: "")
+                pdf.uncrop()
+
+                let outFilePath: FilePath =
+                    if let path = output?.filePath, path.string.contains("/")
+                {
+                    path.isDir ? path.appending(pdfPath.name) : path.dir / generateFileName(template: path.name.string, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
+                } else if let output {
+                    pdfPath.dir / generateFileName(template: output, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
+                } else {
+                    pdfPath
+                }
+
+                print(" -> saved to \(outFilePath.string)")
+                pdf.write(to: outFilePath.url)
+            }
+        }
+    }
+
     struct CropPdf: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Crops PDFs to a specific aspect ratio without optimising them. The operation is non-destructive and can be reversed with the `uncrop-pdf` command."
+        )
+
         @Option(help: "Crops pages to fit the screen of a specific device (e.g. iPad Air)")
         var forDevice: String? = nil
 
@@ -302,48 +387,11 @@ struct Clop: ParsableCommand {
         @Option(name: .shortAndLong, help: "Output file path (defaults to modifying the PDF in place). In case of cropping multiple files, this needs to be a folder.")
         var output: String? = nil
 
-        @Argument(help: "PDFs to crop (can be a folder)")
+        @Argument(help: "PDFs to crop (can be a file, folder, or list of files)")
         var pdfs: [FilePath] = []
 
         var foundPDFs: [FilePath] = []
         var ratio: Double!
-
-        func getPDFsFromFolder(_ folder: FilePath) -> [FilePath] {
-            guard let enumerator = FileManager.default.enumerator(
-                at: folder.url,
-                includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey],
-                options: [.skipsPackageDescendants]
-            ) else {
-                return []
-            }
-
-            var pdfs: [FilePath] = []
-
-            for case let fileURL as URL in enumerator {
-                guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey]),
-                      let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
-                else {
-                    continue
-                }
-
-                if isDirectory {
-                    if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
-                        enumerator.skipDescendants()
-                    }
-                    continue
-                }
-
-                if !isRegularFile {
-                    continue
-                }
-
-                if !name.lowercased().hasSuffix(".pdf") {
-                    continue
-                }
-                pdfs.append(FilePath(fileURL.path))
-            }
-            return pdfs
-        }
 
         mutating func validate() throws {
             if listDevices {
@@ -363,19 +411,16 @@ struct Clop: ParsableCommand {
             guard ratio > 0 else {
                 throw ValidationError("Invalid aspect ratio, must be greater than 0")
             }
-            if pdfs.count > 1, let output, output.hasSuffix(".pdf") {
-                throw ValidationError("Output path must be a folder when cropping multiple PDFs")
-            }
             guard output == nil || !output!.isEmpty else {
                 throw ValidationError("Output path cannot be empty")
             }
             guard !pdfs.isEmpty else {
-                throw ValidationError("At least one PDF or folder must be specified")
+                throw ValidationError("At least one PDF file or folder must be specified")
             }
 
             var isDir: ObjCBool = false
             if let folder = pdfs.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
-                foundPDFs = getPDFsFromFolder(folder)
+                foundPDFs = getPDFsFromFolder(folder, recursive: recursive)
             } else {
                 foundPDFs = pdfs
             }
@@ -463,7 +508,7 @@ struct Clop: ParsableCommand {
 
         var urls: [URL] = []
 
-        @Argument(help: "Images, videos, PDFs or URLs to crop (can be a folder)")
+        @Argument(help: "Images, videos, PDFs or URLs to crop (can be a file, folder, or list of files)")
         var items: [String] = []
 
         mutating func validate() throws {
@@ -547,7 +592,7 @@ struct Clop: ParsableCommand {
 
         var urls: [URL] = []
 
-        @Argument(help: "Images, videos or URLs to downscale (can be a folder)")
+        @Argument(help: "Images, videos or URLs to downscale (can be a file, folder, or list of files)")
         var items: [String] = []
 
         mutating func validate() throws {
@@ -635,7 +680,7 @@ struct Clop: ParsableCommand {
 
         var urls: [URL] = []
 
-        @Argument(help: "Images, videos, PDFs or URLs to optimise (can be a folder)")
+        @Argument(help: "Images, videos, PDFs or URLs to optimise (can be a file, folder, or list of files)")
         var items: [String] = []
 
         mutating func validate() throws {
@@ -674,6 +719,7 @@ struct Clop: ParsableCommand {
             Crop.self,
             Downscale.self,
             CropPdf.self,
+            UncropPdf.self,
         ]
     )
 }

@@ -216,7 +216,17 @@ extension URL {
 
 import PDFKit
 
+extension Double {
+    var fractionalAspectRatio: Double {
+        self > 1 ? 1 / self : self
+    }
+}
+
 extension NSSize {
+    var fractionalAspectRatio: Double {
+        min(width, height) / max(width, height)
+    }
+
     func cropToPortrait(aspectRatio: Double) -> NSRect {
         let selfAspectRatio = width / height
         if selfAspectRatio > aspectRatio {
@@ -284,6 +294,14 @@ extension PDFDocument {
             let size = page.bounds(for: .mediaBox).size
             let cropRect = size.cropTo(aspectRatio: aspectRatio, alwaysPortrait: alwaysPortrait, alwaysLandscape: alwaysLandscape)
             page.setBounds(cropRect, for: .cropBox)
+        }
+    }
+    func uncrop() {
+        guard pageCount > 0 else { return }
+
+        for i in 0 ..< pageCount {
+            let page = page(at: i)!
+            page.setBounds(page.bounds(for: .mediaBox), for: .cropBox)
         }
     }
 }
@@ -512,6 +530,10 @@ struct CropSize: Codable, Hashable, Identifiable {
     let height: Int
     var name = ""
     var longEdge = false
+
+    var fractionalAspectRatio: Double {
+        min(width, height).d / max(width, height).d
+    }
 
     var id: String { "\(width == 0 ? "Auto" : width.s)×\(height == 0 ? "Auto" : height.s)" }
     var area: Int { (width == 0 ? height : width) * (height == 0 ? width : height) }
