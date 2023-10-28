@@ -55,6 +55,15 @@
       }
     },
     {
+      "identity" : "lowtech",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FuzzyIdeas/Lowtech",
+      "state" : {
+        "branch" : "ventura",
+        "revision" : "9cb2c881357cc31c5f8aae3950fd18945864c436"
+      }
+    },
+    {
       "identity" : "magnet",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
@@ -86,8 +95,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "7b0d185631a6d4b7756468efa464a68725c061d2",
-        "version" : "8.13.1"
+        "revision" : "008325304ada69fa32aa7aeba967b65984f30569",
+        "version" : "8.14.2"
       }
     },
     {
