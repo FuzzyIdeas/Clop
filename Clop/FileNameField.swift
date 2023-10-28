@@ -45,11 +45,11 @@ struct FileNameField: View {
                 .defaultFocus($focused, true)
                 .onAppear {
                     focused = true
-                    sizeNotificationWindow.allowToBecomeKey = true
+                    floatingResultsWindow.allowToBecomeKey = true
                     focus()
-                    sizeNotificationWindow.becomeFirstResponder()
-                    sizeNotificationWindow.makeKeyAndOrderFront(nil)
-                    sizeNotificationWindow.orderFrontRegardless()
+                    floatingResultsWindow.becomeFirstResponder()
+                    floatingResultsWindow.makeKeyAndOrderFront(nil)
+                    floatingResultsWindow.orderFrontRegardless()
                 }
                 .matchedGeometryEffect(id: "filename", in: namespace)
 

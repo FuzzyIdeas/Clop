@@ -424,7 +424,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 KM.secondaryKeys = []
                 KM.reinitHotkeys()
             } else {
-                sizeNotificationWindow.allowToBecomeKey = false
+                floatingResultsWindow.allowToBecomeKey = false
                 if hoveredOptimiserID != nil {
                     KM.secondaryKeys = DEFAULT_HOVER_KEYS
                     KM.reinitHotkeys()
@@ -1463,11 +1463,16 @@ enum ClipboardType: Equatable {
     }
 
     static func fromPasteboardItem(_ item: NSPasteboardItem) -> ClipboardType {
-        if let path = item.string(forType: .fileURL)?.trimmedPath.url?.filePath ?? item.string(forType: .string)?.trimmedPath.existingFilePath, path.isPDF || path.isVideo {
-            return .file(path)
+        if let path = item.string(forType: .fileURL)?.trimmedPath.url?.filePath ?? item.string(forType: .string)?.trimmedPath.existingFilePath {
+            if path.isPDF || path.isVideo {
+                return .file(path)
+            }
+            if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
+                return .image(img)
+            }
         }
 
-        if let img = try? Image.fromPasteboard(anyType: true) {
+        if let img = try? Image.fromPasteboard(item: item, anyType: true) {
             return .image(img)
         }
 
@@ -1769,11 +1774,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 }
 
 @MainActor func showFloatingThumbnails(force: Bool = false) {
-    guard Defaults[.enableFloatingResults], !sizeNotificationWindow.isVisible || force else {
+    guard Defaults[.enableFloatingResults], !floatingResultsWindow.isVisible || force else {
         return
     }
 
-    sizeNotificationWindow.show(closeAfter: 0, fadeAfter: 0, fadeDuration: 0.2, corner: Defaults[.floatingResultsCorner], margin: FLOAT_MARGIN, marginHorizontal: 0)
+    floatingResultsWindow.show(closeAfter: 0, fadeAfter: 0, fadeDuration: 0.2, corner: Defaults[.floatingResultsCorner], margin: FLOAT_MARGIN, marginHorizontal: 0)
 }
 
 var cliOptimisationCount = 0
