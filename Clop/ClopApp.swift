@@ -419,10 +419,10 @@ class AppDelegate: LowtechProAppDelegate {
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
 
         guard !SWIFTUI_PREVIEW else { return }
-        sizeNotificationWindow.animateOnResize = true
+        floatingResultsWindow.animateOnResize = true
         pub(.floatingResultsCorner)
             .sink {
-                sizeNotificationWindow.moveToScreen(.withMouse, corner: $0.newValue)
+                floatingResultsWindow.moveToScreen(.withMouse, corner: $0.newValue)
             }
             .store(in: &observers)
         pub(.keyComboModifiers)
@@ -814,9 +814,9 @@ class FileOptimisationWatcher {
 }
 
 #if DEBUG
-    let sizeNotificationWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: true, allowsMouse: true)
+    let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: true, allowsMouse: true)
 #else
-    let sizeNotificationWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: false, allowsMouse: true)
+    let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: false, allowsMouse: true)
 #endif
 var clipboardWatcher: Timer?
 var pbChangeCount = NSPasteboard.general.changeCount

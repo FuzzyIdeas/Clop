@@ -124,7 +124,6 @@
 		C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
 		C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Clop-Bridging-Header.h"; sourceTree = "<group>"; };
 		C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload to Backblaze.shortcut"; sourceTree = "<group>"; };
-		C7319E8A2AD5323D0085B707 /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
 		C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = bin.tar.xz.sha256; sourceTree = "<group>"; };
 		C7319E8C2AD995B60085B707 /* bin.tar.xz */ = {isa = PBXFileReference; lastKnownFileType = file; path = bin.tar.xz; sourceTree = "<group>"; };
 		C7333E462A98C90500B1D5BE /* PDF.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PDF.swift; sourceTree = "<group>"; };
@@ -231,7 +230,6 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
-				C7319E8A2AD5323D0085B707 /* Lowtech */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				C7AB6623288301590041BEC8 /* Clop */,
 				C70B5F1B2AC014BF00345739 /* FinderOptimiser */,
