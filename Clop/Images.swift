@@ -266,6 +266,7 @@ class Image: CustomStringConvertible {
         .init("com.microsoft.Object-Descriptor"),
         .init("com.microsoft.appbundleid"),
         .init("com.adobe.pdf"),
+        .init("com.apple.is-remote-clipboard"),
     ]
 
     lazy var hash: String = data.sha256
