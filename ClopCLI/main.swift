@@ -294,6 +294,13 @@ func getPDFsFromFolder(_ folder: FilePath, recursive: Bool) -> [FilePath] {
     return pdfs
 }
 
+func normPath(_ pathString: String?) -> String? {
+    guard let pathString = pathString?.ns.expandingTildeInPath else { return nil }
+    guard pathString.contains("/") else { return pathString }
+
+    return pathString.starts(with: "/") ? pathString : FileManager.default.currentDirectoryPath + "/" + pathString
+}
+
 struct Clop: ParsableCommand {
     struct UncropPdf: ParsableCommand {
         static let configuration = CommandConfiguration(
@@ -335,8 +342,10 @@ struct Clop: ParsableCommand {
                 pdf.uncrop()
 
                 let outFilePath: FilePath =
-                    if let path = output?.filePath, path.string.contains("/")
+                    if let path = output?.filePath, path.string.contains("/"), path.string.starts(with: "/")
                 {
+                    path.isDir ? path.appending(pdfPath.name) : path.dir / generateFileName(template: path.name.string, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
+                } else if let path = output?.filePath, path.string.contains("/"), let path = FileManager.default.currentDirectoryPath.filePath?.appending(path.string) {
                     path.isDir ? path.appending(pdfPath.name) : path.dir / generateFileName(template: path.name.string, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
                 } else if let output {
                     pdfPath.dir / generateFileName(template: output, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
@@ -434,8 +443,10 @@ struct Clop: ParsableCommand {
                 pdf.cropTo(aspectRatio: ratio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
 
                 let outFilePath: FilePath =
-                    if let path = output?.filePath, path.string.contains("/")
+                    if let path = output?.filePath, path.string.contains("/"), path.string.starts(with: "/")
                 {
+                    path.isDir ? path.appending(pdfPath.name) : path.dir / generateFileName(template: path.name.string, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
+                } else if let path = output?.filePath, path.string.contains("/"), let path = FileManager.default.currentDirectoryPath.filePath?.appending(path.string) {
                     path.isDir ? path.appending(pdfPath.name) : path.dir / generateFileName(template: path.name.string, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
                 } else if let output {
                     pdfPath.dir / generateFileName(template: output, for: pdfPath, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
@@ -535,7 +546,7 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: output
+                    output: normPath(output)
                 )
             }
         }
@@ -615,7 +626,7 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: output
+                    output: normPath(output)
                 )
             }
         }
@@ -706,7 +717,7 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: output
+                    output: normPath(output)
                 )
             }
         }
