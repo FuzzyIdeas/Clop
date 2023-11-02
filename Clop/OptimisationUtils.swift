@@ -1626,7 +1626,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         .replacingOccurrences(of: "%z", with: cropSizeStr(cropSize))
         .replacingOccurrences(of: "%x", with: factorStr(changePlaybackSpeedFactor))
     let outFilePath: FilePath? =
-        if let path = output?.filePath, path.string.contains("/")
+        if let path = output?.filePath, path.string.contains("/"), path.string.starts(with: "/")
     {
         path.isDir ? path.appending(item.path.name) : path.dir / generateFileName(template: path.name.string, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     } else if let output {
