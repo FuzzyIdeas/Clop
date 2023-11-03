@@ -55,15 +55,6 @@
       }
     },
     {
-      "identity" : "lowtech",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/FuzzyIdeas/Lowtech",
-      "state" : {
-        "branch" : "ventura",
-        "revision" : "9cb2c881357cc31c5f8aae3950fd18945864c436"
-      }
-    },
-    {
       "identity" : "magnet",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
@@ -97,6 +88,15 @@
       "state" : {
         "revision" : "008325304ada69fa32aa7aeba967b65984f30569",
         "version" : "8.14.2"
+      }
+    },
+    {
+      "identity" : "setapp-framework",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MacPaw/Setapp-framework",
+      "state" : {
+        "revision" : "ccf16df5367638a9775d804c9ba789d59bee9fe5",
+        "version" : "4.0.0"
       }
     },
     {
@@ -140,8 +140,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/swift-ignore",
       "state" : {
-        "revision" : "b995e1750f13a61e9e25e7deddf5fea7e48f62de",
-        "version" : "0.1.1"
+        "revision" : "5251460883d087a4145d68a04c6c7d7ac238b03f",
+        "version" : "0.1.2"
       }
     },
     {
