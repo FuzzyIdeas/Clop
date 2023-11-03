@@ -13,12 +13,16 @@ import Defaults
 import EonilFSEvents
 import Foundation
 import Lowtech
-import LowtechIndie
-import LowtechPro
-import Sentry
 import ServiceManagement
 import System
 import UniformTypeIdentifiers
+#if SETAPP
+    import Setapp
+#else
+    import LowtechIndie
+    import LowtechPro
+    import Sentry
+#endif
 
 var pauseForNextClipboardEvent = false
 
@@ -48,7 +52,16 @@ extension NSPasteboard {
     }
 }
 
-class AppDelegate: LowtechProAppDelegate {
+#if SETAPP
+    typealias AppDelegateParent = LowtechAppDelegate
+    struct Pro {
+        let active = true
+    }
+#else
+    typealias AppDelegateParent = LowtechProAppDelegate
+#endif
+
+class AppDelegate: AppDelegateParent {
     var didBecomeActiveAtLeastOnce = false
 
     var videoWatcher: FileOptimisationWatcher?
@@ -71,6 +84,10 @@ class AppDelegate: LowtechProAppDelegate {
     }
 
     var lastDragChangeCount = NSPasteboard(name: .drag).changeCount
+
+    #if SETAPP
+        let pro = Pro()
+    #endif
 
     @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
         guard NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 5 else {
@@ -126,6 +143,7 @@ class AppDelegate: LowtechProAppDelegate {
         DM.itemsToOptimise = toOptimise
         self.draggingSet.send(true)
     }
+
     @MainActor lazy var mouseUpMonitor = GlobalEventMonitor(mask: [.leftMouseUp]) { event in
         self.draggingSet.send(false)
         if !DM.dragHovering, DM.itemsToOptimise.isNotEmpty {
@@ -133,11 +151,6 @@ class AppDelegate: LowtechProAppDelegate {
             DM.itemsToOptimise = []
         }
     }
-//    @MainActor lazy var stopDragMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-//        guard !Defaults[.onlyShowDropZoneOnOption], event.modifierFlags.contains(.option), !DM.dragHovering else { return }
-//
-//        DM.dragging = false
-//    }
 
     @Setting(.optimiseVideoClipboard) var optimiseVideoClipboard
 
@@ -220,7 +233,7 @@ class AppDelegate: LowtechProAppDelegate {
                 opt.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
             }
         default:
-            break
+            return
         }
     }
 
@@ -376,19 +389,25 @@ class AppDelegate: LowtechProAppDelegate {
             Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
         }
 
-        paddleVendorID = "122873"
-        paddleAPIKey = "e1e517a68c1ed1bea2ac968a593ac147"
-        paddleProductID = "841006"
-        trialDays = 14
-        trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
-        price = 15
-        productName = "Clop Pro"
-        vendorName = "Panaitiu Alin Valentin PFA"
-        hasFreeFeatures = true
+        #if SETAPP
+            SetappManager.shared.showReleaseNotesWindowIfNeeded()
+        #else
+            paddleVendorID = "122873"
+            paddleAPIKey = "e1e517a68c1ed1bea2ac968a593ac147"
+            paddleProductID = "841006"
+            trialDays = 14
+            trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
+            price = 15
+            productName = "Clop Pro"
+            vendorName = "Panaitiu Alin Valentin PFA"
+            hasFreeFeatures = true
+        #endif
 
         if !SWIFTUI_PREVIEW {
-            sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
-            configureSentry(restartOnHang: true)
+            #if !SETAPP
+                sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
+                configureSentry(restartOnHang: true)
+            #endif
 
             KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
@@ -412,8 +431,10 @@ class AppDelegate: LowtechProAppDelegate {
             }
         }
         super.applicationDidFinishLaunching(_: notification)
-        UM.updater = updateController.updater
-        PM.pro = pro
+        #if !SETAPP
+            UM.updater = updateController.updater
+            PM.pro = pro
+        #endif
 
         NSApplication.shared.windows.first?.close()
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
@@ -616,28 +637,45 @@ class AppDelegate: LowtechProAppDelegate {
             mainActor {
                 if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo, !path.hasOptimisationStatusXattr() {
                     Task.init {
-                        try? await optimiseVideo(Video(path: path), source: "clipboard")
+                        let _ = try? await optimiseVideo(Video(path: path), source: "clipboard")
+                        #if SETAPP
+                            SetappManager.shared.reportUsageEvent(.userInteraction)
+                        #endif
                     }
                     return
                 }
+                #if SETAPP
+                    SetappManager.shared.reportUsageEvent(.userInteraction)
+                #endif
                 optimiseClipboardImage(item: item)
             }
         }
 
         clipboardWatcher?.tolerance = 100
     }
-    @objc func statusBarButtonClicked(_ sender: NSClickGestureRecognizer) {
-        mainActor {
-            if OM.skippedBecauseNotPro.isNotEmpty {
-                OM.ignoreProErrorBadge = true
-                sender.isEnabled = false
 
-                guard let button = sender.view as? NSStatusBarButton else { return }
-                button.performClick(self)
+    #if !SETAPP
+        @objc func statusBarButtonClicked(_ sender: NSClickGestureRecognizer) {
+            mainActor {
+                if OM.skippedBecauseNotPro.isNotEmpty {
+                    OM.ignoreProErrorBadge = true
+                    sender.isEnabled = false
+
+                    guard let button = sender.view as? NSStatusBarButton else { return }
+                    button.performClick(self)
+                }
             }
         }
-    }
+    #endif
 }
+
+#if !SETAPP
+    var statusItem: NSStatusItem? {
+        NSApp.windows.lazy.compactMap { window in
+            window.perform(Selector(("statusItem")))?.takeUnretainedValue() as? NSStatusItem
+        }.first
+    }
+#endif
 
 extension NSPasteboardItem {
     var existingFilePath: FilePath? {
@@ -649,12 +687,6 @@ extension NSPasteboardItem {
     var url: URL? {
         string(forType: .URL)?.url
     }
-}
-
-var statusItem: NSStatusItem? {
-    NSApp.windows.lazy.compactMap { window in
-        window.perform(Selector(("statusItem")))?.takeUnretainedValue() as? NSStatusItem
-    }.first
 }
 
 import Ignore
@@ -796,22 +828,27 @@ class FileOptimisationWatcher {
     private var optimisedCount = 0
 }
 
-@MainActor func proLimitsReached(url: URL? = nil) {
-    guard !Defaults[.neverShowProError] else {
-        if let url, !OM.skippedBecauseNotPro.contains(url) {
-            OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.suffix(4).with(url)
-        }
-        if OM.skippedBecauseNotPro.isNotEmpty {
-            let onclick = NSClickGestureRecognizer(target: AppDelegate.instance, action: #selector(AppDelegate.statusBarButtonClicked(_:)))
-            statusItem?.button?.addGestureRecognizer(onclick)
+#if !SETAPP
+    @MainActor func proLimitsReached(url: URL? = nil) {
+        guard !Defaults[.neverShowProError] else {
+            if let url, !OM.skippedBecauseNotPro.contains(url) {
+                OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.suffix(4).with(url)
+            }
+            if OM.skippedBecauseNotPro.isNotEmpty {
+                let onclick = NSClickGestureRecognizer(target: AppDelegate.instance, action: #selector(AppDelegate.statusBarButtonClicked(_:)))
+                statusItem?.button?.addGestureRecognizer(onclick)
+            }
+
+            return
         }
 
-        return
+        let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
+        optimiser.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version", keepFor: 5000)
     }
-
-    let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
-    optimiser.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version", keepFor: 5000)
-}
+#else
+    @inline(__always) @inlinable
+    @MainActor func proLimitsReached(url: URL? = nil) {}
+#endif
 
 #if DEBUG
     let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: true, allowsMouse: true)
@@ -835,8 +872,11 @@ struct ClopApp: App {
     @AppStorage("showMenubarIcon") var showMenubarIcon = Defaults[.showMenubarIcon]
 
     @ObservedObject var om = OM
-    @ObservedObject var pm = PM
     @ObservedObject var wm = WM
+
+    #if !SETAPP
+        @ObservedObject var pm = PM
+    #endif
 
     var body: some Scene {
         Window("Settings", id: "settings") {
@@ -848,21 +888,27 @@ struct ClopApp: App {
 
         MenuBarExtra(isInserted: $showMenubarIcon, content: {
             MenuView()
-        }, label: { SwiftUI.Image(nsImage: NSImage(named: !(pm.pro?.active ?? false) && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? "MenubarIconBadge" : "MenubarIcon")!) })
-            .menuBarExtraStyle(.menu)
-            .onChange(of: showMenubarIcon) { show in
-                if !show {
-                    openWindow(id: "settings")
-                    focus()
-                } else {
-                    NSApplication.shared.keyWindow?.close()
-                }
+        }, label: {
+            #if !SETAPP
+                SwiftUI.Image(nsImage: NSImage(resource: !(pm.pro?.active ?? false) && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? .menubarIconBadge : .menubarIcon))
+            #else
+                SwiftUI.Image(nsImage: NSImage(resource: .menubarIcon))
+            #endif
+        })
+        .menuBarExtraStyle(.menu)
+        .onChange(of: showMenubarIcon) { show in
+            if !show {
+                openWindow(id: "settings")
+                focus()
+            } else {
+                NSApplication.shared.keyWindow?.close()
             }
-            .onChange(of: wm.windowToOpen) { window in
-                guard let window else { return }
-                openWindow(id: window)
-                wm.windowToOpen = nil
-            }
+        }
+        .onChange(of: wm.windowToOpen) { window in
+            guard let window else { return }
+            openWindow(id: window)
+            wm.windowToOpen = nil
+        }
 
     }
 }

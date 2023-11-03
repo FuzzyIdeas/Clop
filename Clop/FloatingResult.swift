@@ -7,9 +7,11 @@
 
 import Defaults
 import Lowtech
-import LowtechIndie
-import LowtechPro
 import SwiftUI
+#if !SETAPP
+    import LowtechIndie
+    import LowtechPro
+#endif
 
 let FLOAT_MARGIN: CGFloat = 64
 
@@ -63,24 +65,26 @@ struct FloatingResultList: View {
     }
 }
 
-struct UpdateButton: View {
-    var short = false
-    @ObservedObject var um: UpdateManager = UM
-    @State var hovering = false
+#if !SETAPP
+    struct UpdateButton: View {
+        var short = false
+        @ObservedObject var um: UpdateManager = UM
+        @State var hovering = false
 
-    var body: some View {
-        if let updateVersion = um.newVersion {
-            Button(short ? "v\(updateVersion) available" : "v\(updateVersion) update available") {
-                checkForUpdates()
+        var body: some View {
+            if let updateVersion = um.newVersion {
+                Button(short ? "v\(updateVersion) available" : "v\(updateVersion) update available") {
+                    checkForUpdates()
+                }
+                .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
+                .font(.medium(11))
+                .opacity(hovering ? 1 : 0.5)
+                .focusable(false)
+                .onHover { hovering = $0 }
             }
-            .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
-            .font(.medium(11))
-            .opacity(hovering ? 1 : 0.5)
-            .focusable(false)
-            .onHover { hovering = $0 }
         }
     }
-}
+#endif
 
 struct FloatingResultContainer: View {
     @ObservedObject var om = OM
@@ -121,7 +125,9 @@ struct FloatingResultContainer: View {
                         }
                 } else {
                     FloatingResultList(optimisers: optimisers).preview(isPreview)
-                    UpdateButton().padding(floatingResultsCorner.isTrailing ? .trailing : .leading, 54)
+                    #if !SETAPP
+                        UpdateButton().padding(floatingResultsCorner.isTrailing ? .trailing : .leading, 54)
+                    #endif
                 }
 
             }
@@ -159,12 +165,12 @@ struct FloatingPreview: View {
         let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.url = "\(HOME)/Movies/meeting-recording-video.mov".fileURL
         videoOpt.operation = Defaults[.showImages] ? "Optimising" : "Optimising \(videoOpt.filename)"
-        videoOpt.thumbnail = NSImage(named: "sonoma-video")
+        videoOpt.thumbnail = NSImage(resource: .sonomaVideo)
         videoOpt.changePlaybackSpeedFactor = 2.0
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
-        clipEnd.thumbnail = NSImage(named: "sonoma-shot")
+        clipEnd.thumbnail = NSImage(resource: .sonomaShot)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
         o.optimisers = [
@@ -333,18 +339,20 @@ struct FloatingResult: View {
         let proError = optimiser.id == Optimiser.IDs.pro
         if let error = optimiser.error {
             VStack(alignment: proError ? .center : .leading) {
-                if proError {
-                    Button("Get Clop Pro") {
-                        settingsViewManager.tab = .about
-                        openWindow(id: "settings")
+                #if !SETAPP
+                    if proError {
+                        Button("Get Clop Pro") {
+                            settingsViewManager.tab = .about
+                            openWindow(id: "settings")
 
-                        PRO?.manageLicence()
-                        focus()
+                            PRO?.manageLicence()
+                            focus()
+                        }
+                        .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish))
+                        .font(.round(20, weight: .black))
+                        .hfill()
                     }
-                    .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish))
-                    .font(.round(20, weight: .black))
-                    .hfill()
-                }
+                #endif
                 Text(error)
                     .medium(14)
                     .foregroundColor(.white)

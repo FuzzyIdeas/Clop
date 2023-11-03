@@ -655,10 +655,13 @@ struct KeysSettingsView: View {
             }
         })
     }
-
 }
-import LowtechIndie
-import LowtechPro
+
+#if !SETAPP
+    import LowtechIndie
+    import LowtechPro
+#endif
+
 struct MadeBy: View {
     var body: some View {
         HStack(spacing: 6) {
@@ -679,10 +682,20 @@ struct MadeBy: View {
 }
 
 struct AboutSettingsView: View {
-    @ObservedObject var um: UpdateManager = UM
-    @ObservedObject var pm: ProManager = PM
+    #if !SETAPP
+        @ObservedObject var um: UpdateManager = UM
+        @ObservedObject var pm: ProManager = PM
 
-    @Default(.enableSentry) var enableSentry
+        @Default(.enableSentry) var enableSentry
+    #endif
+
+    var proText: some View {
+        #if !SETAPP
+            Text((PRO?.active ?? false) ? "Pro" : "")
+        #else
+            Text("Pro")
+        #endif
+    }
 
     var body: some View {
         VStack {
@@ -691,7 +704,7 @@ struct AboutSettingsView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 128, height: 128)
-                Text((PRO?.active ?? false) ? "Pro" : "")
+                proText
                     .font(.mono(16, weight: .semibold))
                     .foregroundColor(.hotRed)
                     .offset(x: 5, y: 14)
@@ -703,16 +716,18 @@ struct AboutSettingsView: View {
                 .font(.mono(16, weight: .regular))
                 .foregroundColor(.secondary)
 
-            if let updater = um.updater {
-                VersionView(updater: updater)
+            #if !SETAPP
+                if let updater = um.updater {
+                    VersionView(updater: updater)
+                        .frame(width: 340)
+                }
+                if let pro = PM.pro {
+                    LicenseView(pro: pro)
+                        .frame(width: 340)
+                }
+                Toggle("Send error reports to developer", isOn: $enableSentry)
                     .frame(width: 340)
-            }
-            if let pro = PM.pro {
-                LicenseView(pro: pro)
-                    .frame(width: 340)
-            }
-            Toggle("Send error reports to developer", isOn: $enableSentry)
-                .frame(width: 340)
+            #endif
             HStack {
                 Link("Source code", destination: "https://github.com/FuzzyIdeas/Clop".url!)
             }

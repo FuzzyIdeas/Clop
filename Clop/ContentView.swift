@@ -8,17 +8,23 @@
 import Defaults
 import LaunchAtLogin
 import Lowtech
-import LowtechIndie
-import LowtechPro
 import SwiftUI
 import System
+#if SETAPP
+    import Setapp
+#else
+    import LowtechIndie
+    import LowtechPro
+#endif
 
 // MARK: - MenuView
 
 struct MenuView: View {
-    @ObservedObject var um = UM
+    #if !SETAPP
+        @ObservedObject var um = UM
+        @ObservedObject var pm = PM
+    #endif
     @ObservedObject var om = OM
-    @ObservedObject var pm = PM
     @Environment(\.openWindow) var openWindow
 
     @Default(.keyComboModifiers) var keyComboModifiers
@@ -31,23 +37,25 @@ struct MenuView: View {
 
     @State var cliInstallResult: String?
 
-    @ViewBuilder var proErrors: some View {
-        Section("Skipped items because of free version limits") {
-            ForEach(om.skippedBecauseNotPro, id: \.self) { url in
-                let str = url.isFileURL ? url.filePath.shellString : url.absoluteString
-                Button("    \(str.count > 50 ? (str.prefix(25) + "..." + str.suffix(15)) : str)") {
-                    QuickLooker.quicklook(url: url)
+    #if !SETAPP
+        @ViewBuilder var proErrors: some View {
+            Section("Skipped items because of free version limits") {
+                ForEach(om.skippedBecauseNotPro, id: \.self) { url in
+                    let str = url.isFileURL ? url.filePath.shellString : url.absoluteString
+                    Button("    \(str.count > 50 ? (str.prefix(25) + "..." + str.suffix(15)) : str)") {
+                        QuickLooker.quicklook(url: url)
+                    }
+                }
+                Button("Get Clop Pro") {
+                    settingsViewManager.tab = .about
+                    openWindow(id: "settings")
+
+                    PRO?.manageLicence()
+                    focus()
                 }
             }
-            Button("Get Clop Pro") {
-                settingsViewManager.tab = .about
-                openWindow(id: "settings")
-
-                PRO?.manageLicence()
-                focus()
-            }
         }
-    }
+    #endif
 
     var body: some View {
         Button("Settings") {
@@ -125,9 +133,11 @@ struct MenuView: View {
             }
         }
 
-        if let pro = pm.pro, !pro.active, !om.skippedBecauseNotPro.isEmpty {
-            proErrors
-        }
+        #if !SETAPP
+            if let pro = pm.pro, !pro.active, !om.skippedBecauseNotPro.isEmpty {
+                proErrors
+            }
+        #endif
 
         Menu("About...") {
             Button("Contact the developer") {
@@ -136,20 +146,31 @@ struct MenuView: View {
             Button("Privacy policy") {
                 NSWorkspace.shared.open("https://lowtechguys.com/clop/privacy".url!)
             }
-            Text("License: \((pm.pro?.active ?? false) ? "Pro" : "Free")")
+            #if !SETAPP
+                Text("License: \((pm.pro?.active ?? false) ? "Pro" : "Free")")
+            #endif
             Text("Version: v\(Bundle.main.version)")
-        }
-        Button("Manage license") {
-            settingsViewManager.tab = .about
-            openWindow(id: "settings")
-
-            PRO?.manageLicence()
-            focus()
+            #if SETAPP
+                Button("Show release notes") {
+                    SetappManager.shared.showReleaseNotesWindow()
+                }
+            #endif
         }
 
-        Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {
-            checkForUpdates()
-        }
+        #if !SETAPP
+            Button("Manage license") {
+                settingsViewManager.tab = .about
+                openWindow(id: "settings")
+
+                PRO?.manageLicence()
+                focus()
+            }
+
+            Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {
+                checkForUpdates()
+            }
+        #endif
+
         Button("Quit") {
             NSApp.terminate(nil)
         }.keyboardShortcut("q")
@@ -162,13 +183,15 @@ func contactURL() -> URL {
     }
     urlBuilder.queryItems = [URLQueryItem(name: "userid", value: SERIAL_NUMBER_HASH), URLQueryItem(name: "app", value: "Clop")]
 
-    if let licenseCode = product?.licenseCode {
-        urlBuilder.queryItems?.append(URLQueryItem(name: "code", value: licenseCode))
-    }
+    #if !SETAPP
+        if let licenseCode = product?.licenseCode {
+            urlBuilder.queryItems?.append(URLQueryItem(name: "code", value: licenseCode))
+        }
 
-    if let email = product?.activationEmail {
-        urlBuilder.queryItems?.append(URLQueryItem(name: "email", value: email))
-    }
+        if let email = product?.activationEmail {
+            urlBuilder.queryItems?.append(URLQueryItem(name: "email", value: email))
+        }
+    #endif
 
     return urlBuilder.url ?? "https://lowtechguys.com/contact".url!
 }
