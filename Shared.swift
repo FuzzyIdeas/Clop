@@ -37,10 +37,17 @@ func awaitSync(_ action: @escaping () async -> Void) {
     sem.wait()
 }
 
-let OPTIMISATION_PORT_ID = "com.lowtechguys.Clop.optimisationService"
-let OPTIMISATION_STOP_PORT_ID = "com.lowtechguys.Clop.optimisationServiceStop"
-let OPTIMISATION_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponse"
-let OPTIMISATION_CLI_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponseCLI"
+#if !SETAPP
+    let OPTIMISATION_PORT_ID = "com.lowtechguys.Clop.optimisationService"
+    let OPTIMISATION_STOP_PORT_ID = "com.lowtechguys.Clop.optimisationServiceStop"
+    let OPTIMISATION_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponse"
+    let OPTIMISATION_CLI_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponseCLI"
+#else
+    let OPTIMISATION_PORT_ID = "com.lowtechguys.Clop-setapp.optimisationService"
+    let OPTIMISATION_STOP_PORT_ID = "com.lowtechguys.Clop-setapp.optimisationServiceStop"
+    let OPTIMISATION_RESPONSE_PORT_ID = "com.lowtechguys.Clop-setapp.optimisationServiceResponse"
+    let OPTIMISATION_CLI_RESPONSE_PORT_ID = "com.lowtechguys.Clop-setapp.optimisationServiceResponseCLI"
+#endif
 
 func mainActor(_ action: @escaping @MainActor () -> Void) {
     Task.init { await MainActor.run { action() }}

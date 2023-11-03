@@ -138,8 +138,8 @@ struct ShareMenu: View {
 
     var body: some View {
         Menu("Share") {
-            ForEach(NSSharingService.sharingServices(forItems: [optimiser.url]), id: \.title) { item in
-                Button(action: { item.perform(withItems: [optimiser.url]) }) {
+            ForEach(NSSharingService.sharingServices(forItems: [optimiser.url as Any]), id: \.title) { item in
+                Button(action: { item.perform(withItems: [optimiser.url as Any]) }) {
                     SwiftUI.Image(nsImage: item.image)
                     Text(item.title)
                 }
