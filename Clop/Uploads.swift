@@ -3,6 +3,9 @@ import Foundation
 import Lowtech
 import System
 
+extension NSRunningApplication: @unchecked Sendable {}
+extension NSWorkspace.OpenConfiguration: @unchecked Sendable {}
+
 @MainActor
 class Dropshare {
     static let BUNDLE_ID = "net.mkswap.Dropshare5"

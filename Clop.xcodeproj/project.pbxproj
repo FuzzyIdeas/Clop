@@ -20,6 +20,55 @@
 		C7319E8E2AD995B60085B707 /* bin.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7319E8C2AD995B60085B707 /* bin.tar.xz */; };
 		C7333E472A98C90500B1D5BE /* PDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7333E462A98C90500B1D5BE /* PDF.swift */; };
 		C733B3D22A50789C002A0585 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
+		C75FD1BA2AF4324C000B426B /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
+		C75FD1BB2AF4324C000B426B /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
+		C75FD1BC2AF4324C000B426B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6626288301590041BEC8 /* ContentView.swift */; };
+		C75FD1BD2AF4324C000B426B /* RightClickMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */; };
+		C75FD1BE2AF4324C000B426B /* CompactResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38DB2ACB059200F299CE /* CompactResult.swift */; };
+		C75FD1BF2AF4324C000B426B /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB52A5C4EE500851F8C /* Images.swift */; };
+		C75FD1C02AF4324C000B426B /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
+		C75FD1C12AF4324C000B426B /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
+		C75FD1C22AF4324C000B426B /* FileNameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CF2AC8320B00F299CE /* FileNameField.swift */; };
+		C75FD1C32AF4324C000B426B /* PDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7333E462A98C90500B1D5BE /* PDF.swift */; };
+		C75FD1C42AF4324C000B426B /* Uploads.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78C62602ADEB3E7000519D0 /* Uploads.swift */; };
+		C75FD1C52AF4324C000B426B /* FloatingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */; };
+		C75FD1C62AF4324C000B426B /* DropZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38D02AC8320B00F299CE /* DropZone.swift */; };
+		C75FD1C72AF4324C000B426B /* ClopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6624288301590041BEC8 /* ClopApp.swift */; };
+		C75FD1C82AF4324C000B426B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB72A5C854600851F8C /* SettingsView.swift */; };
+		C75FD1C92AF4324C000B426B /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
+		C75FD1CA2AF4324C000B426B /* ActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38DA2ACB059200F299CE /* ActionButtons.swift */; };
+		C75FD1CB2AF4324C000B426B /* ResolutionField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */; };
+		C75FD1CC2AF4324C000B426B /* InstallCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */; };
+		C75FD1CD2AF4324C000B426B /* OptimisationUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AC02A5E957700851F8C /* OptimisationUtils.swift */; };
+		C75FD1CE2AF4324C000B426B /* NSImageExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */; };
+		C75FD1CF2AF4324C000B426B /* ClopUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760ABE2A5E92B800851F8C /* ClopUtils.swift */; };
+		C75FD1D02AF4324C000B426B /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AC22A5FF89B00851F8C /* Settings.swift */; };
+		C75FD1D12AF4324C000B426B /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
+		C75FD1D22AF4324C000B426B /* ClopShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */; };
+		C75FD1D42AF4324C000B426B /* Lowtech in Frameworks */ = {isa = PBXBuildFile; productRef = C75FD1B32AF4324C000B426B /* Lowtech */; };
+		C75FD1D62AF4324C000B426B /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C75FD1B72AF4324C000B426B /* Ignore */; };
+		C75FD1D92AF4324C000B426B /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
+		C75FD1DA2AF4324C000B426B /* Upload to Backblaze.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */; };
+		C75FD1DB2AF4324C000B426B /* Upload to SSH server.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD612ABC9B34003ECDE6 /* Upload to SSH server.shortcut */; };
+		C75FD1DC2AF4324C000B426B /* Clop - PDF.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */; };
+		C75FD1DD2AF4324C000B426B /* Clop - image.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */; };
+		C75FD1DE2AF4324C000B426B /* Clop - video.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7C8AD5B2ABC78CF003ECDE6 /* Clop - video.shortcut */; };
+		C75FD1DF2AF4324C000B426B /* bin.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */; };
+		C75FD1E02AF4324C000B426B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
+		C75FD1E12AF4324C000B426B /* bin.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7319E8C2AD995B60085B707 /* bin.tar.xz */; };
+		C75FD1E22AF4324C000B426B /* Upload with Dropshare.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C78C62622ADEE250000519D0 /* Upload with Dropshare.shortcut */; };
+		C75FD1EF2AF43323000B426B /* Setapp in Frameworks */ = {isa = PBXBuildFile; productRef = C75FD1EE2AF43323000B426B /* Setapp */; };
+		C75FD1F22AF434FE000B426B /* CherryPicks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */; };
+		C75FD1F32AF434FE000B426B /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
+		C75FD1F42AF434FE000B426B /* ActionRequestHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F202AC014BF00345739 /* ActionRequestHandler.swift */; };
+		C75FD1F62AF434FE000B426B /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C70B5F192AC014BF00345739 /* Cocoa.framework */; };
+		C75FD1F82AF434FE000B426B /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C70B5F1C2AC014BF00345739 /* Media.xcassets */; };
+		C75FD1F92AF434FE000B426B /* icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = C70B5F2B2AC0151300345739 /* icon.icns */; };
+		C75FD2032AF4351D000B426B /* CherryPicks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */; };
+		C75FD2042AF4351D000B426B /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
+		C75FD2052AF4351D000B426B /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7956A412AC208DD00C0EDF2 /* main.swift */; };
+		C75FD2072AF4351D000B426B /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = C75FD2002AF4351D000B426B /* ArgumentParser */; };
+		C75FD20E2AF43581000B426B /* setappPublicKey.pem in Resources */ = {isa = PBXBuildFile; fileRef = C75FD20D2AF43581000B426B /* setappPublicKey.pem */; };
 		C7760AB62A5C4EE500851F8C /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB52A5C4EE500851F8C /* Images.swift */; };
 		C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB72A5C854600851F8C /* SettingsView.swift */; };
 		C7760ABD2A5E026600851F8C /* NSImageExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */; };
@@ -58,10 +107,26 @@
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
+		C7EE11372AF5737F0060A0A9 /* FinderOptimiser-setapp.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C75FD1FD2AF434FE000B426B /* FinderOptimiser-setapp.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C7EE11382AF573870060A0A9 /* ClopCLI-setapp in Copy Files (1 item) */ = {isa = PBXBuildFile; fileRef = C75FD20C2AF4351D000B426B /* ClopCLI-setapp */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		C70B5F242AC014BF00345739 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C7AB6619288301590041BEC8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C70B5F162AC014BF00345739;
+			remoteInfo = FinderOptimiser;
+		};
+		C75FD1B02AF4324C000B426B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C7AB6619288301590041BEC8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C7956A3E2AC208DD00C0EDF2;
+			remoteInfo = ClopCLI;
+		};
+		C75FD1B22AF4324C000B426B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C7AB6619288301590041BEC8 /* Project object */;
 			proxyType = 1;
@@ -88,6 +153,37 @@
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD1E42AF4324C000B426B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C7EE11372AF5737F0060A0A9 /* FinderOptimiser-setapp.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD1E62AF4324C000B426B /* Copy Files (1 item) */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 12;
+			files = (
+				C7EE11382AF573870060A0A9 /* ClopCLI-setapp in Copy Files (1 item) */,
+			);
+			name = "Copy Files (1 item)";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD2082AF4351D000B426B /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
 		};
 		C7956A3D2AC208DD00C0EDF2 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -128,6 +224,11 @@
 		C7319E8C2AD995B60085B707 /* bin.tar.xz */ = {isa = PBXFileReference; lastKnownFileType = file; path = bin.tar.xz; sourceTree = "<group>"; };
 		C7333E462A98C90500B1D5BE /* PDF.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PDF.swift; sourceTree = "<group>"; };
 		C733B3D12A50789C002A0585 /* Video.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
+		C75FD1EB2AF4324C000B426B /* Clop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C75FD1FD2AF434FE000B426B /* FinderOptimiser-setapp.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "FinderOptimiser-setapp.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C75FD20C2AF4351D000B426B /* ClopCLI-setapp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "ClopCLI-setapp"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C75FD20D2AF43581000B426B /* setappPublicKey.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = setappPublicKey.pem; sourceTree = "<group>"; };
+		C75FD20F2AF4363A000B426B /* Info-setapp.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "Info-setapp.plist"; sourceTree = "<group>"; };
 		C7760AB52A5C4EE500851F8C /* Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		C7760AB72A5C854600851F8C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSImageExtensions.swift; sourceTree = "<group>"; };
@@ -164,6 +265,7 @@
 		C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingResult.swift; sourceTree = "<group>"; };
 		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
 		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
+		C7EE11392AF575FE0060A0A9 /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +274,32 @@
 			buildActionMask = 2147483647;
 			files = (
 				C70B5F1A2AC014BF00345739 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD1D32AF4324C000B426B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD1EF2AF43323000B426B /* Setapp in Frameworks */,
+				C75FD1D42AF4324C000B426B /* Lowtech in Frameworks */,
+				C75FD1D62AF4324C000B426B /* Ignore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD1F52AF434FE000B426B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD1F62AF434FE000B426B /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD2062AF4351D000B426B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD2072AF4351D000B426B /* ArgumentParser in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -230,6 +358,8 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
+				C7EE11392AF575FE0060A0A9 /* Lowtech */,
+				C75FD20D2AF43581000B426B /* setappPublicKey.pem */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				C7AB6623288301590041BEC8 /* Clop */,
 				C70B5F1B2AC014BF00345739 /* FinderOptimiser */,
@@ -245,6 +375,9 @@
 				C7AB6621288301590041BEC8 /* Clop.app */,
 				C70B5F172AC014BF00345739 /* FinderOptimiser.appex */,
 				C7956A3F2AC208DD00C0EDF2 /* ClopCLI */,
+				C75FD1EB2AF4324C000B426B /* Clop.app */,
+				C75FD1FD2AF434FE000B426B /* FinderOptimiser-setapp.appex */,
+				C75FD20C2AF4351D000B426B /* ClopCLI-setapp */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -257,6 +390,7 @@
 				C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */,
 				C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
+				C75FD20F2AF4363A000B426B /* Info-setapp.plist */,
 				C7AB38DB2ACB059200F299CE /* CompactResult.swift */,
 				C7AB38D02AC8320B00F299CE /* DropZone.swift */,
 				C7AB38CF2AC8320B00F299CE /* FileNameField.swift */,
@@ -331,6 +465,69 @@
 			productReference = C70B5F172AC014BF00345739 /* FinderOptimiser.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C75FD1AE2AF4324C000B426B /* Setapp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C75FD1E82AF4324C000B426B /* Build configuration list for PBXNativeTarget "Setapp" */;
+			buildPhases = (
+				C75FD1B92AF4324C000B426B /* Sources */,
+				C75FD1D32AF4324C000B426B /* Frameworks */,
+				C75FD1D82AF4324C000B426B /* Resources */,
+				C75FD1E42AF4324C000B426B /* Embed Foundation Extensions */,
+				C75FD1E62AF4324C000B426B /* Copy Files (1 item) */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C75FD1AF2AF4324C000B426B /* PBXTargetDependency */,
+				C75FD1B12AF4324C000B426B /* PBXTargetDependency */,
+			);
+			name = Setapp;
+			packageProductDependencies = (
+				C75FD1B32AF4324C000B426B /* Lowtech */,
+				C75FD1B72AF4324C000B426B /* Ignore */,
+				C75FD1EE2AF43323000B426B /* Setapp */,
+			);
+			productName = Clop;
+			productReference = C75FD1EB2AF4324C000B426B /* Clop.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C75FD1F02AF434FE000B426B /* FinderOptimiser-setapp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C75FD1FA2AF434FE000B426B /* Build configuration list for PBXNativeTarget "FinderOptimiser-setapp" */;
+			buildPhases = (
+				C75FD1F12AF434FE000B426B /* Sources */,
+				C75FD1F52AF434FE000B426B /* Frameworks */,
+				C75FD1F72AF434FE000B426B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "FinderOptimiser-setapp";
+			productName = FinderOptimiser;
+			productReference = C75FD1FD2AF434FE000B426B /* FinderOptimiser-setapp.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		C75FD1FF2AF4351D000B426B /* ClopCLI-setapp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C75FD2092AF4351D000B426B /* Build configuration list for PBXNativeTarget "ClopCLI-setapp" */;
+			buildPhases = (
+				C75FD2022AF4351D000B426B /* Sources */,
+				C75FD2062AF4351D000B426B /* Frameworks */,
+				C75FD2082AF4351D000B426B /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "ClopCLI-setapp";
+			packageProductDependencies = (
+				C75FD2002AF4351D000B426B /* ArgumentParser */,
+			);
+			productName = ClopCLI;
+			productReference = C75FD20C2AF4351D000B426B /* ClopCLI-setapp */;
+			productType = "com.apple.product-type.tool";
+		};
 		C7956A3E2AC208DD00C0EDF2 /* ClopCLI */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C7956A452AC208DD00C0EDF2 /* Build configuration list for PBXNativeTarget "ClopCLI" */;
@@ -387,7 +584,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					C70B5F162AC014BF00345739 = {
 						CreatedOnToolsVersion = 15.0;
@@ -413,6 +610,7 @@
 				C78211002A59E371008DB106 /* XCRemoteSwiftPackageReference "Lowtech" */,
 				C7DF1A262AB8885500AF8EDC /* XCRemoteSwiftPackageReference "swift-ignore" */,
 				C7956A482AC209F200C0EDF2 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
+				C75FD1ED2AF43323000B426B /* XCRemoteSwiftPackageReference "Setapp-framework" */,
 			);
 			productRefGroup = C7AB6622288301590041BEC8 /* Products */;
 			projectDirPath = "";
@@ -421,6 +619,9 @@
 				C7AB6620288301590041BEC8 /* Clop */,
 				C70B5F162AC014BF00345739 /* FinderOptimiser */,
 				C7956A3E2AC208DD00C0EDF2 /* ClopCLI */,
+				C75FD1AE2AF4324C000B426B /* Setapp */,
+				C75FD1F02AF434FE000B426B /* FinderOptimiser-setapp */,
+				C75FD1FF2AF4351D000B426B /* ClopCLI-setapp */,
 			);
 		};
 /* End PBXProject section */
@@ -432,6 +633,33 @@
 			files = (
 				C70B5F1D2AC014BF00345739 /* Media.xcassets in Resources */,
 				C70B5F2C2AC0151300345739 /* icon.icns in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD1D82AF4324C000B426B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD20E2AF43581000B426B /* setappPublicKey.pem in Resources */,
+				C75FD1D92AF4324C000B426B /* Preview Assets.xcassets in Resources */,
+				C75FD1DA2AF4324C000B426B /* Upload to Backblaze.shortcut in Resources */,
+				C75FD1DB2AF4324C000B426B /* Upload to SSH server.shortcut in Resources */,
+				C75FD1DC2AF4324C000B426B /* Clop - PDF.shortcut in Resources */,
+				C75FD1DD2AF4324C000B426B /* Clop - image.shortcut in Resources */,
+				C75FD1DE2AF4324C000B426B /* Clop - video.shortcut in Resources */,
+				C75FD1DF2AF4324C000B426B /* bin.tar.xz.sha256 in Resources */,
+				C75FD1E02AF4324C000B426B /* Assets.xcassets in Resources */,
+				C75FD1E12AF4324C000B426B /* bin.tar.xz in Resources */,
+				C75FD1E22AF4324C000B426B /* Upload with Dropshare.shortcut in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD1F72AF434FE000B426B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD1F82AF434FE000B426B /* Media.xcassets in Resources */,
+				C75FD1F92AF434FE000B426B /* icon.icns in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -485,6 +713,58 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C75FD1B92AF4324C000B426B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD1BA2AF4324C000B426B /* required.swift in Sources */,
+				C75FD1BB2AF4324C000B426B /* Optimisable.swift in Sources */,
+				C75FD1BC2AF4324C000B426B /* ContentView.swift in Sources */,
+				C75FD1BD2AF4324C000B426B /* RightClickMenu.swift in Sources */,
+				C75FD1BE2AF4324C000B426B /* CompactResult.swift in Sources */,
+				C75FD1BF2AF4324C000B426B /* Images.swift in Sources */,
+				C75FD1C02AF4324C000B426B /* Automation.swift in Sources */,
+				C75FD1C12AF4324C000B426B /* Shared.swift in Sources */,
+				C75FD1C22AF4324C000B426B /* FileNameField.swift in Sources */,
+				C75FD1C32AF4324C000B426B /* PDF.swift in Sources */,
+				C75FD1C42AF4324C000B426B /* Uploads.swift in Sources */,
+				C75FD1C52AF4324C000B426B /* FloatingResult.swift in Sources */,
+				C75FD1C62AF4324C000B426B /* DropZone.swift in Sources */,
+				C75FD1C72AF4324C000B426B /* ClopApp.swift in Sources */,
+				C75FD1C82AF4324C000B426B /* SettingsView.swift in Sources */,
+				C75FD1C92AF4324C000B426B /* Video.swift in Sources */,
+				C75FD1CA2AF4324C000B426B /* ActionButtons.swift in Sources */,
+				C75FD1CB2AF4324C000B426B /* ResolutionField.swift in Sources */,
+				C75FD1CC2AF4324C000B426B /* InstallCLI.swift in Sources */,
+				C75FD1CD2AF4324C000B426B /* OptimisationUtils.swift in Sources */,
+				C75FD1CE2AF4324C000B426B /* NSImageExtensions.swift in Sources */,
+				C75FD1CF2AF4324C000B426B /* ClopUtils.swift in Sources */,
+				C75FD1D02AF4324C000B426B /* Settings.swift in Sources */,
+				C75FD1D12AF4324C000B426B /* Xattr.swift in Sources */,
+				C75FD1D22AF4324C000B426B /* ClopShortcuts.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD1F12AF434FE000B426B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD1F22AF434FE000B426B /* CherryPicks.swift in Sources */,
+				C75FD1F32AF434FE000B426B /* Shared.swift in Sources */,
+				C75FD1F42AF434FE000B426B /* ActionRequestHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C75FD2022AF4351D000B426B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C75FD2032AF4351D000B426B /* CherryPicks.swift in Sources */,
+				C75FD2042AF4351D000B426B /* Shared.swift in Sources */,
+				C75FD2052AF4351D000B426B /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C7956A3B2AC208DD00C0EDF2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -535,6 +815,16 @@
 			target = C70B5F162AC014BF00345739 /* FinderOptimiser */;
 			targetProxy = C70B5F242AC014BF00345739 /* PBXContainerItemProxy */;
 		};
+		C75FD1AF2AF4324C000B426B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C7956A3E2AC208DD00C0EDF2 /* ClopCLI */;
+			targetProxy = C75FD1B02AF4324C000B426B /* PBXContainerItemProxy */;
+		};
+		C75FD1B12AF4324C000B426B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C70B5F162AC014BF00345739 /* FinderOptimiser */;
+			targetProxy = C75FD1B22AF4324C000B426B /* PBXContainerItemProxy */;
+		};
 		C78B29FD2AD07B5300B6A19B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C7956A3E2AC208DD00C0EDF2 /* ClopCLI */;
@@ -550,7 +840,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.7;
+				CURRENT_PROJECT_VERSION = 2.3.0;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -566,7 +856,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.7;
+				MARKETING_VERSION = 2.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -583,7 +873,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderOptimiser/FinderOptimiser.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.7;
+				CURRENT_PROJECT_VERSION = 2.3.0;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -599,12 +889,210 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.7;
+				MARKETING_VERSION = 2.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C75FD1E92AF4324C000B426B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Clop/Setapp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.3.0;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Clop/Info-setapp.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Clop;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Clop/bin",
+				);
+				LLVM_LTO = YES_THIN;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.3.0;
+				OTHER_LDFLAGS = (
+					"-force_load",
+					"$(BUILT_PRODUCTS_DIR)/libSetapp.a",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp";
+				PRODUCT_NAME = Clop;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG SETAPP";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C75FD1EA2AF4324C000B426B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Clop/Setapp.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.3.0;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Clop/Info-setapp.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Clop;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Clop/bin",
+				);
+				LLVM_LTO = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.3.0;
+				OTHER_LDFLAGS = (
+					"-force_load",
+					"$(BUILT_PRODUCTS_DIR)/libSetapp.a",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp";
+				PRODUCT_NAME = Clop;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = SETAPP;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C75FD1FB2AF434FE000B426B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = "FinderOptimiser/FinderOptimiser-setapp.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.3.0;
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Optimise with Clop";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp.FinderOptimiser";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C75FD1FC2AF434FE000B426B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = "FinderOptimiser/FinderOptimiser-setapp.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 2.3.0;
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Optimise with Clop";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 2.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp.FinderOptimiser";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C75FD20A2AF4351D000B426B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = "ClopCLI/ClopCLI-setapp.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp.ClopCLI";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks",
+				);
+			};
+			name = Debug;
+		};
+		C75FD20B2AF4351D000B426B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = "ClopCLI/ClopCLI-setapp.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp.ClopCLI";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks",
+				);
 			};
 			name = Release;
 		};
@@ -659,6 +1147,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -721,6 +1210,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -781,7 +1271,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.7;
+				CURRENT_PROJECT_VERSION = 2.3.0;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -802,7 +1292,7 @@
 				);
 				LLVM_LTO = YES_THIN;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.7;
+				MARKETING_VERSION = 2.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -819,7 +1309,7 @@
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.2.7;
+				CURRENT_PROJECT_VERSION = 2.3.0;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -840,7 +1330,7 @@
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.2.7;
+				MARKETING_VERSION = 2.3.0;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -857,6 +1347,33 @@
 			buildConfigurations = (
 				C70B5F282AC014BF00345739 /* Debug */,
 				C70B5F292AC014BF00345739 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C75FD1E82AF4324C000B426B /* Build configuration list for PBXNativeTarget "Setapp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C75FD1E92AF4324C000B426B /* Debug */,
+				C75FD1EA2AF4324C000B426B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C75FD1FA2AF434FE000B426B /* Build configuration list for PBXNativeTarget "FinderOptimiser-setapp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C75FD1FB2AF434FE000B426B /* Debug */,
+				C75FD1FC2AF434FE000B426B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C75FD2092AF4351D000B426B /* Build configuration list for PBXNativeTarget "ClopCLI-setapp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C75FD20A2AF4351D000B426B /* Debug */,
+				C75FD20B2AF4351D000B426B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -891,6 +1408,38 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C75FD1B42AF4324C000B426B /* XCRemoteSwiftPackageReference "Lowtech" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FuzzyIdeas/Lowtech";
+			requirement = {
+				branch = ventura;
+				kind = branch;
+			};
+		};
+		C75FD1B82AF4324C000B426B /* XCRemoteSwiftPackageReference "swift-ignore" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/alin23/swift-ignore";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.2;
+			};
+		};
+		C75FD1ED2AF43323000B426B /* XCRemoteSwiftPackageReference "Setapp-framework" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MacPaw/Setapp-framework";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.0;
+			};
+		};
+		C75FD2012AF4351D000B426B /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.3;
+			};
+		};
 		C78211002A59E371008DB106 /* XCRemoteSwiftPackageReference "Lowtech" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/FuzzyIdeas/Lowtech";
@@ -918,6 +1467,26 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C75FD1B32AF4324C000B426B /* Lowtech */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C75FD1B42AF4324C000B426B /* XCRemoteSwiftPackageReference "Lowtech" */;
+			productName = Lowtech;
+		};
+		C75FD1B72AF4324C000B426B /* Ignore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C75FD1B82AF4324C000B426B /* XCRemoteSwiftPackageReference "swift-ignore" */;
+			productName = Ignore;
+		};
+		C75FD1EE2AF43323000B426B /* Setapp */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C75FD1ED2AF43323000B426B /* XCRemoteSwiftPackageReference "Setapp-framework" */;
+			productName = Setapp;
+		};
+		C75FD2002AF4351D000B426B /* ArgumentParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C75FD2012AF4351D000B426B /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = ArgumentParser;
+		};
 		C78211012A59E371008DB106 /* Lowtech */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C78211002A59E371008DB106 /* XCRemoteSwiftPackageReference "Lowtech" */;

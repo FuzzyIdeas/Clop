@@ -1,8 +1,10 @@
 import Defaults
 import Foundation
 import Lowtech
-import LowtechPro
 import SwiftUI
+#if !SETAPP
+    import LowtechPro
+#endif
 
 struct CompactResult: View {
     static let improvementColor = Color(light: FloatingResult.darkBlue, dark: FloatingResult.yellow)
@@ -124,28 +126,30 @@ struct CompactResult: View {
                         .multilineTextAlignment(.leading)
                 }
 
-                if proError {
-                    HStack {
-                        Button("Get Clop Pro") {
-                            settingsViewManager.tab = .about
-                            openWindow(id: "settings")
+                #if !SETAPP
+                    if proError {
+                        HStack {
+                            Button("Get Clop Pro") {
+                                settingsViewManager.tab = .about
+                                openWindow(id: "settings")
 
-                            PRO?.manageLicence()
-                            focus()
+                                PRO?.manageLicence()
+                                focus()
+                            }
+                            .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish, radius: 5, verticalPadding: 2))
+                            .font(.round(10, weight: .heavy))
+                            .colorMultiply(.mauvish.blended(withFraction: 0.8, of: .white))
+                            Spacer()
+                            Button("Never show this again") {
+                                neverShowProError = true
+                                hoveredOptimiserID = nil
+                                optimiser.remove(after: 200, withAnimation: true)
+                            }
+                            .buttonStyle(FlatButton(color: .inverted.opacity(0.8), textColor: .secondary, radius: 5, verticalPadding: 2))
+                            .font(.round(10, weight: .semibold))
                         }
-                        .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish, radius: 5, verticalPadding: 2))
-                        .font(.round(10, weight: .heavy))
-                        .colorMultiply(.mauvish.blended(withFraction: 0.8, of: .white))
-                        Spacer()
-                        Button("Never show this again") {
-                            neverShowProError = true
-                            hoveredOptimiserID = nil
-                            optimiser.remove(after: 200, withAnimation: true)
-                        }
-                        .buttonStyle(FlatButton(color: .inverted.opacity(0.8), textColor: .secondary, radius: 5, verticalPadding: 2))
-                        .font(.round(10, weight: .semibold))
                     }
-                }
+                #endif
                 pathView
             }
             .allowsTightening(true)
@@ -309,10 +313,12 @@ struct CompactResultList: View {
         VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
             FlipGroup(if: floatingResultsCorner.isTop) {
                 HStack {
-                    if floatingResultsCorner.isTrailing {
-                        UpdateButton(short: !showCompactImages)
-                        Spacer()
-                    }
+                    #if !SETAPP
+                        if floatingResultsCorner.isTrailing {
+                            UpdateButton(short: !showCompactImages)
+                            Spacer()
+                        }
+                    #endif
 
                     if hasRunningOptimisers {
                         Button("Stop all") {
@@ -327,10 +333,12 @@ struct CompactResultList: View {
                     }
                     .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
 
-                    if !floatingResultsCorner.isTrailing {
-                        Spacer()
-                        UpdateButton(short: !showCompactImages)
-                    }
+                    #if !SETAPP
+                        if !floatingResultsCorner.isTrailing {
+                            Spacer()
+                            UpdateButton(short: !showCompactImages)
+                        }
+                    #endif
                 }
                 .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
                 .font(.medium(11))
@@ -502,28 +510,28 @@ struct CompactPreview: View {
 
         let errorOpt = Optimiser(id: "file-with-error", type: .image(.png))
         errorOpt.url = "\(HOME)/Desktop/passport-scan.png".fileURL
-        errorOpt.thumbnail = NSImage(named: "passport")
+        errorOpt.thumbnail = NSImage(resource: .passport)
         errorOpt.finish(error: "Already optimised")
 
         let pdfRunning = Optimiser(id: "scans.pdf", type: .pdf, running: true, progress: pdfProgress)
         pdfRunning.url = "\(HOME)/Documents/scans.pdf".fileURL
         pdfRunning.operation = "Optimising"
-        pdfRunning.thumbnail = NSImage(named: "scans.pdf")
+        pdfRunning.thumbnail = NSImage(resource: .scansPdf)
 
         let videoOpt = Optimiser(id: "Movies/meeting-recording.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.url = "\(HOME)/Movies/meeting-recording.mov".fileURL
         videoOpt.operation = "Optimising"
-        videoOpt.thumbnail = NSImage(named: "sonoma-video")
+        videoOpt.thumbnail = NSImage(resource: .sonomaVideo)
         videoOpt.changePlaybackSpeedFactor = 2.0
 
         let videoToGIF = Optimiser(id: "Videos/app-ui-demo.mov", type: .video(.quickTimeMovie), running: true, progress: videoToGIFProgress)
         videoToGIF.url = "\(HOME)/Videos/app-ui-demo.mov".fileURL
         videoToGIF.operation = "Converting to GIF"
-        videoToGIF.thumbnail = NSImage(named: "app-ui-demo")
+        videoToGIF.thumbnail = NSImage(resource: .appUiDemo)
 
         let pdfEnd = Optimiser(id: "pages.pdf", type: .pdf)
         pdfEnd.url = "\(HOME)/Documents/pages.pdf".fileURL
-        pdfEnd.thumbnail = NSImage(named: "pages.pdf")
+        pdfEnd.thumbnail = NSImage(resource: .pagesPdf)
         pdfEnd.finish(oldBytes: 12_250_190, newBytes: 15_211_932)
 
         let gifOpt = Optimiser(id: "https://files.lowtechguys.com/moon.gif", type: .url, running: true, progress: gifProgress)
@@ -532,11 +540,11 @@ struct CompactPreview: View {
 
         let pngIndeterminate = Optimiser(id: "png-indeterminate", type: .image(.png), running: true)
         pngIndeterminate.url = "\(HOME)/Desktop/device_hierarchy.png".fileURL
-        pngIndeterminate.thumbnail = NSImage(named: "device_hierarchy")
+        pngIndeterminate.thumbnail = NSImage(resource: .deviceHierarchy)
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
-        clipEnd.thumbnail = NSImage(named: "sonoma-shot")
+        clipEnd.thumbnail = NSImage(resource: .sonomaShot)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
         let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)

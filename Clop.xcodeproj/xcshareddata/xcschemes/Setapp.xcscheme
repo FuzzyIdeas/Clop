@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C7AB6620288301590041BEC8"
+               BlueprintIdentifier = "C75FD1AE2AF4324C000B426B"
                BuildableName = "Clop.app"
-               BlueprintName = "Clop"
+               BlueprintName = "Setapp"
                ReferencedContainer = "container:Clop.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -43,9 +43,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "C7AB6620288301590041BEC8"
+            BlueprintIdentifier = "C75FD1AE2AF4324C000B426B"
             BuildableName = "Clop.app"
-            BlueprintName = "Clop"
+            BlueprintName = "Setapp"
             ReferencedContainer = "container:Clop.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -60,9 +60,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "C7AB6620288301590041BEC8"
+            BlueprintIdentifier = "C75FD1AE2AF4324C000B426B"
             BuildableName = "Clop.app"
-            BlueprintName = "Clop"
+            BlueprintName = "Setapp"
             ReferencedContainer = "container:Clop.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
