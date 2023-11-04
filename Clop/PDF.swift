@@ -218,6 +218,9 @@ class PDF: Optimisable {
         tempFile.waitForFile(for: 2)
         try? tempFile.setOptimisationStatusXattr("true")
         if tempFile != path {
+            if Defaults[.preserveDates] {
+                tempFile.copyCreationModificationDates(from: path)
+            }
             try tempFile.copy(to: path, force: true)
         }
 

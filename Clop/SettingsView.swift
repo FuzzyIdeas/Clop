@@ -875,6 +875,7 @@ struct GeneralSettingsView: View {
     @Default(.enableDragAndDrop) var enableDragAndDrop
     @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
     @Default(.stripMetadata) var stripMetadata
+    @Default(.preserveDates) var preserveDates
     @Default(.syncSettingsCloud) var syncSettingsCloud
 
     var body: some View {
@@ -920,6 +921,10 @@ struct GeneralSettingsView: View {
                 Toggle(isOn: $stripMetadata) {
                     Text("Strip EXIF Metadata").regular(13)
                         + Text("\nDeleted identifiable metadata from files (e.g. camera that took the photo, location, date and time etc.)").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                Toggle(isOn: $preserveDates) {
+                    Text("Preserve file creation and modification dates").regular(13)
+                        + Text("\nThe optimised file will have the same creation and modification dates as the original file").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
         }

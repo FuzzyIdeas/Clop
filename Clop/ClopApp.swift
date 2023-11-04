@@ -310,7 +310,7 @@ class AppDelegate: AppDelegateParent {
     }
 
     func syncSettings() {
-        UserDefaults.standard.register(defaults: UserDefaults.standard.dictionaryRepresentation())
+//        UserDefaults.standard.register(defaults: UserDefaults.standard.dictionaryRepresentation())
         if Defaults[.syncSettingsCloud] {
             Zephyr.observe(keys: SETTINGS_TO_SYNC)
         }
@@ -358,6 +358,12 @@ class AppDelegate: AppDelegateParent {
         machPortStopThread?.start()
     }
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        if !SWIFTUI_PREVIEW {
+            migrateSettings()
+        }
+    }
+
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !SWIFTUI_PREVIEW {
             handleCLIInstall()
@@ -385,6 +391,7 @@ class AppDelegate: AppDelegateParent {
                 }
                 exit(0)
             }
+
             syncSettings()
             Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
         }
@@ -574,7 +581,6 @@ class AppDelegate: AppDelegateParent {
 
         return true
     }
-
     override func applicationDidBecomeActive(_ notification: Notification) {
         if didBecomeActiveAtLeastOnce, !Defaults[.showMenubarIcon] {
             WM.open("settings")
@@ -859,10 +865,33 @@ var clipboardWatcher: Timer?
 var pbChangeCount = NSPasteboard.general.changeCount
 let THUMB_SIZE = CGSize(width: 300, height: 220)
 
+func migrateSettings() {
+    guard let id = Bundle.main.bundleIdentifier else {
+        return
+    }
+
+    let currentPrefs = URL.libraryDirectory
+        .appendingPathComponent("Preferences")
+        .appendingPathComponent(id == "com.lowtechguys.Clop-setapp" ? "com.lowtechguys.Clop-setapp.plist" : "com.lowtechguys.Clop.plist")
+    let oldPrefs = URL.libraryDirectory
+        .appendingPathComponent("Preferences")
+        .appendingPathComponent(id == "com.lowtechguys.Clop-setapp" ? "com.lowtechguys.Clop.plist" : "com.lowtechguys.Clop-setapp.plist")
+
+    if !FileManager.default.fileExists(atPath: currentPrefs.path), FileManager.default.fileExists(atPath: oldPrefs.path) {
+        try? FileManager.default.copyItem(at: oldPrefs, to: currentPrefs)
+        NSUbiquitousKeyValueStore.default.synchronize()
+        restart()
+    }
+}
+
 // MARK: - ClopApp
 
 @main
 struct ClopApp: App {
+    init() {
+        migrateSettings()
+    }
+
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     @Environment(\.openWindow) var openWindow
@@ -877,7 +906,6 @@ struct ClopApp: App {
     #if !SETAPP
         @ObservedObject var pm = PM
     #endif
-
     var body: some Scene {
         Window("Settings", id: "settings") {
             SettingsView()
@@ -943,6 +971,19 @@ extension NSFilePromiseReceiver {
 }
 
 class ContextualMenuServiceProvider: NSObject {
+    @objc func stripEXIFService(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
+            return
+        }
+        for item in items.compactMap(\.existingFilePath) {
+            stripExifOperationQueue.addOperation {
+                item.stripExif()
+            }
+        }
+
+        stripExifOperationQueue.waitUntilAllOperationsAreFinished()
+    }
+
     @objc func optimisationService(_ pasteboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString>) {
         guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
             return

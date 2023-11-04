@@ -127,14 +127,14 @@ struct DropZoneView: View {
                 if dragManager.optimisationCount == 5 {
                     dragManager.optimisationCount += 1
                 }
-                return optimiseDroppedItems(itemProviders)
+                return optimiseDroppedItems(itemProviders, copy: NSEvent.modifierFlags.contains(.option))
             }
         }
     }
 }
 
 @MainActor
-func optimiseDroppedItems(_ itemProviders: [NSItemProvider]) -> Bool {
+func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool) -> Bool {
     DM.dragging = false
 
     let aggressive = NSEvent.modifierFlags.contains(.command) ? true : nil
@@ -236,7 +236,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
     guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF else {
         return
     }
-    let _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
+    _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
         try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: Defaults[.autoCopyToClipboard], source: source)
     }
 }
