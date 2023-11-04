@@ -471,6 +471,9 @@ class Image: CustomStringConvertible {
         }
 
         tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        if Defaults[.preserveDates] {
+            tempFile.copyCreationModificationDates(from: backup ?? path)
+        }
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
@@ -539,6 +542,9 @@ class Image: CustomStringConvertible {
         }
 
         tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        if Defaults[.preserveDates] {
+            tempFile.copyCreationModificationDates(from: backup ?? path)
+        }
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
@@ -641,6 +647,9 @@ class Image: CustomStringConvertible {
         }
 
         tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        if Defaults[.preserveDates] {
+            tempFile.copyCreationModificationDates(from: backup ?? path)
+        }
         guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
             throw ClopError.fileNotFound(tempFile)
         }
