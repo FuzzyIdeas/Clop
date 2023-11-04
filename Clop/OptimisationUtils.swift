@@ -955,6 +955,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         mainActor { [weak self] in
             guard let self else { return }
 
+            self.editingFilename = false
             self.lastRemoveAfterMs = ms
             self.remover = mainAsyncAfter(ms: ms) { [weak self] in
                 guard let self else { return }
@@ -963,6 +964,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     if editingFilename, let lastRemoveAfterMs = self.lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
                         self.lastRemoveAfterMs = 1000 * 120
                     }
+                    self.inRemoval = false
                     self.resetRemover()
                     return
                 }
@@ -1077,9 +1079,11 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         lastRemoveAfterMs = nil
         hoveredOptimiserID = nil
 
+        optimisers.forEach {
+            $0.editingFilename = false
+        }
         if stop {
             optimisers.filter(\.running).forEach {
-                $0.editingFilename = false
                 $0.stop(remove: false)
             }
             removedOptimisers = removedOptimisers

@@ -264,6 +264,31 @@ extension FilePath {
         shell("/usr/bin/file", args: ["-b", "--mime-type", string]).o
     }
 
+    func stripExif() {
+        let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
+            + ["-all=", "-tagsFromFile", "@"]
+            + ["-XResolution", "-YResolution", "-Orientation"]
+            + [string]
+        let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
+
+        #if DEBUG
+            log.debug(args.joined(separator: " "))
+            log.debug("\tout=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
+        #endif
+    }
+
+    func copyCreationModificationDates(from source: FilePath) {
+        let sourceURL = source.url
+        var destURL = url
+
+        do {
+            let sourceValues = try sourceURL.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+            try destURL.setResourceValues(sourceValues)
+        } catch {
+            log.error("Error copying dates from \(source) to \(self): \(error)")
+        }
+    }
+
     func copyExif(from source: FilePath, excludeTags: [String]? = nil, stripMetadata: Bool = true) {
         var additionalArgs: [String] = []
         if let excludeTags, excludeTags.isNotEmpty {
@@ -284,6 +309,14 @@ extension FilePath {
     }
 
 }
+
+let stripExifOperationQueue: OperationQueue = {
+    let o = OperationQueue()
+    o.name = "Strip EXIF"
+    o.maxConcurrentOperationCount = 20
+    o.underlyingQueue = DispatchQueue.global()
+    return o
+}()
 
 let HALF_HALF = sqrt(0.5)
 
