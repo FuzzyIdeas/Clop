@@ -258,6 +258,9 @@
 		C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C7C066702AF620A8004237F8 /* ClopCLI-setapp.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = "ClopCLI-setapp.entitlements"; sourceTree = "<group>"; };
+		C7C066712AF620A8004237F8 /* FinderOptimiser-setapp.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = "FinderOptimiser-setapp.entitlements"; sourceTree = "<group>"; };
+		C7C066722AF620A8004237F8 /* Setapp.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Setapp.entitlements; sourceTree = "<group>"; };
 		C7C8AD5B2ABC78CF003ECDE6 /* Clop - video.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - video.shortcut"; sourceTree = "<group>"; };
 		C7C8AD5C2ABC78CF003ECDE6 /* Clop - PDF.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - PDF.shortcut"; sourceTree = "<group>"; };
 		C7C8AD5D2ABC78CF003ECDE6 /* Clop - image.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Clop - image.shortcut"; sourceTree = "<group>"; };
@@ -359,8 +362,8 @@
 			isa = PBXGroup;
 			children = (
 				C7EE11392AF575FE0060A0A9 /* Lowtech */,
-				C75FD20D2AF43581000B426B /* setappPublicKey.pem */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
+				C7C0666F2AF62055004237F8 /* Setapp */,
 				C7AB6623288301590041BEC8 /* Clop */,
 				C70B5F1B2AC014BF00345739 /* FinderOptimiser */,
 				C7956A402AC208DD00C0EDF2 /* ClopCLI */,
@@ -385,41 +388,40 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
-				C7319E8C2AD995B60085B707 /* bin.tar.xz */,
-				C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */,
-				C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */,
-				C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
-				C75FD20F2AF4363A000B426B /* Info-setapp.plist */,
+				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
+				C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */,
+				C7AB6624288301590041BEC8 /* ClopApp.swift */,
+				C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */,
+				C7760ABE2A5E92B800851F8C /* ClopUtils.swift */,
 				C7AB38DB2ACB059200F299CE /* CompactResult.swift */,
+				C7AB6626288301590041BEC8 /* ContentView.swift */,
 				C7AB38D02AC8320B00F299CE /* DropZone.swift */,
 				C7AB38CF2AC8320B00F299CE /* FileNameField.swift */,
-				C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */,
-				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
-				C7DF1A212AB6F6A200AF8EDC /* required.swift */,
-				C7333E462A98C90500B1D5BE /* PDF.swift */,
-				C7AB663A288460F30041BEC8 /* Info.plist */,
-				C7AB6624288301590041BEC8 /* ClopApp.swift */,
-				C733B3D12A50789C002A0585 /* Video.swift */,
-				C7AB6626288301590041BEC8 /* ContentView.swift */,
 				C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */,
-				C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */,
-				C7AB66282883015A0041BEC8 /* Assets.xcassets */,
-				C7AB662D2883015A0041BEC8 /* Clop.entitlements */,
-				C7AB662A2883015A0041BEC8 /* Preview Content */,
-				C78211082A5B21A4008DB106 /* Xattr.swift */,
 				C7760AB52A5C4EE500851F8C /* Images.swift */,
-				C7760AB72A5C854600851F8C /* SettingsView.swift */,
+				C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */,
 				C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */,
-				C7760ABE2A5E92B800851F8C /* ClopUtils.swift */,
+				C70B5F332AC1B56C00345739 /* Optimisable.swift */,
 				C7760AC02A5E957700851F8C /* OptimisationUtils.swift */,
+				C7333E462A98C90500B1D5BE /* PDF.swift */,
+				C7DF1A212AB6F6A200AF8EDC /* required.swift */,
+				C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */,
+				C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */,
 				C7760AC22A5FF89B00851F8C /* Settings.swift */,
-				C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */,
+				C7760AB72A5C854600851F8C /* SettingsView.swift */,
+				C78C62602ADEB3E7000519D0 /* Uploads.swift */,
+				C733B3D12A50789C002A0585 /* Video.swift */,
+				C78211082A5B21A4008DB106 /* Xattr.swift */,
 				C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */,
 				C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */,
-				C70B5F332AC1B56C00345739 /* Optimisable.swift */,
-				C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */,
-				C78C62602ADEB3E7000519D0 /* Uploads.swift */,
+				C7319E8C2AD995B60085B707 /* bin.tar.xz */,
+				C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */,
+				C7AB66282883015A0041BEC8 /* Assets.xcassets */,
+				C7AB663A288460F30041BEC8 /* Info.plist */,
+				C7AB662D2883015A0041BEC8 /* Clop.entitlements */,
+				C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */,
+				C7AB662A2883015A0041BEC8 /* Preview Content */,
 			);
 			path = Clop;
 			sourceTree = "<group>";
@@ -430,6 +432,18 @@
 				C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		C7C0666F2AF62055004237F8 /* Setapp */ = {
+			isa = PBXGroup;
+			children = (
+				C7C066702AF620A8004237F8 /* ClopCLI-setapp.entitlements */,
+				C7C066712AF620A8004237F8 /* FinderOptimiser-setapp.entitlements */,
+				C7C066722AF620A8004237F8 /* Setapp.entitlements */,
+				C75FD20D2AF43581000B426B /* setappPublicKey.pem */,
+				C75FD20F2AF4363A000B426B /* Info-setapp.plist */,
+			);
+			path = Setapp;
 			sourceTree = "<group>";
 		};
 		C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */ = {
@@ -904,7 +918,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Clop/Setapp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Setapp/Setapp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2.3.0;
@@ -914,7 +928,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Clop/Info-setapp.plist";
+				INFOPLIST_FILE = "Setapp/Info-setapp.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Clop;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -948,7 +962,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Clop/Setapp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Setapp/Setapp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2.3.0;
@@ -958,7 +972,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Clop/Info-setapp.plist";
+				INFOPLIST_FILE = "Setapp/Info-setapp.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Clop;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -990,7 +1004,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = "FinderOptimiser/FinderOptimiser-setapp.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Setapp/FinderOptimiser-setapp.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2.3.0;
@@ -1022,7 +1036,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = "FinderOptimiser/FinderOptimiser-setapp.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Setapp/FinderOptimiser-setapp.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2.3.0;
@@ -1053,7 +1067,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = "ClopCLI/ClopCLI-setapp.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Setapp/ClopCLI-setapp.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1077,7 +1091,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = "ClopCLI/ClopCLI-setapp.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Setapp/ClopCLI-setapp.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;

@@ -39,6 +39,7 @@ extension Defaults.Keys {
     static let optimiseVideoClipboard = Key<Bool>("optimiseVideoClipboard", default: false)
     static let optimiseImagePathClipboard = Key<Bool>("optimiseImagePathClipboard", default: false)
     static let stripMetadata = Key<Bool>("stripMetadata", default: true)
+    static let preserveDates = Key<Bool>("preserveDates", default: true)
 
     static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
@@ -165,6 +166,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .optimiseTIFF,
     .optimiseVideoClipboard,
     .pdfDirs,
+    .preserveDates,
     .quickResizeKeys,
     .savedCropSizes,
     .shortcutToRunOnImage,
