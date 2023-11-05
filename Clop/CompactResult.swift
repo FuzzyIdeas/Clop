@@ -9,6 +9,7 @@ import SwiftUI
 struct CompactResult: View {
     static let improvementColor = Color(light: FloatingResult.darkBlue, dark: FloatingResult.yellow)
 
+    @ObservedObject var om = OM
     @ObservedObject var optimiser: Optimiser
     @State var hovering = false
 
@@ -82,7 +83,7 @@ struct CompactResult: View {
         }
     }
     @ViewBuilder var sizeDiff: some View {
-        if let oldSize = optimiser.oldSize {
+        if let oldSize = optimiser.oldSize, om.selection.isEmpty {
             ResolutionField(optimiser: optimiser, size: oldSize)
                 .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13)), textColor: .primary, radius: 3, horizontalPadding: 3, verticalPadding: 1))
                 .font(.mono(11, weight: .medium))
@@ -97,13 +98,21 @@ struct CompactResult: View {
         HStack {
             Text(optimiser.oldBytes.humanSize)
                 .mono(11, weight: .semibold)
-                .foregroundColor(improvement ? Color.red : Color.secondary)
+                .foregroundColor(
+                    om.selection.isEmpty
+                        ? (improvement ? Color.red : Color.secondary)
+                        : (improvement ? Color.secondary : Color.primary)
+                )
             if optimiser.newBytes > 0, optimiser.newBytes != optimiser.oldBytes {
                 SwiftUI.Image(systemName: "arrow.right")
                     .font(.medium(11))
                 Text(optimiser.newBytes.humanSize)
                     .mono(11, weight: .semibold)
-                    .foregroundColor(improvement ? Self.improvementColor : FloatingResult.red)
+                    .foregroundColor(
+                        improvement
+                            ? (om.selection.isEmpty ? Self.improvementColor : .primary)
+                            : (om.selection.isEmpty ? FloatingResult.red : .secondary)
+                    )
             }
         }
         .lineLimit(1)
@@ -211,22 +220,26 @@ struct CompactResult: View {
                         Spacer()
                         sizeDiff
                     }
-                    ActionButtons(optimiser: optimiser, size: 18)
-                        .padding(.top, 2)
-                        .hfill(.leading)
-                        .roundbg(
-                            radius: 10, verticalPadding: 3, horizontalPadding: 2,
-                            color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13))
-                        )
-                        .focusable(false)
-                        .frame(height: 26)
+                    if om.selection.isEmpty {
+                        ActionButtons(optimiser: optimiser, size: 18)
+                            .padding(.top, 2)
+                            .hfill(.leading)
+                            .roundbg(
+                                radius: 10, verticalPadding: 3, horizontalPadding: 2,
+                                color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13))
+                            )
+                            .focusable(false)
+                            .frame(height: 26)
+                    }
                 }
             }
 
             Spacer()
-            CloseStopButton(optimiser: optimiser)
-                .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.08) : (isEven ? 0.04 : 0.13)), textColor: Color.mauvish.opacity(0.8), circle: true))
-                .focusable(false)
+            if om.selection.isEmpty {
+                CloseStopButton(optimiser: optimiser)
+                    .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.08) : (isEven ? 0.04 : 0.13)), textColor: Color.mauvish.opacity(0.8), circle: true))
+                    .focusable(false)
+            }
         }
         .padding(.top, 3)
         .onHover(perform: updateHover(_:))
@@ -243,7 +256,7 @@ struct CompactResult: View {
                     }
                     return NSItemProvider(object: url as NSURL)
                 } preview: {
-                    thumbnail
+                    DragPreview(optimiser: optimiser)
                 }
 
         })
@@ -287,7 +300,52 @@ struct OverlayMessageView: View {
     }
 }
 
+struct DeselectButton: View {
+    @ObservedObject var om = OM
+
+    var body: some View {
+        let img = SwiftUI.Image(systemName: "xmark.rectangle.fill")
+        Button("\(img) Clear selection") { om.selection = [] }
+            .font(.bold(12))
+    }
+}
+
+struct SelectButton: View {
+    @ObservedObject var om = OM
+
+    var body: some View {
+        let img = SwiftUI.Image(systemName: "checkmark.rectangle.stack.fill")
+        Button("\(img) Select all") { om.selection = om.visibleOptimisers.map(\.id).set }
+            .font(.bold(12))
+    }
+}
+
+struct CompactActionButtons: View {
+    @ObservedObject var om = OM
+
+    var body: some View {
+        HStack {
+            if !om.selection.isEmpty {
+                if om.selection.count != om.visibleCount {
+                    SelectButton()
+                }
+                DeselectButton()
+            }
+        }
+        .buttonStyle(FlatButton(color: .inverted.opacity(0.5), textColor: .primary.opacity(0.7), width: 22, height: 22, horizontalPadding: 6, verticalPadding: 2))
+    }
+}
+
 struct CompactResultList: View {
+    @MainActor struct Opt: Identifiable {
+        let optimiser: Optimiser
+        let isLast: Bool
+        let isEven: Bool
+        let index: Int
+
+        var id: String { optimiser.id }
+    }
+
     @State var hovering = false
     @State var showList = false
     @State var size = NSSize(width: 50, height: 50)
@@ -305,6 +363,8 @@ struct CompactResultList: View {
 
     @Environment(\.preview) var preview
     @Environment(\.colorScheme) var colorScheme
+
+    @ObservedObject var om = OM
 
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
@@ -346,36 +406,71 @@ struct CompactResultList: View {
                 .focusable(false)
                 .frame(width: size.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
 
-                let opts: [(opt: Optimiser, isLast: Bool, isEven: Bool)] = optimisers.isEmpty
+                let opts: [Opt] = optimisers.isEmpty
                     ? []
                     : optimisers
                         .dropLast().enumerated()
-                        .map { n, x in (opt: x, isLast: false, isEven: (n + 1).isMultiple(of: 2)) } + [(opt: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2))]
+                        .map { n, x in
+                            Opt(optimiser: x, isLast: false, isEven: (n + 1).isMultiple(of: 2), index: n)
+                        } + [Opt(optimiser: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2), index: optimisers.count - 1)]
 
                 ZStack(alignment: .bottom) {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            ForEach(opts, id: \.opt.id) { optimiser, isLast, isEven in
-                                ZStack {
-                                    CompactResult(optimiser: optimiser, isEven: isEven)
-                                    OverlayMessageView(optimiser: optimiser, color: .secondary)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                }
-                                .padding(.trailing, 4)
-                                .padding(.leading, 8)
-                                .padding(.vertical, 4)
-                                .background(.primary.opacity(isEven ? (colorScheme == .dark ? 0.05 : 0.15) : 0))
+//                    ScrollView(.vertical, showsIndicators: false) {
+//                        VStack(spacing: 0) {
+                    List(opts, selection: $om.selection) { opt in
+//                                ForEach(opts, id: \.opt.id) { optimiser, isLast, isEven in
+                        ZStack {
+                            CompactResult(optimiser: opt.optimiser, isEven: opt.isEven)
+                            OverlayMessageView(optimiser: opt.optimiser, color: .secondary)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+//                                .padding(.trailing, 4)
+//                                .padding(.leading, 8)
+//                                .padding(.vertical, 4)
+//                                .background(.primary.opacity(opt.isEven ? (colorScheme == .dark ? 0.05 : 0.15) : 0))
+                        .tag(opt.id)
+                        .ifLet(opt.optimiser.url) { view, url in
+                            view.draggable(url) { DragPreview(optimiser: opt.optimiser) }
+                        }
+                        .onTapGesture {
+                            switch NSEvent.modifierFlags.deviceIndependentFlags {
+                            case .command:
+                                om.selection.toggle(opt.id)
+                                lastSelectedIndex = opt.index
+                            case .shift:
+                                om.selection.formUnion(opts[lastSelectedIndex < opt.index ? lastSelectedIndex ... opt.index : opt.index ... lastSelectedIndex].map(\.id))
+                            default:
+                                om.selection = om.selection == [opt.id] ? [] : [opt.id]
+                                lastSelectedIndex = opt.index
                             }
                         }
-                        .padding(.bottom, progress == nil ? 0 : 18)
+//                                }
                     }
-                    .padding(.vertical, 5)
+                    .listStyle(.inset(alternatesRowBackgrounds: true))
+//                        }
+                    .padding(.bottom, progress == nil ? 0 : 18)
+//                    }
+//                    .padding(.vertical, 5)
                     .frame(width: size.width, height: size.height, alignment: .center)
                     .fixedSize()
                     .background(Color.inverted.brightness(0.1))
                     .onHover { hovering in
                         if !hovering {
                             hoveredOptimiserID = nil
+                        }
+                    }
+                    .onChange(of: om.selection) { sel in
+                        print(sel)
+                        guard !sel.isEmpty else {
+                            floatingResultsWindow.allowToBecomeKey = false
+                            return
+                        }
+                        if !floatingResultsWindow.allowToBecomeKey {
+                            floatingResultsWindow.allowToBecomeKey = true
+                            focus()
+                            floatingResultsWindow.becomeFirstResponder()
+                            floatingResultsWindow.makeKeyAndOrderFront(nil)
+                            floatingResultsWindow.orderFrontRegardless()
                         }
                     }
 
@@ -394,8 +489,14 @@ struct CompactResultList: View {
                 .opacity(showList ? 1 : 0)
                 .allowsHitTesting(showList)
 
-                ToggleCompactResultListButton(showList: $showList.animation(), badge: optimisers.count.s, progress: progress)
-                    .offset(x: isTrailing ? 10 : -10)
+                HStack {
+                    CompactActionButtons()
+                        .offset(y: -12)
+                    Spacer()
+                    ToggleCompactResultListButton(showList: $showList.animation(), badge: optimisers.count.s, progress: progress)
+                        .offset(x: isTrailing ? 10 : -10)
+                }
+                .frame(width: size.width)
             }
         }
         .padding(isTrailing ? .trailing : .leading)
@@ -422,6 +523,41 @@ struct CompactResultList: View {
             width: (showList ?? self.showList) ? (THUMB_SIZE.width + ((compactImages ?? showCompactImages) ? 50 : 0)) : 50,
             height: (showList ?? self.showList) ? min(360, ((count ?? optimisers.count) * 80).cg) : 50
         )
+    }
+
+    @State private var lastSelectedIndex = 0
+
+}
+
+struct DragPreview: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        ZStack {
+            if let thumb = optimiser.thumbnail {
+                SwiftUI.Image(nsImage: thumb)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundColor(.primary)
+            }
+//            if let url = optimiser.url {
+//                Text(url.isFileURL ? url.filePath.shellString : url.absoluteString)
+//                    .mono(13)
+//                    .lineLimit(1)
+//                    .allowsTightening(true)
+//                    .truncationMode(.middle)
+//                    .scaledToFit()
+//                    .minimumScaleFactor(0.75)
+//                    .roundbg(radius: 5, padding: 3, color: .inverted, shadowSize: 4)
+//                    .frame(maxWidth: THUMB_SIZE.width * 0.75 - 20)
+//            }
+        }
+        .frame(width: THUMB_SIZE.width * 0.5, height: THUMB_SIZE.height * 0.5)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
