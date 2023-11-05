@@ -177,7 +177,7 @@ var hoveredOptimiserID: String? {
         }
         hoveredOptimiserIDTask = mainAsyncAfter(ms: 200) {
             mainActor {
-                guard hoveredOptimiserID != nil else {
+                guard hoveredOptimiserID != nil, OM.selection.isEmpty else {
                     log.debug("Hovered optimiser ID is nil, stopping hover hotkeys")
                     KM.secondaryKeys = []
                     KM.reinitHotkeys()
@@ -199,6 +199,7 @@ var hoveredOptimiserID: String? {
 @MainActor var lastQuicklookModifierFlags: NSEvent.ModifierFlags = []
 @MainActor var possibleShiftQuickLook = true
 @MainActor var hoverKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
+    guard OM.selection.isEmpty else { return }
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastQuicklookModifierFlags = flags
@@ -220,6 +221,7 @@ var hoveredOptimiserID: String? {
     }
 }
 @MainActor var hoverKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
+    guard OM.selection.isEmpty else { return event }
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastQuicklookModifierFlags = flags
@@ -1004,6 +1006,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var doneCount = 0
     @Published var failedCount = 0
     @Published var visibleCount = 0
+    @Published var selection = Set<String>()
 
     var lastRemoveAfterMs: Int? = nil
 
