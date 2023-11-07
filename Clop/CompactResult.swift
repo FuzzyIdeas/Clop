@@ -2,6 +2,7 @@ import Defaults
 import Foundation
 import Lowtech
 import SwiftUI
+import System
 #if !SETAPP
     import LowtechPro
 #endif
@@ -9,7 +10,7 @@ import SwiftUI
 struct CompactResult: View {
     static let improvementColor = Color(light: FloatingResult.darkBlue, dark: FloatingResult.yellow)
 
-    @ObservedObject var om = OM
+    @ObservedObject var sm = SM
     @ObservedObject var optimiser: Optimiser
     @State var hovering = false
 
@@ -68,22 +69,24 @@ struct CompactResult: View {
             if optimiser.progress.isIndeterminate {
                 HStack(alignment: .bottom) {
                     Text(optimiser.operation)
-                    Spacer()
-                    nameView
+                    Spacer().layoutPriority(-1)
+                    nameView.layoutPriority(-1)
                 }
                 progressURLView
                 ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
             } else {
                 ZStack(alignment: .topTrailing) {
                     ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
-                    nameView.offset(y: 2)
+                    if optimiser.progress.localizedDescription.count < 15 {
+                        nameView.offset(y: 2)
+                    }
                 }
                 progressURLView.padding(.top, 5)
             }
         }
     }
     @ViewBuilder var sizeDiff: some View {
-        if let oldSize = optimiser.oldSize, om.selection.isEmpty {
+        if let oldSize = optimiser.oldSize, !sm.selecting {
             ResolutionField(optimiser: optimiser, size: oldSize)
                 .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13)), textColor: .primary, radius: 3, horizontalPadding: 3, verticalPadding: 1))
                 .font(.mono(11, weight: .medium))
@@ -99,7 +102,7 @@ struct CompactResult: View {
             Text(optimiser.oldBytes.humanSize)
                 .mono(11, weight: .semibold)
                 .foregroundColor(
-                    om.selection.isEmpty
+                    !sm.selecting
                         ? (improvement ? Color.red : Color.secondary)
                         : (improvement ? Color.secondary : Color.primary)
                 )
@@ -110,8 +113,8 @@ struct CompactResult: View {
                     .mono(11, weight: .semibold)
                     .foregroundColor(
                         improvement
-                            ? (om.selection.isEmpty ? Self.improvementColor : .primary)
-                            : (om.selection.isEmpty ? FloatingResult.red : .secondary)
+                            ? (!sm.selecting ? Self.improvementColor : .primary)
+                            : (!sm.selecting ? FloatingResult.red : .secondary)
                     )
             }
         }
@@ -220,7 +223,7 @@ struct CompactResult: View {
                         Spacer()
                         sizeDiff
                     }
-                    if om.selection.isEmpty {
+                    if !sm.selecting {
                         ActionButtons(optimiser: optimiser, size: 18)
                             .padding(.top, 2)
                             .hfill(.leading)
@@ -235,7 +238,7 @@ struct CompactResult: View {
             }
 
             Spacer()
-            if om.selection.isEmpty {
+            if !sm.selecting {
                 CloseStopButton(optimiser: optimiser)
                     .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.08) : (isEven ? 0.04 : 0.13)), textColor: Color.mauvish.opacity(0.8), circle: true))
                     .focusable(false)
@@ -301,51 +304,150 @@ struct OverlayMessageView: View {
 }
 
 struct DeselectButton: View {
-    @ObservedObject var om = OM
-
     var body: some View {
         let img = SwiftUI.Image(systemName: "xmark.rectangle.fill")
-        Button("\(img) Clear selection") { om.selection = [] }
-            .font(.bold(12))
+        Button("\(img) Clear selection") { SM.selection = [] }
     }
 }
 
-struct SelectButton: View {
-    @ObservedObject var om = OM
+struct StopSelectionButton: View {
+    var body: some View {
+        let img = SwiftUI.Image(systemName: "chevron.backward.circle.fill")
+        Button("\(img) Back") { SM.selecting = false }
+    }
+}
 
+@MainActor
+class SelectionManager: ObservableObject {
+    @Published var selection = Set<String>()
+    @Published var selectableCount = 0
+
+    @Published var selecting = false {
+        didSet {
+            if selecting {
+                for opt in OM.optimisers {
+                    opt.editingFilename = false
+                }
+            }
+        }
+    }
+    var optimisers: [Optimiser] { OM.optimisers.filter { selection.contains($0.id) } }
+
+    func save() {
+        let paths: [String: FilePath] = optimisers.dict { o in
+            guard let path = o.url?.existingFilePath else { return nil }
+            return (o.id, path)
+        }
+        guard !paths.isEmpty else { return }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.level = .modalPanel
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+
+            var savedURLs = [URL]()
+            for (id, path) in paths {
+                if let savedPath = try? path.copy(to: url.filePath, force: true), let opt = opt(id) {
+                    let url = savedPath.url
+                    savedURLs.append(url)
+
+                    opt.url = url
+                    opt.path = savedPath
+                    opt.filename = savedPath.name.string
+
+                    try? path.setOptimisationStatusXattr("true")
+                }
+            }
+
+            NSWorkspace.shared.activateFileViewerSelecting(savedURLs)
+        }
+    }
+
+    func copyToClipboard() {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects(optimisers.compactMap { $0.url as NSURL? })
+    }
+
+    func restoreOriginal() {
+        for optimiser in optimisers {
+            optimiser.restoreOriginal()
+        }
+    }
+
+    func quicklook() {
+        OM.quicklook()
+    }
+
+    func uploadWithDropshare() {
+        OM.uploadWithDropshare(optimisers: optimisers)
+    }
+
+}
+
+@MainActor let SM = SelectionManager()
+
+struct SelectButton: View {
     var body: some View {
         let img = SwiftUI.Image(systemName: "checkmark.rectangle.stack.fill")
-        Button("\(img) Select all") { om.selection = om.visibleOptimisers.map(\.id).set }
-            .font(.bold(12))
+        Button("\(img) Select all") { SM.selection = OM.visibleOptimisers.filter(!\.running).map(\.id).set }
+    }
+}
+
+struct StartSelectionButton: View {
+    var body: some View {
+        let img = SwiftUI.Image(systemName: "checkmark.rectangle.fill")
+        Button("\(img) Select") { SM.selecting = true }
     }
 }
 
 struct CompactActionButtons: View {
-    @ObservedObject var om = OM
+    @ObservedObject var sm = SM
 
     var body: some View {
         HStack {
-            if !om.selection.isEmpty {
-                if om.selection.count != om.visibleCount {
+            if !sm.selecting {
+                StartSelectionButton()
+            } else {
+                if sm.selection.count == 0 {
+                    StopSelectionButton()
+                } else {
+                    DeselectButton()
+                }
+                if sm.selection.count < sm.selectableCount {
                     SelectButton()
                 }
-                DeselectButton()
+                Text("\(sm.selection.count)/\(sm.selectableCount)")
+                    .foregroundColor(.secondary)
+                    .roundbg(radius: 7, padding: 2, color: .inverted.opacity(0.3))
             }
         }
         .buttonStyle(FlatButton(color: .inverted.opacity(0.5), textColor: .primary.opacity(0.7), width: 22, height: 22, horizontalPadding: 6, verticalPadding: 2))
+        .lineLimit(1)
+        .font(.bold(11))
+        .allowsTightening(false)
+    }
+}
+
+@MainActor struct CompactOptimiser: Identifiable {
+    let optimiser: Optimiser
+    let isLast: Bool
+    let isEven: Bool
+    let index: Int
+
+    var id: String { optimiser.id }
+    var running: Bool { optimiser.running }
+
+    var selected: Bool {
+        SM.selection.contains(id)
     }
 }
 
 struct CompactResultList: View {
-    @MainActor struct Opt: Identifiable {
-        let optimiser: Optimiser
-        let isLast: Bool
-        let isEven: Bool
-        let index: Int
-
-        var id: String { optimiser.id }
-    }
-
     @State var hovering = false
     @State var showList = false
     @State var size = NSSize(width: 50, height: 50)
@@ -364,107 +466,111 @@ struct CompactResultList: View {
     @Environment(\.preview) var preview
     @Environment(\.colorScheme) var colorScheme
 
-    @ObservedObject var om = OM
+    @ObservedObject var sm = SM
+
+    @State var opts: [CompactOptimiser] = []
+
+    @ViewBuilder var topButtons: some View {
+        let hasRunningOptimisers = visibleCount > (doneCount + failedCount)
+
+        HStack {
+            #if !SETAPP
+                if floatingResultsCorner.isTrailing {
+                    UpdateButton(short: !showCompactImages)
+                    Spacer()
+                }
+            #endif
+
+            if hasRunningOptimisers {
+                Button("Stop all") {
+                    OM.optimisers.filter(\.running).forEach { optimiser in
+                        optimiser.stop(remove: false)
+                        optimiser.uiStop()
+                    }
+                }
+            }
+            Button(hasRunningOptimisers ? "Stop and clear" : "Clear all") {
+                OM.clearVisibleOptimisers(stop: true)
+            }
+            .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
+
+            #if !SETAPP
+                if !floatingResultsCorner.isTrailing {
+                    Spacer()
+                    UpdateButton(short: !showCompactImages)
+                }
+            #endif
+        }
+        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
+        .font(.medium(11))
+        .opacity(hovering && showList ? 1 : 0)
+        .focusable(false)
+        .frame(width: size.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
+    }
 
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
-        let hasRunningOptimisers = visibleCount > (doneCount + failedCount)
 
         VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
             FlipGroup(if: floatingResultsCorner.isTop) {
-                HStack {
-                    #if !SETAPP
-                        if floatingResultsCorner.isTrailing {
-                            UpdateButton(short: !showCompactImages)
-                            Spacer()
-                        }
-                    #endif
-
-                    if hasRunningOptimisers {
-                        Button("Stop all") {
-                            OM.optimisers.filter(\.running).forEach { optimiser in
-                                optimiser.stop(remove: false)
-                                optimiser.uiStop()
-                            }
-                        }
-                    }
-                    Button(hasRunningOptimisers ? "Stop and clear" : "Clear all") {
-                        OM.clearVisibleOptimisers(stop: true)
-                    }
-                    .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
-
-                    #if !SETAPP
-                        if !floatingResultsCorner.isTrailing {
-                            Spacer()
-                            UpdateButton(short: !showCompactImages)
-                        }
-                    #endif
+                if !sm.selecting {
+                    topButtons
                 }
-                .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
-                .font(.medium(11))
-                .opacity(hovering && showList ? 1 : 0)
-                .focusable(false)
-                .frame(width: size.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
-
-                let opts: [Opt] = optimisers.isEmpty
-                    ? []
-                    : optimisers
-                        .dropLast().enumerated()
-                        .map { n, x in
-                            Opt(optimiser: x, isLast: false, isEven: (n + 1).isMultiple(of: 2), index: n)
-                        } + [Opt(optimiser: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2), index: optimisers.count - 1)]
 
                 ZStack(alignment: .bottom) {
-//                    ScrollView(.vertical, showsIndicators: false) {
-//                        VStack(spacing: 0) {
-                    List(opts, selection: $om.selection) { opt in
-//                                ForEach(opts, id: \.opt.id) { optimiser, isLast, isEven in
-                        ZStack {
+                    List(opts, selection: $sm.selection) { opt in
+                        HStack {
+                            if sm.selecting {
+                                VStack(spacing: -1) {
+                                    SwiftUI.Image(systemName: "square.grid.4x3.fill")
+                                        .scaledToFill()
+                                    SwiftUI.Image(systemName: "square.grid.4x3.fill")
+                                        .scaledToFill()
+                                }
+                                .vfill()
+                                .frame(width: 20)
+                                .foregroundColor(.secondary.opacity(0.5))
+                                .roundbg(color: .primary.opacity(0.05))
+                            }
                             CompactResult(optimiser: opt.optimiser, isEven: opt.isEven)
-                            OverlayMessageView(optimiser: opt.optimiser, color: .secondary)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .if(!sm.selecting) {
+                                    $0.overlay(
+                                        OverlayMessageView(optimiser: opt.optimiser, color: .inverted)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    )
+                                }
+                                .tag(opt.id)
                         }
-//                                .padding(.trailing, 4)
-//                                .padding(.leading, 8)
-//                                .padding(.vertical, 4)
-//                                .background(.primary.opacity(opt.isEven ? (colorScheme == .dark ? 0.05 : 0.15) : 0))
-                        .tag(opt.id)
-                        .ifLet(opt.optimiser.url) { view, url in
-                            view.draggable(url) { DragPreview(optimiser: opt.optimiser) }
-                        }
-                        .onTapGesture {
-                            switch NSEvent.modifierFlags.deviceIndependentFlags {
-                            case .command:
-                                om.selection.toggle(opt.id)
-                                lastSelectedIndex = opt.index
-                            case .shift:
-                                om.selection.formUnion(opts[lastSelectedIndex < opt.index ? lastSelectedIndex ... opt.index : opt.index ... lastSelectedIndex].map(\.id))
-                            default:
-                                om.selection = om.selection == [opt.id] ? [] : [opt.id]
-                                lastSelectedIndex = opt.index
+                        .if(!sm.selecting) { view in
+                            view.contextMenu {
+                                RightClickMenuView(optimiser: opt.optimiser)
                             }
                         }
-//                                }
+                        .if(opt.selected) { view in
+                            view
+                                .draggable(opt.optimiser.url ?? URL(fileURLWithPath: "/tmp")) { DragPreview(optimiser: opt.optimiser) }
+                        }
                     }
                     .listStyle(.inset(alternatesRowBackgrounds: true))
-//                        }
                     .padding(.bottom, progress == nil ? 0 : 18)
-//                    }
-//                    .padding(.vertical, 5)
                     .frame(width: size.width, height: size.height, alignment: .center)
                     .fixedSize()
                     .background(Color.inverted.brightness(0.1))
+                    .if(!sm.selection.isEmpty) {
+                        $0.contextMenu { BatchRightClickMenuView() }
+                    }
                     .onHover { hovering in
                         if !hovering {
                             hoveredOptimiserID = nil
                         }
                     }
-                    .onChange(of: om.selection) { sel in
-                        print(sel)
+                    .onChange(of: sm.selection) { sel in
                         guard !sel.isEmpty else {
                             floatingResultsWindow.allowToBecomeKey = false
+                            sm.selecting = false
                             return
                         }
+                        sm.selecting = true
                         if !floatingResultsWindow.allowToBecomeKey {
                             floatingResultsWindow.allowToBecomeKey = true
                             focus()
@@ -490,13 +596,16 @@ struct CompactResultList: View {
                 .allowsHitTesting(showList)
 
                 HStack {
-                    CompactActionButtons()
-                        .offset(y: -12)
-                    Spacer()
+                    if showList {
+                        CompactActionButtons()
+                            .offset(y: -12)
+                            .opacity(hovering ? 1 : 0)
+                        Spacer()
+                    }
                     ToggleCompactResultListButton(showList: $showList.animation(), badge: optimisers.count.s, progress: progress)
                         .offset(x: isTrailing ? 10 : -10)
                 }
-                .frame(width: size.width)
+                .frame(width: size.width, alignment: isTrailing ? .trailing : .leading)
             }
         }
         .padding(isTrailing ? .trailing : .leading)
@@ -510,12 +619,27 @@ struct CompactResultList: View {
                 setSize(showList: showList)
             }
         }
-        .onChange(of: optimisers.count) { count in setSize(count: count) }
+        .onChange(of: optimisers) { optimisers in
+            filterOpts(optimisers)
+            setSize(count: optimisers.count)
+        }
         .onChange(of: showCompactImages) { compactImages in setSize(compactImages: compactImages) }
         .onAppear {
+            filterOpts()
             showList = preview || optimisers.count <= 3
             setSize()
         }
+    }
+
+    func filterOpts(_ optimisers: [Optimiser]? = nil) {
+        let optimisers = optimisers ?? self.optimisers
+        opts = optimisers.isEmpty
+            ? []
+            : optimisers
+                .dropLast().enumerated()
+                .map { n, x in
+                    CompactOptimiser(optimiser: x, isLast: false, isEven: (n + 1).isMultiple(of: 2), index: n)
+                } + [CompactOptimiser(optimiser: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2), index: optimisers.count - 1)]
     }
 
     func setSize(showList: Bool? = nil, count: Int? = nil, compactImages: Bool? = nil) {
@@ -544,17 +668,6 @@ struct DragPreview: View {
                     .scaledToFit()
                     .foregroundColor(.primary)
             }
-//            if let url = optimiser.url {
-//                Text(url.isFileURL ? url.filePath.shellString : url.absoluteString)
-//                    .mono(13)
-//                    .lineLimit(1)
-//                    .allowsTightening(true)
-//                    .truncationMode(.middle)
-//                    .scaledToFit()
-//                    .minimumScaleFactor(0.75)
-//                    .roundbg(radius: 5, padding: 3, color: .inverted, shadowSize: 4)
-//                    .frame(maxWidth: THUMB_SIZE.width * 0.75 - 20)
-//            }
         }
         .frame(width: THUMB_SIZE.width * 0.5, height: THUMB_SIZE.height * 0.5)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -656,7 +769,7 @@ struct CompactPreview: View {
 
         let videoOpt = Optimiser(id: "Movies/meeting-recording.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.url = "\(HOME)/Movies/meeting-recording.mov".fileURL
-        videoOpt.operation = "Optimising"
+        videoOpt.operation = "Scaling to 50%"
         videoOpt.thumbnail = NSImage(resource: .sonomaVideo)
         videoOpt.changePlaybackSpeedFactor = 2.0
 
@@ -677,6 +790,7 @@ struct CompactPreview: View {
         let pngIndeterminate = Optimiser(id: "png-indeterminate", type: .image(.png), running: true)
         pngIndeterminate.url = "\(HOME)/Desktop/device_hierarchy.png".fileURL
         pngIndeterminate.thumbnail = NSImage(resource: .deviceHierarchy)
+        pngIndeterminate.operation = "Scaling to 50%"
 
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
@@ -701,7 +815,13 @@ struct CompactPreview: View {
             pdfEnd,
             videoToGIF,
         ]
-        mainActor { o.updateProgress() }
+        mainActor {
+            o.updateProgress()
+            o.visibleCount = o.visibleOptimisers.count
+            o.doneCount = o.visibleOptimisers.filter { !$0.running && $0.error == nil }.count
+            o.failedCount = o.visibleOptimisers.filter { !$0.running && $0.error != nil }.count
+            SM.selectableCount = o.visibleOptimisers.filter { !$0.running && $0.url != nil }.count
+        }
         return o
     }()
 

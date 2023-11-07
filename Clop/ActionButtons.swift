@@ -127,6 +127,22 @@ struct CopyToClipboardButton: View {
     }
 }
 
+let SHARING_MANAGER = SharingManager()
+
+struct ShareButton: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        Button(
+            action: {
+                optimiser.sharing = true
+            },
+            label: { SwiftUI.Image(systemName: "square.and.arrow.up").font(.heavy(9)) }
+        )
+        .background(SharingsPicker(isPresented: $optimiser.sharing, sharingItems: [optimiser.url as Any]))
+    }
+}
+
 struct AggressiveOptimisationButton: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
@@ -161,7 +177,7 @@ struct SideButtons: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
     @State var hoveringDownscaleButton = false
-    @State var hoveringQuickLookButton = false
+    @State var hoveringShareButton = false
     @State var hoveringRestoreOptimiseButton = false
     @State var hoveringAggressiveOptimisationButton = false
 
@@ -176,13 +192,13 @@ struct SideButtons: View {
                     offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
                     "Downscale (⌘-)"
                 )
-            QuickLookButton(optimiser: optimiser)
-                .onHover { hoveringQuickLookButton = $0 }
+            ShareButton(optimiser: optimiser)
+                .onHover { hoveringShareButton = $0 }
                 .helpTag(
-                    isPresented: $hoveringQuickLookButton,
+                    isPresented: $hoveringShareButton,
                     alignment: isTrailing ? .trailing : .leading,
                     offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                    "QuickLook (⌘space)"
+                    "Share"
                 )
             RestoreOptimiseButton(optimiser: optimiser)
                 .onHover { hoveringRestoreOptimiseButton = $0 }
@@ -209,22 +225,11 @@ struct SideButtons: View {
         .onHover { hovering in
             if !hovering {
                 hoveringDownscaleButton = false
-                hoveringQuickLookButton = false
+                hoveringShareButton = false
                 hoveringRestoreOptimiseButton = false
                 hoveringAggressiveOptimisationButton = false
             }
         }
-    }
-}
-
-struct RightClickButton: View {
-    @ObservedObject var optimiser: Optimiser
-
-    var body: some View {
-        Menu(content: { RightClickMenuView(optimiser: optimiser) }, label: {
-            SwiftUI.Image(systemName: "line.3.horizontal").font(.heavy(9))
-        })
-        .menuButtonStyle(BorderlessButtonMenuButtonStyle())
     }
 }
 
@@ -254,7 +259,7 @@ struct ActionButtons: View {
     @State var hoveringShowInFinderButton = false
     @State var hoveringSaveAsButton = false
     @State var hoveringCopyToClipboardButton = false
-    @State var hoveringRightClickButton = false
+    @State var hoveringShareButton = false
 
     var body: some View {
         HStack(spacing: 1) {
@@ -293,9 +298,9 @@ struct ActionButtons: View {
                 .onHover { hoveringCopyToClipboardButton = $0 }
                 .topHelpTag(isPresented: $hoveringCopyToClipboardButton, "Copy to clipboard (⌘C)")
 
-            RightClickButton(optimiser: optimiser)
-                .onHover { hoveringRightClickButton = $0 }
-                .topHelpTag(isPresented: $hoveringRightClickButton, "More actions")
+            ShareButton(optimiser: optimiser)
+                .onHover { hoveringShareButton = $0 }
+                .topHelpTag(isPresented: $hoveringShareButton, "Share")
 
         }
         .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary.opacity(0.9), width: size, height: size, circle: true))
@@ -310,7 +315,7 @@ struct ActionButtons: View {
                 hoveringShowInFinderButton = false
                 hoveringSaveAsButton = false
                 hoveringCopyToClipboardButton = false
-                hoveringRightClickButton = false
+                hoveringShareButton = false
             }
         }
     }

@@ -7,6 +7,7 @@
 
 import Defaults
 import Foundation
+import Lowtech
 import SwiftUI
 
 struct OpenWithMenuView: View {
@@ -119,7 +120,7 @@ struct RightClickMenuView: View {
 
             Divider()
 
-            ShareMenu(optimiser: optimiser)
+//            ShareMenu(optimiser: optimiser)
 
             Button("Upload with Dropshare") {
                 optimiser.uploadWithDropshare()
@@ -133,17 +134,64 @@ struct RightClickMenuView: View {
     }
 }
 
-struct ShareMenu: View {
-    @ObservedObject var optimiser: Optimiser
+struct BatchRightClickMenuView: View {
+    @ObservedObject var sm = SM
 
     var body: some View {
-        Menu("Share") {
-            ForEach(NSSharingService.sharingServices(forItems: [optimiser.url as Any]), id: \.title) { item in
-                Button(action: { item.perform(withItems: [optimiser.url as Any]) }) {
-                    SwiftUI.Image(nsImage: item.image)
-                    Text(item.title)
+        let optimisers = sm.optimisers
+
+        Button("Save all to folder") {
+            sm.save()
+            sm.selection = []
+        }
+
+        Button("Copy to clipboard") {
+            sm.copyToClipboard()
+            sm.selection = []
+        }
+
+        Divider()
+
+        Button("Restore original") {
+            sm.restoreOriginal()
+            sm.selection = []
+        }
+        .disabled(optimisers.allSatisfy(\.isOriginal))
+
+        Button("QuickLook") {
+            sm.quicklook()
+        }
+
+        Divider()
+        Menu("Downscale") {
+            BatchDownscaleMenu(optimisers: optimisers)
+        }
+        .disabled(optimisers.allSatisfy { $0.downscaleFactor <= 0.1 })
+
+        if optimisers.allSatisfy({ $0.canChangePlaybackSpeed() }) {
+            Menu("Change playback speed") {
+                BatchChangePlaybackSpeedMenu(optimisers: optimisers)
+            }
+            .disabled(optimisers.allSatisfy { $0.changePlaybackSpeedFactor >= 10 })
+        }
+
+        Button("Aggressive optimisation") {
+            for optimiser in optimisers {
+                if optimiser.downscaleFactor < 1 {
+                    optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
+                } else {
+                    optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
                 }
             }
+            sm.selection = []
+        }
+        .disabled(optimisers.allSatisfy(\.aggresive))
+
+        Divider()
+
+        Button("Upload with Dropshare") {
+            sm.uploadWithDropshare()
+            sm.selection = []
         }
     }
 }
@@ -303,6 +351,30 @@ struct DownscaleMenu: View {
     }
 }
 
+struct BatchDownscaleMenu: View {
+    var optimisers: [Optimiser]
+
+    var body: some View {
+        let factors = Array(stride(from: 0.9, to: 0.0, by: -0.1))
+        Button("Restore original size (100%)") {
+            for optimiser in optimisers {
+                optimiser.downscale(toFactor: 1)
+            }
+            SM.selection = []
+        }.disabled(optimisers.allSatisfy { $0.downscaleFactor == 1 })
+        Section("Downscale resolution to") {
+            ForEach(factors, id: \.self) { factor in
+                Button("\((factor * 100).intround)%") {
+                    for optimiser in optimisers {
+                        optimiser.downscale(toFactor: factor)
+                    }
+                    SM.selection = []
+                }.disabled(optimisers.allSatisfy { $0.downscaleFactor == factor })
+            }
+        }
+    }
+}
+
 struct ConvertToGIFMenu: View {
     @ObservedObject var optimiser: Optimiser
 
@@ -376,6 +448,43 @@ struct ChangePlaybackSpeedMenu: View {
                 Button("\(String(format: "%.2f", factor))x") {
                     optimiser.changePlaybackSpeed(byFactor: factor)
                 }.disabled(factor == optimiser.changePlaybackSpeedFactor)
+            }
+        }
+    }
+}
+
+struct BatchChangePlaybackSpeedMenu: View {
+    var optimisers: [Optimiser]
+
+    var body: some View {
+        let changePlaybackSpeedFactors = [1.25, 1.5, 1.75] + Array(stride(from: 2.0, to: 10.1, by: 1.0))
+        let slowDownFactors = [0.25, 0.5, 0.75]
+
+        Button("Restore normal playback speed (1x)") {
+            for optimiser in optimisers {
+                optimiser.changePlaybackSpeed(byFactor: 1)
+            }
+            SM.selection = []
+        }.disabled(optimisers.allSatisfy { $0.changePlaybackSpeedFactor == 1 })
+
+        Section("Playback speed up") {
+            ForEach(changePlaybackSpeedFactors, id: \.self) { factor in
+                Button("\(factor < 2 ? String(format: "%.2f", factor) : factor.i.s)x") {
+                    for optimiser in optimisers {
+                        optimiser.changePlaybackSpeed(byFactor: factor)
+                    }
+                    SM.selection = []
+                }.disabled(optimisers.allSatisfy { $0.changePlaybackSpeedFactor == factor })
+            }
+        }
+        Section("Playback slow down") {
+            ForEach(slowDownFactors, id: \.self) { factor in
+                Button("\(String(format: "%.2f", factor))x") {
+                    for optimiser in optimisers {
+                        optimiser.changePlaybackSpeed(byFactor: factor)
+                    }
+                    SM.selection = []
+                }.disabled(optimisers.allSatisfy { $0.changePlaybackSpeedFactor == factor })
             }
         }
     }
