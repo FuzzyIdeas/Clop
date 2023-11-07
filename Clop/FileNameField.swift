@@ -18,7 +18,7 @@ struct FileNameField: View {
                 .truncationMode(.tail)
                 .matchedGeometryEffect(id: "filename", in: namespace)
                 .onTapGesture {
-                    guard OM.selection.isEmpty else { return }
+                    guard !SM.selecting else { return }
                     withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
                     focus()
                 }

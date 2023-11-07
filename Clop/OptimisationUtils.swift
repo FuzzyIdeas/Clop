@@ -177,7 +177,7 @@ var hoveredOptimiserID: String? {
         }
         hoveredOptimiserIDTask = mainAsyncAfter(ms: 200) {
             mainActor {
-                guard hoveredOptimiserID != nil, OM.selection.isEmpty else {
+                guard hoveredOptimiserID != nil, !SM.selecting else {
                     log.debug("Hovered optimiser ID is nil, stopping hover hotkeys")
                     KM.secondaryKeys = []
                     KM.reinitHotkeys()
@@ -199,7 +199,7 @@ var hoveredOptimiserID: String? {
 @MainActor var lastQuicklookModifierFlags: NSEvent.ModifierFlags = []
 @MainActor var possibleShiftQuickLook = true
 @MainActor var hoverKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-    guard OM.selection.isEmpty else { return }
+    guard !SM.selecting else { return }
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastQuicklookModifierFlags = flags
@@ -221,7 +221,7 @@ var hoveredOptimiserID: String? {
     }
 }
 @MainActor var hoverKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
-    guard OM.selection.isEmpty else { return event }
+    guard !SM.selecting else { return event }
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
         lastQuicklookModifierFlags = flags
@@ -416,6 +416,8 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     var source: String?
 
+    @Published var sharing = false
+
     @Published var editing = false {
         didSet {
             guard editing != oldValue else {
@@ -490,6 +492,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             if running, !oldValue {
                 stopRemover()
             }
+            mainActor { OM.updateProgress() }
             if !running, oldValue, OM.compactResults {
                 let removeAfterMs = Defaults[.autoClearAllCompactResultsAfter]
                 guard removeAfterMs > 0 else { return }
@@ -499,7 +502,6 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     OM.removeVisibleOptimisers(after: removeAfterMs * 1000)
                 }
             }
-            mainActor { OM.updateProgress() }
         }
     }
     @Published var url: URL? {
@@ -514,9 +516,9 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             }()
             filename =
                 id == IDs.clipboardImage ? id : (url?.lastPathComponent ?? FilePath(stringLiteral: id).name.string)
-
         }
     }
+
     @Published var operation = "Optimising" { didSet {
         if !progress.isIndeterminate {
             progress.localizedDescription = operation
@@ -952,7 +954,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     }
 
     func remove(after ms: Int, withAnimation: Bool = false) {
-        guard !inRemoval else { return }
+        guard !inRemoval, !SWIFTUI_PREVIEW, !SM.selecting, !SHARING_MANAGER.isShowingPicker, !sharing else { return }
 
         mainActor { [weak self] in
             guard let self else { return }
@@ -962,7 +964,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             self.remover = mainAsyncAfter(ms: ms) { [weak self] in
                 guard let self else { return }
 
-                guard hoveredOptimiserID == nil, !DM.dragging, !editingFilename else {
+                guard hoveredOptimiserID == nil, !DM.dragging, !editingFilename, !SM.selecting, !SHARING_MANAGER.isShowingPicker, !sharing else {
                     if editingFilename, let lastRemoveAfterMs = self.lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
                         self.lastRemoveAfterMs = 1000 * 120
                     }
@@ -1006,7 +1008,6 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var doneCount = 0
     @Published var failedCount = 0
     @Published var visibleCount = 0
-    @Published var selection = Set<String>()
 
     var lastRemoveAfterMs: Int? = nil
 
@@ -1015,6 +1016,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
             if visibleOptimisers.isEmpty {
                 hoveredOptimiserID = nil
             }
+            visibleCount = visibleOptimisers.count
+            doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil }.count
+            failedCount = visibleOptimisers.filter { !$0.running && $0.error != nil }.count
+            SM.selectableCount = visibleOptimisers.filter { !$0.running }.count
         }
     }
 
@@ -1041,6 +1046,9 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     }
     @Published var optimisers: Set<Optimiser> = [] {
         didSet {
+            SHARING_MANAGER.isShowingPicker = false
+            optimisers.forEach { $0.sharing = false }
+
             let removed = oldValue.subtracting(optimisers)
             let added = optimisers.subtracting(oldValue)
             if !removed.isEmpty {
@@ -1057,7 +1065,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         }
     }
     var optimisersWithURLs: [Optimiser] {
-        optimisers.filter { $0.url != nil }
+        SM.selecting ? SM.optimisers.filter { $0.url != nil } : optimisers.filter { $0.url != nil }
     }
 
     var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id == Optimiser.IDs.clipboardImage }) }
@@ -1066,6 +1074,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         visibleCount = visibleOptimisers.count
         doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil }.count
         failedCount = visibleOptimisers.filter { !$0.running && $0.error != nil }.count
+        SM.selectableCount = visibleOptimisers.filter { !$0.running }.count
         let finishedCount = doneCount + failedCount
 
         guard finishedCount < visibleCount else {
@@ -1101,27 +1110,31 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         }
     }
 
-    func uploadWithDropshare() {
-        guard !visibleOptimisers.isEmpty else { return }
+    func uploadWithDropshare(optimisers: [Optimiser]? = nil) {
+        let workingWithSelection = optimisers != nil
+        let optimisers = optimisers ?? visibleOptimisers.arr
+
+        guard !optimisers.isEmpty else { return }
         guard Dropshare.appURL != nil else {
             NSWorkspace.shared.open("https://dropshare.app/".url!)
             return
         }
 
-        let files = visibleOptimisers.compactMap(\.url?.existingFilePath)
+        let files = optimisers.compactMap(\.url?.existingFilePath)
 
         tryAsync {
             try await Dropshare.upload(files)
         }
-        if Defaults[.dismissCompactResultOnUpload] {
+        if Defaults[.dismissCompactResultOnUpload], !workingWithSelection {
             clearVisibleOptimisers()
         }
     }
 
     func removeVisibleOptimisers(after ms: Int) {
+        guard !SWIFTUI_PREVIEW, !SHARING_MANAGER.isShowingPicker, !SM.selecting else { return }
         lastRemoveAfterMs = ms
         remover = mainAsyncAfter(ms: ms) { [self] in
-            guard hoveredOptimiserID == nil, !DM.dragging, !visibleOptimisers.contains(where: \.editingFilename) else {
+            guard hoveredOptimiserID == nil, !DM.dragging, !visibleOptimisers.contains(where: { $0.editingFilename || $0.sharing }), !SHARING_MANAGER.isShowingPicker, !SM.selecting else {
                 self.resetRemover()
                 return
             }
