@@ -88,6 +88,7 @@ struct FloatingResultList: View {
 
 struct FloatingResultContainer: View {
     @ObservedObject var om = OM
+    @ObservedObject var sm = SM
     @ObservedObject var dragManager = DM
     var isPreview = false
     @Default(.floatingResultsCorner) var floatingResultsCorner
@@ -117,7 +118,13 @@ struct FloatingResultContainer: View {
                 let compact = (alwaysShowCompactResults && !isPreview) || optimisers.count > 5 || om.compactResults
 
                 if compact {
-                    CompactResultList(optimisers: optimisers, progress: om.progress, doneCount: om.doneCount, failedCount: om.failedCount, visibleCount: om.visibleCount).preview(isPreview)
+                    CompactResultList(
+                        optimisers: sm.selecting ? optimisers.filter { !$0.running && $0.url != nil } : optimisers,
+                        progress: sm.selecting ? nil : om.progress,
+                        doneCount: om.doneCount,
+                        failedCount: om.failedCount,
+                        visibleCount: om.visibleCount
+                    ).preview(isPreview)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 15)
                         .onAppear {
@@ -554,7 +561,7 @@ struct FloatingResult: View {
                         }
                 }
 
-                if hasThumbnail, hovering {
+                if hasThumbnail, hovering || optimiser.sharing {
                     SideButtons(optimiser: optimiser, size: showsThumbnail ? 24 : 18)
                         .frame(width: 30, alignment: .bottom)
                         .fixedSize()
