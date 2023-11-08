@@ -1,106 +1,136 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
-	<key>NSServices</key>
-	<array>
+		<key>MDItemKeywords</key>
+		<array>
+			<string>screenshot</string>
+			<string>screen recording</string>
+			<string>optimize images</string>
+			<string>optimize screenshots</string>
+			<string>optimize videos</string>
+			<string>optimize clipboard</string>
+			<string>optimize pdf</string>
+			<string>optimise images</string>
+			<string>optimise screenshots</string>
+			<string>optimise videos</string>
+			<string>optimise clipboard</string>
+			<string>optimise pdf</string>
+			<string>compress videos</string>
+			<string>compress images</string>
+			<string>compress pdf</string>
+			<string>resize videos</string>
+			<string>resize images</string>
+			<string>resize pdf</string>
+			<string>crop videos</string>
+			<string>crop images</string>
+			<string>crop pdf</string>
+			<string>upload screenshots</string>
+			<string>reencode videos</string>
+			<string>convert video to gif</string>
+			<string>convert mov to mp4</string>
+			<string>convert webp to png</string>
+			<string>convert heic to jpeg</string>
+		</array>
+		<key>NSAppTransportSecurity</key>
 		<dict>
-			<key>NSKeyEquivalent</key>
-			<dict>
-				<key>default</key>
-				<string>^O</string>
-			</dict>
-			<key>NSMenuItem</key>
-			<dict>
-				<key>default</key>
-				<string>Optimise with Clop</string>
-			</dict>
-			<key>NSMessage</key>
-			<string>optimisationService</string>
-			<key>NSPortName</key>
-			<string>Clop</string>
-			<key>NSRequiredContext</key>
-			<dict/>
-			<key>NSReturnTypes</key>
-			<array/>
-			<key>NSSendFileTypes</key>
-			<array>
-				<string>public.image</string>
-				<string>public.movie</string>
-				<string>public.video</string>
-				<string>public.pdf</string>
-			</array>
-			<key>NSSendTypes</key>
-			<array>
-				<string>public.image</string>
-				<string>public.movie</string>
-				<string>public.video</string>
-				<string>public.pdf</string>
-			</array>
+			<key>NSAllowsArbitraryLoads</key>
+			<true/>
 		</dict>
-		<dict>
-			<key>NSKeyEquivalent</key>
+		<key>NSServices</key>
+		<array>
 			<dict>
-				<key>default</key>
-				<string>^O</string>
-			</dict>
-			<key>NSMenuItem</key>
-			<dict>
-				<key>default</key>
-				<string>Optimise with Clop</string>
-			</dict>
-			<key>NSMessage</key>
-			<string>optimisationService</string>
-			<key>NSPortName</key>
-			<string>Clop</string>
-			<key>NSRequiredContext</key>
-			<dict>
-				<key>NSServiceCategory</key>
-				<string>public.text</string>
-				<key>NSTextContent</key>
+				<key>NSKeyEquivalent</key>
+				<dict>
+					<key>default</key>
+					<string>^O</string>
+				</dict>
+				<key>NSMenuItem</key>
+				<dict>
+					<key>default</key>
+					<string>Optimise with Clop</string>
+				</dict>
+				<key>NSMessage</key>
+				<string>optimisationService</string>
+				<key>NSPortName</key>
+				<string>Clop</string>
+				<key>NSRequiredContext</key>
+				<dict/>
+				<key>NSReturnTypes</key>
+				<array/>
+				<key>NSSendFileTypes</key>
 				<array>
-					<string>URL</string>
-					<string>FilePath</string>
+					<string>public.image</string>
+					<string>public.movie</string>
+					<string>public.video</string>
+					<string>public.pdf</string>
+				</array>
+				<key>NSSendTypes</key>
+				<array>
+					<string>public.image</string>
+					<string>public.movie</string>
+					<string>public.video</string>
+					<string>public.pdf</string>
 				</array>
 			</dict>
-			<key>NSReturnTypes</key>
-			<array/>
-			<key>NSSendFileTypes</key>
-			<array>
-				<string>public.plain-text</string>
-				<string>com.apple.rtf</string>
-				<string>com.apple.rtfd</string>
-				<string>com.apple.flat-rtfd</string>
-				<string>NSStringPboardType</string>
-				<string>NSRTFPboardType</string>
-				<string>NSRTFDPboardType</string>
-			</array>
-			<key>NSSendTypes</key>
-			<array>
-				<string>public.plain-text</string>
-				<string>com.apple.rtf</string>
-				<string>com.apple.rtfd</string>
-				<string>com.apple.flat-rtfd</string>
-				<string>NSStringPboardType</string>
-				<string>NSRTFPboardType</string>
-				<string>NSRTFDPboardType</string>
-			</array>
-		</dict>
-	</array>
-	<key>NSUpdateSecurityPolicy</key>
-	<dict>
-		<key>AllowProcesses</key>
+			<dict>
+				<key>NSKeyEquivalent</key>
+				<dict>
+					<key>default</key>
+					<string>^O</string>
+				</dict>
+				<key>NSMenuItem</key>
+				<dict>
+					<key>default</key>
+					<string>Optimise with Clop</string>
+				</dict>
+				<key>NSMessage</key>
+				<string>optimisationService</string>
+				<key>NSPortName</key>
+				<string>Clop</string>
+				<key>NSRequiredContext</key>
+				<dict>
+					<key>NSServiceCategory</key>
+					<string>public.text</string>
+					<key>NSTextContent</key>
+					<array>
+						<string>URL</string>
+						<string>FilePath</string>
+					</array>
+				</dict>
+				<key>NSReturnTypes</key>
+				<array/>
+				<key>NSSendFileTypes</key>
+				<array>
+					<string>public.plain-text</string>
+					<string>com.apple.rtf</string>
+					<string>com.apple.rtfd</string>
+					<string>com.apple.flat-rtfd</string>
+					<string>NSStringPboardType</string>
+					<string>NSRTFPboardType</string>
+					<string>NSRTFDPboardType</string>
+				</array>
+				<key>NSSendTypes</key>
+				<array>
+					<string>public.plain-text</string>
+					<string>com.apple.rtf</string>
+					<string>com.apple.rtfd</string>
+					<string>com.apple.flat-rtfd</string>
+					<string>NSStringPboardType</string>
+					<string>NSRTFPboardType</string>
+					<string>NSRTFDPboardType</string>
+				</array>
+			</dict>
+		</array>
+		<key>NSUpdateSecurityPolicy</key>
 		<dict>
-			<key>MEHY5QF425</key>
-			<array>
-				<string>com.setapp.DesktopClient.SetappAgent</string>
-			</array>
+			<key>AllowProcesses</key>
+			<dict>
+				<key>MEHY5QF425</key>
+				<array>
+					<string>com.setapp.DesktopClient.SetappAgent</string>
+				</array>
+			</dict>
 		</dict>
 	</dict>
-</dict>
 </plist>

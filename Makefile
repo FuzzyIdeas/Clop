@@ -22,11 +22,13 @@ RELEASE_NOTES_FILES := $(wildcard ReleaseNotes/*.md)
 ENV=Release
 DERIVED_DATA_DIR=$(shell ls -td $$HOME/Library/Developer/Xcode/DerivedData/Clop-* | head -1)
 
+.PHONY: build upload release setversion appcast setapp bin
+
 print-%  : ; @echo $* = $($*)
 
 build: SHELL=fish
 build:
-	make-app --build --devid --dmg -s Clop -c Release --version $(FULL_VERSION)
+	make-app --build --devid --dmg -s Clop -t Clop -c Release --version $(FULL_VERSION)
 	xcp /tmp/apps/Clop-$(FULL_VERSION).dmg Releases/
 
 upload:
@@ -37,6 +39,12 @@ upload:
 
 release:
 	gh release create v$(VERSION) -F ReleaseNotes/$(VERSION).md "Releases/Clop-$(VERSION).dmg#Clop.dmg"
+
+setapp: SHELL=fish
+setapp:
+	make-app --build --devid --notarize -s Setapp -t Clop-setapp -c Release --version $(FULL_VERSION)
+	cp Clop/Assets.xcassets/AppIcon.appiconset/icon_512x512.png /tmp/apps/AppIcon.png
+	cd /tmp/apps && zip --symlinks -r Clop-setapp.zip Clop.app AppIcon.png
 
 sentry:
 	sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/

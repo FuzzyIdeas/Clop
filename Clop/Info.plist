@@ -2,6 +2,36 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<key>MDItemKeywords</key>
+		<array>
+			<string>screenshot</string>
+			<string>screen recording</string>
+			<string>optimize images</string>
+			<string>optimize screenshots</string>
+			<string>optimize videos</string>
+			<string>optimize clipboard</string>
+			<string>optimize pdf</string>
+			<string>optimise images</string>
+			<string>optimise screenshots</string>
+			<string>optimise videos</string>
+			<string>optimise clipboard</string>
+			<string>optimise pdf</string>
+			<string>compress videos</string>
+			<string>compress images</string>
+			<string>compress pdf</string>
+			<string>resize videos</string>
+			<string>resize images</string>
+			<string>resize pdf</string>
+			<string>crop videos</string>
+			<string>crop images</string>
+			<string>crop pdf</string>
+			<string>upload screenshots</string>
+			<string>reencode videos</string>
+			<string>convert video to gif</string>
+			<string>convert mov to mp4</string>
+			<string>convert webp to png</string>
+			<string>convert heic to jpeg</string>
+		</array>
 		<key>NSAppTransportSecurity</key>
 		<dict>
 			<key>NSAllowsArbitraryLoads</key>
