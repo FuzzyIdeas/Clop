@@ -421,9 +421,13 @@ class AppDelegate: AppDelegateParent {
             KM.onPrimaryHotkey = { key in
                 self.handleHotkey(key)
                 #if !DEBUG
-                    if let product {
-                        _ = checkInternalRequirements([product], nil)
-                    }
+                    #if SETAPP
+                        _ = checkInternalRequirements([], nil)
+                    #else
+                        if let product {
+                            _ = checkInternalRequirements([product], nil)
+                        }
+                    #endif
                 #endif
             }
 
@@ -431,9 +435,13 @@ class AppDelegate: AppDelegateParent {
             KM.onSecondaryHotkey = { key in
                 self.handleCommandHotkey(key)
                 #if !DEBUG
-                    if let product {
-                        _ = checkInternalRequirements([product], nil)
-                    }
+                    #if SETAPP
+                        _ = checkInternalRequirements([], nil)
+                    #else
+                        if let product {
+                            _ = checkInternalRequirements([product], nil)
+                        }
+                    #endif
                 #endif
             }
         }
@@ -511,9 +519,13 @@ class AppDelegate: AppDelegateParent {
         initMachPortListener()
 
         #if !DEBUG
-            if let product {
-                _ = checkInternalRequirements([product], nil)
-            }
+            #if SETAPP
+                _ = checkInternalRequirements([], nil)
+            #else
+                if let product {
+                    _ = checkInternalRequirements([product], nil)
+                }
+            #endif
         #endif
         setupServiceProvider()
         startShortcutWatcher()
@@ -618,9 +630,13 @@ class AppDelegate: AppDelegateParent {
         }
 
         #if !DEBUG
-            if let product {
-                _ = checkInternalRequirements([product], nil)
-            }
+            #if SETAPP
+                _ = checkInternalRequirements([], nil)
+            #else
+                if let product {
+                    _ = checkInternalRequirements([product], nil)
+                }
+            #endif
         #endif
     }
 
