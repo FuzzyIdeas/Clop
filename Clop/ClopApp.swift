@@ -929,6 +929,9 @@ struct ClopApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(replacing: .help) {}
+        }
 
         MenuBarExtra(isInserted: $showMenubarIcon, content: {
             MenuView()
