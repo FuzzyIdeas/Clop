@@ -2,6 +2,23 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <item>
+            <title>2.3.0</title>
+            <pubDate>Wed, 08 Nov 2023 13:07:49 +0200</pubDate>
+            <link>https://lowtechguys.com/clop</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>2.3.0</sparkle:version>
+            <sparkle:shortVersionString>2.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.3.0.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.3.0.dmg" length="83923151" type="application/octet-stream" sparkle:edSignature="lvdDAKPN79pL3HGS11vYlCGDovfV5yGHH2NaAS+UdI6hqRWH5qG62sZSydfmGW2SeLNjoHkbPysQI3/V/EzVAA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.3.0-2.2.7.delta" sparkle:deltaFrom="2.2.7" length="1126178" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865120" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="fhpoYWebBhHalqFEHH/q5Uy/yRYREf2O8Xy5LDwfwKekKy85YEZpJP8FjSQLU/XIBxDg+ifdIysRvQDz50kdDQ=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.3.0-2.2.6.delta" sparkle:deltaFrom="2.2.6" length="1169590" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865120" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="vK6a4H81xS+GpAoC87O9TPqCn1sO8fT0j+47Vo9aVdzxaOKghXk/K+bvLPjLCHZDRJrImbRho5/Gsu8tTinvCg=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.3.0-2.2.5.delta" sparkle:deltaFrom="2.2.5" length="1319130" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865120" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="4p5/O9j5LVQJE6QSlFjl9fWte+TooOCaEyHmXLS7vw25OMvLQMdioYIf54zdPKX0EajPwmJ202BQ71o1TkFJAA=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.3.0-2.2.4.delta" sparkle:deltaFrom="2.2.4" length="1582302" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865120" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="6oaygAcJRKJjgejA9LaZ54E3mpxj8C4mgZqPe4grp54UCausIRi2+lbNVkosKNYiqnTAqRCCs/QXaz8B4lY4AA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>2.2.7</title>
             <pubDate>Tue, 31 Oct 2023 10:29:24 +0200</pubDate>
             <link>https://lowtechguys.com/clop</link>
@@ -124,24 +141,6 @@
                 <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.3-2.0.3.delta" sparkle:deltaFrom="2.0.3" length="1015878" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="0DOEMTxnlCqRBmURXxEAUWM2vQuIBGTWKsX4DZbjII2U1bCSpHmA+ZKSmQuYlU1hTd7XLObPgmNMFN1/CJ7aAw=="/>
                 <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.3-2.0.2.delta" sparkle:deltaFrom="2.0.2" length="1119458" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="kN8Ku5A8UFUVIhCUbqLoHlq8V0h1Uw7eTbgEIk4K5vDMngNMQeaZSAJKAugYcMPscxkSIR+Z6EprPcjNf1dlBQ=="/>
                 <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.3-2.0.1.delta" sparkle:deltaFrom="2.0.1" length="1120938" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="UT8ccwAyvKIGZQ3k/lrA4Ixw2C8++cTYCfQ2anesQ7wvPCaTd/uGht1U3fOnRaXf8xHgVDiTBiHBTuBDCRP3BQ=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>2.1.2</title>
-            <pubDate>Tue, 22 Aug 2023 17:52:54 +0300</pubDate>
-            <link>https://lowtechguys.com/clop</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
-            <sparkle:version>2.1.2</sparkle:version>
-            <sparkle:shortVersionString>2.1.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.1.2.html</sparkle:releaseNotesLink>
-            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.1.2.dmg" length="52826655" type="application/octet-stream" sparkle:edSignature="YodnzNBaP02M0UBAu5c0W7n81GyyZUD39XK2q7wdyD6a6io3+StHYDOXf3llT0WAdtTRB8PMTnklSOS8KjyQCg=="/>
-            <sparkle:deltas>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.2-2.1.1.delta" sparkle:deltaFrom="2.1.1" length="250114" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="oQNehq30Xda5ROu5O4AyPR7081jFt586s+FibJ0QsVCJFO3AiIQ3HaMGudznAas5z0i4Job+sTSw37r5cK2hDA=="/>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.2-2.0.3.delta" sparkle:deltaFrom="2.0.3" length="1004490" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="BuJobsyVupoYKLnnTxb8ntH916DtKgIH9Eyx6PlVQpgVfsudNVtm43FMm5CgwcPIFq2jgZLK3eNVffKFBXkqCQ=="/>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.2-2.0.2.delta" sparkle:deltaFrom="2.0.2" length="1114878" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="D961GNTIzyQ1kaMU/fe2G0U/2yJ8kNTOUo2xijX/5jq7DBki2AXsUmbM42edwu9JNDhX7OAnLRA777JrjFo2Ag=="/>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.2-2.0.1.delta" sparkle:deltaFrom="2.0.1" length="1120398" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="G4Fd1e5/iD95WnMuIpR5D5zghQ+pV6oBNBC8NQSPPSik90oLwpfelKScUVFzwdxmDF7V1C2jx5uUODnynI7IBw=="/>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop2.1.2-2.0.0.delta" sparkle:deltaFrom="2.0.0" length="1130122" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865040" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="ryAM/Rl1eKYXC2QJvfSoPofW19gp/vxGsXyJgwi9edxyWl/Yg/YdS9zSiK2gdW005P5BR0DrvkKR1nUQpmpcBA=="/>
             </sparkle:deltas>
         </item>
     </channel>
