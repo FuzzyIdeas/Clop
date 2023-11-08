@@ -44,6 +44,7 @@ setapp: SHELL=fish
 setapp:
 	make-app --build --devid --notarize -s Setapp -t Clop-setapp -c Release --version $(FULL_VERSION)
 	cp Clop/Assets.xcassets/AppIcon.appiconset/icon_512x512.png /tmp/apps/AppIcon.png
+	rm /tmp/apps/Clop-setapp.zip || true
 	cd /tmp/apps && zip --symlinks -r Clop-setapp.zip Clop.app AppIcon.png
 
 sentry:
