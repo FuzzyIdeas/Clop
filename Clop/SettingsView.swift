@@ -688,8 +688,8 @@ struct AboutSettingsView: View {
         @ObservedObject var um: UpdateManager = UM
         @ObservedObject var pm: ProManager = PM
 
-        @Default(.enableSentry) var enableSentry
     #endif
+    @Default(.enableSentry) var enableSentry
 
     var proText: some View {
         #if !SETAPP
@@ -727,9 +727,9 @@ struct AboutSettingsView: View {
                     LicenseView(pro: pro)
                         .frame(width: 340)
                 }
-                Toggle("Send error reports to developer", isOn: $enableSentry)
-                    .frame(width: 340)
             #endif
+            Toggle("Send error reports to developer", isOn: $enableSentry)
+                .frame(width: 340)
             HStack {
                 Link("Source code", destination: "https://github.com/FuzzyIdeas/Clop".url!)
             }
