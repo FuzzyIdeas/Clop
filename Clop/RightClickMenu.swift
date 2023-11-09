@@ -103,6 +103,9 @@ struct RightClickMenuView: View {
             }
 
             if optimiser.type.isVideo {
+                Button("Remove audio") {
+                    optimiser.removeAudio()
+                }.disabled(!optimiser.canRemoveAudio())
                 Menu("Convert to GIF") {
                     ConvertToGIFMenu(optimiser: optimiser)
                 }
