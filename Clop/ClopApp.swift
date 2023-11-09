@@ -13,6 +13,8 @@ import Defaults
 import EonilFSEvents
 import Foundation
 import Lowtech
+import Sentry
+import LowtechSetapp
 import ServiceManagement
 import System
 import UniformTypeIdentifiers
@@ -21,7 +23,6 @@ import UniformTypeIdentifiers
 #else
     import LowtechIndie
     import LowtechPro
-    import Sentry
 #endif
 
 var pauseForNextClipboardEvent = false
@@ -411,10 +412,8 @@ class AppDelegate: AppDelegateParent {
         #endif
 
         if !SWIFTUI_PREVIEW {
-            #if !SETAPP
-                sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
-                configureSentry(restartOnHang: true)
-            #endif
+            LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
+            LowtechSentry.configureSentry(restartOnHang: true, getUser: LowtechSentry.getSentryUser)
 
             KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
