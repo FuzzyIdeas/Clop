@@ -37,6 +37,8 @@
 			<key>NSAllowsArbitraryLoads</key>
 			<true/>
 		</dict>
+		<key>NSPrincipalClass</key>
+		<string>SentryCrashExceptionApplication</string>
 		<key>NSServices</key>
 		<array>
 			<dict>
