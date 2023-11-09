@@ -417,6 +417,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     var source: String?
 
     @Published var sharing = false
+    @Published var isVideoWithAudio = false
 
     @Published var editing = false {
         didSet {
@@ -493,17 +494,22 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 stopRemover()
             }
             mainActor { OM.updateProgress() }
-            if !running, oldValue, OM.compactResults {
-                let removeAfterMs = Defaults[.autoClearAllCompactResultsAfter]
-                guard removeAfterMs > 0 else { return }
+            if !running, oldValue {
+                tryAsync { try await self.checkIfVideoHasAudio() }
 
-                let visibleOptimisers = OM.optimisers.filter { !$0.hidden }
-                if visibleOptimisers.allSatisfy({ !$0.running }) {
-                    OM.removeVisibleOptimisers(after: removeAfterMs * 1000)
+                if OM.compactResults {
+                    let removeAfterMs = Defaults[.autoClearAllCompactResultsAfter]
+                    guard removeAfterMs > 0 else { return }
+
+                    let visibleOptimisers = OM.optimisers.filter { !$0.hidden }
+                    if visibleOptimisers.allSatisfy({ !$0.running }) {
+                        OM.removeVisibleOptimisers(after: removeAfterMs * 1000)
+                    }
                 }
             }
         }
     }
+
     @Published var url: URL? {
         didSet {
             log.debug("URL set to \(url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
@@ -540,6 +546,16 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         lhs.id == rhs.id
     }
 
+    func checkIfVideoHasAudio() async throws {
+        guard type.isVideo, let path = url?.existingFilePath else {
+            isVideoWithAudio = false
+            return
+        }
+
+        let hasAudio = try await videoHasAudio(path: path)
+        await MainActor.run { self.isVideoWithAudio = hasAudio }
+    }
+
     func rename(to newFileName: String) {
         let newFileName = newFileName.safeFilename
         guard !newFileName.isEmpty, let currentPath = url?.existingFilePath, currentPath.stem != newFileName else {
@@ -574,6 +590,39 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     func canChangePlaybackSpeed() -> Bool {
         type.isVideo && !inRemoval
+    }
+
+    func canRemoveAudio() -> Bool {
+        type.isVideo && !inRemoval && isVideoWithAudio
+    }
+
+    func removeAudio() {
+        guard !inRemoval, !SWIFTUI_PREVIEW else { return }
+
+        stopRemover()
+        isOriginal = false
+        error = nil
+        notice = nil
+        operation = "Removing audio"
+        progress.localizedAdditionalDescription = ""
+        progress.completedUnitCount = 0
+        running = true
+
+        guard let path, path.exists else {
+            return
+        }
+        tryAsync { [weak self] in
+            guard let oldBytes = self?.oldBytes, let id = self?.id else { return }
+            guard let video = try await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: id) else {
+                return
+            }
+
+            guard let self else { return }
+            try video.removeAudio(optimiser: self)
+            self.isVideoWithAudio = false
+            self.progress.completedUnitCount = self.progress.totalUnitCount
+            finish(oldBytes: oldBytes, newBytes: path.fileSize() ?? self.newBytes)
+        }
     }
 
     func changePlaybackSpeed(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
@@ -661,7 +710,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             }
             if type.isVideo {
                 let video = if let oldSize {
-                    Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0), fileSize: oldBytes, thumb: false)
+                    Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0, hasAudio: isVideoWithAudio), fileSize: oldBytes, thumb: false)
                 } else {
                     try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id)
                 }
@@ -738,7 +787,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         if type.isVideo, path.exists {
             Task.init {
                 let video = if let oldSize {
-                    Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0), fileSize: oldBytes, thumb: false)
+                    Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0, hasAudio: isVideoWithAudio), fileSize: oldBytes, thumb: false)
                 } else {
                     try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)
                 }
@@ -1309,7 +1358,8 @@ func optimiseURL(
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     source: String? = nil,
-    output: String? = nil
+    output: String? = nil,
+    removeAudio: Bool? = nil
 ) async throws -> ClipboardType? {
     showFloatingThumbnails(force: true)
 
@@ -1360,12 +1410,12 @@ func optimiseURL(
 
             let result: Video? = if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id), let size = video.size {
                 if cropSize < size {
-                    try await downscaleVideo(video, id: optimiser.id, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    try await downscaleVideo(video, id: optimiser.id, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source, removeAudio: removeAudio)
                 } else {
                     throw ClopError.alreadyResized(downloadPath)
                 }
             } else if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
-                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source, removeAudio: removeAudio)
             } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, id: optimiser.id) {
                 try await changePlaybackSpeedVideo(
                     video,
@@ -1374,10 +1424,19 @@ func optimiseURL(
                     byFactor: changePlaybackSpeedFactor,
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: aggressiveOptimisation,
-                    source: source
+                    source: source,
+                    removeAudio: removeAudio
                 )
             } else {
-                try await optimiseVideo(Video(path: downloadPath, id: optimiser.id), id: optimiser.id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await optimiseVideo(
+                    Video(path: downloadPath, id: optimiser.id),
+                    id: optimiser.id,
+                    allowLarger: false,
+                    hideFloatingResult: hideFloatingResult,
+                    aggressiveOptimisation: aggressiveOptimisation,
+                    source: source,
+                    removeAudio: removeAudio
+                )
             }
 
             if let result {
@@ -1638,7 +1697,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     optimisationCount: inout Int,
     copyToClipboard: Bool,
     source: String? = nil,
-    output: String? = nil
+    output: String? = nil,
+    removeAudio: Bool? = nil
 ) async throws -> ClipboardType? {
     func nope(notice: String, thumbnail: NSImage? = nil, url: URL? = nil, type: ItemType? = nil) {
         let optimiser = OM.optimiser(id: id, type: type ?? .unknown, operation: "", hidden: hideFloatingResult)
@@ -1740,7 +1800,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         cropTo: cropSize,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
-                        source: source
+                        source: source,
+                        removeAudio: removeAudio
                     )
                 } else if let scalingFactor, scalingFactor < 1 {
                     return try await downscaleVideo(
@@ -1750,7 +1811,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         toFactor: scalingFactor,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
-                        source: source
+                        source: source,
+                        removeAudio: removeAudio
                     )
                 } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor != 0 {
                     return try await changePlaybackSpeedVideo(
@@ -1760,10 +1822,20 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         byFactor: changePlaybackSpeedFactor,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
-                        source: source
+                        source: source,
+                        removeAudio: removeAudio
                     )
                 } else {
-                    return try await optimiseVideo(video, copyToClipboard: copyToClipboard, id: id, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await optimiseVideo(
+                        video,
+                        copyToClipboard: copyToClipboard,
+                        id: id,
+                        allowLarger: false,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        source: source,
+                        removeAudio: removeAudio
+                    )
                 }
             }
             guard let result else { return nil }
@@ -1793,7 +1865,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
                 source: source,
-                output: output
+                output: output,
+                removeAudio: removeAudio
             )
         }
         return result
@@ -1836,7 +1909,8 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             optimisationCount: &cliOptimisationCount,
                             copyToClipboard: req.copyToClipboard,
                             source: req.source,
-                            output: req.output
+                            output: req.output,
+                            removeAudio: req.removeAudio
                         )
 
                         if let origURL = req.originalUrls[url] {
