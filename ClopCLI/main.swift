@@ -473,6 +473,9 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
 
+        @Flag(name: .long, help: "Removes audio from optimised videos")
+        var removeAudio = false
+
         @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
         var recursive = false
 
@@ -546,7 +549,8 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: normPath(output)
+                    output: normPath(output),
+                    removeAudio: removeAudio
                 )
             }
         }
@@ -564,6 +568,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
+
+        @Flag(name: .long, help: "Removes audio from optimised videos")
+        var removeAudio = false
 
         @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
         var recursive = false
@@ -626,7 +633,8 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: normPath(output)
+                    output: normPath(output),
+                    removeAudio: removeAudio
                 )
             }
         }
@@ -653,6 +661,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
         var skipErrors = false
+
+        @Flag(name: .long, help: "Removes audio from optimised videos")
+        var removeAudio = false
 
         @Option(help: "Speeds up or slow down the video by a certain amount (1 means no change, 2 means twice as fast, 0.5 means 2x slower)")
         var playbackSpeedFactor: Double? = nil
@@ -717,7 +728,8 @@ struct Clop: ParsableCommand {
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
                     source: "cli",
-                    output: normPath(output)
+                    output: normPath(output),
+                    removeAudio: removeAudio
                 )
             }
         }
