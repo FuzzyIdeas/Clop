@@ -248,6 +248,7 @@ struct VideoSettingsView: View {
     @Default(.minVideoFPS) var minVideoFPS
     @Default(.convertedVideoBehaviour) var convertedVideoBehaviour
     @Default(.maxVideoFileCount) var maxVideoFileCount
+    @Default(.removeAudioFromVideos) var removeAudioFromVideos
 
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
@@ -307,6 +308,7 @@ struct VideoSettingsView: View {
                             + Text("\nGenerates smaller files with slightly worse visual quality but takes longer and uses more CPU").round(11, weight: .regular).foregroundColor(.secondary)
                     }
                 #endif
+                Toggle("Remove audio on optimised videos", isOn: $removeAudioFromVideos)
                 Toggle(isOn: $capVideoFPS.animation(.spring())) {
                     HStack {
                         Text("Cap frames per second to").regular(13).padding(.trailing, 10)

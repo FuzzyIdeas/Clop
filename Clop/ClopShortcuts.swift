@@ -49,12 +49,14 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 \.$output
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$removeAudio
             }
         }, otherwise: {
             Summary("Slow down \(\.$item) by \(\.$playbackSpeedFactor)x and optimise") {
                 \.$output
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$removeAudio
             }
         })
     }
@@ -70,6 +72,9 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
 
     @Parameter(title: "Playback speed factor", default: 1.5)
     var playbackSpeedFactor: Double
+
+    @Parameter(title: "Remove audio from video")
+    var removeAudio: Bool
 
     @Parameter(title: "Output path", description: """
     Output file path or template (defaults to overwriting the original file).
@@ -113,7 +118,8 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: false, source: "shortcuts",
-                output: output
+                output: output,
+                removeAudio: removeAudio
             )
         } catch let ClopError.alreadyOptimised(path) {
             guard path.exists else {
@@ -159,6 +165,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 \.$aggressiveOptimisation
                 \.$copyToClipboard
                 \.$longEdge
+                \.$removeAudio
             }
         }, otherwise: {
             Summary("Crop \(\.$item) to \(\.$width)x\(\.$height) and optimise") {
@@ -167,6 +174,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 \.$aggressiveOptimisation
                 \.$copyToClipboard
                 \.$longEdge
+                \.$removeAudio
             }
         })
     }
@@ -182,6 +190,9 @@ struct CropOptimiseFileIntent: AppIntent {
 
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
+
+    @Parameter(title: "Remove audio from video")
+    var removeAudio: Bool
 
     @Parameter(title: "Resize over long edge")
     var longEdge: Bool
@@ -244,7 +255,8 @@ struct CropOptimiseFileIntent: AppIntent {
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
                 source: "shortcuts",
-                output: output
+                output: output,
+                removeAudio: removeAudio
             )
         } catch let ClopError.alreadyOptimised(path) {
             guard path.exists else {
@@ -364,6 +376,7 @@ struct OptimiseFileIntent: AppIntent {
                 \.$aggressiveOptimisation
                 \.$downscaleFactor
                 \.$copyToClipboard
+                \.$removeAudio
             }
         }, otherwise: {
             Summary("Optimise \(\.$item) and \(\.$overwrite) \(\.$output)") {
@@ -371,6 +384,7 @@ struct OptimiseFileIntent: AppIntent {
                 \.$aggressiveOptimisation
                 \.$downscaleFactor
                 \.$copyToClipboard
+                \.$removeAudio
             }
         })
     }
@@ -389,6 +403,9 @@ struct OptimiseFileIntent: AppIntent {
 
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
+
+    @Parameter(title: "Remove audio from video")
+    var removeAudio: Bool
 
     @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 1.0, controlStyle: .field, inclusiveRange: (0.1, 1.0))
     var downscaleFactor: Double
@@ -436,7 +453,8 @@ struct OptimiseFileIntent: AppIntent {
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
                 source: "shortcuts",
-                output: overwrite ? nil : output
+                output: overwrite ? nil : output,
+                removeAudio: removeAudio
             )
         } catch let ClopError.alreadyOptimised(path) {
             guard path.exists else {
@@ -480,6 +498,7 @@ struct OptimiseURLIntent: AppIntent {
             \.$aggressiveOptimisation
             \.$downscaleFactor
             \.$copyToClipboard
+            \.$removeAudio
         }
     }
 
@@ -494,6 +513,9 @@ struct OptimiseURLIntent: AppIntent {
 
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
+
+    @Parameter(title: "Remove audio from video")
+    var removeAudio: Bool
 
     @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 1.0, controlStyle: .field, inclusiveRange: (0.1, 1.0))
     var downscaleFactor: Double
@@ -541,7 +563,8 @@ struct OptimiseURLIntent: AppIntent {
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
                 source: "shortcuts",
-                output: output
+                output: output,
+                removeAudio: removeAudio
             )
         } catch let ClopError.alreadyOptimised(path) {
             guard path.exists else {

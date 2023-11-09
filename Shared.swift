@@ -112,6 +112,7 @@ struct OptimisationRequest: Codable, Identifiable {
     let aggressiveOptimisation: Bool
     let source: String
     var output: String?
+    var removeAudio: Bool?
 }
 
 func isClopRunning() -> Bool {

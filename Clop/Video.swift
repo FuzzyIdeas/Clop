@@ -49,6 +49,7 @@ class Video: Optimisable {
         guard let fps = metadata?.fps, fps > 0 else { return nil }
         return fps
     }
+    var hasAudio: Bool { metadata?.hasAudio ?? false }
 
     static func byFetchingMetadata(path: FilePath, fileSize: Int? = nil, convertedFrom: Video? = nil, thumb: Bool = true, id: String? = nil) async throws -> Video? {
         let metadata = try await getVideoMetadata(path: path)
@@ -168,6 +169,26 @@ class Video: Optimisable {
         return ["crop=\(cropString)", "scale=w=\(s.width.i.s):h=\(s.height.i.s)"]
     }
 
+    func removeAudio(optimiser: Optimiser) throws {
+        let outputPath = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_no_audio.\(path.extension!)").filePath
+        let args = ["-y", "-i", path.string, "-an", "-vcodec", "copy", "-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
+        let url = path.url
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 3, captureOutput: true) { proc in
+            mainActor {
+                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: url, optimiser: optimiser)
+            }
+        }
+        proc.waitUntilExit()
+
+        outputPath.waitForFile(for: 2)
+        outputPath.copyExif(from: path, stripMetadata: Defaults[.stripMetadata])
+        if Defaults[.preserveDates] {
+            outputPath.copyCreationModificationDates(from: path)
+        }
+        try? outputPath.setOptimisationStatusXattr("true")
+        try outputPath.move(to: path, force: true)
+    }
+
     func optimise(
         optimiser: Optimiser,
         forceMP4: Bool = false,
@@ -176,7 +197,8 @@ class Video: Optimisable {
         cropTo cropSize: CropSize? = nil,
         changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
         originalPath: FilePath? = nil,
-        aggressiveOptimisation: Bool? = nil
+        aggressiveOptimisation: Bool? = nil,
+        removeAudio: Bool? = nil
     ) throws -> Video {
         log.debug("Optimising video \(path.string)")
         guard let name = path.lastComponent else {
@@ -218,6 +240,7 @@ class Video: Optimisable {
         }
 
         let duration = duration
+        let audioRemoved = removeAudio ?? Defaults[.removeAudioFromVideos]
         let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationMP4]
         mainActor { optimiser.aggresive = aggressive }
         #if arch(arm64)
@@ -229,6 +252,7 @@ class Video: Optimisable {
         #endif
         let args = ["-y", "-i", inputPath.string]
             + (["mp4", "mov", "hevc"].contains(outputPath.extension?.lowercased()) ? encoderArgs : [])
+            + (audioRemoved ? ["-an"] : [])
             + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         var realDuration: Int64?
@@ -265,7 +289,10 @@ class Video: Optimisable {
         } else {
             newSize ?? size ?? .zero
         }
-        let metadata = VideoMetadata(resolution: resultingSize, fps: newFPS ?? fps ?? 0)
+        let metadata = VideoMetadata(
+            resolution: resultingSize, fps: newFPS ?? fps ?? 0,
+            hasAudio: audioRemoved ? false : hasAudio
+        )
         let convertedFrom = forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil
         var newVideo = Video(path: outputPath, metadata: metadata, convertedFrom: convertedFrom)
 
@@ -294,10 +321,19 @@ struct VideoMetadata {
     let resolution: CGSize
     let fps: Float
     var duration: TimeInterval?
+    let hasAudio: Bool
+}
+
+func videoHasAudio(path: FilePath) async throws -> Bool {
+    let avAsset = AVURLAsset(url: path.url)
+    let tracks = try await avAsset.load(.tracks)
+    return tracks.contains(where: { $0.mediaType == .audio })
 }
 
 func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
-    guard let track = try await AVURLAsset(url: path.url).loadTracks(withMediaType: .video).first else {
+    let avAsset = AVURLAsset(url: path.url)
+    let tracks = try await avAsset.load(.tracks)
+    guard let track = try await avAsset.loadTracks(withMediaType: .video).first else {
         return nil
     }
     var size = try await track.load(.naturalSize)
@@ -306,7 +342,7 @@ func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
     }
     let fps = try await track.load(.nominalFrameRate)
     let duration = try await track.load(.timeRange).duration
-    return VideoMetadata(resolution: CGSize(width: abs(size.width), height: abs(size.height)), fps: fps, duration: duration.seconds)
+    return VideoMetadata(resolution: CGSize(width: abs(size.width), height: abs(size.height)), fps: fps, duration: duration.seconds, hasAudio: tracks.contains(where: { $0.mediaType == .audio }))
 }
 
 let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}).(\d{2})"#, as: (Substring, Substring, Substring, Substring, Substring).self).anchorsMatchLineEndings(true)
@@ -467,7 +503,8 @@ var processTerminated = Set<pid_t>()
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
-    source: String? = nil
+    source: String? = nil,
+    removeAudio: Bool? = nil
 ) async throws -> Video? {
     let path = video.path
     let pathString = path.string
@@ -495,7 +532,12 @@ var processTerminated = Set<pid_t>()
             do {
                 mainActor { OM.current = optimiser }
 
-                optimisedVideo = try video.optimise(optimiser: optimiser, forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie), aggressiveOptimisation: aggressiveOptimisation)
+                optimisedVideo = try video.optimise(
+                    optimiser: optimiser,
+                    forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
+                    aggressiveOptimisation: aggressiveOptimisation,
+                    removeAudio: removeAudio
+                )
                 if optimisedVideo!.convertedFrom == nil, optimisedVideo!.fileSize >= fileSize, !allowLarger {
                     video.path.restore(force: true)
                     mainActor {
@@ -552,7 +594,8 @@ var processTerminated = Set<pid_t>()
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
-    source: String? = nil
+    source: String? = nil,
+    removeAudio: Bool? = nil
 ) async throws -> Video? {
     guard let resolution = video.size else {
         throw ClopError.videoError("Error getting resolution for \(video.path.string)")
@@ -607,7 +650,8 @@ var processTerminated = Set<pid_t>()
                 cropTo: cropSize,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 originalPath: ["cli", "finder", "service", "drop zone"].contains(source) ? video.path : originalPath,
-                aggressiveOptimisation: aggressive
+                aggressiveOptimisation: aggressive,
+                removeAudio: removeAudio
             )
             if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
                 let path = try optimisedVideo!.path.move(to: video.path, force: true)
@@ -662,7 +706,8 @@ var processTerminated = Set<pid_t>()
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
-    source: String? = nil
+    source: String? = nil,
+    removeAudio: Bool? = nil
 ) async throws -> Video? {
     let pathString = video.path.string
     videoOptimiseDebouncers[pathString]?.cancel()
@@ -715,7 +760,8 @@ var processTerminated = Set<pid_t>()
                 resizeTo: resolution,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 originalPath: ["cli", "finder", "service", "drop zone"].contains(source) ? video.path : originalPath,
-                aggressiveOptimisation: aggressive
+                aggressiveOptimisation: aggressive,
+                removeAudio: removeAudio
             )
             if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
                 let path = try optimisedVideo!.path.move(to: video.path, force: true)
