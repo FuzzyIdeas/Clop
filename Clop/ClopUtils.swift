@@ -241,13 +241,13 @@ extension FilePath {
     var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
     var isPDF: Bool { hasExtension(from: ["pdf"]) }
 
-    static var videos = FilePath.dir("/tmp/clop/videos")
-    static var images = FilePath.dir("/tmp/clop/images")
-    static var pdfs = FilePath.dir("/tmp/clop/pdfs")
-    static var conversions = FilePath.dir("/tmp/clop/conversions")
-    static var downloads = FilePath.dir("/tmp/clop/downloads")
-    static var forResize = FilePath.dir("/tmp/clop/for-resize")
-    static var forFilters = FilePath.dir("/tmp/clop/for-filters")
+    static var videos = FilePath.dir("/tmp/clop/videos", permissions: 0o777)
+    static var images = FilePath.dir("/tmp/clop/images", permissions: 0o777)
+    static var pdfs = FilePath.dir("/tmp/clop/pdfs", permissions: 0o777)
+    static var conversions = FilePath.dir("/tmp/clop/conversions", permissions: 0o777)
+    static var downloads = FilePath.dir("/tmp/clop/downloads", permissions: 0o777)
+    static var forResize = FilePath.dir("/tmp/clop/for-resize", permissions: 0o777)
+    static var forFilters = FilePath.dir("/tmp/clop/for-filters", permissions: 0o777)
 
     func setOptimisationStatusXattr(_ value: String) throws {
         try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)
