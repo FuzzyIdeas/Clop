@@ -548,16 +548,20 @@ struct FloatingResult: View {
                         thumbnailView
                             .contentShape(Rectangle())
                             .onHover(perform: updateHover(_:))
-                            .contextMenu {
-                                RightClickMenuView(optimiser: optimiser)
+                            .if(!optimiser.inRemoval) { view in
+                                view.contextMenu {
+                                    RightClickMenuView(optimiser: optimiser)
+                                }
                             }
                     }
                 } else {
                     noThumbnailView
                         .contentShape(Rectangle())
                         .onHover(perform: updateHover(_:))
-                        .contextMenu {
-                            RightClickMenuView(optimiser: optimiser)
+                        .if(!optimiser.inRemoval) { view in
+                            view.contextMenu {
+                                RightClickMenuView(optimiser: optimiser)
+                            }
                         }
                 }
 
