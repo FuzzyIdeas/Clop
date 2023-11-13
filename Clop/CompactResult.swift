@@ -541,7 +541,7 @@ struct CompactResultList: View {
                                 }
                                 .tag(opt.id)
                         }
-                        .if(!sm.selecting) { view in
+                        .if(!sm.selecting && !opt.optimiser.inRemoval) { view in
                             view.contextMenu {
                                 RightClickMenuView(optimiser: opt.optimiser)
                             }
