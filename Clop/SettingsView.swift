@@ -43,6 +43,7 @@ class TextDebounce: ObservableObject {
 struct DirListView: View {
     static var shouldSave = false
 
+    var fileType: ClopFileType
     @StateObject var textDebounce = TextDebounce(for: .seconds(2))
 
     @Binding var dirs: [String]
@@ -55,7 +56,7 @@ struct DirListView: View {
             HStack {
                 Text("Ignore rules").semibold(12).fixedSize()
                 Spacer()
-                Text("\(dir.replacingOccurrences(of: HOME.string, with: "~"))/.clopignore")
+                Text("\(dir.replacingOccurrences(of: HOME.string, with: "~"))/.clopignore-\(fileType.rawValue)")
                     .mono(11)
                     .truncationMode(.middle)
                     .lineLimit(1)
@@ -176,7 +177,7 @@ struct DirListView: View {
                 saveIgnoreRules(text: textDebounce.text, dir: selectedDirs.first)
             }
 
-            textDebounce.debouncedText = (try? String(contentsOfFile: "\(dir)/.clopignore")) ?? ""
+            textDebounce.debouncedText = (try? String(contentsOfFile: "\(dir)/.clopignore-\(fileType.rawValue)")) ?? ""
             textDebounce.text = textDebounce.debouncedText
         }
     }
@@ -184,7 +185,7 @@ struct DirListView: View {
     func saveIgnoreRules(text: String, dir: String? = nil) {
         guard let dir = dir ?? selectedDirs.first else { return }
 
-        let clopIgnore = "\(dir)/.clopignore"
+        let clopIgnore = "\(dir)/.clopignore-\(fileType.rawValue)"
         guard text.isNotEmpty else {
             log.debug("Deleting \(clopIgnore)")
             try? fm.removeItem(atPath: clopIgnore)
@@ -208,7 +209,7 @@ struct PDFSettingsView: View {
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise PDFs as they appear in these folders")) {
-                DirListView(dirs: $pdfDirs)
+                DirListView(fileType: .pdf, dirs: $pdfDirs)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack {
@@ -258,7 +259,7 @@ struct VideoSettingsView: View {
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise videos as they appear in these folders")) {
-                DirListView(dirs: $videoDirs)
+                DirListView(fileType: .video, dirs: $videoDirs)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack {
@@ -405,7 +406,7 @@ struct ImagesSettingsView: View {
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
-                DirListView(dirs: $imageDirs)
+                DirListView(fileType: .image, dirs: $imageDirs)
             }
             Section(header: SectionHeader(title: "File name handling")) {
                 Toggle(isOn: $copyImageFilePath) {
