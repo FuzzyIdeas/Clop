@@ -14,11 +14,11 @@ import EonilFSEvents
 import Foundation
 import Lowtech
 import Sentry
-import LowtechSetapp
 import ServiceManagement
 import System
 import UniformTypeIdentifiers
 #if SETAPP
+    import LowtechSetapp
     import Setapp
 #else
     import LowtechIndie
@@ -395,6 +395,7 @@ class AppDelegate: AppDelegateParent {
 
             syncSettings()
             Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
+            Migrations.run()
         }
 
         #if SETAPP
@@ -605,19 +606,19 @@ class AppDelegate: AppDelegateParent {
     }
 
     @MainActor func initOptimisers() {
-        videoWatcher = FileOptimisationWatcher(pathsKey: .videoDirs, maxFilesToHandleKey: .maxVideoFileCount, shouldHandle: shouldHandleVideo(event:), cancel: cancelImageOptimisation(path:)) { event in
+        videoWatcher = FileOptimisationWatcher(pathsKey: .videoDirs, maxFilesToHandleKey: .maxVideoFileCount, fileType: .video, shouldHandle: shouldHandleVideo(event:), cancel: cancelImageOptimisation(path:)) { event in
             let video = Video(path: FilePath(event.path))
             Task.init {
                 try? await optimiseVideo(video, debounceMS: 200, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
-        imageWatcher = FileOptimisationWatcher(pathsKey: .imageDirs, maxFilesToHandleKey: .maxImageFileCount, shouldHandle: shouldHandleImage(event:), cancel: cancelVideoOptimisation(path:)) { event in
+        imageWatcher = FileOptimisationWatcher(pathsKey: .imageDirs, maxFilesToHandleKey: .maxImageFileCount, fileType: .image, shouldHandle: shouldHandleImage(event:), cancel: cancelVideoOptimisation(path:)) { event in
             guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
                 try? await optimiseImage(img, debounceMS: 200, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
-        pdfWatcher = FileOptimisationWatcher(pathsKey: .pdfDirs, maxFilesToHandleKey: .maxPDFFileCount, shouldHandle: shouldHandlePDF(event:), cancel: cancelPDFOptimisation(path:)) { event in
+        pdfWatcher = FileOptimisationWatcher(pathsKey: .pdfDirs, maxFilesToHandleKey: .maxPDFFileCount, fileType: .pdf, shouldHandle: shouldHandlePDF(event:), cancel: cancelPDFOptimisation(path:)) { event in
             guard let path = event.path.existingFilePath else { return }
             Task.init {
                 try? await optimisePDF(PDF(path), debounceMS: 200, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
@@ -710,13 +711,31 @@ extension NSPasteboardItem {
     }
 }
 
+enum ClopFileType: String, CaseIterable {
+    case image
+    case video
+    case pdf
+
+    var otherCases: [ClopFileType] {
+        ClopFileType.allCases.filter { $0 != self }
+    }
+}
+
 import Ignore
 
 @MainActor
 class FileOptimisationWatcher {
-    init(pathsKey: Defaults.Key<[String]>, maxFilesToHandleKey: Defaults.Key<Int>, shouldHandle: @escaping (EonilFSEventsEvent) -> Bool, cancel: @escaping (FilePath) -> Void, handler: @escaping (EonilFSEventsEvent) -> Void) {
+    init(
+        pathsKey: Defaults.Key<[String]>,
+        maxFilesToHandleKey: Defaults.Key<Int>,
+        fileType: ClopFileType,
+        shouldHandle: @escaping (EonilFSEventsEvent) -> Bool,
+        cancel: @escaping (FilePath) -> Void,
+        handler: @escaping (EonilFSEventsEvent) -> Void
+    ) {
         self.pathsKey = pathsKey
         self.maxFilesToHandleKey = maxFilesToHandleKey
+        self.fileType = fileType
         self.shouldHandle = shouldHandle
         self.cancel = cancel
         self.handler = handler
@@ -752,6 +771,7 @@ class FileOptimisationWatcher {
     }
 
     var watching = false
+    var fileType: ClopFileType
 
     var pathsKey: Defaults.Key<[String]>
     lazy var paths: [String] = Defaults[pathsKey]
@@ -772,6 +792,10 @@ class FileOptimisationWatcher {
         didSet {
             oldValue?.cancel()
         }
+    }
+
+    var clopIgnoreFileName: String {
+        ".clopignore-\(fileType.rawValue)"
     }
 
     func isAddedFile(event: EonilFSEventsEvent) -> Bool {
@@ -827,7 +851,7 @@ class FileOptimisationWatcher {
                     return
                 }
 
-                if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/.clopignore".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
+                if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
                     log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
                     return
                 }
