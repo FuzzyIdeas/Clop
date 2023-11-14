@@ -64,13 +64,23 @@
 				<array/>
 				<key>NSSendFileTypes</key>
 				<array>
-					<string>public.image</string>
+					<string>public.png</string>
+					<string>public.jpeg</string>
+					<string>com.compuserve.gif</string>
+					<string>org.webmproject.webp</string>
+					<string>public.avif</string>
+					<string>public.tiff</string>
 					<string>public.movie</string>
 					<string>public.video</string>
 				</array>
 				<key>NSSendTypes</key>
 				<array>
-					<string>public.image</string>
+					<string>public.png</string>
+					<string>public.jpeg</string>
+					<string>com.compuserve.gif</string>
+					<string>org.webmproject.webp</string>
+					<string>public.avif</string>
+					<string>public.tiff</string>
 					<string>public.movie</string>
 					<string>public.video</string>
 				</array>
