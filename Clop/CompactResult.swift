@@ -3,6 +3,7 @@ import Foundation
 import Lowtech
 import SwiftUI
 import System
+
 #if !SETAPP
     import LowtechPro
 #endif
@@ -88,7 +89,7 @@ struct CompactResult: View {
     @ViewBuilder var sizeDiff: some View {
         if let oldSize = optimiser.oldSize, !sm.selecting {
             ResolutionField(optimiser: optimiser, size: oldSize)
-                .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13)), textColor: .primary, radius: 3, horizontalPadding: 3, verticalPadding: 1))
+                .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.1 : 0.04), textColor: .primary.opacity(0.8), radius: 3, horizontalPadding: 3, verticalPadding: 1))
                 .font(.mono(11, weight: .medium))
                 .foregroundColor(.secondary)
                 .fixedSize()
@@ -215,21 +216,23 @@ struct CompactResult: View {
                     if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                         FileNameField(optimiser: optimiser)
                             .foregroundColor(.primary)
-                            .font(.medium(12)).lineLimit(1).fixedSize()
-                            .frame(width: THUMB_SIZE.width * 0.7, alignment: .leading)
+                            .font(.medium(12)).lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(width: THUMB_SIZE.width * 0.6, alignment: .leading)
                     }
                     HStack {
                         fileSizeDiff
                         Spacer()
                         sizeDiff
                     }
+                    .frame(width: THUMB_SIZE.width * 0.7, alignment: .leading)
                     if !sm.selecting {
                         ActionButtons(optimiser: optimiser, size: 18)
                             .padding(.top, 2)
                             .hfill(.leading)
                             .roundbg(
                                 radius: 10, verticalPadding: 3, horizontalPadding: 2,
-                                color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.05) : (isEven ? 0.04 : 0.13))
+                                color: .primary.opacity(colorScheme == .dark ? 0.1 : 0.04)
                             )
                             .focusable(false)
                             .frame(height: 26)
@@ -240,7 +243,7 @@ struct CompactResult: View {
             Spacer()
             if !sm.selecting {
                 CloseStopButton(optimiser: optimiser)
-                    .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? (isEven ? 0.1 : 0.08) : (isEven ? 0.04 : 0.13)), textColor: Color.mauvish.opacity(0.8), circle: true))
+                    .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.1 : 0.04), textColor: Color.mauvish.opacity(0.8), circle: true))
                     .focusable(false)
             }
         }
@@ -470,6 +473,8 @@ struct CompactResultList: View {
 
     @State var opts: [CompactOptimiser] = []
 
+    @State var hoveringBatchActions = false
+
     @ViewBuilder var topButtons: some View {
         let hasRunningOptimisers = visibleCount > (doneCount + failedCount)
 
@@ -588,6 +593,36 @@ struct CompactResultList: View {
                             .background(VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active).scaleEffect(1.1))
                             .offset(y: 6)
                             .font(.mono(9))
+                    }
+                    if !sm.selection.isEmpty {
+                        VStack(spacing: 4) {
+                            HStack {
+                                Button("Save to folder") {
+                                    sm.save()
+                                    sm.selection = []
+                                }
+                                BatchCropButton()
+                                Menu("Downscale") {
+                                    BatchDownscaleMenu(optimisers: sm.selection.compactMap { opt($0) })
+                                }
+                            }
+                            .font(.round(10))
+                            .buttonStyle(FlatButton(color: .inverted.opacity(0.7), textColor: .primary.opacity(0.7), shadowSize: 1))
+//                            Text("Right click for more actions")
+//                                .round(9).foregroundColor(.inverted)
+//                                .roundbg(radius: 4, color: .primary.opacity(0.9))
+//                                .opacity(hoveringBatchActions ? 1.0 : 0.0)
+//                                .allowsHitTesting(false)
+                        }
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 8)
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.bottom, 2)
+                        .opacity(hoveringBatchActions ? 1.0 : 0.3)
+                        .onHover { hovering in
+                            withAnimation { hoveringBatchActions = hovering }
+                        }
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -711,10 +746,11 @@ struct ToggleCompactResultListButton: View {
                                             .progressViewStyle(.circular)
                                             .controlSize(.regular)
                                             .font(.regular(1))
-                                            .background(Circle().fill(Color.primary.opacity(0.5)))
+                                            .background(.thinMaterial)
+                                            .clipShape(Circle())
                                         Text((progress.totalUnitCount - progress.completedUnitCount).s)
-                                            .round(13)
-                                            .foregroundColor(.inverted)
+                                            .round(13, weight: .semibold)
+                                            .foregroundColor(.primary)
                                     }
                                     .opacity(hovering ? 1 : 0.6)
                                 } else {
@@ -795,7 +831,7 @@ struct CompactPreview: View {
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
         clipEnd.thumbnail = NSImage(resource: .sonomaShot)
-        clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
+        clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: NSSize(width: 1880, height: 1000), newSize: NSSize(width: 1200, height: 600))
 
         let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)
         proErrorOpt.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version")
