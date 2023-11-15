@@ -574,7 +574,7 @@ struct CropSize: Codable, Hashable, Identifiable {
 func < (_ cropSize: CropSize, _ size: NSSize) -> Bool {
     cropSize.longEdge
         ? (cropSize.width == 0 ? cropSize.height : cropSize.width).d < max(size.width, size.height)
-        : cropSize.width.d < size.width && cropSize.height.d < size.height
+        : (cropSize.width.d < size.width && cropSize.height.d <= size.height) || (cropSize.width.d <= size.width && cropSize.height.d < size.height)
 }
 
 extension NSSize {
