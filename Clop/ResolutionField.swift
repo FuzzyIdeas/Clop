@@ -1,3 +1,4 @@
+import Combine
 import Defaults
 import Foundation
 import Lowtech
@@ -15,6 +16,10 @@ struct ResolutionField: View {
 
     @State private var tempWidth = 0
     @State private var tempHeight = 0
+    @State private var isAspectRatio = false
+    @State private var cropOrientation = CropOrientation.adaptive
+    @State private var cropSize: CropSize?
+
     @State var size: NSSize = .zero
     @State var name = ""
 
@@ -54,26 +59,85 @@ struct ResolutionField: View {
                     .focused($focused, equals: .width)
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
+                    .disabled(isAspectRatio)
                 Text("×")
                 TextField("", value: $tempHeight, formatter: NumberFormatter(), prompt: Text("Height"))
                     .textFieldStyle(.roundedBorder)
                     .focused($focused, equals: .height)
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
+                    .disabled(isAspectRatio)
+
+                if isAspectRatio {
+                    Picker("", selection: $cropOrientation) {
+                        Label("Portrait", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
+                        Label("Landscape", systemImage: "rectangle").tag(CropOrientation.landscape)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelStyle(IconOnlyLabelStyle())
+                    .font(.heavy(10))
+                    .onChange(of: cropOrientation) { orientation in
+                        guard let cropSize = cropSize?.withOrientation(orientation) else {
+                            if orientation == .landscape {
+                                let width = max(tempWidth, tempHeight)
+                                let height = min(tempWidth, tempHeight)
+                                tempWidth = width
+                                tempHeight = height
+                            } else if orientation == .portrait {
+                                let width = min(tempWidth, tempHeight)
+                                let height = max(tempWidth, tempHeight)
+                                tempWidth = width
+                                tempHeight = height
+                            }
+                            cropSize = cropSize?.withOrientation(cropOrientation)
+                            return
+                        }
+                        self.cropSize = cropSize
+                        let size = cropSize.computedSize(from: size)
+                        tempWidth = size.width.evenInt
+                        tempHeight = size.height.evenInt
+                    }
+                }
             }
 
             VStack(alignment: .leading) {
-                ForEach(savedCropSizes.filter { $0.width <= size.width.i && $0.height <= size.height.i }.sorted(by: \.area)) { size in
+                ForEach(savedCropSizes.filter { !$0.isAspectRatio && $0.width <= size.width.i && $0.height <= size.height.i }.sorted(by: \.area)) { size in
                     cropSizeButton(size)
                 }
             }
 
             Divider()
+            Grid(alignment: .leading) {
+                GridRow {
+                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[0 ..< 5].map { $0.withOrientation(cropOrientation) }) { size in
+                        aspectRatioButton(size)
+                    }
+                }
+                GridRow {
+                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[5 ..< 10].map { $0.withOrientation(cropOrientation) }) { size in
+                        aspectRatioButton(size)
+                    }
+                }
+                GridRow {
+                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[10 ..< 15].map { $0.withOrientation(cropOrientation) }) { size in
+                        aspectRatioButton(size)
+                    }
+                }
+            }
 
-            Button("Crop and resize to \(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)") {
+            Divider()
+
+            let sizeStr = isAspectRatio ? (cropSize?.name ?? "\(tempWidth):\(tempHeight)") : "\(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)"
+            Button("Crop and resize to \(sizeStr)") {
                 guard !preview, tempWidth > 0 || tempHeight > 0 else { return }
 
-                if tempWidth != 0, tempHeight != 0 {
+                if isAspectRatio {
+                    optimiser.crop(to: CropSize(
+                        width: cropOrientation == .adaptive ? tempWidth : (cropOrientation == .landscape ? max(tempWidth, tempHeight) : min(tempWidth, tempHeight)),
+                        height: cropOrientation == .adaptive ? tempHeight : (cropOrientation == .portrait ? max(tempWidth, tempHeight) : min(tempWidth, tempHeight)),
+                        longEdge: cropOrientation == .adaptive, isAspectRatio: true
+                    ))
+                } else if tempWidth != 0, tempHeight != 0 {
                     optimiser.crop(to: CropSize(width: tempWidth, height: tempHeight))
                 } else {
                     optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
@@ -112,12 +176,14 @@ struct ResolutionField: View {
                 guard let size = optimiser.oldSize else { return }
                 tempWidth = size.width.i
                 tempHeight = size.height.i
+                cropOrientation = size.orientation
                 self.size = size
             }
             .onChange(of: optimiser.oldSize) { size in
                 guard let size else { return }
                 tempWidth = size.width.i
                 tempHeight = size.height.i
+                cropOrientation = size.orientation
                 self.size = size
             }
             .popover(isPresented: $optimiser.editingResolution, arrowEdge: .bottom) {
@@ -145,13 +211,13 @@ struct ResolutionField: View {
                         )
                 }
                 .onChange(of: tempWidth) { width in
-                    if let size = optimiser.oldSize, width > size.width.i {
-                        tempWidth = size.width.i
+                    if let size = optimiser.oldSize, width > size.width.evenInt {
+                        tempWidth = size.width.evenInt
                     }
                 }
                 .onChange(of: tempHeight) { height in
-                    if let size = optimiser.oldSize, height > size.height.i {
-                        tempHeight = size.height.i
+                    if let size = optimiser.oldSize, height > size.height.evenInt {
+                        tempHeight = size.height.evenInt
                     }
                 }
                 .foregroundColor(.primary)
@@ -167,11 +233,24 @@ struct ResolutionField: View {
             }
     }
 
+    @ViewBuilder func aspectRatioButton(_ size: CropSize) -> some View {
+        Button(size.name) {
+            isAspectRatio = true
+            cropSize = size.withOrientation(cropOrientation)
+
+            let newSize = (cropSize ?? size).computedSize(from: self.size)
+            tempWidth = newSize.width.evenInt
+            tempHeight = newSize.height.evenInt
+        }.buttonStyle(.bordered)
+    }
+
     @ViewBuilder func cropSizeButton(_ size: CropSize) -> some View {
         HStack {
             Button(action: {
+                isAspectRatio = false
                 tempWidth = size.width
                 tempHeight = size.height
+                cropSize = size
             }, label: {
                 HStack {
                     Text(size.name)
@@ -214,6 +293,9 @@ struct BatchCropButton: View {
 
     @State private var tempWidth = 0
     @State private var tempHeight = 0
+    @State private var isAspectRatio = false
+    @State private var cropOrientation = CropOrientation.adaptive
+
     @State var name = ""
     @State var cropping = false
 
