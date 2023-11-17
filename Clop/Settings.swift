@@ -120,6 +120,23 @@ let DEFAULT_CROP_SIZES: [CropSize] = [
     CropSize(width: 512, height: 512, name: "Medium Square"),
     CropSize(width: 1024, height: 1024, name: "Large Square"),
 ]
+let DEFAULT_CROP_ASPECT_RATIOS: [CropSize] = [
+    CropSize(width: 16, height: 9, name: "16:9", isAspectRatio: true),
+    CropSize(width: 4, height: 3, name: "4:3", isAspectRatio: true),
+    CropSize(width: 5, height: 3, name: "5:3", isAspectRatio: true),
+    CropSize(width: 5, height: 4, name: "5:4", isAspectRatio: true),
+    CropSize(width: 1618, height: 1000, name: "φ:1", isAspectRatio: true),
+    CropSize(width: 16, height: 10, name: "16:10", isAspectRatio: true),
+    CropSize(width: 3, height: 2, name: "3:2", isAspectRatio: true),
+    CropSize(width: 1, height: 1, name: "1:1", isAspectRatio: true),
+    CropSize(width: 2, height: 1, name: "2:1", isAspectRatio: true),
+    CropSize(width: 210, height: 297, name: "A4", isAspectRatio: true),
+    CropSize(width: 154, height: 100, name: "1.54:1", isAspectRatio: true),
+    CropSize(width: 6, height: 13, name: "6:13", isAspectRatio: true),
+    CropSize(width: 14, height: 9, name: "14:9", isAspectRatio: true),
+    CropSize(width: 32, height: 9, name: "32:9", isAspectRatio: true),
+    CropSize(width: 176, height: 250, name: "B5", isAspectRatio: true),
+]
 
 public enum ConvertedFileBehaviour: String, Defaults.Serializable {
     case temporary

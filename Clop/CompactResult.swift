@@ -288,6 +288,7 @@ struct OverlayMessageView: View {
     var body: some View {
         if optimiser.overlayMessage.isNotEmpty {
             Text(optimiser.overlayMessage)
+                .foregroundColor(color == .black ? .white : .primary)
                 .roundbg(radius: 12, padding: 6, color: color)
                 .fill()
                 .background(
@@ -541,6 +542,7 @@ struct CompactResultList: View {
                                 .if(!sm.selecting) {
                                     $0.overlay(
                                         OverlayMessageView(optimiser: opt.optimiser, color: .inverted)
+                                            .foregroundColor(.primary)
                                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                     )
                                 }
