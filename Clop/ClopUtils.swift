@@ -273,7 +273,7 @@ extension FilePath {
 
         #if DEBUG
             log.debug(args.joined(separator: " "))
-            log.debug("\tout=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
+            log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
         #endif
     }
 
@@ -304,7 +304,7 @@ extension FilePath {
 
         #if DEBUG
             log.debug(args.joined(separator: " "))
-            log.debug("\tout=\(exifProc.o ?? "") err=\(exifProc.e ?? "")")
+            log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
         #endif
     }
 

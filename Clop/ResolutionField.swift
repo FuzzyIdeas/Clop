@@ -34,7 +34,7 @@ struct ResolutionField: View {
             },
             label: {
                 HStack(spacing: 3) {
-                    let hideOldSize = OM.compactResults && optimiser.newBytes > 0 && optimiser.newSize != nil && optimiser.newSize! != size && (optimiser.newSize!.s + size.s).count > 14
+                    let hideOldSize = OM.compactResults && optimiser.newBytes > 0 && optimiser.newSize != nil && optimiser.newSize! != size // && (optimiser.newSize!.s + size.s).count > 14
                     if !hideOldSize {
                         Text(size == .zero ? "Crop" : "\(size.width.i)×\(size.height.i)")
                     }
@@ -51,8 +51,97 @@ struct ResolutionField: View {
         .focusable(false)
     }
 
+    var aspectRatioPicker: some View {
+        Picker("", selection: $cropOrientation) {
+            Label("Portrait", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
+            Label("Landscape", systemImage: "rectangle").tag(CropOrientation.landscape)
+        }
+        .pickerStyle(.segmented)
+        .labelStyle(IconOnlyLabelStyle())
+        .font(.heavy(10))
+        .onChange(of: cropOrientation) { orientation in
+            guard let cropSize = cropSize?.withOrientation(orientation) else {
+                if orientation == .landscape {
+                    let width = max(tempWidth, tempHeight)
+                    let height = min(tempWidth, tempHeight)
+                    tempWidth = width
+                    tempHeight = height
+                } else if orientation == .portrait {
+                    let width = min(tempWidth, tempHeight)
+                    let height = max(tempWidth, tempHeight)
+                    tempWidth = width
+                    tempHeight = height
+                }
+                cropSize = cropSize?.withOrientation(cropOrientation)
+                return
+            }
+            self.cropSize = cropSize
+            let size = cropSize.computedSize(from: size)
+            tempWidth = size.width.evenInt
+            tempHeight = size.height.evenInt
+        }
+    }
+
     var editor: some View {
         VStack {
+            VStack(alignment: .leading) {
+                Text("Size presets")
+                    .heavy(10)
+                    .foregroundColor(.secondary)
+                ForEach(savedCropSizes.filter { !$0.isAspectRatio && $0.width <= size.width.i && $0.height <= size.height.i }.sorted(by: \.area)) { size in
+                    cropSizeButton(size)
+                }
+                cropSizeButton(CropSize(width: size.width, height: size.height, name: "Default size"))
+                if !isAspectRatio {
+                    HStack(spacing: 9) {
+                        TextField("", text: $name, prompt: Text("Name"))
+                            .textFieldStyle(.roundedBorder)
+                            .focused($focused, equals: .name)
+                            .frame(width: 198, alignment: .leading)
+
+                        Button(action: {
+                            guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
+                            else { return }
+
+                            savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
+                        }, label: {
+                            SwiftUI.Image(systemName: "plus")
+                                .font(.heavy(10))
+                                .foregroundColor(.mauvish)
+                        })
+                        .buttonStyle(.bordered)
+                        .fontDesign(.rounded)
+                        .disabled(name.isEmpty || (tempWidth == 0 && tempHeight == 0))
+                    }
+                }
+            }
+
+            Divider()
+            VStack(alignment: .leading) {
+                Text("Aspect ratios")
+                    .heavy(10)
+                    .foregroundColor(.secondary)
+                Grid(alignment: .leading) {
+                    GridRow {
+                        ForEach(DEFAULT_CROP_ASPECT_RATIOS[0 ..< 5].map { $0.withOrientation(cropOrientation) }) { size in
+                            aspectRatioButton(size)
+                        }
+                    }
+                    GridRow {
+                        ForEach(DEFAULT_CROP_ASPECT_RATIOS[5 ..< 10].map { $0.withOrientation(cropOrientation) }) { size in
+                            aspectRatioButton(size)
+                        }
+                    }
+                    GridRow {
+                        ForEach(DEFAULT_CROP_ASPECT_RATIOS[10 ..< 15].map { $0.withOrientation(cropOrientation) }) { size in
+                            aspectRatioButton(size)
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
             HStack {
                 TextField("", value: $tempWidth, formatter: NumberFormatter(), prompt: Text("Width"))
                     .textFieldStyle(.roundedBorder)
@@ -67,65 +156,7 @@ struct ResolutionField: View {
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
                     .disabled(isAspectRatio)
-
-                if isAspectRatio {
-                    Picker("", selection: $cropOrientation) {
-                        Label("Portrait", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
-                        Label("Landscape", systemImage: "rectangle").tag(CropOrientation.landscape)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelStyle(IconOnlyLabelStyle())
-                    .font(.heavy(10))
-                    .onChange(of: cropOrientation) { orientation in
-                        guard let cropSize = cropSize?.withOrientation(orientation) else {
-                            if orientation == .landscape {
-                                let width = max(tempWidth, tempHeight)
-                                let height = min(tempWidth, tempHeight)
-                                tempWidth = width
-                                tempHeight = height
-                            } else if orientation == .portrait {
-                                let width = min(tempWidth, tempHeight)
-                                let height = max(tempWidth, tempHeight)
-                                tempWidth = width
-                                tempHeight = height
-                            }
-                            cropSize = cropSize?.withOrientation(cropOrientation)
-                            return
-                        }
-                        self.cropSize = cropSize
-                        let size = cropSize.computedSize(from: size)
-                        tempWidth = size.width.evenInt
-                        tempHeight = size.height.evenInt
-                    }
-                }
             }
-
-            VStack(alignment: .leading) {
-                ForEach(savedCropSizes.filter { !$0.isAspectRatio && $0.width <= size.width.i && $0.height <= size.height.i }.sorted(by: \.area)) { size in
-                    cropSizeButton(size)
-                }
-            }
-
-            Divider()
-            Grid(alignment: .leading) {
-                GridRow {
-                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[0 ..< 5].map { $0.withOrientation(cropOrientation) }) { size in
-                        aspectRatioButton(size)
-                    }
-                }
-                GridRow {
-                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[5 ..< 10].map { $0.withOrientation(cropOrientation) }) { size in
-                        aspectRatioButton(size)
-                    }
-                }
-                GridRow {
-                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[10 ..< 15].map { $0.withOrientation(cropOrientation) }) { size in
-                        aspectRatioButton(size)
-                    }
-                }
-            }
-
-            Divider()
 
             let sizeStr = isAspectRatio ? (cropSize?.name ?? "\(tempWidth):\(tempHeight)") : "\(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)"
             Button("Crop and resize to \(sizeStr)") {
@@ -148,19 +179,8 @@ struct ResolutionField: View {
             .monospacedDigit()
             .disabled(optimiser.running || (tempWidth == 0 && tempHeight == 0))
 
-            HStack {
-                TextField("", text: $name, prompt: Text("Name"))
-                    .textFieldStyle(.roundedBorder)
-                    .focused($focused, equals: .name)
-                    .frame(width: 100, alignment: .leading)
-                Button("Save") {
-                    guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
-                    else { return }
-
-                    savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
-                }
-                .buttonStyle(.bordered)
-                .fontDesign(.rounded)
+            if isAspectRatio {
+                aspectRatioPicker.frame(width: 100)
             }
         }
         .padding()
@@ -187,40 +207,42 @@ struct ResolutionField: View {
                 self.size = size
             }
             .popover(isPresented: $optimiser.editingResolution, arrowEdge: .bottom) {
-                ZStack(alignment: .topTrailing) {
-                    editor
-                    SwiftUI.Image(systemName: "questionmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                        .padding(5)
-                        .onHover { hovering in
-                            hoveringHelpButton = hovering
-                        }
-                        .helpTag(
-                            isPresented: $hoveringHelpButton,
-                            alignment: .topTrailing,
-                            offset: CGSize(width: -5, height: 45),
-                            """
-                            Width and height need to be smaller
-                            than the original size.
+                PaddedPopoverView(background: Color.bg.warm.any) {
+                    ZStack(alignment: .bottomTrailing) {
+                        editor
+                        SwiftUI.Image(systemName: "questionmark.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                            .padding(5)
+                            .onHover { hovering in
+                                hoveringHelpButton = hovering
+                            }
+                            .helpTag(
+                                isPresented: $hoveringHelpButton,
+                                alignment: .bottomTrailing,
+                                offset: CGSize(width: -5, height: -25),
+                                """
+                                Width and height need to be smaller
+                                than the original size.
 
-                            Set the width or height to 0 to have it
-                            calculated automatically while keeping
-                            the original aspect ratio.
-                            """
-                        )
-                }
-                .onChange(of: tempWidth) { width in
-                    if let size = optimiser.oldSize, width > size.width.evenInt {
-                        tempWidth = size.width.evenInt
+                                Set the width or height to 0 to have it
+                                calculated automatically while keeping
+                                the original aspect ratio.
+                                """
+                            )
                     }
-                }
-                .onChange(of: tempHeight) { height in
-                    if let size = optimiser.oldSize, height > size.height.evenInt {
-                        tempHeight = size.height.evenInt
+                    .onChange(of: tempWidth) { width in
+                        if let size = optimiser.oldSize, width > size.width.evenInt {
+                            tempWidth = size.width.evenInt
+                        }
                     }
+                    .onChange(of: tempHeight) { height in
+                        if let size = optimiser.oldSize, height > size.height.evenInt {
+                            tempHeight = size.height.evenInt
+                        }
+                    }
+                    .foregroundColor(.fg.warm)
                 }
-                .foregroundColor(.primary)
             }
     }
 
@@ -244,8 +266,8 @@ struct ResolutionField: View {
         }.buttonStyle(.bordered)
     }
 
-    @ViewBuilder func cropSizeButton(_ size: CropSize) -> some View {
-        HStack {
+    @ViewBuilder func cropSizeButton(_ size: CropSize, noDelete: Bool = false) -> some View {
+        HStack(spacing: 10) {
             Button(action: {
                 isAspectRatio = false
                 tempWidth = size.width
@@ -261,7 +283,7 @@ struct ResolutionField: View {
                         .monospaced()
                         .allowsTightening(false)
                 }
-                .frame(width: 150)
+                .frame(width: 180)
                 .lineLimit(1)
             })
             .buttonStyle(.bordered)
@@ -275,179 +297,8 @@ struct ResolutionField: View {
                     .foregroundColor(.red)
             })
             .buttonStyle(.bordered)
-
-        }
-    }
-
-}
-
-struct BatchCropButton: View {
-    enum Field: Hashable {
-        case width
-        case height
-        case name
-    }
-
-    @FocusState private var focused: Field?
-    @ObservedObject var sm = SM
-
-    @State private var tempWidth = 0
-    @State private var tempHeight = 0
-    @State private var isAspectRatio = false
-    @State private var cropOrientation = CropOrientation.adaptive
-
-    @State var name = ""
-    @State var cropping = false
-
-    @Default(.savedCropSizes) var savedCropSizes
-
-    @Environment(\.preview) var preview
-
-    @ViewBuilder var viewer: some View {
-        Button("Crop") {
-            withAnimation(.easeOut(duration: 0.1)) { cropping = true }
-        }
-        .focusable(false)
-    }
-
-    var editor: some View {
-        VStack {
-            HStack {
-                TextField("", value: $tempWidth, formatter: NumberFormatter(), prompt: Text("Width"))
-                    .textFieldStyle(.roundedBorder)
-                    .focused($focused, equals: .width)
-                    .frame(width: 60, alignment: .center)
-                    .multilineTextAlignment(.center)
-                Text("×")
-                TextField("", value: $tempHeight, formatter: NumberFormatter(), prompt: Text("Height"))
-                    .textFieldStyle(.roundedBorder)
-                    .focused($focused, equals: .height)
-                    .frame(width: 60, alignment: .center)
-                    .multilineTextAlignment(.center)
-            }
-
-            VStack(alignment: .leading) {
-                ForEach(savedCropSizes.sorted(by: \.area)) { size in
-                    cropSizeButton(size)
-                }
-            }
-
-            Divider()
-
-            Button("Crop and resize to \(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)") {
-                guard !preview, tempWidth > 0 || tempHeight > 0 else { return }
-
-                if tempWidth != 0, tempHeight != 0 {
-                    for id in sm.selection {
-                        opt(id)?.crop(to: CropSize(width: tempWidth, height: tempHeight))
-                    }
-                } else {
-                    for id in sm.selection {
-                        guard let optimiser = opt(id), let size = optimiser.oldSize else { continue }
-                        optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
-                    }
-                }
-                sm.selection = []
-            }
-            .buttonStyle(.bordered)
-            .fontDesign(.rounded)
-            .monospacedDigit()
-            .disabled(tempWidth == 0 && tempHeight == 0)
-
-            HStack {
-                TextField("", text: $name, prompt: Text("Name"))
-                    .textFieldStyle(.roundedBorder)
-                    .focused($focused, equals: .name)
-                    .frame(width: 100, alignment: .leading)
-                Button("Save") {
-                    guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
-                    else { return }
-
-                    savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
-                }
-                .buttonStyle(.bordered)
-                .fontDesign(.rounded)
-            }
-        }
-        .padding()
-        .defaultFocus($focused, .width)
-    }
-
-    @State private var hoveringHelpButton = false
-    @State private var lastFocusState: Field?
-
-    @ViewBuilder var editorViewer: some View {
-        viewer
-            .popover(isPresented: $cropping, arrowEdge: .bottom) {
-                ZStack(alignment: .topTrailing) {
-                    editor
-                    SwiftUI.Image(systemName: "questionmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                        .padding(5)
-                        .onHover { hovering in
-                            hoveringHelpButton = hovering
-                        }
-                        .helpTag(
-                            isPresented: $hoveringHelpButton,
-                            alignment: .topTrailing,
-                            offset: CGSize(width: -5, height: 45),
-                            """
-                            Width and height need to be smaller
-                            than the original size.
-
-                            Set the width or height to 0 to have it
-                            calculated automatically while keeping
-                            the original aspect ratio.
-                            """
-                        )
-                }
-                .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.05 : 0.13), textColor: .primary, radius: 3, horizontalPadding: 3, verticalPadding: 1))
-                .font(.mono(11, weight: .medium))
-                .foregroundColor(.primary)
-            }
-    }
-
-    @Environment(\.colorScheme) var colorScheme
-    var body: some View {
-        editorViewer
-            .onChange(of: sm.selecting) { selecting in
-                if !selecting {
-                    cropping = false
-                }
-            }
-    }
-
-    @ViewBuilder func cropSizeButton(_ size: CropSize) -> some View {
-        HStack {
-            Button(action: {
-                tempWidth = size.width
-                tempHeight = size.height
-            }, label: {
-                HStack {
-                    Text(size.name)
-                        .allowsTightening(false)
-                        .fontDesign(.rounded)
-                    Spacer()
-                    Text(size.id)
-                        .monospaced()
-                        .allowsTightening(false)
-                }
-                .frame(width: 150)
-                .lineLimit(1)
-            })
-            .buttonStyle(.bordered)
-
-            Button(action: {
-                withAnimation(.easeOut(duration: 0.1)) {
-                    savedCropSizes.removeAll(where: { $0.id == size.id })
-                }
-            }, label: {
-                SwiftUI.Image(systemName: "trash")
-                    .foregroundColor(.red)
-            })
-            .buttonStyle(.bordered)
-
+            .disabled(noDelete)
+            .opacity(noDelete ? 0.0 : 1.0)
         }
     }
 
