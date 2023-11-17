@@ -262,7 +262,7 @@ struct ActionButtons: View {
     @State var hoveringShareButton = false
 
     var body: some View {
-        HStack(spacing: 1) {
+        HStack {
             DownscaleButton(optimiser: optimiser)
                 .onHover { hoveringDownscaleButton = $0 }
                 .topHelpTag(isPresented: $hoveringDownscaleButton, "Downscale (⌘-)")
@@ -282,9 +282,7 @@ struct ActionButtons: View {
 
             }
 
-            Spacer()
-            Divider().background(.secondary)
-            Spacer()
+            Divider().background(.secondary).frame(width: 10)
 
             ShowInFinderButton(optimiser: optimiser)
                 .onHover { hoveringShowInFinderButton = $0 }
@@ -303,7 +301,8 @@ struct ActionButtons: View {
                 .topHelpTag(isPresented: $hoveringShareButton, "Share")
 
         }
-        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary.opacity(0.9), width: size, height: size, circle: true))
+        .hfill()
+        .buttonStyle(FlatButton(color: .bg.warm, textColor: .primary.opacity(0.7), width: size, height: size, circle: true, shadowSize: 1))
         .animation(.fastSpring, value: optimiser.aggresive)
         .onHover { hovering in
             self.hovering = hovering
