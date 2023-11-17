@@ -468,8 +468,6 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     @Published var editingFilename = false {
         didSet {
-            log.debug("editingFilename=\(editingFilename)")
-            log.traceCalls()
             mainActor { [weak self] in
                 guard let self else { return }
                 editing = editingFilename || editingResolution

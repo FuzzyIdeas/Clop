@@ -142,8 +142,8 @@ class Video: Optimisable {
             return ["scale=w=\(size.width.i.s):h=\(size.height.i.s)"] // resize to specific size
         }
 
-        let s = cropSize.ns
-        guard s.width > 0, s.height > 0, !cropSize.longEdge else {
+        let s = cropSize.isAspectRatio ? cropSize.computedSize(from: fromSize) : cropSize.ns
+        guard s.width > 0, s.height > 0, !cropSize.longEdge || cropSize.isAspectRatio else {
             // crop by specifying only one size, keeping aspect ratio
             if !cropSize.longEdge {
                 return ["scale=w=\(s.width == 0 ? "-2" : s.width.i.s):h=\(s.height == 0 ? "-2" : s.height.i.s)"]
