@@ -404,8 +404,8 @@ class Image: CustomStringConvertible {
         if let newSize {
             resizeArgs = ["--resize", "\(newSize.width.i)x\(newSize.height.i)"]
         } else if let cropSize, let fromSize {
-            let s = cropSize.ns
-            if s.width > 0, s.height > 0, !cropSize.longEdge {
+            let s = cropSize.isAspectRatio ? cropSize.computedSize(from: fromSize) : cropSize.ns
+            if s.width > 0, s.height > 0, !cropSize.longEdge || cropSize.isAspectRatio {
                 let cropString: String
                 if (fromSize.width / s.width) > (fromSize.height / s.height) {
                     let newAspectRatio = s.width / s.height

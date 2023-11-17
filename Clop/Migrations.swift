@@ -6,6 +6,7 @@ class Migrations {
     static func run() {
         clopIgnoreMigrate()
     }
+
     static func clopIgnoreMigrate() {
         for fileType in ClopFileType.allCases {
             let key = Defaults.Key<[String]?>("\(fileType.rawValue)Dirs")
