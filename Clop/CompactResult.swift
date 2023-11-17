@@ -43,7 +43,6 @@ struct CompactResult: View {
                 .medium(9)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
-                .frame(width: 120, alignment: .trailing)
                 .allowsTightening(true)
                 .truncationMode(.middle)
         }
@@ -68,19 +67,21 @@ struct CompactResult: View {
     @ViewBuilder var progressView: some View {
         VStack(alignment: .leading, spacing: 0) {
             if optimiser.progress.isIndeterminate {
-                HStack(alignment: .bottom) {
+                VStack(alignment: .leading) {
                     Text(optimiser.operation)
-                    Spacer().layoutPriority(-1)
+                    ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
                     nameView.layoutPriority(-1)
                 }
                 progressURLView
-                ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
             } else {
-                ZStack(alignment: .topTrailing) {
+                VStack(alignment: .leading) {
+                    Spacer()
                     ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
-                    if optimiser.progress.localizedDescription.count < 15 {
-                        nameView.offset(y: 2)
-                    }
+                    Spacer()
+                    nameView
+//                    if optimiser.progress.localizedDescription.count < 15 {
+//                        nameView.offset(y: 2)
+//                    }
                 }
                 progressURLView.padding(.top, 5)
             }
@@ -89,9 +90,9 @@ struct CompactResult: View {
     @ViewBuilder var sizeDiff: some View {
         if let oldSize = optimiser.oldSize, !sm.selecting {
             ResolutionField(optimiser: optimiser, size: oldSize)
-                .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.1 : 0.04), textColor: .primary.opacity(0.8), radius: 3, horizontalPadding: 3, verticalPadding: 1))
-                .font(.mono(11, weight: .medium))
-                .foregroundColor(.secondary)
+                .buttonStyle(FlatButton(color: .bg.warm, textColor: .fg.warm.opacity(0.8), radius: 4, horizontalPadding: 3, verticalPadding: 1, shadowSize: 1))
+                .font(.round(10, weight: .medium))
+                .foregroundColor(.fg.warm)
                 .fixedSize()
         }
     }
@@ -225,7 +226,6 @@ struct CompactResult: View {
                         Spacer()
                         sizeDiff
                     }
-                    .frame(width: THUMB_SIZE.width * 0.7, alignment: .leading)
                     if !sm.selecting {
                         ActionButtons(optimiser: optimiser, size: 18)
                             .padding(.top, 2)
@@ -239,15 +239,24 @@ struct CompactResult: View {
                     }
                 }
             }
-
-            Spacer()
-            if !sm.selecting {
-                CloseStopButton(optimiser: optimiser)
-                    .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.1 : 0.04), textColor: Color.mauvish.opacity(0.8), circle: true))
-                    .focusable(false)
-            }
         }
         .padding(.top, 3)
+        .frame(height: 70)
+        .hfill(.leading)
+        .if(!sm.selecting) { view in
+            view
+                .overlay(alignment: .topTrailing) {
+                    CompactCloseStopButton(optimiser: optimiser)
+                        .buttonStyle(FlatButton(color: .bg.warm, textColor: Color.mauvish.opacity(0.8)))
+                        .focusable(false)
+                        .shadow(color: Color.shadow.opacity(colorScheme == .dark ? 0.5 : 0.1), radius: colorScheme == .dark ? 4 : 2, x: 0, y: 1)
+                        .offset(x: 4, y: 0)
+                        .opacity(hovering ? (hoveringCloseStopButton ? 1 : 0.4) : 0)
+                        .onHover(perform: { hovering in
+                            hoveringCloseStopButton = hovering
+                        })
+                }
+        }
         .onHover(perform: updateHover(_:))
         .ifLet(optimiser.url, transform: { view, url in
             view
@@ -277,6 +286,32 @@ struct CompactResult: View {
         }
     }
 
+    @State private var hoveringCloseStopButton = false
+
+}
+
+struct CompactCloseStopButton: View {
+    @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        Button(
+            action: {
+                guard !preview else { return }
+
+                hoveredOptimiserID = nil
+                optimiser.stop(remove: !OM.compactResults || !optimiser.running, animateRemoval: true)
+                optimiser.uiStop()
+            },
+            label: {
+                HStack(spacing: 2) {
+                    SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(8))
+                    Text(optimiser.running ? "Stop" : "Close").font(.medium(9))
+                }
+            }
+        )
+
+    }
 }
 
 struct OverlayMessageView: View {
@@ -430,7 +465,7 @@ struct CompactActionButtons: View {
                     .roundbg(radius: 7, padding: 2, color: .inverted.opacity(0.3))
             }
         }
-        .buttonStyle(FlatButton(color: .inverted.opacity(0.5), textColor: .primary.opacity(0.7), width: 22, height: 22, horizontalPadding: 6, verticalPadding: 2))
+        .buttonStyle(FlatButton(color: Color.bg.warm, textColor: .primary.opacity(0.7), width: 22, height: 22, horizontalPadding: 6, verticalPadding: 2))
         .lineLimit(1)
         .font(.bold(11))
         .allowsTightening(false)
@@ -539,6 +574,7 @@ struct CompactResultList: View {
                                 .roundbg(color: .primary.opacity(0.05))
                             }
                             CompactResult(optimiser: opt.optimiser, isEven: opt.isEven)
+//                                .roundbg(radius: 8, padding: 4, color: .fg.warm.opacity(0.1))
                                 .if(!sm.selecting) {
                                     $0.overlay(
                                         OverlayMessageView(optimiser: opt.optimiser, color: .inverted)
@@ -558,7 +594,9 @@ struct CompactResultList: View {
                                 .draggable(opt.optimiser.url ?? URL(fileURLWithPath: "/tmp")) { DragPreview(optimiser: opt.optimiser) }
                         }
                     }
-                    .listStyle(.inset(alternatesRowBackgrounds: true))
+                    .listStyle(.bordered(alternatesRowBackgrounds: true))
+//                    .listStyle(.bordered)
+                    .listItemTint(.monochrome)
                     .padding(.bottom, progress == nil ? 0 : 18)
                     .frame(width: size.width, height: size.height, alignment: .center)
                     .fixedSize()
@@ -610,6 +648,7 @@ struct CompactResultList: View {
                             }
                             .font(.round(10))
                             .buttonStyle(FlatButton(color: .inverted.opacity(0.7), textColor: .primary.opacity(0.7), shadowSize: 1))
+                            .opacity(hoveringBatchActions ? 1.0 : 0.3)
 //                            Text("Right click for more actions")
 //                                .round(9).foregroundColor(.inverted)
 //                                .roundbg(radius: 4, color: .primary.opacity(0.9))
@@ -621,13 +660,16 @@ struct CompactResultList: View {
                         .background(.thinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .padding(.bottom, 2)
-                        .opacity(hoveringBatchActions ? 1.0 : 0.3)
                         .onHover { hovering in
                             withAnimation { hoveringBatchActions = hovering }
                         }
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.bg.warm.opacity(0.5), lineWidth: 2)
+                )
                 .shadow(radius: preview ? 0 : 10)
                 .opacity(showList ? 1 : 0)
                 .allowsHitTesting(showList)

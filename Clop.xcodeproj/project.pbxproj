@@ -89,6 +89,7 @@
 		C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C7956A4A2AC209F200C0EDF2 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = C7956A492AC209F200C0EDF2 /* ArgumentParser */; };
 		C7956A4C2AC317D200C0EDF2 /* ClopCLI in Copy Files (1 item) */ = {isa = PBXBuildFile; fileRef = C7956A3F2AC208DD00C0EDF2 /* ClopCLI */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		C7976AC82B07B87D00C4246A /* BatchCropButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7976AC72B07B87D00C4246A /* BatchCropButton.swift */; };
 		C7A7DD672A739C7400DA12DF /* ClopShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */; };
 		C7AB38CB2AC5B10300F299CE /* RightClickMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */; };
 		C7AB38CD2AC5E00C00F299CE /* CherryPicks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */; };
@@ -246,6 +247,7 @@
 		C7956A3F2AC208DD00C0EDF2 /* ClopCLI */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ClopCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7956A412AC208DD00C0EDF2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClopCLI.entitlements; sourceTree = "<group>"; };
+		C7976AC72B07B87D00C4246A /* BatchCropButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchCropButton.swift; sourceTree = "<group>"; };
 		C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopShortcuts.swift; sourceTree = "<group>"; };
 		C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightClickMenu.swift; sourceTree = "<group>"; };
 		C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CherryPicks.swift; sourceTree = "<group>"; };
@@ -391,6 +393,7 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C7976AC72B07B87D00C4246A /* BatchCropButton.swift */,
 				C735DA012B021D6E001DCAA8 /* Migrations.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
 				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
@@ -797,6 +800,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7976AC82B07B87D00C4246A /* BatchCropButton.swift in Sources */,
 				C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */,
 				C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */,
 				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,

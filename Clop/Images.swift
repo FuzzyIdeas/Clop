@@ -535,8 +535,10 @@ class Image: CustomStringConvertible {
             if Defaults[.convertedImageBehaviour] != .temporary {
                 justTry {
                     try pngOutFile.setOptimisationStatusXattr("true")
-                    let newPath = try pngOutFile.copy(to: path.dir)
-                    tempFile = newPath
+                    tempFile = try pngOutFile.copy(to: path.dir)
+                    if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, tempFile.withExtension(ext).exists {
+                        try? tempFile.withExtension(ext).delete()
+                    }
                 }
             }
         }
@@ -641,6 +643,9 @@ class Image: CustomStringConvertible {
                     try jpegOutFile.setOptimisationStatusXattr("true")
                     if jpegOutFile != path.dir.appending(jpegOutFile.name) {
                         tempFile = try jpegOutFile.copy(to: path.dir)
+                        if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, tempFile.withExtension(ext).exists {
+                            try? tempFile.withExtension(ext).delete()
+                        }
                     }
                 }
             }
@@ -698,7 +703,7 @@ class Image: CustomStringConvertible {
         guard let pbImage = Image(path: pathForResize, optimised: false, retinaDownscaled: retinaDownscaled) else {
             throw ClopError.downscaleFailed(pathForResize)
         }
-        return try pbImage.optimise(optimiser: optimiser, allowLarger: false, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+        return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
     }
 
     func optimise(optimiser: Optimiser, allowLarger: Bool = false, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
@@ -1076,12 +1081,12 @@ extension FilePath {
         }
         do {
             if let cropSize, cropSize.width > 0, cropSize.height > 0 {
-                resized = try img.resize(toSize: cropSize, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
+                resized = try img.resize(toSize: cropSize, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: false)
             } else {
                 if let s = cropSize?.ns {
                     scalingFactor = s.width == 0 ? s.height / img.size.height : s.width / img.size.width
                 }
-                resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: Defaults[.adaptiveImageSize])
+                resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: false)
             }
 
             var newURL = resized!.path.url
@@ -1097,6 +1102,7 @@ extension FilePath {
                 mainActor { optimiser.finish(error: "Downscaling failed") }
             }
         } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
+            log.warning("Image size larger than original: \(img.path.string)")
             resized = img
         } catch let error as ClopError {
             log.error("Error downscaling image \(img.path.string): \(error.description)")
