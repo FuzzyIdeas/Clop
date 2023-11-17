@@ -586,14 +586,18 @@ struct CropSize: Codable, Hashable, Identifiable {
     var cg: CGSize { CGSize(width: width, height: height) }
     var aspectRatio: Double { width.d / height.d }
 
+    func withLongEdge(_ longEdge: Bool) -> CropSize {
+        CropSize(width: width, height: height, name: name, longEdge: longEdge, isAspectRatio: isAspectRatio)
+    }
+
     func withOrientation(_ orientation: CropOrientation) -> CropSize {
         switch orientation {
         case .landscape:
-            width >= height ? self : flipped
+            (width >= height ? self : flipped).withLongEdge(false)
         case .portrait:
-            width >= height ? flipped : self
+            (width >= height ? flipped : self).withLongEdge(false)
         case .adaptive:
-            self
+            withLongEdge(true)
         }
     }
 
