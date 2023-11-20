@@ -435,6 +435,10 @@ let PAPER_SIZES_BY_CATEGORY = [
 let PAPER_SIZES: [String: NSSize] = PAPER_SIZES_BY_CATEGORY.reduce(into: [:]) { result, category in
     category.value.forEach { result[$0.key] = $0.value }
 }
+let PAPER_CROP_SIZES: [String: [String: CropSize]] = PAPER_SIZES_BY_CATEGORY.reduce(into: [:]) { result, category in
+    let paperCropSizes = category.value.map { k, v in (k, CropSize(width: v.width.intround, height: v.height.intround, name: k, isAspectRatio: true)) }
+    result[category.key] = [String: CropSize](uniqueKeysWithValues: paperCropSizes)
+}
 
 let DEVICE_SIZES = [
     "iPhone 15 Pro Max": NSSize(width: 1290, height: 2796),
@@ -517,6 +521,15 @@ let DEVICE_SIZES = [
     "iPhone 4": NSSize(width: 640, height: 960),
 ]
 
+// grouped by device type (iPad, iPhone etc.)
+let DEVICE_CROP_SIZES: [String: [String: CropSize]] = DEVICE_SIZES.reduce(into: [:]) { result, device in
+    let deviceType = String(device.key.split(separator: " ").first!)
+    if result[deviceType] == nil {
+        result[deviceType] = [:]
+    }
+    result[deviceType]![device.key] = CropSize(width: device.value.width.intround, height: device.value.height.intround, name: device.key, isAspectRatio: true)
+}
+
 enum CropOrientation: String, CaseIterable, Codable {
     case landscape
     case portrait
@@ -590,14 +603,18 @@ struct CropSize: Codable, Hashable, Identifiable {
         CropSize(width: width, height: height, name: name, longEdge: longEdge, isAspectRatio: isAspectRatio)
     }
 
-    func withOrientation(_ orientation: CropOrientation) -> CropSize {
+    func withOrientation(_ orientation: CropOrientation, for size: NSSize? = nil) -> CropSize {
         switch orientation {
         case .landscape:
             (width >= height ? self : flipped).withLongEdge(false)
         case .portrait:
             (width >= height ? flipped : self).withLongEdge(false)
         case .adaptive:
-            withLongEdge(true)
+            if let size {
+                (size.orientation == self.orientation ? self : flipped).withLongEdge(true)
+            } else {
+                withLongEdge(true)
+            }
         }
     }
 

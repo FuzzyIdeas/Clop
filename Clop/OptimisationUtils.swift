@@ -19,6 +19,21 @@ enum ItemType: Equatable {
     case url
     case unknown
 
+    var str: String {
+        switch self {
+        case .image:
+            "image"
+        case .video:
+            "video"
+        case .pdf:
+            "PDF"
+        case .url:
+            "file"
+        case .unknown:
+            "file"
+        }
+    }
+
     var icon: String {
         switch self {
         case .image:
@@ -419,6 +434,21 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
     @Published var sharing = false
     @Published var isVideoWithAudio = false
 
+    lazy var image: Image? = {
+        guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
+        return Image(path: path, type: imageType, retinaDownscaled: false)
+    }()
+
+    lazy var video: Video? = {
+        guard type.isVideo, let path = url?.existingFilePath else { return nil }
+        return Video(path: path, id: id)
+    }()
+
+    lazy var pdf: PDF? = {
+        guard type.isPDF, let path = url?.existingFilePath else { return nil }
+        return PDF(path, id: id)
+    }()
+
     @Published var editing = false {
         didSet {
             guard editing != oldValue else {
@@ -449,21 +479,6 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 editing = editingFilename || editingResolution
             }
         }
-    }
-
-    var image: Image? {
-        guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
-        return Image(path: path, type: imageType, retinaDownscaled: false)
-    }
-
-    var video: Video? {
-        guard type.isVideo, let path = url?.existingFilePath else { return nil }
-        return Video(path: path, id: id)
-    }
-
-    var pdf: PDF? {
-        guard type.isPDF, let path = url?.existingFilePath else { return nil }
-        return PDF(path, id: id)
     }
 
     @Published var editingFilename = false {
@@ -522,6 +537,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
             }()
             filename =
                 id == IDs.clipboardImage ? id : (url?.lastPathComponent ?? FilePath(stringLiteral: id).name.string)
+            refetch()
         }
     }
 
@@ -544,6 +560,30 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {
         lhs.id == rhs.id
+    }
+
+    func refetch() {
+        if image != nil {
+            image = {
+                guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
+                return Image(path: path, type: imageType, retinaDownscaled: false)
+            }()
+            return
+        }
+        if video != nil {
+            video = {
+                guard type.isVideo, let path = url?.existingFilePath else { return nil }
+                return Video(path: path, id: id)
+            }()
+            return
+        }
+        if pdf != nil {
+            pdf = {
+                guard type.isPDF, let path = url?.existingFilePath else { return nil }
+                return PDF(path, id: id)
+            }()
+            return
+        }
     }
 
     func checkIfVideoHasAudio() async throws {
@@ -1758,7 +1798,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     case let .file(path):
         if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
             guard aggressiveOptimisation == true || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
-                nope(notice: "Already optimised", thumbnail: img.image, url: path.url, type: .image(img.type))
+                let optimiser = OM.optimiser(id: id, type: .image(img.type), operation: "", hidden: hideFloatingResult, source: source)
+                optimiser.url = path.url
+                optimiser.image = img
+                let fileSize = path.fileSize() ?? 0
+                optimiser.finish(oldBytes: fileSize, newBytes: fileSize, oldSize: img.size)
                 throw ClopError.alreadyOptimised(path)
             }
             let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
@@ -1784,7 +1828,16 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             return .image(result)
         } else if path.isVideo {
             guard aggressiveOptimisation == true || changePlaybackSpeedFactor != nil || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
-                nope(notice: "Already optimised", url: path.url, type: .video(.mpeg4Movie))
+                let optimiser = OM.optimiser(id: id, type: .video(path.url.utType() ?? .mpeg4Movie), operation: "", hidden: hideFloatingResult, source: source)
+                optimiser.url = path.url
+
+                if let video = try await Video.byFetchingMetadata(path: path) {
+                    optimiser.video = video
+                    optimiser.finish(oldBytes: video.fileSize, newBytes: video.fileSize, oldSize: video.size)
+                } else {
+                    let fileSize = path.fileSize() ?? 0
+                    optimiser.finish(oldBytes: fileSize, newBytes: fileSize, oldSize: nil)
+                }
                 throw ClopError.alreadyOptimised(path)
             }
             let result: Video? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
@@ -1841,7 +1894,12 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
             return .file(result.path)
         } else if path.isPDF {
             guard aggressiveOptimisation == true || cropSize != nil || !path.hasOptimisationStatusXattr() else {
-                nope(notice: "Already optimised", url: path.url, type: .pdf)
+                let optimiser = OM.optimiser(id: id, type: .pdf, operation: "", hidden: hideFloatingResult, source: source)
+                optimiser.url = path.url
+                let pdf = PDF(path)
+                optimiser.pdf = pdf
+                optimiser.finish(oldBytes: pdf.fileSize, newBytes: pdf.fileSize, oldSize: pdf.size)
+
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {

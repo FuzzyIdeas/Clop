@@ -69,21 +69,21 @@ struct CompactResult: View {
             if optimiser.progress.isIndeterminate {
                 VStack(alignment: .leading) {
                     Text(optimiser.operation)
-                    ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
-                    nameView.layoutPriority(-1)
+                    ProgressView(optimiser.progress)
+                        .progressViewStyle(.linear)
+                        .allowsTightening(false)
+                    nameView
                 }
-                progressURLView
+                progressURLView.padding(.vertical, 4)
             } else {
                 VStack(alignment: .leading) {
                     Spacer()
                     ProgressView(optimiser.progress).progressViewStyle(.linear).allowsTightening(false)
                     Spacer()
                     nameView
-//                    if optimiser.progress.localizedDescription.count < 15 {
-//                        nameView.offset(y: 2)
-//                    }
                 }
-                progressURLView.padding(.top, 5)
+                progressURLView
+                    .padding(.vertical, 4)
             }
         }
     }
@@ -486,6 +486,40 @@ struct CompactActionButtons: View {
     }
 }
 
+struct DragHandle: View {
+    @State var hovering = false
+    @State var hoveringDots = false
+
+    var body: some View {
+        VStack(spacing: -1) {
+            Group {
+                SwiftUI.Image(systemName: "square.grid.4x3.fill")
+                    .scaledToFill()
+                SwiftUI.Image(systemName: "square.grid.4x3.fill")
+                    .scaledToFill()
+            }
+            .onHover { h in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    hoveringDots = h
+                }
+            }
+        }
+        .vfill()
+        .frame(width: 20)
+        .foregroundColor(hoveringDots ? .red.opacity(0.5) : .secondary.opacity(0.5))
+        .roundbg(color: .primary.opacity(hovering ? 0.1 : 0.05))
+        .scaleEffect(hovering ? 1.05 : 1)
+        .onHover { h in
+            withAnimation(.easeOut(duration: 0.15)) {
+                hovering = h
+                if !h {
+                    hoveringDots = false
+                }
+            }
+        }
+    }
+}
+
 struct CompactResultList: View {
     @State var hovering = false
     @State var showList = false
@@ -562,16 +596,7 @@ struct CompactResultList: View {
                     List(opts, selection: $sm.selection) { opt in
                         HStack {
                             if sm.selecting {
-                                VStack(spacing: -1) {
-                                    SwiftUI.Image(systemName: "square.grid.4x3.fill")
-                                        .scaledToFill()
-                                    SwiftUI.Image(systemName: "square.grid.4x3.fill")
-                                        .scaledToFill()
-                                }
-                                .vfill()
-                                .frame(width: 20)
-                                .foregroundColor(.secondary.opacity(0.5))
-                                .roundbg(color: .primary.opacity(0.05))
+                                DragHandle()
                             }
                             CompactResult(optimiser: opt.optimiser, isEven: opt.isEven)
 //                                .roundbg(radius: 8, padding: 4, color: .fg.warm.opacity(0.1))
@@ -665,10 +690,10 @@ struct CompactResultList: View {
                         }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.bg.warm.opacity(0.5), lineWidth: 2)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.bg.warm, lineWidth: 2)
                 )
                 .shadow(radius: preview ? 0 : 10)
                 .opacity(showList ? 1 : 0)
