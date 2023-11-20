@@ -122,15 +122,99 @@ struct DropZoneView: View {
         .padding()
         .fixedSize()
         .if(enableDragAndDrop) {
-            $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], isTargeted: $dragManager.dragHovering.animation(.jumpySpring)) { itemProviders in
-                dragManager.dropped = true
-                if dragManager.optimisationCount == 5 {
-                    dragManager.optimisationCount += 1
-                }
-                return optimiseDroppedItems(itemProviders, copy: NSEvent.modifierFlags.contains(.option))
-            }
+            $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], delegate: self)
+                .background(DragPileView().fill(.center))
         }
     }
+}
+
+extension DropZoneView: DropDelegate {
+    func dropEntered(info: DropInfo) {
+        withAnimation(.jumpySpring) {
+            dragManager.dragHovering = true
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: NSEvent.modifierFlags.contains(.option) ? .copy : .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        true
+    }
+
+    func dropExited(info: DropInfo) {
+        withAnimation(.jumpySpring) {
+            dragManager.dragHovering = false
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragManager.dragHovering = false
+        dragManager.dropped = true
+        if dragManager.optimisationCount == 5 {
+            dragManager.optimisationCount += 1
+        }
+        return optimiseDroppedItems(info.itemProviders(for: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf]), copy: NSEvent.modifierFlags.contains(.option))
+    }
+}
+
+class NSDragPile: NSView {
+    var dragView: NSView? {
+        superview?.superview?.subviews.first(where: { $0.className.contains("DraggingDestinationView") })
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard identifier == nil, let dragView,
+              let cls = object_getClass(dragView),
+              let dragEnt = class_getInstanceMethod(cls, #selector(NSDraggingDestination.draggingEntered(_:)))
+        else { return }
+
+        let dragEnt2 = class_getInstanceMethod(object_getClass(self), #selector(NSDraggingDestination.draggingEntered(_:)))!
+        method_exchangeImplementations(dragEnt, dragEnt2)
+        identifier = .init("dragPile")
+    }
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        sender.draggingFormation = .pile
+        return sender.draggingSourceOperationMask.intersection([.copy, .move])
+    }
+//    override func draggingEnded(_ sender: NSDraggingInfo) {
+//        dragView?.draggingEnded(sender)
+//    }
+//    override func draggingExited(_ sender: NSDraggingInfo?) {
+//        dragView?.draggingExited(sender)
+//    }
+//    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+//        dragView?.draggingUpdated(sender) ?? sender.draggingSourceOperationMask.intersection([.copy, .move])
+//    }
+//    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+//        dragView?.performDragOperation(sender) ?? false
+//    }
+//    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+//        dragView?.prepareForDragOperation(sender) ?? false
+//    }
+//    override func wantsPeriodicDraggingUpdates() -> Bool {
+//        false
+//    }
+//    override func updateDraggingItemsForDrag(_ sender: NSDraggingInfo?) {
+//        dragView?.updateDraggingItemsForDrag(sender)
+//    }
+//    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+//        dragView?.concludeDragOperation(sender)
+//    }
+//    override func hitTest(_ point: NSPoint) -> NSView? {
+//        dragView?.hitTest(point)
+//    }
+}
+struct DragPileView: NSViewRepresentable {
+    func updateNSView(_ nsView: NSDragPile, context: Context) {}
+
+    func makeNSView(context: Context) -> NSDragPile {
+        let view = NSDragPile()
+//        view.registerForDraggedTypes([.fileURL])
+        return view
+    }
+
 }
 
 @MainActor

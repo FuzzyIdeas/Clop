@@ -372,6 +372,7 @@ class AppDelegate: AppDelegateParent {
             NSApplication.shared.windows.first?.close()
             unarchiveBinaries()
             print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
+            NSView.swizzleDragFormation()
             shouldRestartOnCrash = true
 
             NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
@@ -594,10 +595,6 @@ class AppDelegate: AppDelegateParent {
         return true
     }
     override func applicationDidBecomeActive(_ notification: Notification) {
-        if didBecomeActiveAtLeastOnce, !Defaults[.showMenubarIcon] {
-            WM.open("settings")
-            focus()
-        }
         didBecomeActiveAtLeastOnce = true
     }
 
@@ -1010,6 +1007,30 @@ extension NSFilePromiseReceiver {
         }
         log.error(exc.description)
     }
+}
+
+extension NSView {
+    static func swizzleDragFormation() {
+        guard let NSDragDestination = NSClassFromString("NSDragDestination"),
+              let originalMethod = class_getInstanceMethod(NSDragDestination, NSSelectorFromString("_draggingEntered"))
+        else {
+            return
+        }
+
+        let imp = method_getImplementation(originalMethod)
+
+        method_setImplementation(originalMethod, imp_implementationWithBlock({ (self: NSDraggingInfo) in
+            self.draggingFormation = .pile
+            typealias MyCFunction = @convention(c) (NSDraggingInfo, Selector) -> Void
+            let myImp = unsafeBitCast(imp, to: MyCFunction.self)
+            return myImp(self, NSSelectorFromString("_draggingEntered"))
+        } as @convention(block) (NSDraggingInfo) -> Void))
+    }
+
+//    @objc static func swizzledDraggingEntered(_ info: NSDraggingInfo) {
+//        info.draggingFormation = .pile
+//        return swizzledDraggingEntered(info)
+//    }
 }
 
 class ContextualMenuServiceProvider: NSObject {

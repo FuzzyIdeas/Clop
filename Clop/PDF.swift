@@ -176,6 +176,8 @@ class PDF: Optimisable {
     override class var dir: FilePath { .pdfs }
 
     lazy var document: PDFDocument? = PDFDocument(url: path.url)
+    lazy var size: NSSize? = document?.page(at: 1)?.bounds(for: .cropBox).size
+    lazy var originalSize: NSSize? = document?.page(at: 1)?.bounds(for: .mediaBox).size
 
     @discardableResult
     func uncrop(saveTo newPath: FilePath? = nil) -> Bool {
@@ -302,7 +304,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.0
 
                 optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
                 if let cropSize {
-                    optimisedPDF!.cropTo(aspectRatio: cropSize.fractionalAspectRatio)
+                    optimisedPDF!.cropTo(aspectRatio: cropSize.longEdge ? cropSize.fractionalAspectRatio : cropSize.aspectRatio)
                 }
                 if !allowLarger, cropSize == nil, optimisedPDF!.fileSize >= fileSize {
                     pdf.path.restore(force: true)
@@ -334,7 +336,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.0
             mainActor {
                 result = optimisedPDF
                 optimiser.url = optimisedPDF.path.url
-                optimiser.finish(oldBytes: fileSize, newBytes: optimisedPDF.fileSize, removeAfterMs: hideFilesAfter)
+                optimiser.finish(oldBytes: fileSize, newBytes: optimisedPDF.fileSize, oldSize: optimisedPDF.size, removeAfterMs: hideFilesAfter)
                 if copyToClipboard {
                     optimiser.copyToClipboard()
                 }
