@@ -39,7 +39,7 @@ struct BatchCropButton: View {
             Label("Portrait", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
                 .help("Crop all images to a portrait orientation.")
             Label("Adaptive", systemImage: "sparkles.rectangle.stack").tag(CropOrientation.adaptive)
-                .help("Crop all images to the specified aspect ratio while keeping the original orientation of each image.")
+                .help("Crop all images to the specified size while keeping the original orientation of each image.")
             Label("Landscape", systemImage: "rectangle").tag(CropOrientation.landscape)
                 .help("Crop all images to a landscape orientation.")
         }
@@ -47,11 +47,16 @@ struct BatchCropButton: View {
         .labelStyle(IconOnlyLabelStyle())
         .font(.heavy(10))
         .onChange(of: cropOrientation) { orientation in
+            let width = orientation == .portrait ? min(tempWidth, tempHeight) : max(tempWidth, tempHeight)
+            let height = orientation == .portrait ? max(tempWidth, tempHeight) : min(tempWidth, tempHeight)
+            tempWidth = width
+            tempHeight = height
+
             guard isAspectRatio, let cropSize = cropSize?.withOrientation(orientation) else {
                 return
             }
             self.cropSize = cropSize
-        }
+        }.disabled(!isAspectRatio)
     }
 
     var editor: some View {
@@ -60,32 +65,31 @@ struct BatchCropButton: View {
                 Text("Size presets")
                     .heavy(10)
                     .foregroundColor(.secondary)
-                ForEach(savedCropSizes.filter(!\.isAspectRatio).sorted(by: \.area)) { size in
+                ForEach(savedCropSizes.map { $0.withOrientation(cropOrientation) }.filter(!\.isAspectRatio).sorted(by: \.area)) { size in
                     cropSizeButton(size)
                 }
-                if !isAspectRatio {
-                    HStack(spacing: 8) {
-                        TextField("", text: $name, prompt: Text("Name"))
-                            .textFieldStyle(.roundedBorder)
-                            .focused($focused, equals: .name)
-                            .frame(width: 208, alignment: .leading)
+                HStack(spacing: 8) {
+                    TextField("", text: $name, prompt: Text("Name"))
+                        .textFieldStyle(.roundedBorder)
+                        .focused($focused, equals: .name)
+                        .frame(width: 208, alignment: .leading)
 
-                        Button(action: {
-                            guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
-                            else { return }
+                    Button(action: {
+                        guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
+                        else { return }
 
-                            savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
-                        }, label: {
-                            SwiftUI.Image(systemName: "plus")
-                                .font(.heavy(11))
-                                .foregroundColor(.mauvish)
-                        })
-                        .buttonStyle(.bordered)
-                        .frame(width: 30)
-                        .fontDesign(.rounded)
-                        .disabled(name.isEmpty || (tempWidth == 0 && tempHeight == 0))
-                    }
+                        savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
+                    }, label: {
+                        SwiftUI.Image(systemName: "plus")
+                            .font(.heavy(11))
+                            .foregroundColor(.mauvish)
+                    })
+                    .buttonStyle(.bordered)
+                    .frame(width: 30)
+                    .fontDesign(.rounded)
+                    .disabled(name.isEmpty || (tempWidth == 0 && tempHeight == 0) || savedCropSizes.contains(where: { $0.width == tempWidth && $0.height == tempHeight }))
                 }
+                .disabled(isAspectRatio)
             }
 
             Divider()
@@ -111,27 +115,23 @@ struct BatchCropButton: View {
                     }
                 }
             }
-            if isAspectRatio {
-                aspectRatioPicker
-            }
+            aspectRatioPicker
 
             Divider()
 
-            if !isAspectRatio {
-                HStack {
-                    TextField("", value: $tempWidth, formatter: NumberFormatter(), prompt: Text("Width"))
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focused, equals: .width)
-                        .frame(width: 60, alignment: .center)
-                        .multilineTextAlignment(.center)
-                    Text("×")
-                    TextField("", value: $tempHeight, formatter: NumberFormatter(), prompt: Text("Height"))
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focused, equals: .height)
-                        .frame(width: 60, alignment: .center)
-                        .multilineTextAlignment(.center)
-                }
-            }
+            HStack {
+                TextField("", value: $tempWidth, formatter: NumberFormatter(), prompt: Text("Width"))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focused, equals: .width)
+                    .frame(width: 60, alignment: .center)
+                    .multilineTextAlignment(.center)
+                Text("×")
+                TextField("", value: $tempHeight, formatter: NumberFormatter(), prompt: Text("Height"))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focused, equals: .height)
+                    .frame(width: 60, alignment: .center)
+                    .multilineTextAlignment(.center)
+            }.disabled(isAspectRatio)
 
             let sizeStr = isAspectRatio ? (cropSize?.name ?? "\(tempWidth):\(tempHeight)") : "\(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)"
             Button("Crop and resize to \(sizeStr)") {

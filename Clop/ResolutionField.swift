@@ -54,7 +54,13 @@ struct ResolutionField: View {
     var aspectRatioPicker: some View {
         Picker("", selection: $cropOrientation) {
             Label("Portrait", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
+                .help("Crop the \(optimiser.type.str) to a portrait orientation.")
+            if optimiser.type.isPDF {
+                Label("Adaptive", systemImage: "sparkles.rectangle.stack").tag(CropOrientation.adaptive)
+                    .help("Crop all pages to the specified size while keeping the original orientation of each page.")
+            }
             Label("Landscape", systemImage: "rectangle").tag(CropOrientation.landscape)
+                .help("Crop the \(optimiser.type.str) to a landscape orientation.")
         }
         .pickerStyle(.segmented)
         .labelStyle(IconOnlyLabelStyle())
@@ -82,64 +88,130 @@ struct ResolutionField: View {
         }
     }
 
+    var saveField: some View {
+        HStack(spacing: 9) {
+            TextField("", text: $name, prompt: Text("Name"))
+                .textFieldStyle(.roundedBorder)
+                .focused($focused, equals: .name)
+                .frame(width: 198, alignment: .leading)
+
+            Button(action: {
+                guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
+                else { return }
+
+                savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
+            }, label: {
+                SwiftUI.Image(systemName: "plus")
+                    .font(.heavy(10))
+                    .foregroundColor(.mauvish)
+            })
+            .buttonStyle(.bordered)
+            .fontDesign(.rounded)
+            .disabled(name.isEmpty || (tempWidth == 0 && tempHeight == 0) || savedCropSizes.contains(where: { $0.width == tempWidth && $0.height == tempHeight }))
+        }
+    }
+
+    var aspectRatios: some View {
+        VStack(alignment: .leading) {
+            Text("Aspect ratios")
+                .heavy(10)
+                .foregroundColor(.secondary)
+            Grid(alignment: .leading) {
+                GridRow {
+                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[0 ..< 5].map { $0.withOrientation(cropOrientation) }) { size in
+                        aspectRatioButton(size)
+                    }
+                }
+                GridRow {
+                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[5 ..< 10].map { $0.withOrientation(cropOrientation) }) { size in
+                        aspectRatioButton(size)
+                    }
+                }
+                GridRow {
+                    ForEach(DEFAULT_CROP_ASPECT_RATIOS[10 ..< 15].map { $0.withOrientation(cropOrientation) }) { size in
+                        aspectRatioButton(size)
+                    }
+                }
+            }
+        }
+    }
+
+    var pdfSizes: some View {
+        VStack(alignment: .leading) {
+            Text("Paper size").heavy(10).foregroundColor(.secondary)
+            Picker("", selection: $cropSize) {
+                Text("No selection").tag(nil as CropSize?)
+                Divider()
+                ForEach(Array(PAPER_CROP_SIZES.keys.sorted()), id: \.self) { paperType in
+                    Section(paperType) {
+                        ForEach(Array(PAPER_CROP_SIZES[paperType]!.keys.sorted())) { paper in
+                            Text(paper).tag(PAPER_CROP_SIZES[paperType]![paper]?.withOrientation(cropOrientation, for: size))
+                        }
+                    }
+                }
+            }.font(.medium(10))
+            Text("Device size").heavy(10).foregroundColor(.secondary)
+            Picker("", selection: $cropSize) {
+                Text("No selection").tag(nil as CropSize?)
+                Divider()
+                ForEach(Array(DEVICE_CROP_SIZES.keys.sorted()), id: \.self) { deviceType in
+                    Section(deviceType) {
+                        ForEach(Array(DEVICE_CROP_SIZES[deviceType]!.keys.sorted())) { device in
+                            Text(device).tag(DEVICE_CROP_SIZES[deviceType]![device]?.withOrientation(cropOrientation, for: size))
+                        }
+                    }
+                }
+            }.font(.medium(10))
+            Text("Aspect ratio").heavy(10).foregroundColor(.secondary)
+            Picker("", selection: $cropSize) {
+                Text("No selection").tag(nil as CropSize?)
+                Divider()
+                ForEach(DEFAULT_CROP_ASPECT_RATIOS.filter { $0.name != "A4" && $0.name != "B5" }.map { $0.withOrientation(cropOrientation, for: size) }) { size in
+                    Text(size.name).tag(size as CropSize?)
+                }
+            }.font(.medium(10))
+        }
+        .onChange(of: cropSize) { size in
+            guard let newSize = size?.computedSize(from: self.size) else {
+                return
+            }
+            tempWidth = newSize.width.evenInt
+            tempHeight = newSize.height.evenInt
+        }
+    }
+
+    @ViewBuilder var uncropButton: some View {
+        if let pdf = optimiser.pdf, let originalSize = pdf.originalSize, originalSize != size {
+            Button("Uncrop to \(originalSize.s)") {
+                pdf.uncrop()
+                optimiser.oldSize = originalSize
+                optimiser.newSize = nil
+            }
+        }
+    }
+
     var editor: some View {
-        VStack {
+        VStack(spacing: 10) {
             VStack(alignment: .leading) {
-                Text("Size presets")
-                    .heavy(10)
-                    .foregroundColor(.secondary)
-                ForEach(savedCropSizes.filter { !$0.isAspectRatio && $0.width <= size.width.i && $0.height <= size.height.i }.sorted(by: \.area)) { size in
-                    cropSizeButton(size)
-                }
-                cropSizeButton(CropSize(width: size.width, height: size.height, name: "Default size"))
-                if !isAspectRatio {
-                    HStack(spacing: 9) {
-                        TextField("", text: $name, prompt: Text("Name"))
-                            .textFieldStyle(.roundedBorder)
-                            .focused($focused, equals: .name)
-                            .frame(width: 198, alignment: .leading)
-
-                        Button(action: {
-                            guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
-                            else { return }
-
-                            savedCropSizes.append(CropSize(width: tempWidth, height: tempHeight, name: name))
-                        }, label: {
-                            SwiftUI.Image(systemName: "plus")
-                                .font(.heavy(10))
-                                .foregroundColor(.mauvish)
-                        })
-                        .buttonStyle(.bordered)
-                        .fontDesign(.rounded)
-                        .disabled(name.isEmpty || (tempWidth == 0 && tempHeight == 0))
+                if optimiser.type.isPDF {
+                    pdfSizes
+                } else {
+                    Text("Size presets").heavy(10).foregroundColor(.secondary)
+                    ForEach(savedCropSizes.map { $0.withOrientation(cropOrientation) }.filter { !$0.isAspectRatio }.sorted(by: \.area)) { size in
+                        cropSizeButton(size).disabled(size.width > self.size.width.i || size.height > self.size.height.i)
+                    }
+                    cropSizeButton(CropSize(width: size.width, height: size.height, name: "Default size"))
+                    if !isAspectRatio {
+                        saveField
                     }
                 }
+
             }
 
-            Divider()
-            VStack(alignment: .leading) {
-                Text("Aspect ratios")
-                    .heavy(10)
-                    .foregroundColor(.secondary)
-                Grid(alignment: .leading) {
-                    GridRow {
-                        ForEach(DEFAULT_CROP_ASPECT_RATIOS[0 ..< 5].map { $0.withOrientation(cropOrientation) }) { size in
-                            aspectRatioButton(size)
-                        }
-                    }
-                    GridRow {
-                        ForEach(DEFAULT_CROP_ASPECT_RATIOS[5 ..< 10].map { $0.withOrientation(cropOrientation) }) { size in
-                            aspectRatioButton(size)
-                        }
-                    }
-                    GridRow {
-                        ForEach(DEFAULT_CROP_ASPECT_RATIOS[10 ..< 15].map { $0.withOrientation(cropOrientation) }) { size in
-                            aspectRatioButton(size)
-                        }
-                    }
-                }
+            if !optimiser.type.isPDF {
+                Divider()
+                aspectRatios
             }
-
             Divider()
 
             HStack {
@@ -148,19 +220,32 @@ struct ResolutionField: View {
                     .focused($focused, equals: .width)
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
-                    .disabled(isAspectRatio)
-                Text("×")
+                    .disabled(isAspectRatio && !optimiser.type.isPDF)
+                Text(isAspectRatio ? ":" : "×")
                 TextField("", value: $tempHeight, formatter: NumberFormatter(), prompt: Text("Height"))
                     .textFieldStyle(.roundedBorder)
                     .focused($focused, equals: .height)
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
-                    .disabled(isAspectRatio)
+                    .disabled(isAspectRatio && !optimiser.type.isPDF)
+                aspectRatioPicker.frame(width: 100).padding(.leading, 10)
             }
 
             let sizeStr = isAspectRatio ? (cropSize?.name ?? "\(tempWidth):\(tempHeight)") : "\(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)"
             Button("Crop and resize to \(sizeStr)") {
                 guard !preview, tempWidth > 0 || tempHeight > 0 else { return }
+
+                if let pdf = optimiser.pdf {
+                    let lastOrientation = cropOrientation
+                    let size = CropSize(width: tempWidth, height: tempHeight).withOrientation(cropOrientation)
+                    pdf.cropTo(aspectRatio: size.fractionalAspectRatio, alwaysPortrait: cropOrientation == .portrait, alwaysLandscape: cropOrientation == .landscape)
+                    cropOrientation = lastOrientation
+                    optimiser.refetch()
+                    optimiser.oldSize = optimiser.pdf?.originalSize ?? size.computedSize(from: self.size)
+                    optimiser.newSize = optimiser.pdf?.size
+                    optimiser.editingResolution = false
+                    return
+                }
 
                 if isAspectRatio {
                     optimiser.crop(to: CropSize(
@@ -169,7 +254,7 @@ struct ResolutionField: View {
                         longEdge: cropOrientation == .adaptive, isAspectRatio: true
                     ))
                 } else if tempWidth != 0, tempHeight != 0 {
-                    optimiser.crop(to: CropSize(width: tempWidth, height: tempHeight))
+                    optimiser.crop(to: CropSize(width: tempWidth, height: tempHeight).withOrientation(cropOrientation))
                 } else {
                     optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
                 }
@@ -179,9 +264,7 @@ struct ResolutionField: View {
             .monospacedDigit()
             .disabled(optimiser.running || (tempWidth == 0 && tempHeight == 0))
 
-            if isAspectRatio {
-                aspectRatioPicker.frame(width: 100)
-            }
+            uncropButton
         }
         .padding()
         .defaultFocus($focused, .width)
@@ -196,14 +279,16 @@ struct ResolutionField: View {
                 guard let size = optimiser.oldSize else { return }
                 tempWidth = size.width.i
                 tempHeight = size.height.i
-                cropOrientation = size.orientation
+                cropOrientation = optimiser.type.isPDF ? .adaptive : size.orientation
+                isAspectRatio = optimiser.type.isPDF
                 self.size = size
             }
             .onChange(of: optimiser.oldSize) { size in
                 guard let size else { return }
                 tempWidth = size.width.i
                 tempHeight = size.height.i
-                cropOrientation = size.orientation
+                cropOrientation = optimiser.type.isPDF ? .adaptive : size.orientation
+                isAspectRatio = optimiser.type.isPDF
                 self.size = size
             }
             .popover(isPresented: $optimiser.editingResolution, arrowEdge: .bottom) {

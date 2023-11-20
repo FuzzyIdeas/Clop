@@ -273,8 +273,7 @@ struct FloatingResult: View {
         }
     }
 
-    @ViewBuilder
-    var fileSizeDiff: some View {
+    @ViewBuilder var fileSizeDiff: some View {
         let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
         let improvementColor = (optimiser.thumbnail != nil && showImages ? FloatingResult.yellow : (colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue))
 
