@@ -374,6 +374,7 @@ struct ResolutionField: View {
             .buttonStyle(.bordered)
 
             Button(action: {
+                guard !preview else { return }
                 withAnimation(.easeOut(duration: 0.1)) {
                     savedCropSizes.removeAll(where: { $0.id == size.id })
                 }

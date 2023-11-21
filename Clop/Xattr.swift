@@ -1,6 +1,6 @@
 import Foundation
 
-struct Xattr {
+enum Xattr {
     /** Error type */
     struct Error: Swift.Error {
         let localizedDescription = String(utf8String: strerror(errno))

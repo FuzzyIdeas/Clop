@@ -2,7 +2,7 @@ import Defaults
 import Foundation
 import Lowtech
 
-class Migrations {
+enum Migrations {
     static func run() {
         clopIgnoreMigrate()
     }
