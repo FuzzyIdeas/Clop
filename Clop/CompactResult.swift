@@ -700,14 +700,21 @@ struct CompactResultList: View {
                 .allowsHitTesting(showList)
 
                 HStack {
-                    if showList {
-                        CompactActionButtons()
-                            .offset(y: -12)
-                            .opacity(hovering ? 1 : 0)
-                        Spacer()
+                    FlipGroup(if: !floatingResultsCorner.isTrailing) {
+                        if showList, !preview {
+                            if !floatingResultsCorner.isTrailing {
+                                Spacer()
+                            }
+                            CompactActionButtons()
+                                .offset(y: floatingResultsCorner.isTop ? 12 : -12)
+                                .opacity(hovering ? 1 : 0)
+                            if floatingResultsCorner.isTrailing {
+                                Spacer()
+                            }
+                        }
+                        ToggleCompactResultListButton(showList: $showList, badge: optimisers.count.s, progress: progress)
+                            .offset(x: isTrailing ? 10 : -10)
                     }
-                    ToggleCompactResultListButton(showList: $showList.animation(), badge: optimisers.count.s, progress: progress)
-                        .offset(x: isTrailing ? 10 : -10)
                 }
                 .frame(width: size.width, alignment: isTrailing ? .trailing : .leading)
             }
@@ -719,9 +726,7 @@ struct CompactResultList: View {
             }
         }
         .onChange(of: showList) { showList in
-            compactResultsSizeTask = mainAsyncAfter(ms: showList ? 0 : 500) {
-                setSize(showList: showList)
-            }
+            setSize(showList: showList)
         }
         .onChange(of: optimisers) { optimisers in
             filterOpts(optimisers)
@@ -775,12 +780,6 @@ struct DragPreview: View {
         }
         .frame(width: THUMB_SIZE.width * 0.5, height: THUMB_SIZE.height * 0.5)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-var compactResultsSizeTask: DispatchWorkItem? {
-    didSet {
-        oldValue?.cancel()
     }
 }
 

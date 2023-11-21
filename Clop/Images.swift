@@ -78,13 +78,13 @@ extension UTType {
     var aggressiveOptimisation: Bool {
         switch self {
         case .png:
-            return Defaults[.useAggresiveOptimisationPNG]
+            Defaults[.useAggresiveOptimisationPNG]
         case .jpeg:
-            return Defaults[.useAggresiveOptimisationJPEG]
+            Defaults[.useAggresiveOptimisationJPEG]
         case .gif:
-            return Defaults[.useAggresiveOptimisationGIF]
+            Defaults[.useAggresiveOptimisationGIF]
         default:
-            return false
+            false
         }
     }
 

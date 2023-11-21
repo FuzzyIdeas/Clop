@@ -131,10 +131,12 @@ let SHARING_MANAGER = SharingManager()
 
 struct ShareButton: View {
     @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
 
     var body: some View {
         Button(
             action: {
+                guard !preview else { return }
                 optimiser.sharing = true
             },
             label: { SwiftUI.Image(systemName: "square.and.arrow.up").font(.heavy(9)) }

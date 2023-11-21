@@ -459,6 +459,7 @@ class AppDelegate: AppDelegateParent {
         floatingResultsWindow.animateOnResize = true
         pub(.floatingResultsCorner)
             .sink {
+                floatingResultsWindow.screenCorner = $0.newValue
                 floatingResultsWindow.moveToScreen(.withMouse, corner: $0.newValue)
             }
             .store(in: &observers)
@@ -521,10 +522,10 @@ class AppDelegate: AppDelegateParent {
 
         #if !DEBUG
             #if SETAPP
-                _ = checkInternalRequirements([], nil)
+                _ = checkInternalRequirements2([], nil)
             #else
                 if let product {
-                    _ = checkInternalRequirements([product], nil)
+                    _ = checkInternalRequirements2([product], nil)
                 }
             #endif
         #endif
@@ -628,10 +629,10 @@ class AppDelegate: AppDelegateParent {
 
         #if !DEBUG
             #if SETAPP
-                _ = checkInternalRequirements([], nil)
+                _ = checkInternalRequirements3([], nil)
             #else
                 if let product {
-                    _ = checkInternalRequirements([product], nil)
+                    _ = checkInternalRequirements3([product], nil)
                 }
             #endif
         #endif
