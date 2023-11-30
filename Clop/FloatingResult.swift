@@ -568,6 +568,7 @@ struct FloatingResult: View {
                     SideButtons(optimiser: optimiser, size: showsThumbnail ? 24 : 18)
                         .frame(width: 30, alignment: .bottom)
                         .fixedSize()
+                        .zIndex(100)
                 } else {
                     SwiftUI.Image("clop")
                         .resizable()
