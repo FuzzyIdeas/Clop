@@ -17,7 +17,7 @@ struct CloseStopButton: View {
                 optimiser.uiStop()
             },
             label: { SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(9)) }
-        )
+        ).contentShape(Rectangle())
 
     }
 }

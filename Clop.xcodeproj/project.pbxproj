@@ -15,6 +15,7 @@
 		C70B5F312AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C70B5F322AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
+		C70DA8E62B0D1FF900DC9F8E /* BatchCropButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7976AC72B07B87D00C4246A /* BatchCropButton.swift */; };
 		C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */; };
 		C7319E8D2AD995B60085B707 /* bin.tar.xz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C7319E8B2AD995B60085B707 /* bin.tar.xz.sha256 */; };
 		C7319E8E2AD995B60085B707 /* bin.tar.xz in Resources */ = {isa = PBXBuildFile; fileRef = C7319E8C2AD995B60085B707 /* bin.tar.xz */; };
@@ -737,6 +738,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C70DA8E62B0D1FF900DC9F8E /* BatchCropButton.swift in Sources */,
 				C75FD1BA2AF4324C000B426B /* required.swift in Sources */,
 				C75FD1BB2AF4324C000B426B /* Optimisable.swift in Sources */,
 				C75FD1BC2AF4324C000B426B /* ContentView.swift in Sources */,
