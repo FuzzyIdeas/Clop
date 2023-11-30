@@ -496,7 +496,7 @@ struct ImagesSettingsView: View {
                 }
                 Toggle(isOn: $adaptiveImageSize) {
                     Text("Adaptive optimisation").regular(13)
-                        + Text("\nOptimise detail heavy images as JPEG and low-detail ones as PNG").round(11, weight: .regular).foregroundColor(.secondary)
+                        + Text("\nConvert detail heavy images to JPEG and low-detail ones to PNG").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 Toggle(isOn: $downscaleRetinaImages) {
                     Text("Downscale HiDPI images to 72 DPI").regular(13)
