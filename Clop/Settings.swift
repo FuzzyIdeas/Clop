@@ -55,11 +55,11 @@ extension Defaults.Keys {
     #if arch(arm64)
         static let useCPUIntensiveEncoder = Key<Bool>("useCPUIntensiveEncoder", default: false)
     #endif
-    static let useAggresiveOptimisationMP4 = Key<Bool>("useAggresiveOptimisationMP4", default: false)
-    static let useAggresiveOptimisationJPEG = Key<Bool>("useAggresiveOptimisationJPEG", default: false)
-    static let useAggresiveOptimisationPNG = Key<Bool>("useAggresiveOptimisationPNG", default: false)
-    static let useAggresiveOptimisationGIF = Key<Bool>("useAggresiveOptimisationGIF", default: false)
-    static let useAggresiveOptimisationPDF = Key<Bool>("useAggresiveOptimisationPDF", default: true)
+    static let useAggressiveOptimisationMP4 = Key<Bool>("useAggressiveOptimisationMP4", default: false)
+    static let useAggressiveOptimisationJPEG = Key<Bool>("useAggressiveOptimisationJPEG", default: false)
+    static let useAggressiveOptimisationPNG = Key<Bool>("useAggressiveOptimisationPNG", default: false)
+    static let useAggressiveOptimisationGIF = Key<Bool>("useAggressiveOptimisationGIF", default: false)
+    static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
 
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
@@ -196,11 +196,11 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .showImages,
     .stripMetadata,
     .targetVideoFPS,
-    .useAggresiveOptimisationGIF,
-    .useAggresiveOptimisationJPEG,
-    .useAggresiveOptimisationMP4,
-    .useAggresiveOptimisationPDF,
-    .useAggresiveOptimisationPNG,
+    .useAggressiveOptimisationGIF,
+    .useAggressiveOptimisationJPEG,
+    .useAggressiveOptimisationMP4,
+    .useAggressiveOptimisationPDF,
+    .useAggressiveOptimisationPNG,
     .useCustomNameTemplateForClipboardImages,
     .videoDirs,
     .videoFormatsToSkip,

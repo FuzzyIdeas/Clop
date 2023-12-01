@@ -414,7 +414,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
 
     @Published var downscaleFactor = 1.0
     @Published var changePlaybackSpeedFactor = 1.0
-    @Published var aggresive = false
+    @Published var aggressive = false
 
     lazy var path: FilePath? = {
         if let url { return FilePath(url) }
@@ -673,11 +673,11 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         error = nil
         notice = nil
 
-        var shouldUseAggressiveOptimisation = aggressiveOptimisation
+        var shoulduseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
-            aggresive = aggressiveOptimisation
-        } else if aggresive {
-            shouldUseAggressiveOptimisation = true
+            aggressive = aggressiveOptimisation
+        } else if aggressive {
+            shoulduseAggressiveOptimisation = true
         }
 
         guard let path = originalURL?.filePath ?? path else {
@@ -701,7 +701,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 video,
                 originalPath: originalPath,
                 id: self.id, byFactor: factor, hideFloatingResult: hideFloatingResult,
-                aggressiveOptimisation: shouldUseAggressiveOptimisation
+                aggressiveOptimisation: shoulduseAggressiveOptimisation
             )
         }
     }
@@ -714,11 +714,11 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         error = nil
         notice = nil
 
-        var shouldUseAggressiveOptimisation = aggressiveOptimisation
+        var shoulduseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
-            aggresive = aggressiveOptimisation
-        } else if aggresive {
-            shouldUseAggressiveOptimisation = true
+            aggressive = aggressiveOptimisation
+        } else if aggressive {
+            shoulduseAggressiveOptimisation = true
         }
 
         guard var path = originalURL?.filePath ?? path else {
@@ -745,7 +745,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     image, toFactor: factor, saveTo: self.path,
                     copyToClipboard: id == IDs.clipboardImage, id: self.id,
                     hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimisation: shouldUseAggressiveOptimisation
+                    aggressiveOptimisation: shoulduseAggressiveOptimisation
                 )
             }
             if type.isVideo {
@@ -764,7 +764,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     video,
                     originalPath: (path.backupPath?.exists ?? false) ? path.backupPath : nil,
                     id: self.id, toFactor: factor, hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimisation: shouldUseAggressiveOptimisation
+                    aggressiveOptimisation: shoulduseAggressiveOptimisation
                 )
             }
         }
@@ -814,14 +814,14 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         }
 
         isOriginal = false
-        var shouldUseAggressiveOptimisation = aggressiveOptimisation
+        var shoulduseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
-            aggresive = aggressiveOptimisation
-        } else if aggresive {
-            shouldUseAggressiveOptimisation = true
+            aggressive = aggressiveOptimisation
+        } else if aggressive {
+            shoulduseAggressiveOptimisation = true
         }
         if type.isImage, let img = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
-            Task.init { try? await optimiseImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+            Task.init { try? await optimiseImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shoulduseAggressiveOptimisation) }
             return
         }
         if type.isVideo, path.exists {
@@ -832,7 +832,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                     try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)
                 }
                 guard let video else { return }
-                let _ = try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
+                let _ = try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shoulduseAggressiveOptimisation)
             }
         }
     }
@@ -842,7 +842,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
         scalingFactor = 1.0
         downscaleFactor = 1.0
         changePlaybackSpeedFactor = 1.0
-        aggresive = false
+        aggressive = false
         resetRemover()
 
         let restore: (FilePath) -> Void = { path in
@@ -1034,7 +1034,7 @@ final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, Cust
                 id: id,
                 hideFloatingResult: false,
                 cropTo: size,
-                aggressiveOptimisation: aggresive,
+                aggressiveOptimisation: aggressive,
                 optimisationCount: &manualOptimisationCount,
                 copyToClipboard: id == IDs.clipboardImage,
                 source: source
