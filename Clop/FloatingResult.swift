@@ -32,24 +32,6 @@ extension View {
     }
 }
 
-extension Int {
-    var humanSize: String {
-        switch self {
-        case 0 ..< 1000:
-            return "\(self)B"
-        case 0 ..< 1_000_000:
-            let num = self / 1000
-            return "\(num)KB"
-        case 0 ..< 1_000_000_000:
-            let num = d / 1_000_000
-            return "\(num < 10 ? num.str(decimals: 1) : num.intround.s)MB"
-        default:
-            let num = d / 1_000_000_000
-            return "\(num < 10 ? num.str(decimals: 1) : num.intround.s)GB"
-        }
-    }
-}
-
 struct FloatingResultList: View {
     var optimisers: [Optimiser]
 
