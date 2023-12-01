@@ -109,7 +109,7 @@ class Video: Optimisable {
         let pngs = tempDir.ls()
         let gifskiProc = try tryProc(
             GIFSKI.string,
-            args: ["-o", gif.string, "--width", maxWidth.s, "--fps", fps.s, "--quality", Defaults[.useAggresiveOptimisationGIF] ? 60.s : 90.s] + pngs.map(\.string),
+            args: ["-o", gif.string, "--width", maxWidth.s, "--fps", fps.s, "--quality", Defaults[.useAggressiveOptimisationGIF] ? 60.s : 90.s] + pngs.map(\.string),
             tries: 3,
             captureOutput: true
         ) { proc in
@@ -241,8 +241,8 @@ class Video: Optimisable {
 
         let duration = duration
         let audioRemoved = removeAudio ?? Defaults[.removeAudioFromVideos]
-        let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationMP4]
-        mainActor { optimiser.aggresive = aggressive }
+        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationMP4]
+        mainActor { optimiser.aggressive = aggressive }
         #if arch(arm64)
             let encoderArgs = useAggressiveOptimisation(aggressiveSetting: aggressiveOptimisation ?? false)
                 ? ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "26"] : [])
@@ -621,7 +621,7 @@ var processTerminated = Set<pid_t>()
     }
 
     let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source)
-    let aggressive = aggressiveOptimisation ?? optimiser.aggresive
+    let aggressive = aggressiveOptimisation ?? optimiser.aggressive
     if aggressive {
         optimiser.operation += " (aggressive)"
     }
@@ -733,7 +733,7 @@ var processTerminated = Set<pid_t>()
             ),
         hidden: hideFloatingResult, source: source
     )
-    let aggressive = aggressiveOptimisation ?? optimiser.aggresive
+    let aggressive = aggressiveOptimisation ?? optimiser.aggressive
     if aggressive {
         optimiser.operation += " (aggressive)"
     }

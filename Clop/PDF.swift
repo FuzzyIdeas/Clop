@@ -201,8 +201,8 @@ class PDF: Optimisable {
     func optimise(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil) throws -> PDF {
         let tempFile = FilePath.pdfs.appending(path.lastComponent?.string ?? "clop.pdf")
 
-        let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationPDF]
-        mainActor { optimiser.aggresive = aggressiveOptimisation }
+        let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPDF]
+        mainActor { optimiser.aggressive = aggressiveOptimisation }
 
         let args = gsArgs(path.string, tempFile.string, lossy: aggressiveOptimisation)
         let proc = try tryProc(GS.string, args: args, tries: 3, captureOutput: true, env: GHOSTSCRIPT_ENV) { proc in

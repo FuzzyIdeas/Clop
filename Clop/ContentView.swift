@@ -28,10 +28,10 @@ struct MenuView: View {
     @Environment(\.openWindow) var openWindow
 
     @Default(.keyComboModifiers) var keyComboModifiers
-    @Default(.useAggresiveOptimisationGIF) var useAggresiveOptimisationGIF
-    @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
-    @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
-    @Default(.useAggresiveOptimisationMP4) var useAggresiveOptimisationMP4
+    @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
+    @Default(.useAggressiveOptimisationJPEG) var useAggressiveOptimisationJPEG
+    @Default(.useAggressiveOptimisationPNG) var useAggressiveOptimisationPNG
+    @Default(.useAggressiveOptimisationMP4) var useAggressiveOptimisationMP4
     @Default(.cliInstalled) var cliInstalled
     @Default(.pauseAutomaticOptimisations) var pauseAutomaticOptimisations
 
@@ -72,12 +72,12 @@ struct MenuView: View {
                 Task.init { try? await optimiseLastClipboardItem() }
             }.keyboardShortcut("c", modifiers: keyComboModifiers.eventModifiers)
 
-            if !useAggresiveOptimisationGIF ||
-                !useAggresiveOptimisationJPEG ||
-                !useAggresiveOptimisationPNG ||
-                !useAggresiveOptimisationMP4
+            if !useAggressiveOptimisationGIF ||
+                !useAggressiveOptimisationJPEG ||
+                !useAggressiveOptimisationPNG ||
+                !useAggressiveOptimisationMP4
             {
-                Button("Optimise (aggresive)") {
+                Button("Optimise (aggressive)") {
                     Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
                 }.keyboardShortcut("a", modifiers: keyComboModifiers.eventModifiers)
             }

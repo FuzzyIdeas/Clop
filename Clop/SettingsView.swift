@@ -204,7 +204,7 @@ struct PDFSettingsView: View {
     @Default(.pdfDirs) var pdfDirs
     @Default(.maxPDFSizeMB) var maxPDFSizeMB
     @Default(.maxPDFFileCount) var maxPDFFileCount
-    @Default(.useAggresiveOptimisationPDF) var useAggresiveOptimisationPDF
+    @Default(.useAggressiveOptimisationPDF) var useAggressiveOptimisationPDF
 
     var body: some View {
         Form {
@@ -229,7 +229,7 @@ struct PDFSettingsView: View {
                     Text(maxPDFFileCount == 1 ? "PDF is dropped" : "PDFs are dropped").regular(13)
                 }
 
-                Toggle(isOn: $useAggresiveOptimisationPDF) {
+                Toggle(isOn: $useAggressiveOptimisationPDF) {
                     Text("Use more aggressive optimisation").regular(13)
                         + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
                 }
@@ -254,7 +254,7 @@ struct VideoSettingsView: View {
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
     #endif
-    @Default(.useAggresiveOptimisationMP4) var useAggresiveOptimisationMP4
+    @Default(.useAggressiveOptimisationMP4) var useAggressiveOptimisationMP4
 
     var body: some View {
         Form {
@@ -296,7 +296,7 @@ struct VideoSettingsView: View {
                             + Text("\nGenerates smaller files with better visual quality but takes longer and uses more CPU").round(11, weight: .regular).foregroundColor(.secondary)
                     }
                     if useCPUIntensiveEncoder {
-                        Toggle(isOn: $useAggresiveOptimisationMP4) {
+                        Toggle(isOn: $useAggressiveOptimisationMP4) {
                             Text("Aggressive optimisation").regular(13)
                                 + Text("\nDecrease visual quality and increase processing time for even smaller files").round(11, weight: .regular).foregroundColor(.secondary)
                         }
@@ -304,7 +304,7 @@ struct VideoSettingsView: View {
                         .padding(.leading)
                     }
                 #else
-                    Toggle(isOn: $useAggresiveOptimisationMP4) {
+                    Toggle(isOn: $useAggressiveOptimisationMP4) {
                         Text("Use more aggressive optimisation").regular(13)
                             + Text("\nGenerates smaller files with slightly worse visual quality but takes longer and uses more CPU").round(11, weight: .regular).foregroundColor(.secondary)
                     }
@@ -399,9 +399,9 @@ struct ImagesSettingsView: View {
     @Default(.customNameTemplateForClipboardImages) var customNameTemplateForClipboardImages
     @Default(.useCustomNameTemplateForClipboardImages) var useCustomNameTemplateForClipboardImages
 
-    @Default(.useAggresiveOptimisationJPEG) var useAggresiveOptimisationJPEG
-    @Default(.useAggresiveOptimisationPNG) var useAggresiveOptimisationPNG
-    @Default(.useAggresiveOptimisationGIF) var useAggresiveOptimisationGIF
+    @Default(.useAggressiveOptimisationJPEG) var useAggressiveOptimisationJPEG
+    @Default(.useAggressiveOptimisationPNG) var useAggressiveOptimisationPNG
+    @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
 
     var body: some View {
         Form {
@@ -485,14 +485,14 @@ struct ImagesSettingsView: View {
                 HStack {
                     Text("Use more aggressive optimisation for").regular(13).padding(.trailing, 10)
                     Button("jpeg") {
-                        useAggresiveOptimisationJPEG.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimisationJPEG))
+                        useAggressiveOptimisationJPEG.toggle()
+                    }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationJPEG))
                     Button("png") {
-                        useAggresiveOptimisationPNG.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimisationPNG))
+                        useAggressiveOptimisationPNG.toggle()
+                    }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationPNG))
                     Button("gif") {
-                        useAggresiveOptimisationGIF.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggresiveOptimisationGIF))
+                        useAggressiveOptimisationGIF.toggle()
+                    }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationGIF))
                 }
                 Toggle(isOn: $adaptiveImageSize) {
                     Text("Adaptive optimisation").regular(13)
