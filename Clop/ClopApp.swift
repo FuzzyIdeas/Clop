@@ -227,7 +227,7 @@ class AppDelegate: AppDelegateParent {
         case .o:
             guard let url = opt.url ?? opt.originalURL else { return }
             NSWorkspace.shared.open(url)
-        case .a where !opt.aggresive:
+        case .a where !opt.aggressive:
             if opt.downscaleFactor < 1 {
                 opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
             } else {
@@ -288,7 +288,7 @@ class AppDelegate: AppDelegateParent {
         case .c:
             Task.init { try? await optimiseLastClipboardItem() }
         case .a:
-            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.aggresive {
+            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.aggressive {
                 if opt.downscaleFactor < 1 {
                     opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
                 } else {

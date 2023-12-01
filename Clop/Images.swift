@@ -78,11 +78,11 @@ extension UTType {
     var aggressiveOptimisation: Bool {
         switch self {
         case .png:
-            Defaults[.useAggresiveOptimisationPNG]
+            Defaults[.useAggressiveOptimisationPNG]
         case .jpeg:
-            Defaults[.useAggresiveOptimisationJPEG]
+            Defaults[.useAggressiveOptimisationJPEG]
         case .gif:
-            Defaults[.useAggresiveOptimisationGIF]
+            Defaults[.useAggressiveOptimisationGIF]
         default:
             false
         }
@@ -445,8 +445,8 @@ class Image: CustomStringConvertible {
             }
         }
 
-        let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationGIF]
-        mainActor { optimiser.aggresive = aggressiveOptimisation }
+        let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationGIF]
+        mainActor { optimiser.aggressive = aggressiveOptimisation }
 
         let backup = path.backup(operation: .copy)
         let proc = try tryProc(
@@ -485,8 +485,8 @@ class Image: CustomStringConvertible {
     func optimiseJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, testPNG: Bool = false) throws -> Image {
         var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
 
-        let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationJPEG]
-        mainActor { optimiser.aggresive = aggressive }
+        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
+        mainActor { optimiser.aggressive = aggressive }
 
         let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
             "--strip-all", "--force", "--max", aggressive ? "70" : "90",
@@ -497,7 +497,7 @@ class Image: CustomStringConvertible {
 
         var pngOutFile: FilePath?
         if testPNG, let png = try? convert(to: .png) {
-            let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationPNG]
+            let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPNG]
             pngOutFile = FilePath.images.appending(png.path.name.string)
             if pngOutFile != png.path {
                 try? pngOutFile!.delete()
@@ -594,8 +594,8 @@ class Image: CustomStringConvertible {
             try? tempFile.delete()
         }
 
-        let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationPNG]
-        mainActor { optimiser.aggresive = aggressive }
+        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPNG]
+        mainActor { optimiser.aggressive = aggressive }
 
         let pngProc = Proc(cmd: PNGQUANT.string, args: [
             "--strip", "--force",
@@ -606,7 +606,7 @@ class Image: CustomStringConvertible {
 
         var jpegOutFile: FilePath?
         if testJPEG, !image.hasTransparentPixels, let jpeg = try? convert(to: .jpeg) {
-            let aggressive = aggressiveOptimisation ?? Defaults[.useAggresiveOptimisationJPEG]
+            let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
 
             let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
                 "--strip-all", "--force", "--max", aggressive ? "70" : "90",
@@ -1057,7 +1057,7 @@ extension FilePath {
     }
 
     let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source, indeterminateProgress: true)
-    let aggressive = aggressiveOptimisation ?? optimiser.aggresive
+    let aggressive = aggressiveOptimisation ?? optimiser.aggressive
     if aggressive {
         optimiser.operation += " (aggressive)"
     }
