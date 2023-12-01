@@ -211,7 +211,7 @@ struct SideButtons: View {
                     optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)"
                 )
 
-            if !optimiser.aggresive {
+            if !optimiser.aggressive {
                 AggressiveOptimisationButton(optimiser: optimiser)
                     .onHover { hoveringAggressiveOptimisationButton = $0 }
                     .helpTag(
@@ -223,7 +223,7 @@ struct SideButtons: View {
             }
         }
         .buttonStyle(FlatButton(color: .white.opacity(0.9), textColor: .black.opacity(0.7), width: size, height: size, circle: true))
-        .animation(.fastSpring, value: optimiser.aggresive)
+        .animation(.fastSpring, value: optimiser.aggressive)
         .onHover { hovering in
             if !hovering {
                 hoveringDownscaleButton = false
@@ -277,7 +277,7 @@ struct ActionButtons: View {
                 .onHover { hoveringRestoreOptimiseButton = $0 }
                 .topHelpTag(isPresented: $hoveringRestoreOptimiseButton, optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)")
 
-            if !optimiser.aggresive {
+            if !optimiser.aggressive {
                 AggressiveOptimisationButton(optimiser: optimiser)
                     .onHover { hoveringAggressiveOptimisationButton = $0 }
                     .topHelpTag(isPresented: $hoveringAggressiveOptimisationButton, "Aggressive optimisation (⌘A)")
@@ -305,7 +305,7 @@ struct ActionButtons: View {
         }
         .hfill()
         .buttonStyle(FlatButton(color: .bg.warm, textColor: .primary.opacity(0.7), width: size, height: size, circle: true, shadowSize: 1))
-        .animation(.fastSpring, value: optimiser.aggresive)
+        .animation(.fastSpring, value: optimiser.aggressive)
         .onHover { hovering in
             self.hovering = hovering
             if !hovering {

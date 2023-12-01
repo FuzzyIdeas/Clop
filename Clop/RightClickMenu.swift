@@ -119,7 +119,7 @@ struct RightClickMenuView: View {
                 }
             }
             .keyboardShortcut("a")
-            .disabled(optimiser.aggresive)
+            .disabled(optimiser.aggressive)
 
             Divider()
 
@@ -188,7 +188,7 @@ struct BatchRightClickMenuView: View {
             }
             sm.selection = []
         }
-        .disabled(optimisers.allSatisfy(\.aggresive))
+        .disabled(optimisers.allSatisfy(\.aggressive))
 
         Divider()
 
@@ -283,7 +283,7 @@ struct WorkflowMenu: View {
             guard let pdf = optimiser.pdf else {
                 return
             }
-            if let newPDF = try? pdf.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: false, aggressiveOptimisation: Defaults[.useAggresiveOptimisationMP4], source: optimiser.source) {
+            if let newPDF = try? pdf.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: false, aggressiveOptimisation: Defaults[.useAggressiveOptimisationMP4], source: optimiser.source) {
                 mainActor {
                     optimiser.url = newPDF.path.url
                     optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: newPDF.path.fileSize() ?? optimiser.newBytes)
@@ -301,7 +301,7 @@ struct WorkflowMenu: View {
             guard let video = optimiser.video else {
                 return
             }
-            if let newVideo = try? video.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: false, aggressiveOptimisation: Defaults[.useAggresiveOptimisationMP4], source: optimiser.source) {
+            if let newVideo = try? video.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: false, aggressiveOptimisation: Defaults[.useAggressiveOptimisationMP4], source: optimiser.source) {
                 mainActor {
                     optimiser.url = newVideo.path.url
                     optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: newVideo.path.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize, newSize: newVideo.size)
