@@ -186,7 +186,7 @@ func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool) throws 
     return urls
 }
 
-func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, operation: String, _ requestCreator: () -> OptimisationRequest) throws {
+func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: Bool, operation: String, _ requestCreator: () -> OptimisationRequest) throws {
     if !async {
         progressPrinter = ProgressPrinter(urls: urls)
         Task.init {
@@ -210,7 +210,7 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, operat
 
     guard !async else {
         try OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
-        print("Queued \(urls.count) items for \(operation)")
+        printerr("Queued \(urls.count) items for \(operation)")
         if !gui {
             printerr("Use the `--gui` flag to see progress")
         }
@@ -229,7 +229,7 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, operat
             await progressPrinter!.printProgress()
             fflush(stderr)
         }
-        await progressPrinter!.printResults()
+        await progressPrinter!.printResults(json: json)
     }
 }
 
@@ -461,6 +461,10 @@ struct Clop: ParsableCommand {
     }
 
     struct Crop: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Crop and optimise images, videos and PDFs to a specific size or aspect ratio."
+        )
+
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
 
@@ -484,6 +488,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs\n")
         var skipErrors = false
+
+        @Flag(name: .shortAndLong, help: "Output results as a JSON")
+        var json = false
 
         @Flag(
             name: .shortAndLong,
@@ -538,7 +545,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, operation: "cropping") {
+            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "cropping") {
                 OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
@@ -557,6 +564,10 @@ struct Clop: ParsableCommand {
     }
 
     struct Downscale: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Downscale and optimise images and videos by a certain factor."
+        )
+
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
 
@@ -580,6 +591,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
         var skipErrors = false
+
+        @Flag(name: .shortAndLong, help: "Output results as a JSON")
+        var json = false
 
         @Option(name: .shortAndLong, help: """
         Output file path or template (defaults to modifying the file in place). In case of cropping multiple files, this needs to be a folder or a template.
@@ -622,7 +636,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, operation: "downscaling") {
+            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "downscaling") {
                 OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
@@ -641,6 +655,10 @@ struct Clop: ParsableCommand {
     }
 
     struct Optimise: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Optimise images, videos and PDFs."
+        )
+
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
         var gui = false
 
@@ -673,6 +691,9 @@ struct Clop: ParsableCommand {
 
         @Option(help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50")
         var crop: NSSize? = nil
+
+        @Flag(name: .shortAndLong, help: "Output results as a JSON")
+        var json = false
 
         @Option(name: .shortAndLong, help: """
         Output file path or template (defaults to modifying the file in place). In case of cropping multiple files, this needs to be a folder or a template.
@@ -717,7 +738,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, operation: "optimisation") {
+            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "optimisation") {
                 OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
@@ -736,7 +757,7 @@ struct Clop: ParsableCommand {
     }
 
     static let configuration = CommandConfiguration(
-        abstract: "Clop",
+        abstract: "Clop: optimise, crop and downscale images, videos and PDFs",
         subcommands: [
             Optimise.self,
             Crop.self,
@@ -844,9 +865,47 @@ actor ProgressPrinter {
         }
     }
 
-    func printResults() {
-        let result = CLIResult(done: responses.values.sorted { $0.forURL.path < $1.forURL.path }, failed: errors.values.sorted { $0.forURL.path < $1.forURL.path })
-        print(result.jsonString)
+    static let CHECKMARK = "✓".green()
+    static let EXCLAMATION = "!".magenta()
+    static let ERROR_X = "✘".red()
+    static let ARROW = "->".dim()
+
+    func printResults(json: Bool) {
+        guard !json else {
+            let result = CLIResult(done: responses.values.sorted { $0.forURL.path < $1.forURL.path }, failed: errors.values.sorted { $0.forURL.path < $1.forURL.path })
+            print(result.jsonString)
+            return
+        }
+
+        for response in responses.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {
+            guard response.newBytes != response.oldBytes else {
+                let noChange = "(no change)".dim()
+                print("\(Self.EXCLAMATION) \(response.forURL.shellString.underline()): \((response.oldBytes ?! response.newBytes).humanSize.yellow()) \(noChange)")
+                continue
+            }
+            let isSmaller = response.newBytes < response.oldBytes
+            let perc = "\(response.percentageSaved.str(decimals: 2))%".foregroundColor(isSmaller ? .green : .red)
+            let percentageSaved = "(\(perc) \(isSmaller ? "smaller" : "larger"))".dim()
+            print(
+                "\(Self.CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green).dim()) \(Self.ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold()) \(percentageSaved)"
+            )
+        }
+        for response in errors.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {
+            print("\(Self.ERROR_X) \(response.forURL.shellString.underline()): \(response.error.foregroundColor(.red))")
+        }
+        if responses.count > 1 {
+            let totalOldBytes = responses.values.map(\.oldBytes).reduce(0, +)
+            let totalNewBytes = responses.values.map(\.newBytes).reduce(0, +)
+            let isSmaller = totalNewBytes < totalOldBytes
+
+            let totalPerc = "\((100 - (Double(totalNewBytes) / Double(totalOldBytes) * 100)).str(decimals: 2))%".foregroundColor(isSmaller ? .green : .red)
+            let totalPercentageSaved = "(\(totalPerc))".dim()
+            let totalBytesSaved = (totalOldBytes - totalNewBytes).humanSize.foregroundColor(isSmaller ? .green : .red)
+            let totalBytesSavedStr = "\(isSmaller ? "saving" : "adding"): \(totalBytesSaved)"
+            print(
+                "\(Self.CHECKMARK) \("TOTAL".underline()): \(totalOldBytes.humanSize.foregroundColor(isSmaller ? .red : .green).dim()) \(Self.ARROW) \(totalNewBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold()) \(totalBytesSavedStr) \(totalPercentageSaved)"
+            )
+        }
     }
 
     func startResponsesThread() {
@@ -869,6 +928,19 @@ actor ProgressPrinter {
         }
         responsesThread?.start()
     }
+}
+
+let HOME = NSHomeDirectory()
+extension String {
+    func replacingFirstOccurrence(of target: String, with replacement: String) -> String {
+        guard let range = range(of: target) else { return self }
+        return replacingCharacters(in: range, with: replacement)
+    }
+    var shellString: String { replacingFirstOccurrence(of: HOME, with: "~") }
+}
+
+extension URL {
+    var shellString: String { path.shellString }
 }
 
 let LINE_UP = "\u{1B}[1A"

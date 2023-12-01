@@ -93,6 +93,7 @@ struct OptimisationResponse: Codable, Identifiable {
     var newWidthHeight: CGSize? = nil
 
     var id: String { path }
+    var percentageSaved: Double { 100 - (Double(newBytes) / Double(oldBytes == 0 ? 1 : oldBytes) * 100) }
 }
 
 struct StopOptimisationRequest: Codable {
@@ -1044,4 +1045,37 @@ func cropSizeStr(_ cropSize: CropSize?) -> String {
         return "\(size.width)"
     }
     return "\(size.width)x\(size.height)"
+}
+
+extension Double {
+    func str(decimals: Int) -> String {
+        String(format: "%.\(decimals)f", self)
+    }
+}
+
+extension Int {
+    var humanSize: String {
+        switch self {
+        case 0 ..< 1000:
+            return "\(self)B"
+        case 0 ..< 1_000_000:
+            let num = self / 1000
+            return "\(num)KB"
+        case 0 ..< 1_000_000_000:
+            let num = d / 1_000_000
+            return "\(num < 10 ? num.str(decimals: 1) : num.intround.s)MB"
+        default:
+            let num = d / 1_000_000_000
+            return "\(num < 10 ? num.str(decimals: 1) : num.intround.s)GB"
+        }
+    }
+}
+
+infix operator ?!: NilCoalescingPrecedence
+
+func ?! <T: BinaryInteger>(_ num: T?, _ num2: T) -> T {
+    guard let num, num != 0 else {
+        return num2
+    }
+    return num
 }
