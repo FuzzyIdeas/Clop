@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C70A48EE2B1A06AD00C266DE /* Colorize.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70A48ED2B1A06AD00C266DE /* Colorize.swift */; };
 		C70B5F1A2AC014BF00345739 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C70B5F192AC014BF00345739 /* Cocoa.framework */; };
 		C70B5F1D2AC014BF00345739 /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C70B5F1C2AC014BF00345739 /* Media.xcassets */; };
 		C70B5F212AC014BF00345739 /* ActionRequestHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F202AC014BF00345739 /* ActionRequestHandler.swift */; };
@@ -212,6 +213,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C70A48ED2B1A06AD00C266DE /* Colorize.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Colorize.swift; sourceTree = "<group>"; };
 		C70B5F172AC014BF00345739 /* FinderOptimiser.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FinderOptimiser.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C70B5F192AC014BF00345739 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		C70B5F1C2AC014BF00345739 /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
@@ -358,6 +360,7 @@
 		C7956A402AC208DD00C0EDF2 /* ClopCLI */ = {
 			isa = PBXGroup;
 			children = (
+				C70A48ED2B1A06AD00C266DE /* Colorize.swift */,
 				C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */,
 				C7956A412AC208DD00C0EDF2 /* main.swift */,
 			);
@@ -792,6 +795,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C70A48EE2B1A06AD00C266DE /* Colorize.swift in Sources */,
 				C7AB38CE2AC5E00C00F299CE /* CherryPicks.swift in Sources */,
 				C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */,
 				C7956A422AC208DD00C0EDF2 /* main.swift in Sources */,
