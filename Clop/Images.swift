@@ -17,7 +17,6 @@ import UniformTypeIdentifiers
 let PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").existingFilePath!
 let JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").existingFilePath!
 let GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").existingFilePath!
-let EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").existingFilePath!
 let VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").existingFilePath!
 
 extension NSPasteboard.PasteboardType {
@@ -529,17 +528,19 @@ class Image: CustomStringConvertible {
            let jpegSize = tempFile.fileSize(),
            jpegSize - pngSize > 100_000
         {
-            tempFile = pngOutFile
-            type = .png
-
-            if Defaults[.convertedImageBehaviour] != .temporary {
-                justTry {
+            var newOutFile = pngOutFile
+            do {
+                if Defaults[.convertedImageBehaviour] != .temporary {
                     try pngOutFile.setOptimisationStatusXattr("true")
-                    tempFile = try pngOutFile.copy(to: path.dir)
-                    if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, tempFile.withExtension(ext).exists {
-                        try? tempFile.withExtension(ext).delete()
+                    newOutFile = try pngOutFile.copy(to: path.dir)
+                    if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, newOutFile.withExtension(ext).exists {
+                        try? newOutFile.withExtension(ext).delete()
                     }
                 }
+                tempFile = pngOutFile
+                type = .png
+            } catch {
+                log.error(error.localizedDescription)
             }
         }
 
@@ -635,19 +636,22 @@ class Image: CustomStringConvertible {
            let pngSize = tempFile.fileSize(),
            pngSize - jpegSize > 100_000
         {
-            tempFile = jpegOutFile
-            type = .jpeg
-
-            if Defaults[.convertedImageBehaviour] != .temporary {
-                justTry {
+            var newOutFile = jpegOutFile
+            do {
+                if Defaults[.convertedImageBehaviour] != .temporary {
                     try jpegOutFile.setOptimisationStatusXattr("true")
                     if jpegOutFile != path.dir.appending(jpegOutFile.name) {
-                        tempFile = try jpegOutFile.copy(to: path.dir)
-                        if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, tempFile.withExtension(ext).exists {
-                            try? tempFile.withExtension(ext).delete()
+                        newOutFile = try jpegOutFile.copy(to: path.dir)
+                        if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, newOutFile.withExtension(ext).exists {
+                            try? newOutFile.withExtension(ext).delete()
                         }
                     }
+
                 }
+                tempFile = newOutFile
+                type = .jpeg
+            } catch {
+                log.error(error.localizedDescription)
             }
         }
 
@@ -902,7 +906,9 @@ extension FilePath {
         operation: "Optimising" + (aggressiveOptimisation ?? false ? " (aggressive)" : ""),
         hidden: hideFloatingResult, source: source, indeterminateProgress: true
     )
-    optimiser.thumbnail = img.image
+    if !hideFloatingResult {
+        optimiser.thumbnail = img.image
+    }
     optimiser.downscaleFactor = 1.0
     optimiser.newSize = nil
     optimiser.newBytes = -1
@@ -923,7 +929,9 @@ extension FilePath {
         if id == Optimiser.IDs.clipboardImage {
             optimiser.startingURL = optimiser.url
         }
-        OM.current = optimiser
+        if !hideFloatingResult {
+            OM.current = optimiser
+        }
 
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
         showFloatingThumbnails()
@@ -991,7 +999,9 @@ extension FilePath {
             }
 
             mainActor {
-                OM.current = optimiser
+                if !hideFloatingResult {
+                    OM.current = optimiser
+                }
                 optimiser.finish(
                     oldBytes: img.data.count, newBytes: optimisedImage.data.count,
                     oldSize: img.size, newSize: optimisedImage.size,
@@ -1064,7 +1074,9 @@ extension FilePath {
     optimiser.remover = nil
     optimiser.inRemoval = false
     optimiser.stop(remove: false)
-    optimiser.thumbnail = img.image
+    if !hideFloatingResult {
+        optimiser.thumbnail = img.image
+    }
     optimiser.downscaleFactor = scalingFactor
 
     var result: Image?
@@ -1076,8 +1088,10 @@ extension FilePath {
             mainActor { done = true }
         }
 
-        mainActor {
-            OM.current = optimiser
+        if !hideFloatingResult {
+            mainActor {
+                OM.current = optimiser
+            }
         }
         do {
             if let cropSize, cropSize.width > 0, cropSize.height > 0 {
