@@ -438,11 +438,8 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
     return proc
 }
 
-let ARCH = NSRunningApplication.current.executableArchitecture == NSBundleExecutableArchitectureARM64 ? "arm64" : "x86"
 let BIN_ARCHIVE = Bundle.main.url(forResource: "bin", withExtension: "tar.xz")! // /Applications/Clop.app/Contents/Resources/bin.tar.xz
 let BIN_ARCHIVE_HASH_PATH = Bundle.main.url(forResource: "bin", withExtension: "tar.xz.sha256")! // /Applications/Clop.app/Contents/Resources/bin.tar.xz.sha256
-let GLOBAL_BIN_DIR = fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/
-let BIN_DIR = GLOBAL_BIN_DIR.appendingPathComponent(ARCH) // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/arm64
 let OLD_BIN_DIRS = [
     fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("com.lowtechguys.Clop"), // ~/Library/Application Scripts/com.lowtechguys.Clop/com.lowtechguys.Clop/
     fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("bin-arm64"), // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-arm64
@@ -465,5 +462,15 @@ func unarchiveBinaries() {
     if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
         let _ = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], wait: true)
         fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
+    }
+
+    let cliDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("ClopCLI")
+    if !fm.fileExists(atPath: cliDir.path) {
+        try! fm.linkItem(at: GLOBAL_BIN_DIR_PARENT, to: cliDir)
+    }
+
+    let finderOptimiserDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("\(GLOBAL_BIN_DIR_PARENT.lastPathComponent).FinderOptimiser")
+    if !fm.fileExists(atPath: finderOptimiserDir.path) {
+        try! fm.linkItem(at: GLOBAL_BIN_DIR_PARENT, to: finderOptimiserDir)
     }
 }

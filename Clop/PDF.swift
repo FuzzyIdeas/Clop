@@ -300,7 +300,9 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.0
                 }
             }
             do {
-                mainActor { OM.current = optimiser }
+                if !hideFloatingResult {
+                    mainActor { OM.current = optimiser }
+                }
 
                 optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
                 if let cropSize {

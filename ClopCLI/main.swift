@@ -26,11 +26,11 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
-func isURLOptimisable(_ url: URL, type: UTType? = nil) -> Bool {
+func isURLOptimisable(_ url: URL, type: UTType? = nil, ignorePDF: Bool = false) -> Bool {
     guard url.isFileURL, let type = type ?? url.contentTypeResourceValue ?? url.fetchFileType() else {
         return true
     }
-    return IMAGE_VIDEO_FORMATS.contains(type) || type == .pdf
+    return IMAGE_VIDEO_FORMATS.contains(type) || (!ignorePDF && type == .pdf)
 }
 
 extension PageLayout: ExpressibleByArgument {}
@@ -118,7 +118,7 @@ Paper sizes:
                   "Crown Octavo"  "Imperial Octavo"  "Super Octavo"
 """
 
-func getURLsFromFolder(_ folder: URL, recursive: Bool) -> [URL] {
+func getURLsFromFolder(_ folder: URL, recursive: Bool, ignorePDF: Bool = false) -> [URL] {
     guard let enumerator = FileManager.default.enumerator(
         at: folder,
         includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey],
@@ -147,7 +147,7 @@ func getURLsFromFolder(_ folder: URL, recursive: Bool) -> [URL] {
             continue
         }
 
-        if !isURLOptimisable(fileURL, type: resourceValues.contentType) {
+        if !isURLOptimisable(fileURL, type: resourceValues.contentType, ignorePDF: ignorePDF) {
             continue
         }
         urls.append(fileURL)
@@ -460,6 +460,81 @@ struct Clop: ParsableCommand {
         }
     }
 
+    struct StripExif: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Deletes EXIF metadata from images and videos."
+        )
+
+        static var printSemaphore = DispatchSemaphore(value: 1)
+
+        @Flag(name: .shortAndLong, help: "Strip EXIF metadata from all files in subfolders (when using a folder as input)")
+        var recursive = false
+
+        @Argument(help: "Images and videos to strip EXIF metadata from (can be a file, folder, or list of files)")
+        var files: [FilePath] = []
+
+        var foundPaths: [FilePath] = []
+
+        mutating func validate() throws {
+            guard !files.isEmpty else {
+                throw ValidationError("At least one file or folder must be specified")
+            }
+
+            var isDir: ObjCBool = false
+            if let folder = files.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
+                foundPaths = getURLsFromFolder(folder.url, recursive: recursive, ignorePDF: true).map(\.filePath)
+            } else {
+                foundPaths = files
+            }
+        }
+
+        func strip(path: FilePath) {
+            guard FileManager.default.fileExists(atPath: path.string) else {
+                Self.printSemaphore.wait()
+                printerr("\(ERROR_X) \(path.string.underline()) does not exist")
+                Self.printSemaphore.signal()
+                return
+            }
+            guard path.extension?.lowercased() != "pdf" else {
+                Self.printSemaphore.wait()
+                printerr("\(EXCLAMATION) \(path.string.underline()) is a PDF and `strip-exif` does not work on this type of file")
+                Self.printSemaphore.signal()
+                return
+            }
+            let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
+                + ["-all=", "-tagsFromFile", "@"]
+                + ["-XResolution", "-YResolution", "-Orientation"]
+                + [path.string]
+            let errPipe = Pipe()
+
+            let process = Process()
+            process.launchPath = "/usr/bin/perl5.30"
+            process.arguments = args
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = errPipe
+            process.launch()
+            process.waitUntilExit()
+
+            Self.printSemaphore.wait()
+            defer {
+                Self.printSemaphore.signal()
+            }
+
+            if process.terminationStatus != 0 {
+                printerr("\(ERROR_X) \(path.string.underline()) failed")
+                printerr(String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "")
+                return
+            }
+            print("\(CHECKMARK) \(path.string.underline()) done".dim())
+        }
+
+        mutating func run() throws {
+            DispatchQueue.concurrentPerform(iterations: foundPaths.count) { i in
+                strip(path: foundPaths[i])
+            }
+        }
+    }
+
     struct Crop: ParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Crop and optimise images, videos and PDFs to a specific size or aspect ratio."
@@ -764,9 +839,15 @@ struct Clop: ParsableCommand {
             Downscale.self,
             CropPdf.self,
             UncropPdf.self,
+            StripExif.self,
         ]
     )
 }
+
+let CHECKMARK = "✓".green()
+let EXCLAMATION = "!".magenta()
+let ERROR_X = "✘".red()
+let ARROW = "->".dim()
 
 var progressPrinter: ProgressPrinter?
 
@@ -865,11 +946,6 @@ actor ProgressPrinter {
         }
     }
 
-    static let CHECKMARK = "✓".green()
-    static let EXCLAMATION = "!".magenta()
-    static let ERROR_X = "✘".red()
-    static let ARROW = "->".dim()
-
     func printResults(json: Bool) {
         guard !json else {
             let result = CLIResult(done: responses.values.sorted { $0.forURL.path < $1.forURL.path }, failed: errors.values.sorted { $0.forURL.path < $1.forURL.path })
@@ -878,20 +954,19 @@ actor ProgressPrinter {
         }
 
         for response in responses.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {
-            guard response.newBytes != response.oldBytes else {
-                let noChange = "(no change)".dim()
-                print("\(Self.EXCLAMATION) \(response.forURL.shellString.underline()): \((response.oldBytes ?! response.newBytes).humanSize.yellow()) \(noChange)")
+            guard response.newBytes != response.oldBytes, response.newBytes > 0, abs(response.newBytes - response.oldBytes) > 100 else {
+                print("\(EXCLAMATION) \(response.forURL.shellString.underline()): \((response.oldBytes ?! response.newBytes).humanSize.yellow()) (no change)".dim())
                 continue
             }
             let isSmaller = response.newBytes < response.oldBytes
             let perc = "\(response.percentageSaved.str(decimals: 2))%".foregroundColor(isSmaller ? .green : .red)
             let percentageSaved = "(\(perc) \(isSmaller ? "smaller" : "larger"))".dim()
             print(
-                "\(Self.CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green).dim()) \(Self.ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold()) \(percentageSaved)"
+                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold()) \(percentageSaved)"
             )
         }
         for response in errors.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {
-            print("\(Self.ERROR_X) \(response.forURL.shellString.underline()): \(response.error.foregroundColor(.red))")
+            print("\(ERROR_X) \(response.forURL.shellString.underline()): \(response.error.foregroundColor(.red))")
         }
         if responses.count > 1 {
             let totalOldBytes = responses.values.map(\.oldBytes).reduce(0, +)
@@ -903,7 +978,7 @@ actor ProgressPrinter {
             let totalBytesSaved = (totalOldBytes - totalNewBytes).humanSize.foregroundColor(isSmaller ? .green : .red)
             let totalBytesSavedStr = "\(isSmaller ? "saving" : "adding"): \(totalBytesSaved)"
             print(
-                "\(Self.CHECKMARK) \("TOTAL".underline()): \(totalOldBytes.humanSize.foregroundColor(isSmaller ? .red : .green).dim()) \(Self.ARROW) \(totalNewBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold()) \(totalBytesSavedStr) \(totalPercentageSaved)"
+                "\(CHECKMARK) \("TOTAL".underline()): \(totalOldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(totalNewBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold()) \(totalBytesSavedStr) \(totalPercentageSaved)"
             )
         }
     }
