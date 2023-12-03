@@ -530,7 +530,9 @@ var processTerminated = Set<pid_t>()
             }
 
             do {
-                mainActor { OM.current = optimiser }
+                if !hideFloatingResult {
+                    mainActor { OM.current = optimiser }
+                }
 
                 optimisedVideo = try video.optimise(
                     optimiser: optimiser,
@@ -679,7 +681,9 @@ var processTerminated = Set<pid_t>()
         guard let optimisedVideo else { return }
         mainActor {
             optimiser.url = optimisedVideo.path.url
-            OM.current = optimiser
+            if !hideFloatingResult {
+                OM.current = optimiser
+            }
             optimiser.finish(oldBytes: fileSize, newBytes: optimisedVideo.fileSize, oldSize: resolution, newSize: newSize, removeAfterMs: hideFilesAfter)
             result = optimisedVideo
             if copyToClipboard {
@@ -789,7 +793,9 @@ var processTerminated = Set<pid_t>()
         guard let optimisedVideo else { return }
         mainActor {
             optimiser.url = optimisedVideo.path.url
-            OM.current = optimiser
+            if !hideFloatingResult {
+                OM.current = optimiser
+            }
             optimiser.finish(oldBytes: fileSize, newBytes: optimisedVideo.fileSize, removeAfterMs: hideFilesAfter)
             result = optimisedVideo
             if copyToClipboard {
