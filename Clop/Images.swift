@@ -488,7 +488,7 @@ class Image: CustomStringConvertible {
         mainActor { optimiser.aggressive = aggressive }
 
         let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
-            "--strip-all", "--force", "--max", aggressive ? "70" : "90",
+            "--keep-all", "--force", "--max", aggressive ? "70" : "90",
             "--all-progressive", "--overwrite",
             "--dest", FilePath.images.string, path.string,
         ])
@@ -502,7 +502,7 @@ class Image: CustomStringConvertible {
                 try? pngOutFile!.delete()
             }
             let pngProc = Proc(cmd: PNGQUANT.string, args: [
-                "--strip", "--force",
+                "--force",
                 "--speed", aggressive ? "1" : "3",
                 "--quality", aggressive ? "0-90" : "0-100",
             ] + (pngOutFile == png.path ? ["--ext", ".png"] : ["--output", pngOutFile!.string]) + [png.path.string])
@@ -599,7 +599,7 @@ class Image: CustomStringConvertible {
         mainActor { optimiser.aggressive = aggressive }
 
         let pngProc = Proc(cmd: PNGQUANT.string, args: [
-            "--strip", "--force",
+            "--force",
             "--speed", aggressive ? "1" : "3",
             "--quality", aggressive ? "0-90" : "0-100",
         ] + (tempFile == path ? ["--ext", ".png"] : ["--output", tempFile.string]) + [path.string])
@@ -610,7 +610,7 @@ class Image: CustomStringConvertible {
             let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
 
             let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
-                "--strip-all", "--force", "--max", aggressive ? "70" : "90",
+                "--keep-all", "--force", "--max", aggressive ? "70" : "90",
                 "--all-progressive", "--overwrite",
                 "--dest", FilePath.images.string, jpeg.path.string,
             ])
