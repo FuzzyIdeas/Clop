@@ -1079,3 +1079,14 @@ func ?! <T: BinaryInteger>(_ num: T?, _ num2: T) -> T {
     }
     return num
 }
+
+let ARCH: String = {
+    var ret = 0
+    var size = MemoryLayout.size(ofValue: ret)
+    Darwin.sysctlbyname("hw.cputype", &ret, &size, nil, 0)
+    return ret == NSBundleExecutableArchitectureARM64 ? "arm64" : "x86"
+}()
+let GLOBAL_BIN_DIR_PARENT = FileManager.default.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first! // ~/Library/Application Scripts/com.lowtechguys.Clop
+let GLOBAL_BIN_DIR = GLOBAL_BIN_DIR_PARENT.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/
+let BIN_DIR = GLOBAL_BIN_DIR.appendingPathComponent(ARCH) // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/arm64
+let EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").existingFilePath!

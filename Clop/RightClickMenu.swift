@@ -130,6 +130,13 @@ struct RightClickMenuView: View {
             }
             .keyboardShortcut("u")
 
+            if !optimiser.type.isPDF {
+                Button("Strip EXIF metadata") {
+                    optimiser.path?.stripExif()
+                    optimiser.overlayMessage = "Stripped"
+                }
+            }
+
             Menu("Run workflow") {
                 WorkflowMenu(optimiser: optimiser)
             }
@@ -196,6 +203,14 @@ struct BatchRightClickMenuView: View {
             sm.uploadWithDropshare()
             sm.selection = []
         }
+
+        Button("Strip EXIF metadata") {
+            for optimiser in optimisers {
+                optimiser.path?.stripExif()
+            }
+            sm.selection = []
+        }
+        .disabled(optimisers.allSatisfy(\.type.isPDF))
     }
 }
 
