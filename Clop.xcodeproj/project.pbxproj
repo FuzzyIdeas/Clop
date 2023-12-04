@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		C70A48EE2B1A06AD00C266DE /* Colorize.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70A48ED2B1A06AD00C266DE /* Colorize.swift */; };
+		C70A48EF2B1DCCED00C266DE /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
+		C70A48F02B1DCCED00C266DE /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
 		C70B5F1A2AC014BF00345739 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C70B5F192AC014BF00345739 /* Cocoa.framework */; };
 		C70B5F1D2AC014BF00345739 /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C70B5F1C2AC014BF00345739 /* Media.xcassets */; };
 		C70B5F212AC014BF00345739 /* ActionRequestHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F202AC014BF00345739 /* ActionRequestHandler.swift */; };
@@ -786,6 +788,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C75FD2032AF4351D000B426B /* CherryPicks.swift in Sources */,
+				C70A48F02B1DCCED00C266DE /* Xattr.swift in Sources */,
 				C75FD2042AF4351D000B426B /* Shared.swift in Sources */,
 				C75FD2052AF4351D000B426B /* main.swift in Sources */,
 			);
@@ -798,6 +801,7 @@
 				C70A48EE2B1A06AD00C266DE /* Colorize.swift in Sources */,
 				C7AB38CE2AC5E00C00F299CE /* CherryPicks.swift in Sources */,
 				C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */,
+				C70A48EF2B1DCCED00C266DE /* Xattr.swift in Sources */,
 				C7956A422AC208DD00C0EDF2 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
