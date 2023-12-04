@@ -265,11 +265,22 @@ extension FilePath {
     }
 
     func stripExif() {
-        let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
+        let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath
+        let args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
             + ["-all=", "-tagsFromFile", "@"]
             + ["-XResolution", "-YResolution", "-Orientation"]
-            + [string]
+            + ["-o", tempFile.string, string]
         let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
+
+        guard tempFile.exists else {
+            log.error("Error stripping EXIF from \(self): \(exifProc.e ?? "")")
+            return
+        }
+
+        if hasOptimisationStatusXattr() {
+            try? tempFile.setOptimisationStatusXattr("true")
+        }
+        try? tempFile.move(to: self, force: true)
 
         #if DEBUG
             log.debug(args.joined(separator: " "))
