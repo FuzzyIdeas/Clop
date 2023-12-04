@@ -41,6 +41,17 @@ extension FilePath: ExpressibleByArgument {
         }
         self.init(argument)
     }
+
+    func setOptimisationStatusXattr(_ value: String) throws {
+        try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)
+    }
+
+    func hasOptimisationStatusXattr() -> Bool {
+        guard let data = (try? Xattr.dataFor(named: "clop.optimisation.status", atPath: string)) else {
+            return false
+        }
+        return !data.isEmpty
+    }
 }
 
 extension NSSize: ExpressibleByArgument {
@@ -501,10 +512,12 @@ struct Clop: ParsableCommand {
                 Self.printSemaphore.signal()
                 return
             }
-            let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
+
+            let tempFile = URL.temporaryDirectory.appendingPathComponent(path.name.string).filePath
+            let args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
                 + ["-all=", "-tagsFromFile", "@"]
                 + ["-XResolution", "-YResolution", "-Orientation"]
-                + [path.string]
+                + ["-o", tempFile.string, path.string]
             let errPipe = Pipe()
 
             let process = Process()
@@ -520,11 +533,17 @@ struct Clop: ParsableCommand {
                 Self.printSemaphore.signal()
             }
 
-            if process.terminationStatus != 0 {
+            if process.terminationStatus != 0 || !FileManager.default.fileExists(atPath: tempFile.string) {
                 printerr("\(ERROR_X) \(path.string.underline()) failed")
                 printerr(String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "")
                 return
             }
+            if path.hasOptimisationStatusXattr() {
+                try? tempFile.setOptimisationStatusXattr("true")
+            }
+            try? FileManager.default.removeItem(at: path.url)
+            try? FileManager.default.moveItem(at: tempFile.url, to: path.url)
+
             print("\(CHECKMARK) \(path.string.underline()) done".dim())
         }
 
