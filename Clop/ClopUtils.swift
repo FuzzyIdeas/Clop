@@ -280,7 +280,7 @@ extension FilePath {
         if hasOptimisationStatusXattr() {
             try? tempFile.setOptimisationStatusXattr("true")
         }
-        try? tempFile.move(to: self, force: true)
+        let _ = try? tempFile.move(to: self, force: true)
 
         #if DEBUG
             log.debug(args.joined(separator: " "))
@@ -308,15 +308,13 @@ extension FilePath {
 
         let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
             + additionalArgs
-            + ["-tagsFromFile", source.string]
+            + ["-extractEmbedded", "-tagsFromFile", source.string]
             + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : [])
             + [string]
-        let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
 
-        #if DEBUG
-            log.debug(args.joined(separator: " "))
-            log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
-        #endif
+        log.debug(args.joined(separator: " "))
+        let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
+        log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
     }
 
 }

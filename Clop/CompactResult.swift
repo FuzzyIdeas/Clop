@@ -94,6 +94,7 @@ struct CompactResult: View {
                 .font(.round(10, weight: .medium))
                 .foregroundColor(.fg.warm)
                 .fixedSize()
+                .disabled(!optimiser.canCrop())
         }
     }
 
