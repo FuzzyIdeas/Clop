@@ -19,6 +19,19 @@ enum ItemType: Equatable {
     case url
     case unknown
 
+    var convertibleTypes: [UTType] {
+        switch self {
+        case .image(.png):
+            [.jpeg, .webp, .avif].compactMap { $0 }
+        case .image(.jpeg):
+            [.png, .webp, .avif].compactMap { $0 }
+        case .video(.mpeg4Movie):
+            [.quickTimeMovie, .avif, .webm].compactMap { $0 }
+        default:
+            []
+        }
+    }
+
     var str: String {
         switch self {
         case .image:
@@ -561,23 +574,60 @@ final class QuickLooker: QLPreviewPanelDataSource {
         lhs.id == rhs.id
     }
 
+    func convert(to type: UTType) {
+        guard type != self.type.utType else { return }
+        let typeStr = type.preferredFilenameExtension ?? type.identifier
+        operation = "Converting to \(typeStr)"
+        progress = Progress()
+        progress.localizedAdditionalDescription = ""
+        progress.completedUnitCount = 0
+        running = true
+        isOriginal = false
+
+        switch self.type {
+        case .image:
+            guard let image = self.image else {
+                return
+            }
+            imageOptimisationQueue.addOperation { [weak self] in
+                guard let converted = try? image.convert(to: type) else {
+                    mainActor {
+                        guard let self else { return }
+                        self.finish(error: "\(typeStr) conversion failed")
+                    }
+                    return
+                }
+                mainActor {
+                    guard let self else { return }
+                    self.convertedFromURL = self.url
+                    self.image = converted
+                    self.type = .image(converted.type)
+                    self.url = converted.path.url
+                    self.finish(oldBytes: self.oldBytes, newBytes: converted.data.count, oldSize: self.oldSize, newSize: converted.size, removeAfterMs: self.lastRemoveAfterMs)
+                }
+            }
+        default:
+            break
+        }
+    }
+
     func refetch() {
-        if image != nil {
-            image = {
+        if let image, image.path != self.url?.filePath {
+            self.image = {
                 guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
                 return Image(path: path, type: imageType, retinaDownscaled: false)
             }()
             return
         }
-        if video != nil {
-            video = {
+        if let video, video.path != self.url?.filePath {
+            self.video = {
                 guard type.isVideo, let path = url?.existingFilePath else { return nil }
                 return Video(path: path, thumb: !hidden, id: id)
             }()
             return
         }
-        if pdf != nil {
-            pdf = {
+        if let pdf, pdf.path != self.url?.filePath {
+            self.pdf = {
                 guard type.isPDF, let path = url?.existingFilePath else { return nil }
                 return PDF(path, thumb: !hidden, id: id)
             }()
@@ -627,6 +677,33 @@ final class QuickLooker: QLPreviewPanelDataSource {
         OM.quicklook(optimiser: self)
     }
 
+    func canReoptimise() -> Bool {
+        switch type {
+        case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    func canDownscale() -> Bool {
+        switch type {
+        case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie):
+            return true
+        default:
+            return false
+        }
+    }
+    
+    func canCrop() -> Bool {
+        switch type {
+        case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
+            return true
+        default:
+            return false
+        }
+    }
+ 
     func canChangePlaybackSpeed() -> Bool {
         type.isVideo && !inRemoval
     }
@@ -672,11 +749,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
         error = nil
         notice = nil
 
-        var shoulduseAggressiveOptimisation = aggressiveOptimisation
+        var shouldUseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
             aggressive = aggressiveOptimisation
         } else if aggressive {
-            shoulduseAggressiveOptimisation = true
+            shouldUseAggressiveOptimisation = true
         }
 
         guard let path = originalURL?.filePath ?? path else {
@@ -700,7 +777,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 video,
                 originalPath: originalPath,
                 id: self.id, byFactor: factor, hideFloatingResult: hideFloatingResult,
-                aggressiveOptimisation: shoulduseAggressiveOptimisation
+                aggressiveOptimisation: shouldUseAggressiveOptimisation
             )
         }
     }
@@ -713,11 +790,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
         error = nil
         notice = nil
 
-        var shoulduseAggressiveOptimisation = aggressiveOptimisation
+        var shouldUseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
             aggressive = aggressiveOptimisation
         } else if aggressive {
-            shoulduseAggressiveOptimisation = true
+            shouldUseAggressiveOptimisation = true
         }
 
         guard var path = originalURL?.filePath ?? path else {
@@ -744,7 +821,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     image, toFactor: factor, saveTo: self.path,
                     copyToClipboard: id == IDs.clipboardImage, id: self.id,
                     hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimisation: shoulduseAggressiveOptimisation
+                    aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
             }
             if type.isVideo {
@@ -763,7 +840,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     video,
                     originalPath: (path.backupPath?.exists ?? false) ? path.backupPath : nil,
                     id: self.id, toFactor: factor, hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimisation: shoulduseAggressiveOptimisation
+                    aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
             }
         }
@@ -813,14 +890,14 @@ final class QuickLooker: QLPreviewPanelDataSource {
         }
 
         isOriginal = false
-        var shoulduseAggressiveOptimisation = aggressiveOptimisation
+        var shouldUseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
             aggressive = aggressiveOptimisation
         } else if aggressive {
-            shoulduseAggressiveOptimisation = true
+            shouldUseAggressiveOptimisation = true
         }
         if type.isImage, let img = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
-            Task.init { try? await optimiseImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shoulduseAggressiveOptimisation) }
+            Task.init { try? await optimiseImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
             return
         }
         if type.isVideo, path.exists {
@@ -831,7 +908,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)
                 }
                 guard let video else { return }
-                let _ = try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shoulduseAggressiveOptimisation)
+                let _ = try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
             }
         }
     }
@@ -880,6 +957,13 @@ final class QuickLooker: QLPreviewPanelDataSource {
             self.type = .video(utType)
         }
 
+        if let utType = path.url.utType() {
+            self.type = switch self.type {
+                case .image: .image(utType)
+                case .video: .video(utType)
+                default: self.type
+            }
+        }
         if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled), id == IDs.clipboardImage {
             image.copyToClipboard()
         }
@@ -1112,7 +1196,14 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var skippedBecauseNotPro: [URL] = []
     @Published var ignoreProErrorBadge = false
 
-    @Published var removedOptimisers: [Optimiser] = []
+    @Published var removedOptimisers: [Optimiser] = [] {
+        didSet {
+            if visibleOptimisers.isEmpty {
+                current?.removeDebouncer()
+                current = nil
+            }
+        }
+    }
 
     var optimisedFilesByHash: [String: FilePath] = [:]
 
@@ -1126,6 +1217,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         didSet {
             if visibleOptimisers.isEmpty {
                 hoveredOptimiserID = nil
+                if removedOptimisers.isEmpty {
+                    current?.removeDebouncer()
+                    current = nil
+                }
             }
             visibleCount = visibleOptimisers.count
             doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil }.count
@@ -1280,8 +1375,8 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         optimiser.operation = operation
         optimiser.progress.localizedAdditionalDescription = ""
         optimiser.hidden = hidden
-        optimiser.running = true
         optimiser.progress.completedUnitCount = 0
+        optimiser.running = true
         optimiser.isOriginal = false
 
         if let source {

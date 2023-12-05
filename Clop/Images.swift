@@ -18,6 +18,8 @@ let PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").existingFilePath!
 let JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").existingFilePath!
 let GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").existingFilePath!
 let VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").existingFilePath!
+let HEIF_ENC = BIN_DIR.appendingPathComponent("heif-enc").existingFilePath!
+let CWEBP = BIN_DIR.appendingPathComponent("cwebp").existingFilePath!
 
 extension NSPasteboard.PasteboardType {
     static let jpeg = NSPasteboard.PasteboardType(rawValue: "public.jpeg")
@@ -739,21 +741,56 @@ class Image: CustomStringConvertible {
         return img
     }
 
+    func convertToAVIF() throws -> Image {
+        let tempFile = path.tempFile(ext: "avif")
+        let proc = try tryProc(HEIF_ENC.string, args: ["--avif", "-q", "60", "-o", tempFile.string, path.string], tries: 2)
+        guard proc.terminationStatus == 0 else {
+            throw ClopProcError.processError(proc)
+        }
+        try? tempFile.setOptimisationStatusXattr("true")
+        let path = try tempFile.move(to: path.withExtension("avif"), force: true)
+        guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
+            throw ClopError.fileNotFound(tempFile)
+        }
+        return Image(data: data, path: path, nsImage: img, type: .avif, retinaDownscaled: retinaDownscaled)
+    }
+
+    func convertToWEBP() throws -> Image {
+        let tempFile = path.tempFile(ext: "webp")
+        let proc = try tryProc(CWEBP.string, args: ["-mt", "-q", "60", path.string, "-o", tempFile.string], tries: 2)
+        guard proc.terminationStatus == 0 else {
+            throw ClopProcError.processError(proc)
+        }
+        try? tempFile.setOptimisationStatusXattr("true")
+        let path = try tempFile.move(to: path.withExtension("webp"), force: true)
+        guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
+            throw ClopError.fileNotFound(tempFile)
+        }
+        return Image(data: data, path: path, nsImage: img, type: .webp, retinaDownscaled: retinaDownscaled)
+    }
+
     func convert(to type: UTType) throws -> Image {
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
         }
 
-        let convPath = FilePath.conversions.appending("\(path.stem!).\(ext)")
-        guard let data = image.data(using: type.imgType) else {
-            throw ClopError.unknownImageType(path)
+        switch type {
+        case .avif:
+            return try convertToAVIF()
+        case .webp:
+            return try convertToWEBP()
+        default:
+            let convPath = FilePath.conversions.appending("\(path.stem!).\(ext)")
+            guard let data = image.data(using: type.imgType) else {
+                throw ClopError.unknownImageType(path)
+            }
+            fm.createFile(atPath: convPath.string, contents: data)
+            convPath.waitForFile(for: 2)
+            guard convPath.exists, let img = Image(path: convPath, retinaDownscaled: retinaDownscaled) else {
+                throw ClopError.conversionFailed(path)
+            }
+            return img
         }
-        fm.createFile(atPath: convPath.string, contents: data)
-        convPath.waitForFile(for: 2)
-        guard convPath.exists, let img = Image(path: convPath, retinaDownscaled: retinaDownscaled) else {
-            throw ClopError.conversionFailed(path)
-        }
-        return img
     }
 
     func copyToClipboard(withPath: Bool? = nil) {
