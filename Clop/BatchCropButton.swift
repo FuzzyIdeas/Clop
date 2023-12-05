@@ -139,16 +139,17 @@ struct BatchCropButton: View {
 
                 if isAspectRatio, let cropSize {
                     for id in sm.selection {
-                        guard let optimiser = opt(id) else { continue }
+                        guard let optimiser = opt(id), optimiser.canCrop() else { continue }
                         optimiser.crop(to: cropSize.withOrientation(cropOrientation))
                     }
                 } else if tempWidth != 0, tempHeight != 0 {
                     for id in sm.selection {
-                        opt(id)?.crop(to: CropSize(width: tempWidth, height: tempHeight))
+                        guard let optimiser = opt(id), optimiser.canCrop() else { continue }
+                        optimiser.crop(to: CropSize(width: tempWidth, height: tempHeight))
                     }
                 } else {
                     for id in sm.selection {
-                        guard let optimiser = opt(id), let size = optimiser.oldSize else { continue }
+                        guard let optimiser = opt(id), let size = optimiser.oldSize, optimiser.canDownscale() else { continue }
                         optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
                     }
                 }

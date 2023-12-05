@@ -10,8 +10,18 @@ import Foundation
 import System
 import UniformTypeIdentifiers
 
+func ~=(lhs: UTType?, rhs: UTType) -> Bool {
+    guard let lhs = lhs else { return false }
+    return lhs.conforms(to: rhs)
+}
+
+extension UTType: Identifiable {
+    public var id: String { identifier }
+}
+
 extension UTType {
     static let avif = UTType("public.avif")
+    static let webp = UTType("org.webmproject.webp")
     static let webm = UTType("org.webmproject.webm")
     static let mkv = UTType("org.matroska.mkv")
     static let mpeg = UTType("public.mpeg")
@@ -1078,6 +1088,16 @@ func ?! <T: BinaryInteger>(_ num: T?, _ num2: T) -> T {
         return num2
     }
     return num
+}
+
+extension FilePath {
+    func tempFile(ext: String? = nil) -> FilePath {
+        Self.tempFile(name: stem, ext: ext ?? `extension` ?? "png")
+    }
+
+    static func tempFile(name: String? = nil, ext: String) -> FilePath {
+        URL.temporaryDirectory.appendingPathComponent("\(name ?? UUID().uuidString).\(ext)").filePath
+    }
 }
 
 let ARCH: String = {

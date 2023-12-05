@@ -186,14 +186,16 @@ struct SideButtons: View {
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
         VStack {
-            DownscaleButton(optimiser: optimiser)
-                .onHover { hoveringDownscaleButton = $0 }
-                .helpTag(
-                    isPresented: $hoveringDownscaleButton,
-                    alignment: isTrailing ? .trailing : .leading,
-                    offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                    "Downscale (⌘-)"
-                )
+            if optimiser.canDownscale() {
+                DownscaleButton(optimiser: optimiser)
+                    .onHover { hoveringDownscaleButton = $0 }
+                    .helpTag(
+                        isPresented: $hoveringDownscaleButton,
+                        alignment: isTrailing ? .trailing : .leading,
+                        offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
+                        "Downscale (⌘-)"
+                    )
+            }
             ShareButton(optimiser: optimiser)
                 .onHover { hoveringShareButton = $0 }
                 .helpTag(
@@ -211,7 +213,7 @@ struct SideButtons: View {
                     optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)"
                 )
 
-            if !optimiser.aggressive {
+            if !optimiser.aggressive, optimiser.canReoptimise() {
                 AggressiveOptimisationButton(optimiser: optimiser)
                     .onHover { hoveringAggressiveOptimisationButton = $0 }
                     .helpTag(
@@ -265,9 +267,11 @@ struct ActionButtons: View {
 
     var body: some View {
         HStack {
-            DownscaleButton(optimiser: optimiser)
-                .onHover { hoveringDownscaleButton = $0 }
-                .topHelpTag(isPresented: $hoveringDownscaleButton, "Downscale (⌘-)")
+            if optimiser.canDownscale() {
+                DownscaleButton(optimiser: optimiser)
+                    .onHover { hoveringDownscaleButton = $0 }
+                    .topHelpTag(isPresented: $hoveringDownscaleButton, "Downscale (⌘-)")
+            }
 
             QuickLookButton(optimiser: optimiser)
                 .onHover { hoveringQuickLookButton = $0 }
@@ -277,7 +281,7 @@ struct ActionButtons: View {
                 .onHover { hoveringRestoreOptimiseButton = $0 }
                 .topHelpTag(isPresented: $hoveringRestoreOptimiseButton, optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)")
 
-            if !optimiser.aggressive {
+            if !optimiser.aggressive, optimiser.canReoptimise() {
                 AggressiveOptimisationButton(optimiser: optimiser)
                     .onHover { hoveringAggressiveOptimisationButton = $0 }
                     .topHelpTag(isPresented: $hoveringAggressiveOptimisationButton, "Aggressive optimisation (⌘A)")

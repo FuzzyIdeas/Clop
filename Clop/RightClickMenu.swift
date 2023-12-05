@@ -89,11 +89,19 @@ struct RightClickMenuView: View {
         .keyboardShortcut(" ")
 
         if !optimiser.running {
-            Divider()
-            Menu("Downscale") {
-                DownscaleMenu(optimiser: optimiser)
+            if optimiser.canDownscale() ||
+                optimiser.canChangePlaybackSpeed() ||
+                optimiser.type.isVideo ||
+                optimiser.canReoptimise()
+            {
+                Divider()
             }
-            .disabled(optimiser.downscaleFactor <= 0.1)
+            if optimiser.canDownscale() {
+                Menu("Downscale") {
+                    DownscaleMenu(optimiser: optimiser)
+                }
+                .disabled(optimiser.downscaleFactor <= 0.1)
+            }
 
             if optimiser.canChangePlaybackSpeed() {
                 Menu("Change playback speed") {
@@ -111,19 +119,19 @@ struct RightClickMenuView: View {
                 }
             }
 
-            Button("Aggressive optimisation") {
-                if optimiser.downscaleFactor < 1 {
-                    optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
-                } else {
-                    optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+            if optimiser.canReoptimise() {
+                Button("Aggressive optimisation") {
+                    if optimiser.downscaleFactor < 1 {
+                        optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
+                    } else {
+                        optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+                    }
                 }
+                .keyboardShortcut("a")
+                .disabled(optimiser.aggressive)
             }
-            .keyboardShortcut("a")
-            .disabled(optimiser.aggressive)
 
             Divider()
-
-//            ShareMenu(optimiser: optimiser)
 
             Button("Upload with Dropshare") {
                 optimiser.uploadWithDropshare()
@@ -137,8 +145,26 @@ struct RightClickMenuView: View {
                 }
             }
 
+            if optimiser.type.convertibleTypes.isNotEmpty {
+                Menu("Convert to…") {
+                    ConvertMenu(optimiser: optimiser)
+                }
+            }
+
             Menu("Run workflow") {
                 WorkflowMenu(optimiser: optimiser)
+            }
+        }
+    }
+}
+
+struct ConvertMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        ForEach(optimiser.type.convertibleTypes) { type in
+            Button(type.preferredFilenameExtension ?? type.identifier) {
+                optimiser.convert(to: type)
             }
         }
     }
