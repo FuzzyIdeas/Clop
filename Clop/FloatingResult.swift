@@ -252,6 +252,7 @@ struct FloatingResult: View {
                 .font(.round(10))
                 .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
                 .fixedSize()
+                .disabled(!optimiser.canCrop())
         }
     }
 
