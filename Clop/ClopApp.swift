@@ -273,13 +273,13 @@ class AppDelegate: AppDelegateParent {
                 opt.bringBack()
             }
         case .space:
-            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+            if let opt = OM.current, !opt.inRemoval {
                 opt.quicklook()
             } else {
                 Task.init { try? await quickLookLastClipboardItem() }
             }
         case .z:
-            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.isOriginal {
+            if let opt = OM.current, !opt.inRemoval, !opt.isOriginal {
                 opt.restoreOriginal()
             }
         case .p:
@@ -288,7 +288,8 @@ class AppDelegate: AppDelegateParent {
         case .c:
             Task.init { try? await optimiseLastClipboardItem() }
         case .a:
-            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt), !opt.aggressive {
+            if let opt = OM.current, !opt.inRemoval {
+                guard !opt.aggressive else { return }
                 if opt.downscaleFactor < 1 {
                     opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
                 } else {
@@ -300,7 +301,7 @@ class AppDelegate: AppDelegateParent {
         case SauceKey.NUMBER_KEYS.suffix(from: 1).arr:
             guard let number = key.QWERTYCharacter.d else { break }
 
-            if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {
+            if let opt = OM.current, !opt.inRemoval {
                 opt.downscale(toFactor: number / 10.0)
             } else {
                 Task.init { try? await optimiseLastClipboardItem(downscaleTo: number / 10.0) }
