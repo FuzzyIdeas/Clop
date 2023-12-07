@@ -10,8 +10,8 @@ import Foundation
 import System
 import UniformTypeIdentifiers
 
-func ~=(lhs: UTType?, rhs: UTType) -> Bool {
-    guard let lhs = lhs else { return false }
+func ~= (lhs: UTType?, rhs: UTType) -> Bool {
+    guard let lhs else { return false }
     return lhs.conforms(to: rhs)
 }
 

@@ -29,7 +29,11 @@ class Video: Optimisable {
         } else {
             Task.init {
                 self.metadata = try? await getVideoMetadata(path: path)
-                await MainActor.run { optimiser?.oldSize = self.size }
+                await MainActor.run {
+                    if let optimiser, optimiser.oldSize == nil {
+                        optimiser.oldSize = self.size
+                    }
+                }
             }
         }
     }
@@ -55,7 +59,11 @@ class Video: Optimisable {
         let metadata = try await getVideoMetadata(path: path)
         let video = Video(path: path, metadata: metadata, fileSize: fileSize, convertedFrom: convertedFrom, thumb: thumb, id: id)
 
-        await MainActor.run { video.optimiser?.oldSize = metadata?.resolution }
+        await MainActor.run {
+            if let optimiser = video.optimiser, optimiser.oldSize == nil, let metadata {
+                optimiser.oldSize = metadata.resolution
+            }
+        }
 
         return video
     }
@@ -275,7 +283,7 @@ class Video: Optimisable {
         }
 
         outputPath.waitForFile(for: 2)
-        outputPath.copyExif(from: path, stripMetadata: Defaults[.stripMetadata])
+        outputPath.copyExif(from: inputPath, stripMetadata: Defaults[.stripMetadata])
         if Defaults[.preserveDates] {
             outputPath.copyCreationModificationDates(from: path)
         }
@@ -510,6 +518,12 @@ var processTerminated = Set<pid_t>()
     let pathString = path.string
     let itemType = ItemType.from(filePath: path)
     let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: debounceMS > 0 ? "Waiting for video to be ready" : "Optimising", hidden: hideFloatingResult, source: source)
+    if optimiser.oldBytes == nil {
+        optimiser.oldBytes = video.fileSize
+    }
+    if optimiser.oldSize == nil {
+        optimiser.oldSize = video.size
+    }
 
     var done = false
     var result: Video?
@@ -631,6 +645,14 @@ var processTerminated = Set<pid_t>()
     optimiser.inRemoval = false
     optimiser.stop(remove: false)
     optimiser.downscaleFactor = scalingFactor
+
+    if optimiser.oldBytes == nil {
+        optimiser.oldBytes = video.fileSize
+    }
+    if optimiser.oldSize == nil {
+        optimiser.oldSize = resolution
+    }
+
     let changePlaybackSpeedFactor = optimiser.changePlaybackSpeedFactor
 
     var result: Video?
@@ -745,6 +767,12 @@ var processTerminated = Set<pid_t>()
     optimiser.inRemoval = false
     optimiser.stop(remove: false)
     optimiser.changePlaybackSpeedFactor = changePlaybackSpeedFactor
+    if optimiser.oldBytes == nil {
+        optimiser.oldBytes = video.fileSize
+    }
+    if optimiser.oldSize == nil {
+        optimiser.oldSize = video.size
+    }
 
     var result: Video?
     var done = false
