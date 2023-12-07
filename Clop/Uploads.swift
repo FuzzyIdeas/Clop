@@ -121,10 +121,13 @@ class MetaQuery {
         q.searchScopes = scopes
         q.predicate = NSPredicate(fromMetadataQueryString: queryString)
         q.sortDescriptors = sortBy
+        q.operationQueue = MetaQuery.queryOperationQueue
 
-        q.start()
+        MetaQuery.queryOperationQueue.addOperation {
+            q.start()
+        }
         query = q
-        observer = NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: q, queue: nil) { [weak self] notification in
+        observer = NotificationCenter.default.addObserver(forName: NSNotification.Name.NSMetadataQueryDidFinishGathering, object: q, queue: MetaQuery.queryOperationQueue) { [weak self] notification in
             guard let query = notification.object as? NSMetadataQuery,
                   let items = query.results as? [NSMetadataItem]
             else {
@@ -134,7 +137,9 @@ class MetaQuery {
             if let observer = self?.observer {
                 NotificationCenter.default.removeObserver(observer)
             }
-            handler(items)
+            mainAsync {
+                handler(items)
+            }
         }
     }
 
@@ -144,6 +149,8 @@ class MetaQuery {
             NotificationCenter.default.removeObserver(observer)
         }
     }
+
+    static let queryOperationQueue = OperationQueue()
 
     let query: NSMetadataQuery
     var observer: NSObjectProtocol?
