@@ -680,30 +680,30 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func canReoptimise() -> Bool {
         switch type {
         case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
-    
+
     func canDownscale() -> Bool {
         switch type {
         case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie):
-            return true
+            true
         default:
-            return false
+            false
         }
     }
-    
+
     func canCrop() -> Bool {
         switch type {
         case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
- 
+
     func canChangePlaybackSpeed() -> Bool {
         type.isVideo && !inRemoval
     }
@@ -959,9 +959,9 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
         if let utType = path.url.utType() {
             self.type = switch self.type {
-                case .image: .image(utType)
-                case .video: .video(utType)
-                default: self.type
+            case .image: .image(utType)
+            case .video: .video(utType)
+            default: self.type
             }
         }
         if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled), id == IDs.clipboardImage {
@@ -1196,6 +1196,14 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var skippedBecauseNotPro: [URL] = []
     @Published var ignoreProErrorBadge = false
 
+    var optimisedFilesByHash: [String: FilePath] = [:]
+
+    @Published var doneCount = 0
+    @Published var failedCount = 0
+    @Published var visibleCount = 0
+
+    var lastRemoveAfterMs: Int? = nil
+
     @Published var removedOptimisers: [Optimiser] = [] {
         didSet {
             if visibleOptimisers.isEmpty {
@@ -1204,14 +1212,6 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
             }
         }
     }
-
-    var optimisedFilesByHash: [String: FilePath] = [:]
-
-    @Published var doneCount = 0
-    @Published var failedCount = 0
-    @Published var visibleCount = 0
-
-    var lastRemoveAfterMs: Int? = nil
 
     @Published var visibleOptimisers: Set<Optimiser> = [] {
         didSet {

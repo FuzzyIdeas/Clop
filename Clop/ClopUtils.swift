@@ -280,7 +280,7 @@ extension FilePath {
         if hasOptimisationStatusXattr() {
             try? tempFile.setOptimisationStatusXattr("true")
         }
-        let _ = try? tempFile.move(to: self, force: true)
+        _ = try? tempFile.move(to: self, force: true)
 
         #if DEBUG
             log.debug(args.joined(separator: " "))
@@ -375,7 +375,7 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
     var outPipes = procs.dict { ($0, Pipe()) }
     var errPipes = procs.dict { ($0, Pipe()) }
 
-    log.debug("Starting\n\t\(procs.map(\.cmdline).joined(separator: "\n\t"))")
+    log.debug("Starting\n\t\(procs.map(\.cmdline.shellString).joined(separator: "\n\t"))")
     var processes: [Proc: Process] = procs.dict { proc in
         guard let p = shellProc(proc.cmd, args: proc.args, out: outPipes[proc]!, err: errPipes[proc]!)
         else { return nil }
@@ -417,7 +417,7 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
     var outPipe = Pipe()
     var errPipe = Pipe()
 
-    let cmdline = "\(cmd) \(args.joined(separator: " "))"
+    let cmdline = "\(cmd.shellString) \(args.joined(separator: " "))"
     log.debug("Starting \(cmdline)")
     guard var proc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
         throw ClopError.noProcess(cmd)
