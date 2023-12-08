@@ -116,6 +116,8 @@
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
 		C7EE11372AF5737F0060A0A9 /* FinderOptimiser-setapp.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C75FD1FD2AF434FE000B426B /* FinderOptimiser-setapp.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C7EE11382AF573870060A0A9 /* ClopCLI-setapp in Copy Files (1 item) */ = {isa = PBXBuildFile; fileRef = C75FD20C2AF4351D000B426B /* ClopCLI-setapp */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EFD28B2B22577100A6D843 /* Onboarding.swift */; };
+		C7EFD28D2B22577100A6D843 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EFD28B2B22577100A6D843 /* Onboarding.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -279,6 +281,7 @@
 		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
 		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
 		C7EE11392AF575FE0060A0A9 /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
+		C7EFD28B2B22577100A6D843 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -435,6 +438,7 @@
 				C7AB662D2883015A0041BEC8 /* Clop.entitlements */,
 				C7C8AD5A2ABC78CF003ECDE6 /* Shortcuts */,
 				C7AB662A2883015A0041BEC8 /* Preview Content */,
+				C7EFD28B2B22577100A6D843 /* Onboarding.swift */,
 			);
 			path = Clop;
 			sourceTree = "<group>";
@@ -753,6 +757,7 @@
 				C75FD1C02AF4324C000B426B /* Automation.swift in Sources */,
 				C75FD1C12AF4324C000B426B /* Shared.swift in Sources */,
 				C75FD1C22AF4324C000B426B /* FileNameField.swift in Sources */,
+				C7EFD28D2B22577100A6D843 /* Onboarding.swift in Sources */,
 				C75FD1C32AF4324C000B426B /* PDF.swift in Sources */,
 				C75FD1C42AF4324C000B426B /* Uploads.swift in Sources */,
 				C75FD1C52AF4324C000B426B /* FloatingResult.swift in Sources */,
@@ -820,6 +825,7 @@
 				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
 				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
 				C7AB38D12AC8320B00F299CE /* FileNameField.swift in Sources */,
+				C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */,
 				C7333E472A98C90500B1D5BE /* PDF.swift in Sources */,
 				C78C62612ADEB3E7000519D0 /* Uploads.swift in Sources */,
 				C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */,

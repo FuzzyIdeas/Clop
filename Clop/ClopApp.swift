@@ -91,7 +91,7 @@ class AppDelegate: AppDelegateParent {
     #endif
 
     @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
-        guard NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 5 else {
+        guard self.finishedOnboarding, NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 5 else {
             return
         }
 
@@ -158,6 +158,21 @@ class AppDelegate: AppDelegateParent {
     var machPortThread: Thread?
     var machPortStopThread: Thread?
 
+    var finishedOnboarding = Defaults[.launchCount] > 0
+
+    lazy var onboardingWindowController: NSWindowController? = {
+        let window = NSWindow(contentViewController: NSHostingController(rootView: OnboardingView()))
+        window.title = "Onboarding"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.styleMask = [.closable, .resizable, .titled]
+        window.center()
+        let wc = NSWindowController(window: window)
+        window.windowController = wc
+
+        return wc
+    }()
+
     @MainActor
     static func handleStopOptimisationRequest(_ req: StopOptimisationRequest) {
         log.debug("Stopping optimisation request: \(req.jsonString)")
@@ -194,7 +209,7 @@ class AppDelegate: AppDelegateParent {
 
     @MainActor
     func handleCommandHotkey(_ key: SauceKey) {
-        guard let opt = OM.hovered else {
+        guard finishedOnboarding, let opt = OM.hovered else {
             return
         }
 
@@ -240,6 +255,8 @@ class AppDelegate: AppDelegateParent {
 
     @MainActor
     func handleHotkey(_ key: SauceKey) {
+        guard finishedOnboarding else { return }
+
         switch key {
         case .escape:
             OM.clearVisibleOptimisers(stop: true)
@@ -312,7 +329,6 @@ class AppDelegate: AppDelegateParent {
     }
 
     func syncSettings() {
-//        UserDefaults.standard.register(defaults: UserDefaults.standard.dictionaryRepresentation())
         if Defaults[.syncSettingsCloud] {
             Zephyr.observe(keys: SETTINGS_TO_SYNC)
         }
@@ -483,7 +499,11 @@ class AppDelegate: AppDelegateParent {
             }
             .store(in: &observers)
 
-        initOptimisers()
+        if finishedOnboarding {
+            initOptimisers()
+        } else {
+            onboardFileOptimisation()
+        }
         trackScrollWheel()
 
         if Defaults[.enableDragAndDrop] {
@@ -539,12 +559,31 @@ class AppDelegate: AppDelegateParent {
         NotificationCenter.default.addObserver(self, selector: #selector(windowDidBecomeMainNotification), name: NSWindow.didBecomeMainNotification, object: nil)
     }
 
+    @MainActor
+    func onboardFileOptimisation() {
+        print(OnboardingFloatingPreview.om)
+        NSApp.setActivationPolicy(.regular)
+        onboardingWindowController?.showWindow(self)
+        focus()
+    }
+
     @objc func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+
         if window.title == "Settings" {
             mainActor {
                 settingsViewManager.windowOpen = false
                 NSApp.setActivationPolicy(.accessory)
+            }
+        }
+
+        if window.title == "Onboarding" {
+            mainActor {
+                self.finishedOnboarding = true
+                self.initOptimisers()
+                NSApp.setActivationPolicy(.accessory)
+                self.onboardingWindowController?.window = nil
+                self.onboardingWindowController = nil
             }
         }
     }
@@ -553,6 +592,7 @@ class AppDelegate: AppDelegateParent {
         guard let window = notification.object as? NSWindow else { return }
         if window.title == "Settings" {
             mainActor {
+                print(FloatingPreview.om, CompactPreview.om)
                 settingsViewManager.windowOpen = true
                 NSApp.setActivationPolicy(.regular)
 
@@ -605,19 +645,41 @@ class AppDelegate: AppDelegateParent {
     }
 
     @MainActor func initOptimisers() {
-        videoWatcher = FileOptimisationWatcher(pathsKey: .videoDirs, maxFilesToHandleKey: .maxVideoFileCount, fileType: .video, shouldHandle: shouldHandleVideo(event:), cancel: cancelImageOptimisation(path:)) { event in
+        guard finishedOnboarding else { return }
+        videoWatcher = FileOptimisationWatcher(
+            pathsKey: .videoDirs,
+            enabledKey: .enableAutomaticVideoOptimisations,
+            maxFilesToHandleKey: .maxVideoFileCount,
+            fileType: .video,
+            shouldHandle: shouldHandleVideo(event:),
+            cancel: cancelImageOptimisation(path:)
+        ) { event in
             let video = Video(path: FilePath(event.path))
             Task.init {
                 try? await optimiseVideo(video, debounceMS: 200, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
-        imageWatcher = FileOptimisationWatcher(pathsKey: .imageDirs, maxFilesToHandleKey: .maxImageFileCount, fileType: .image, shouldHandle: shouldHandleImage(event:), cancel: cancelVideoOptimisation(path:)) { event in
+        imageWatcher = FileOptimisationWatcher(
+            pathsKey: .imageDirs,
+            enabledKey: .enableAutomaticImageOptimisations,
+            maxFilesToHandleKey: .maxImageFileCount,
+            fileType: .image,
+            shouldHandle: shouldHandleImage(event:),
+            cancel: cancelVideoOptimisation(path:)
+        ) { event in
             guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
                 try? await optimiseImage(img, debounceMS: 200, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
-        pdfWatcher = FileOptimisationWatcher(pathsKey: .pdfDirs, maxFilesToHandleKey: .maxPDFFileCount, fileType: .pdf, shouldHandle: shouldHandlePDF(event:), cancel: cancelPDFOptimisation(path:)) { event in
+        pdfWatcher = FileOptimisationWatcher(
+            pathsKey: .pdfDirs,
+            enabledKey: .enableAutomaticPDFOptimisations,
+            maxFilesToHandleKey: .maxPDFFileCount,
+            fileType: .pdf,
+            shouldHandle: shouldHandlePDF(event:),
+            cancel: cancelPDFOptimisation(path:)
+        ) { event in
             guard let path = event.path.existingFilePath else { return }
             Task.init {
                 try? await optimisePDF(PDF(path), debounceMS: 200, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
@@ -640,6 +702,8 @@ class AppDelegate: AppDelegateParent {
     }
 
     @MainActor func initClipboardOptimiser() {
+        guard finishedOnboarding else { return }
+
         clipboardWatcher?.invalidate()
         clipboardWatcher = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
             let newChangeCount = NSPasteboard.general.changeCount
@@ -726,6 +790,7 @@ import Ignore
 class FileOptimisationWatcher {
     init(
         pathsKey: Defaults.Key<[String]>,
+        enabledKey: Defaults.Key<Bool>,
         maxFilesToHandleKey: Defaults.Key<Int>,
         fileType: ClopFileType,
         shouldHandle: @escaping (EonilFSEventsEvent) -> Bool,
@@ -733,6 +798,7 @@ class FileOptimisationWatcher {
         handler: @escaping (EonilFSEventsEvent) -> Void
     ) {
         self.pathsKey = pathsKey
+        self.enabledKey = enabledKey
         self.maxFilesToHandleKey = maxFilesToHandleKey
         self.fileType = fileType
         self.shouldHandle = shouldHandle
@@ -742,6 +808,18 @@ class FileOptimisationWatcher {
         pub(pathsKey).sink { [weak self] change in
             self?.paths = change.newValue
             self?.startWatching()
+        }.store(in: &observers)
+
+        pub(enabledKey).sink { [weak self] change in
+            guard let self else { return }
+
+            enabled = change.newValue
+            if change.newValue {
+                startWatching()
+            } else if watching {
+                EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+                watching = false
+            }
         }.store(in: &observers)
 
         pub(maxFilesToHandleKey).sink { [weak self] change in
@@ -773,7 +851,9 @@ class FileOptimisationWatcher {
     var fileType: ClopFileType
 
     var pathsKey: Defaults.Key<[String]>
+    var enabledKey: Defaults.Key<Bool>
     lazy var paths: [String] = Defaults[pathsKey]
+    lazy var enabled: Bool = Defaults[enabledKey]
 
     var maxFilesToHandleKey: Defaults.Key<Int>
     lazy var maxFilesToHandle: Int = Defaults[maxFilesToHandleKey]
@@ -813,7 +893,7 @@ class FileOptimisationWatcher {
             watching = false
         }
 
-        guard !paths.isEmpty, !Defaults[.pauseAutomaticOptimisations] else { return }
+        guard !paths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
 
         try! EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
             guard !SWIFTUI_PREVIEW else { return }

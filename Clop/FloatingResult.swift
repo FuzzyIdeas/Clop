@@ -181,7 +181,26 @@ struct FloatingPreview: View {
     var body: some View {
         FloatingResultContainer(om: Self.om, isPreview: true)
     }
+}
 
+@MainActor
+struct OnboardingFloatingPreview: View {
+    static var om: OptimisationManager = {
+        let o = OptimisationManager()
+        let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
+
+        let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
+        clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
+        clipEnd.thumbnail = NSImage(resource: .sonomaShot)
+        clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
+
+        o.optimisers = [clipEnd]
+        return o
+    }()
+
+    var body: some View {
+        FloatingResultContainer(om: Self.om, isPreview: true)
+    }
 }
 
 // MARK: - FloatingResult

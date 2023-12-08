@@ -25,8 +25,6 @@ enum ItemType: Equatable {
             [.jpeg, .webp, .avif].compactMap { $0 }
         case .image(.jpeg):
             [.png, .webp, .avif].compactMap { $0 }
-        case .video(.mpeg4Movie):
-            [.quickTimeMovie, .avif, .webm].compactMap { $0 }
         default:
             []
         }
@@ -1225,7 +1223,9 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
             visibleCount = visibleOptimisers.count
             doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil }.count
             failedCount = visibleOptimisers.filter { !$0.running && $0.error != nil }.count
-            SM.selectableCount = visibleOptimisers.filter { !$0.running }.count
+            mainThread {
+                SM.selectableCount = visibleOptimisers.filter { !$0.running }.count
+            }
         }
     }
 
@@ -1285,7 +1285,9 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         visibleCount = visibleOptimisers.count
         doneCount = visibleOptimisers.filter { !$0.running && $0.error == nil }.count
         failedCount = visibleOptimisers.filter { !$0.running && $0.error != nil }.count
-        SM.selectableCount = visibleOptimisers.filter { !$0.running }.count
+        mainThread {
+            SM.selectableCount = visibleOptimisers.filter { !$0.running }.count
+        }
         let finishedCount = doneCount + failedCount
 
         guard finishedCount < visibleCount else {
