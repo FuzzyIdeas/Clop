@@ -47,9 +47,11 @@ struct DirListView: View {
     @StateObject var textDebounce = TextDebounce(for: .seconds(2))
 
     @Binding var dirs: [String]
+    @Binding var enabled: Bool
     @State var selectedDirs: Set<String> = []
     @State var chooseFile = false
     @State var clopignoreHelpVisible = false
+    var hideIgnoreRules = false
 
     @ViewBuilder var ignoreRulesView: some View {
         if selectedDirs.count == 1, let dir = selectedDirs.first {
@@ -137,6 +139,8 @@ struct DirListView: View {
                 }
                 .tableStyle(.bordered)
                 .frame(height: 150)
+                .disabled(!enabled)
+                .opacity(enabled ? 1 : 0.6)
             }.frame(height: 150)
 
             HStack(spacing: 2) {
@@ -154,6 +158,7 @@ struct DirListView: View {
                             }
                         }
                     )
+                    .disabled(!enabled)
 
                 Button(
                     action: {
@@ -162,10 +167,18 @@ struct DirListView: View {
                     },
                     label: { SwiftUI.Image(systemName: "minus").font(.bold(12)) }
                 )
-                .disabled(selectedDirs.isEmpty)
+                .disabled(selectedDirs.isEmpty || !enabled)
+                Spacer()
+                Toggle(" Enable **\(fileType == .pdf ? "PDF" : fileType.rawValue)** auto-optimiser", isOn: $enabled)
+                    .font(.round(11, weight: .regular))
+                    .controlSize(.mini)
+                    .toggleStyle(.checkbox)
+                    .fixedSize()
             }
 
-            ignoreRulesView
+            if !hideIgnoreRules, enabled {
+                ignoreRulesView
+            }
         }
         .padding(4)
         .onChange(of: selectedDirs) { [selectedDirs] newSelectedDirs in
@@ -179,6 +192,11 @@ struct DirListView: View {
 
             textDebounce.debouncedText = (try? String(contentsOfFile: "\(dir)/.clopignore-\(fileType.rawValue)")) ?? ""
             textDebounce.text = textDebounce.debouncedText
+        }
+        .onChange(of: enabled) { enabled in
+            if !enabled {
+                selectedDirs = []
+            }
         }
     }
 
@@ -205,11 +223,12 @@ struct PDFSettingsView: View {
     @Default(.maxPDFSizeMB) var maxPDFSizeMB
     @Default(.maxPDFFileCount) var maxPDFFileCount
     @Default(.useAggressiveOptimisationPDF) var useAggressiveOptimisationPDF
+    @Default(.enableAutomaticPDFOptimisations) var enableAutomaticPDFOptimisations
 
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise PDFs as they appear in these folders")) {
-                DirListView(fileType: .pdf, dirs: $pdfDirs)
+                DirListView(fileType: .pdf, dirs: $pdfDirs, enabled: $enableAutomaticPDFOptimisations)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack {
@@ -255,11 +274,12 @@ struct VideoSettingsView: View {
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
     #endif
     @Default(.useAggressiveOptimisationMP4) var useAggressiveOptimisationMP4
+    @Default(.enableAutomaticVideoOptimisations) var enableAutomaticVideoOptimisations
 
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise videos as they appear in these folders")) {
-                DirListView(fileType: .video, dirs: $videoDirs)
+                DirListView(fileType: .video, dirs: $videoDirs, enabled: $enableAutomaticVideoOptimisations)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack {
@@ -402,11 +422,12 @@ struct ImagesSettingsView: View {
     @Default(.useAggressiveOptimisationJPEG) var useAggressiveOptimisationJPEG
     @Default(.useAggressiveOptimisationPNG) var useAggressiveOptimisationPNG
     @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
+    @Default(.enableAutomaticImageOptimisations) var enableAutomaticImageOptimisations
 
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
-                DirListView(fileType: .image, dirs: $imageDirs)
+                DirListView(fileType: .image, dirs: $imageDirs, enabled: $enableAutomaticImageOptimisations)
             }
             Section(header: SectionHeader(title: "File name handling")) {
                 Toggle(isOn: $copyImageFilePath) {
