@@ -64,6 +64,9 @@ extension Defaults.Keys {
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
     static let pdfDirs = Key<[String]>("pdfDirs", default: [])
+    static let enableAutomaticImageOptimisations = Key<Bool>("enableAutomaticImageOptimisations", default: true)
+    static let enableAutomaticVideoOptimisations = Key<Bool>("enableAutomaticVideoOptimisations", default: true)
+    static let enableAutomaticPDFOptimisations = Key<Bool>("enableAutomaticPDFOptimisations", default: true)
 
     static let maxVideoSizeMB = Key<Int>("maxVideoSizeMB", default: 500)
     static let maxImageSizeMB = Key<Int>("maxImageSizeMB", default: 50)
