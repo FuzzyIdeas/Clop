@@ -199,6 +199,7 @@ class PDF: Optimisable {
     }
 
     func optimise(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil) throws -> PDF {
+        try? path.setOptimisationStatusXattr("pending")
         let tempFile = FilePath.pdfs.appending(path.lastComponent?.string ?? "clop.pdf")
 
         let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPDF]
