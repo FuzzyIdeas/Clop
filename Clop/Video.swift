@@ -215,7 +215,7 @@ class Video: Optimisable {
         }
 
         path.waitForFile(for: 3)
-        try path.setOptimisationStatusXattr("pending")
+        try? path.setOptimisationStatusXattr("pending")
 
         let outputPath = forceMP4 ? FilePath.videos.appending("\(name.stem).mp4") : path
         var inputPath = originalPath ?? ((path == outputPath || backup) ? (path.backup(operation: .copy) ?? path) : path)
