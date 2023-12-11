@@ -931,7 +931,7 @@ struct GeneralSettingsView: View {
                         + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 Toggle(isOn: $onlyShowDropZoneOnOption) {
-                    Text("Press ⌥ Option while dragging to show drop zone").regular(13)
+                    Text("Require pressing ⌥ Option while dragging to show drop zone").regular(13)
                         + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 .padding(.leading, 20)
