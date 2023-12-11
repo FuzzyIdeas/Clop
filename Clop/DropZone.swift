@@ -10,15 +10,22 @@ class DragManager: ObservableObject {
     @MainActor @Published var itemsToOptimise: [ClipboardType] = []
     @Atomic var optimisationCount = 0
 
-    @MainActor @Published var dropped = true
-
-    @MainActor @Published var optionDropzonePressed = false {
+    @MainActor @Published var dropped = true {
         didSet {
-            guard optionDropzonePressed != oldValue else {
+            dropZoneKeyGlobalMonitor.stop()
+            dropZoneKeyLocalMonitor.stop()
+            DM.showDropZone = false
+        }
+    }
+
+    @MainActor @Published var showDropZone = false {
+        didSet {
+            guard showDropZone != oldValue else {
                 return
             }
-            if optionDropzonePressed {
+            if showDropZone {
                 log.debug("Option pressed, showing drop zone")
+                showFloatingThumbnails()
             } else {
                 log.debug("Option pressed, hiding drop zone")
             }
@@ -29,15 +36,8 @@ class DragManager: ObservableObject {
             guard dragging != oldValue else {
                 return
             }
-            if dragging {
-                if !Defaults[.onlyShowDropZoneOnOption] {
-                    optionDropzonePressed = true
-                }
-                dropZoneKeyGlobalMonitor.start()
-                dropZoneKeyLocalMonitor.start()
-            } else {
-                dropZoneKeyGlobalMonitor.stop()
-                dropZoneKeyLocalMonitor.stop()
+            if dragging, !Defaults[.onlyShowDropZoneOnOption] {
+                showDropZone = true
             }
         }
     }
@@ -178,43 +178,13 @@ class NSDragPile: NSView {
         sender.draggingFormation = .pile
         return sender.draggingSourceOperationMask.intersection([.copy, .move])
     }
-//    override func draggingEnded(_ sender: NSDraggingInfo) {
-//        dragView?.draggingEnded(sender)
-//    }
-//    override func draggingExited(_ sender: NSDraggingInfo?) {
-//        dragView?.draggingExited(sender)
-//    }
-//    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-//        dragView?.draggingUpdated(sender) ?? sender.draggingSourceOperationMask.intersection([.copy, .move])
-//    }
-//    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-//        dragView?.performDragOperation(sender) ?? false
-//    }
-//    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
-//        dragView?.prepareForDragOperation(sender) ?? false
-//    }
-//    override func wantsPeriodicDraggingUpdates() -> Bool {
-//        false
-//    }
-//    override func updateDraggingItemsForDrag(_ sender: NSDraggingInfo?) {
-//        dragView?.updateDraggingItemsForDrag(sender)
-//    }
-//    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
-//        dragView?.concludeDragOperation(sender)
-//    }
-//    override func hitTest(_ point: NSPoint) -> NSView? {
-//        dragView?.hitTest(point)
-//    }
 }
 struct DragPileView: NSViewRepresentable {
     func updateNSView(_ nsView: NSDragPile, context: Context) {}
 
     func makeNSView(context: Context) -> NSDragPile {
-        let view = NSDragPile()
-//        view.registerForDraggedTypes([.fileURL])
-        return view
+        NSDragPile()
     }
-
 }
 
 @MainActor
@@ -323,8 +293,27 @@ extension NSSecureCoding {
 }
 
 @MainActor
+func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: String? = nil, output: String? = nil) async throws {
+    await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
+        for url in getURLsFromFolder(dir.url, recursive: true) {
+            let path = url.filePath!
+            _ = group.addTaskUnlessCancelled {
+                _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
+                    try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: false, source: source, output: output)
+                }
+            }
+        }
+    }
+}
+
+@MainActor
 func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: String? = nil, output: String? = nil) async throws {
-    guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF else {
+    guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF || path.isDir else {
+        return
+    }
+
+    guard !path.isDir else {
+        try await optimiseDir(path: path, aggressive: aggressive, source: source, output: output)
         return
     }
     _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {

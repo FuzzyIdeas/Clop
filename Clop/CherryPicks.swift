@@ -115,7 +115,7 @@ extension String {
 }
 
 extension URL {
-    var filePath: FilePath { FilePath(self)! }
+    var filePath: FilePath? { FilePath(self) }
     var existingFilePath: FilePath? { FileManager.default.fileExists(atPath: path) ? FilePath(self) : nil }
 }
 

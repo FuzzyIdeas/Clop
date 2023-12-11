@@ -79,10 +79,7 @@ struct FloatingResultContainer: View {
     @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
 
     var shouldShowDropZone: Bool {
-        guard !isPreview, dragManager.dragging else {
-            return false
-        }
-        return dragManager.optionDropzonePressed
+        !isPreview && dragManager.showDropZone
     }
 
     var body: some View {
