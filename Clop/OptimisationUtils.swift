@@ -276,8 +276,6 @@ var hoveredOptimiserID: String? {
 
 @MainActor var dropZoneKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-    print("DROP ZONE FLAGS", flags)
-    print("DROP ZONE LAST FLAGS", lastDropzoneModifierFlags)
     defer {
         lastDropzoneModifierFlags = flags
         if flags.isEmpty {
@@ -290,7 +288,7 @@ var hoveredOptimiserID: String? {
     }
 
     if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
-        DM.optionDropzonePressed.toggle()
+        DM.showDropZone.toggle()
     }
 }
 @MainActor var dropZoneKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
@@ -307,7 +305,7 @@ var hoveredOptimiserID: String? {
     }
 
     if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
-        DM.optionDropzonePressed.toggle()
+        DM.showDropZone.toggle()
         return nil
     }
     return event
@@ -870,12 +868,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
     }
 
     func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
-        guard let url else { return }
+        guard let url, var path = url.filePath else { return }
         stopRemover()
         error = nil
         notice = nil
 
-        var path = url.filePath
         if fromOriginal, !path.exists || path.hasOptimisationStatusXattr() {
             if let backup = path.backupPath, backup.exists {
                 path.restore(force: true)
@@ -912,7 +909,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
     }
 
     func restoreOriginal() {
-        guard let url else { return }
+        guard let url, var path = url.filePath else { return }
         scalingFactor = 1.0
         downscaleFactor = 1.0
         changePlaybackSpeedFactor = 1.0
@@ -924,10 +921,9 @@ final class QuickLooker: QLPreviewPanelDataSource {
             path.restore()
         }
 
-        let path: FilePath
-        if let convertedFromURL {
+        if let convertedFromURL, let convertedFromPath = convertedFromURL.filePath {
             self.url = convertedFromURL
-            path = convertedFromURL.filePath
+            path = convertedFromPath
 
             if path.backupPath?.exists ?? false {
                 restore(path)
@@ -936,16 +932,15 @@ final class QuickLooker: QLPreviewPanelDataSource {
             if let startingPath = startingURL?.existingFilePath, startingPath != path, startingPath.stem == path.stem, startingPath.dir == path.dir {
                 try? startingPath.delete()
             }
-        } else if let startingURL, startingURL.filePath.backupPath?.exists ?? false {
-            path = startingURL.filePath
+        } else if let startingURL, let startingPath = startingURL.filePath, startingPath.backupPath?.exists ?? false {
+            path = startingPath
             self.url = startingURL
 
             restore(path)
-        } else if let originalURL {
+        } else if let originalURL, let originalPath = originalURL.filePath {
             self.url = originalURL
-            path = originalURL.filePath
+            path = originalPath
         } else {
-            path = url.filePath
             restore(path)
         }
         self.oldBytes = path.fileSize() ?? self.oldBytes
@@ -1026,7 +1021,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         panel.level = .modalPanel
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            if let savedPath = try? path.copy(to: url.filePath, force: true) {
+            if let savedPath = try? path.copy(to: url.filePath!, force: true) {
                 self?.overlayMessage = "Saved"
                 self?.url = url
                 self?.path = savedPath
@@ -1101,7 +1096,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
     }
 
     func crop(to size: CropSize) {
-        guard let url, url.isFileURL, url.filePath.exists else { return }
+        guard let url, url.isFileURL, url.filePath?.exists ?? false else { return }
 
         let clip = ClipboardType.fromURL(url)
 
@@ -1120,7 +1115,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
     }
 
     func removeDebouncer() {
-        let ids = [path?.string, url?.filePath.string, convertedFromURL?.filePath.string, originalURL?.filePath.string, startingURL?.filePath.string].compactMap { $0 }.uniqued
+        let ids = [path?.string, url?.filePath?.string, convertedFromURL?.filePath?.string, originalURL?.filePath?.string, startingURL?.filePath?.string].compactMap { $0 }.uniqued
         for id in ids {
             if let debouncer = imageOptimiseDebouncers[id] {
                 log.debug("Removing image optimise debouncer for \(id)")
@@ -1695,7 +1690,7 @@ enum ClipboardType: Equatable {
 
     static func fromURL(_ url: URL) -> ClipboardType {
         if url.isFileURL {
-            return .file(url.filePath)
+            return .file(url.filePath!)
         }
 
         return .url(url)
@@ -1799,7 +1794,7 @@ var manualOptimisationCount = 0
     let fileURL = try await url.download(type: type?.utType, delegate: progressDelegate)
     optimiser.progress.unpublish()
 
-    type = type ?? ItemType.from(filePath: fileURL.filePath)
+    type = type ?? ItemType.from(filePath: fileURL.filePath!)
     guard let type, type.isImage || type.isVideo, let ext = type.ext else {
         throw ClopError.downloadError("invalid file type")
     }
@@ -1820,7 +1815,7 @@ var manualOptimisationCount = 0
     } else {
         downloadPath
     }
-    try fileURL.filePath.move(to: outFilePath, force: true)
+    try fileURL.filePath!.move(to: outFilePath, force: true)
 
     guard optimiser.running, !optimiser.inRemoval else {
         return nil
@@ -2161,7 +2156,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
 
                     return await OptimisationResponse(
                         path: respPath, forURL: url,
-                        convertedFrom: opt.convertedFromURL?.filePath.string,
+                        convertedFrom: opt.convertedFromURL?.filePath?.string,
                         oldBytes: opt.oldBytes ?! url.existingFilePath?.fileSize() ?? 0, newBytes: opt.newBytes,
                         oldWidthHeight: opt.oldSize, newWidthHeight: opt.newSize
                     )

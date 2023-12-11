@@ -41,7 +41,7 @@ struct MenuView: View {
         @ViewBuilder var proErrors: some View {
             Section("Skipped items because of free version limits") {
                 ForEach(om.skippedBecauseNotPro, id: \.self) { url in
-                    let str = url.isFileURL ? url.filePath.shellString : url.absoluteString
+                    let str = url.isFileURL ? url.filePath!.shellString : url.absoluteString
                     Button("    \(str.count > 50 ? (str.prefix(25) + "..." + str.suffix(15)) : str)") {
                         QuickLooker.quicklook(url: url)
                     }

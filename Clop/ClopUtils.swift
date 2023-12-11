@@ -265,7 +265,7 @@ extension FilePath {
     }
 
     func stripExif() {
-        let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath
+        let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
         let args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
             + ["-all=", "-tagsFromFile", "@"]
             + ["-XResolution", "-YResolution", "-Orientation"]

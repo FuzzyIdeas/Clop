@@ -26,13 +26,6 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
-func isURLOptimisable(_ url: URL, type: UTType? = nil, ignorePDF: Bool = false) -> Bool {
-    guard url.isFileURL, let type = type ?? url.contentTypeResourceValue ?? url.fetchFileType() else {
-        return true
-    }
-    return IMAGE_VIDEO_FORMATS.contains(type) || (!ignorePDF && type == .pdf)
-}
-
 extension PageLayout: ExpressibleByArgument {}
 extension FilePath: ExpressibleByArgument {
     public init?(argument: String) {
@@ -128,43 +121,6 @@ Paper sizes:
                   "Octavo"        "Royal Octavo"     "Medium Octavo"
                   "Crown Octavo"  "Imperial Octavo"  "Super Octavo"
 """
-
-func getURLsFromFolder(_ folder: URL, recursive: Bool, ignorePDF: Bool = false) -> [URL] {
-    guard let enumerator = FileManager.default.enumerator(
-        at: folder,
-        includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey],
-        options: [.skipsPackageDescendants]
-    ) else {
-        return []
-    }
-
-    var urls: [URL] = []
-
-    for case let fileURL as URL in enumerator {
-        guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey]),
-              let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
-        else {
-            continue
-        }
-
-        if isDirectory {
-            if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
-                enumerator.skipDescendants()
-            }
-            continue
-        }
-
-        if !isRegularFile {
-            continue
-        }
-
-        if !isURLOptimisable(fileURL, type: resourceValues.contentType, ignorePDF: ignorePDF) {
-            continue
-        }
-        urls.append(fileURL)
-    }
-    return urls
-}
 
 func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool) throws -> [URL] {
     var dirs: [URL] = []
@@ -348,7 +304,7 @@ struct Clop: ParsableCommand {
 
         mutating func run() throws {
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
-                let pdfPath = pdf.documentURL!.filePath
+                let pdfPath = pdf.documentURL!.filePath!
                 print("Uncropping \(pdfPath.string)", terminator: "")
                 pdf.uncrop()
 
@@ -449,7 +405,7 @@ struct Clop: ParsableCommand {
 
         mutating func run() throws {
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
-                let pdfPath = pdf.documentURL!.filePath
+                let pdfPath = pdf.documentURL!.filePath!
                 print("Cropping \(pdfPath.string) to aspect ratio \(factorStr(ratio!))", terminator: "")
                 pdf.cropTo(aspectRatio: ratio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
 
@@ -493,7 +449,7 @@ struct Clop: ParsableCommand {
 
             var isDir: ObjCBool = false
             if let folder = files.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
-                foundPaths = getURLsFromFolder(folder.url, recursive: recursive, ignorePDF: true).map(\.filePath)
+                foundPaths = getURLsFromFolder(folder.url, recursive: recursive, ignorePDF: true).compactMap(\.filePath)
             } else {
                 foundPaths = files
             }
@@ -513,7 +469,7 @@ struct Clop: ParsableCommand {
                 return
             }
 
-            let tempFile = URL.temporaryDirectory.appendingPathComponent(path.name.string).filePath
+            let tempFile = URL.temporaryDirectory.appendingPathComponent(path.name.string).filePath!
             let args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
                 + ["-all=", "-tagsFromFile", "@"]
                 + ["-XResolution", "-YResolution", "-Orientation"]
