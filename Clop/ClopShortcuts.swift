@@ -6,9 +6,12 @@
 //
 
 import AppIntents
+import Defaults
 import Foundation
 import Lowtech
 import PDFKit
+import System
+import UniformTypeIdentifiers
 
 extension IntentFile {
     var url: URL {
@@ -148,6 +151,113 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
         default:
             throw IntentError.message("Bad optimisation result")
         }
+    }
+}
+
+enum ImageFormat: String, CaseIterable, Equatable, AppEnum {
+    case avif, heic, jpeg, png, webp
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Image Format"
+    }
+
+    static var caseDisplayRepresentations: [ImageFormat: DisplayRepresentation] {
+        [
+            .avif: "avif", .heic: "heic", .jpeg: "jpeg", .png: "png", .webp: "webp",
+        ]
+    }
+
+    var utType: UTType? {
+        switch self {
+        case .avif: .avif
+        case .heic: .heic
+        case .jpeg: .jpeg
+        case .png: .png
+        case .webp: .webp
+        }
+    }
+}
+
+struct ConvertImageIntent: AppIntent {
+    init() {}
+
+    static var title: LocalizedStringResource = "Convert image to…"
+    static var description = IntentDescription("Convert an image received as input to a different format such as WEBP or AVIF.")
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Convert \(\.$image) to \(\.$format)") {
+            \.$output
+            \.$aggressiveOptimisation
+            \.$hideFloatingResult
+        }
+    }
+
+    @Parameter(title: "Image")
+    var image: IntentFile
+
+    @Parameter(title: "Use aggressive optimisation")
+    var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Hide floating result")
+    var hideFloatingResult: Bool
+
+    @Parameter(title: "Format", default: .webp)
+    var format: ImageFormat
+
+    @Parameter(title: "Output path", description: """
+    Output file path or template (defaults to placing the converted file in the same folder as the original).
+
+    The template may contain the following tokens on the filename:
+
+    %y	Year
+    %m	Month (numeric)
+    %n	Month (name)
+    %d	Day
+    %w	Weekday
+
+    %H	Hour
+    %M	Minutes
+    %S	Seconds
+    %p	AM/PM
+
+    %f	Source file name (without extension)
+    %e	Source file extension
+
+    %r	Random characters
+    %i	Auto-incrementing number
+
+    For example `~/Desktop/%f[converted-from-%e]` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image[converted-from-png].webp`.
+    The extension of the conversion format is automatically added.
+
+    """)
+    var output: String?
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        guard let path = image.url.existingFilePath, let img = Image(path: path, retinaDownscaled: false),
+              let type = format.utType, let ext = type.preferredFilenameExtension, let stem = path.stem
+        else {
+            throw IntentError.message("Couldn't load image")
+        }
+        guard type != img.type else {
+            return .result(value: image)
+        }
+        var convertedImage = try img.convert(to: type, asTempFile: true)
+        if type == .png || type == .jpeg {
+            convertedImage = await (try? optimiseImage(convertedImage, copyToClipboard: false, debounceMS: 0, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: "shortcuts")) ?? convertedImage
+        }
+
+        var outFilePath: FilePath = if let outPath = output?.filePath, outPath.string.contains("/"), outPath.string.starts(with: "/") {
+            outPath.isDir ? outPath.appending(stem) : path.dir / generateFileName(template: outPath.name.string, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+        } else if let output {
+            path.dir / generateFileName(template: output, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+        } else {
+            path.removingLastComponent().appending(stem)
+        }
+        outFilePath = FilePath("\(outFilePath.string).\(ext)")
+        try convertedImage.path.move(to: outFilePath, force: true)
+
+        return .result(value: IntentFile(data: convertedImage.data, filename: outFilePath.name.string, type: type))
     }
 }
 
@@ -366,7 +476,7 @@ struct CropPDFIntent: AppIntent {
 struct OptimiseFileIntent: AppIntent {
     init() {}
 
-    static var title: LocalizedStringResource = "Optimise file"
+    static var title: LocalizedStringResource = "Optimise file (image, video or PDF)"
     static var description = IntentDescription("Optimises an image, video or PDF received as input.")
 
     static var parameterSummary: some ParameterSummary {
@@ -489,7 +599,7 @@ struct OptimiseFileIntent: AppIntent {
 struct OptimiseURLIntent: AppIntent {
     init() {}
 
-    static var title: LocalizedStringResource = "Optimise URL"
+    static var title: LocalizedStringResource = "Download and optimise file (image, video or PDF)"
     static var description = IntentDescription("Optimises an image, video or PDF that can be downloaded from a provided URL.")
 
     static var parameterSummary: some ParameterSummary {

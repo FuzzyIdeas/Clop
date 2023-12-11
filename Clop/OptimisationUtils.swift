@@ -22,9 +22,9 @@ enum ItemType: Equatable {
     var convertibleTypes: [UTType] {
         switch self {
         case .image(.png):
-            [.jpeg, .webp, .avif].compactMap { $0 }
+            [.jpeg, .webp, .avif, .heic].compactMap { $0 }
         case .image(.jpeg):
-            [.png, .webp, .avif].compactMap { $0 }
+            [.png, .webp, .avif, .heic].compactMap { $0 }
         default:
             []
         }
@@ -586,7 +586,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 return
             }
             imageOptimisationQueue.addOperation { [weak self] in
-                guard let converted = try? image.convert(to: type) else {
+                guard let converted = try? image.convert(to: type, asTempFile: false) else {
                     mainActor {
                         guard let self else { return }
                         self.finish(error: "\(typeStr) conversion failed")
