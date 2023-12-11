@@ -109,6 +109,9 @@ class AppDelegate: AppDelegateParent {
             return
         }
 
+        dropZoneKeyGlobalMonitor.start()
+        dropZoneKeyLocalMonitor.start()
+
         let toOptimise: [ClipboardType] = items.compactMap { item -> ClipboardType? in
             let types = item.types
             if types.contains(.fileURL), let url = item.string(forType: .fileURL)?.url,

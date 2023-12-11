@@ -89,7 +89,7 @@ class Video: Optimisable {
 
     func convertToGIF(optimiser: Optimiser, maxWidth: Int, fps: Int) throws -> Image {
         log.debug("Converting video \(path.string) to GIF")
-        let tempDir = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_gif_pngs").filePath
+        let tempDir = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_gif_pngs").filePath!
         tempDir.mkdir(withIntermediateDirectories: true)
 
         let duration = duration
@@ -178,7 +178,7 @@ class Video: Optimisable {
     }
 
     func removeAudio(optimiser: Optimiser) throws {
-        let outputPath = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_no_audio.\(path.extension!)").filePath
+        let outputPath = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_no_audio.\(path.extension!)").filePath!
         let args = ["-y", "-i", path.string, "-an", "-vcodec", "copy", "-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
         let url = path.url
         let proc = try tryProc(FFMPEG.string, args: args, tries: 3, captureOutput: true) { proc in
@@ -518,7 +518,7 @@ var processTerminated = Set<pid_t>()
     let pathString = path.string
     let itemType = ItemType.from(filePath: path)
     let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: debounceMS > 0 ? "Waiting for video to be ready" : "Optimising", hidden: hideFloatingResult, source: source)
-    if optimiser.oldBytes == nil {
+    if optimiser.oldBytes == 0 {
         optimiser.oldBytes = video.fileSize
     }
     if optimiser.oldSize == nil {
@@ -646,7 +646,7 @@ var processTerminated = Set<pid_t>()
     optimiser.stop(remove: false)
     optimiser.downscaleFactor = scalingFactor
 
-    if optimiser.oldBytes == nil {
+    if optimiser.oldBytes == 0 {
         optimiser.oldBytes = video.fileSize
     }
     if optimiser.oldSize == nil {
@@ -767,7 +767,7 @@ var processTerminated = Set<pid_t>()
     optimiser.inRemoval = false
     optimiser.stop(remove: false)
     optimiser.changePlaybackSpeedFactor = changePlaybackSpeedFactor
-    if optimiser.oldBytes == nil {
+    if optimiser.oldBytes == 0 {
         optimiser.oldBytes = video.fileSize
     }
     if optimiser.oldSize == nil {

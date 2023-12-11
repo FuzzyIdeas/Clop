@@ -9,7 +9,7 @@ struct FileNameField: View {
     @Namespace var namespace
 
     @ViewBuilder var viewer: some View {
-        let ext = optimiser.url?.filePath.extension ?? optimiser.originalURL?.filePath.extension ?? ""
+        let ext = optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? ""
         HStack {
             (Text(tempName) + Text(".\(ext)").fontDesign(.monospaced).foregroundColor(.gray))
                 .hfill(.leading)
@@ -72,10 +72,10 @@ struct FileNameField: View {
         } else {
             viewer
                 .onAppear {
-                    tempName = optimiser.url?.filePath.stem ?? optimiser.originalURL?.filePath.stem ?? "filename"
+                    tempName = optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? "filename"
                 }
                 .onChange(of: optimiser.url) { url in
-                    tempName = url?.filePath.stem ?? "filename"
+                    tempName = url?.filePath?.stem ?? "filename"
                 }
         }
     }
