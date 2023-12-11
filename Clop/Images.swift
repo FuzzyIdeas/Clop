@@ -497,7 +497,7 @@ class Image: CustomStringConvertible {
         var procs = [jpegProc]
 
         var pngOutFile: FilePath?
-        if testPNG, let png = try? convert(to: .png) {
+        if testPNG, let png = try? convert(to: .png, asTempFile: true) {
             let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPNG]
             pngOutFile = FilePath.images.appending(png.path.name.string)
             if pngOutFile != png.path {
@@ -584,7 +584,7 @@ class Image: CustomStringConvertible {
             return try img.optimiseGIF(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
         }
 
-        if let img = Image(data: data, retinaDownscaled: retinaDownscaled), let png = try? img.convert(to: .png) {
+        if let img = Image(data: data, retinaDownscaled: retinaDownscaled), let png = try? img.convert(to: .png, asTempFile: true) {
             return try png.optimisePNG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, testJPEG: adaptiveSize)
         }
 
@@ -608,7 +608,7 @@ class Image: CustomStringConvertible {
         var procs = [pngProc]
 
         var jpegOutFile: FilePath?
-        if testJPEG, !image.hasTransparentPixels, let jpeg = try? convert(to: .jpeg) {
+        if testJPEG, !image.hasTransparentPixels, let jpeg = try? convert(to: .jpeg, asTempFile: true) {
             let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
 
             let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
@@ -741,55 +741,74 @@ class Image: CustomStringConvertible {
         return img
     }
 
-    func convertToAVIF() throws -> Image {
+    func convertToAVIF(asTempFile: Bool) throws -> Image {
         let tempFile = path.tempFile(ext: "avif")
         let proc = try tryProc(HEIF_ENC.string, args: ["--avif", "-q", "60", "-o", tempFile.string, path.string], tries: 2)
         guard proc.terminationStatus == 0 else {
             throw ClopProcError.processError(proc)
         }
         try? tempFile.setOptimisationStatusXattr("true")
-        let path = try tempFile.move(to: path.withExtension("avif"), force: true)
+        let path = asTempFile ? tempFile : try tempFile.move(to: path.withExtension("avif"), force: true)
         guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
-            throw ClopError.fileNotFound(tempFile)
+            throw ClopError.conversionFailed(self.path)
         }
         return Image(data: data, path: path, nsImage: img, type: .avif, retinaDownscaled: retinaDownscaled)
     }
 
-    func convertToWEBP() throws -> Image {
-        let tempFile = path.tempFile(ext: "webp")
-        let proc = try tryProc(CWEBP.string, args: ["-mt", "-q", "60", path.string, "-o", tempFile.string], tries: 2)
+    func convertToHEIC(asTempFile: Bool) throws -> Image {
+        let tempFile = path.tempFile(ext: "heic")
+        let proc = try tryProc(HEIF_ENC.string, args: ["-q", "60", "-o", tempFile.string, path.string], tries: 2)
         guard proc.terminationStatus == 0 else {
             throw ClopProcError.processError(proc)
         }
         try? tempFile.setOptimisationStatusXattr("true")
-        let path = try tempFile.move(to: path.withExtension("webp"), force: true)
+        let path = asTempFile ? tempFile : try tempFile.move(to: path.withExtension("heic"), force: true)
         guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
-            throw ClopError.fileNotFound(tempFile)
+            throw ClopError.conversionFailed(self.path)
+        }
+        return Image(data: data, path: path, nsImage: img, type: .avif, retinaDownscaled: retinaDownscaled)
+    }
+
+    func convertToWEBP(asTempFile: Bool) throws -> Image {
+        let tempFile = path.tempFile(ext: "webp")
+        let proc = try tryProc(CWEBP.string, args: ["-mt", "-q", "60", "-sharp_yuv", "-metadata", "all", path.string, "-o", tempFile.string], tries: 2)
+        guard proc.terminationStatus == 0 else {
+            throw ClopProcError.processError(proc)
+        }
+        try? tempFile.setOptimisationStatusXattr("true")
+        let path = asTempFile ? tempFile : try tempFile.move(to: path.withExtension("webp"), force: true)
+        guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
+            throw ClopError.conversionFailed(self.path)
         }
         return Image(data: data, path: path, nsImage: img, type: .webp, retinaDownscaled: retinaDownscaled)
     }
 
-    func convert(to type: UTType) throws -> Image {
+    func convert(to type: UTType, asTempFile: Bool) throws -> Image {
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
+        }
+        guard ext != path.extension else {
+            throw ClopError.alreadyOptimised(path)
         }
 
         switch type {
         case .avif:
-            return try convertToAVIF()
+            return try convertToAVIF(asTempFile: asTempFile)
         case .webp:
-            return try convertToWEBP()
+            return try convertToWEBP(asTempFile: asTempFile)
         default:
-            let convPath = FilePath.conversions.appending("\(path.stem!).\(ext)")
+            let convPath = path.tempFile(ext: ext)
             guard let data = image.data(using: type.imgType) else {
                 throw ClopError.unknownImageType(path)
             }
             fm.createFile(atPath: convPath.string, contents: data)
+
             convPath.waitForFile(for: 2)
-            guard convPath.exists, let img = Image(path: convPath, retinaDownscaled: retinaDownscaled) else {
-                throw ClopError.conversionFailed(path)
+            let path = asTempFile ? convPath : try convPath.move(to: path.withExtension(ext), force: true)
+            guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
+                throw ClopError.conversionFailed(self.path)
             }
-            return img
+            return Image(data: data, path: path, nsImage: img, type: type, retinaDownscaled: retinaDownscaled)
         }
     }
 
@@ -928,7 +947,7 @@ extension FilePath {
 
     let conversionFormat: UTType? = Defaults[.formatsToConvertToJPEG].contains(img.type) ? .jpeg : (Defaults[.formatsToConvertToPNG].contains(img.type) ? .png : nil)
     if let conversionFormat {
-        let converted = try img.convert(to: conversionFormat)
+        let converted = try img.convert(to: conversionFormat, asTempFile: true)
 
         img = try applyConversionBehaviour(img, converted)
         pathString = img.path.string
