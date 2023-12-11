@@ -28,7 +28,7 @@ struct CompactResult: View {
 
     @ViewBuilder var pathView: some View {
         if let url = optimiser.url, url.isFileURL {
-            Text(url.filePath.shellString)
+            Text(url.filePath!.shellString)
                 .medium(9)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
@@ -391,7 +391,7 @@ class SelectionManager: ObservableObject {
 
             var savedURLs = [URL]()
             for (id, path) in paths {
-                if let savedPath = try? path.copy(to: url.filePath, force: true), let opt = opt(id) {
+                if let savedPath = try? path.copy(to: url.filePath!, force: true), let opt = opt(id) {
                     let url = savedPath.url
                     savedURLs.append(url)
 

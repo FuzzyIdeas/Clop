@@ -1096,7 +1096,7 @@ extension FilePath {
     }
 
     static func tempFile(name: String? = nil, ext: String) -> FilePath {
-        URL.temporaryDirectory.appendingPathComponent("\(name ?? UUID().uuidString).\(ext)").filePath
+        URL.temporaryDirectory.appendingPathComponent("\(name ?? UUID().uuidString).\(ext)").filePath!
     }
 }
 
@@ -1110,3 +1110,47 @@ let GLOBAL_BIN_DIR_PARENT = FileManager.default.urls(for: .applicationScriptsDir
 let GLOBAL_BIN_DIR = GLOBAL_BIN_DIR_PARENT.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/
 let BIN_DIR = GLOBAL_BIN_DIR.appendingPathComponent(ARCH) // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/arm64
 let EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").existingFilePath!
+
+func getURLsFromFolder(_ folder: URL, recursive: Bool, ignorePDF: Bool = false) -> [URL] {
+    guard let enumerator = FileManager.default.enumerator(
+        at: folder,
+        includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey],
+        options: [.skipsPackageDescendants]
+    ) else {
+        return []
+    }
+
+    var urls: [URL] = []
+
+    for case let fileURL as URL in enumerator {
+        guard let resourceValues = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey]),
+              let isDirectory = resourceValues.isDirectory, let isRegularFile = resourceValues.isRegularFile, let name = resourceValues.name
+        else {
+            continue
+        }
+
+        if isDirectory {
+            if !recursive || name.hasPrefix(".") || ["node_modules", ".git"].contains(name) {
+                enumerator.skipDescendants()
+            }
+            continue
+        }
+
+        if !isRegularFile {
+            continue
+        }
+
+        if !isURLOptimisable(fileURL, type: resourceValues.contentType, ignorePDF: ignorePDF) {
+            continue
+        }
+        urls.append(fileURL)
+    }
+    return urls
+}
+
+func isURLOptimisable(_ url: URL, type: UTType? = nil, ignorePDF: Bool = false) -> Bool {
+    guard url.isFileURL, let type = type ?? url.contentTypeResourceValue ?? url.fetchFileType() else {
+        return true
+    }
+    return IMAGE_VIDEO_FORMATS.contains(type) || (!ignorePDF && type == .pdf)
+}

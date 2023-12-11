@@ -348,7 +348,7 @@ struct CropPDFIntent: AppIntent {
         }
 
         var outputURL = (overwrite ? nil : output?.filePath?.url) ?? pdf.documentURL ?? url
-        if outputURL.filePath.isDir {
+        if outputURL.filePath!.isDir {
             outputURL = outputURL.appendingPathComponent(url.lastPathComponent)
         }
 
