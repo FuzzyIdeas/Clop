@@ -785,9 +785,29 @@ enum ClopFileType: String, CaseIterable {
     var otherCases: [ClopFileType] {
         ClopFileType.allCases.filter { $0 != self }
     }
+    var tab: SettingsView.Tabs {
+        switch self {
+        case .image:
+            .images
+        case .video:
+            .video
+        case .pdf:
+            .pdf
+        }
+    }
 }
 
 import Ignore
+
+extension EonilFSEventsEvent: Hashable {
+    public static func == (lhs: EonilFSEventsEvent, rhs: EonilFSEventsEvent) -> Bool {
+        lhs.path == rhs.path
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+    }
+}
 
 @MainActor
 class FileOptimisationWatcher {
@@ -866,11 +886,18 @@ class FileOptimisationWatcher {
     var shouldHandle: (EonilFSEventsEvent) -> Bool
 
     var observers = Set<AnyCancellable>()
-    var justAddedFiles = Set<FilePath>()
+    var justAddedFiles = Set<EonilFSEventsEvent>()
     var cancelledFiles = Set<FilePath>()
     var addedFileRemovers = [FilePath: DispatchWorkItem]()
 
+    let startedWatchingAt = Date()
+
     var addedFilesCleaner: DispatchWorkItem? {
+        didSet {
+            oldValue?.cancel()
+        }
+    }
+    var addedFilesProcessor: DispatchWorkItem? {
         didSet {
             oldValue?.cancel()
         }
@@ -878,6 +905,10 @@ class FileOptimisationWatcher {
 
     var clopIgnoreFileName: String {
         ".clopignore-\(fileType.rawValue)"
+    }
+
+    var withinSafeMeasureTime: Bool {
+        startedWatchingAt.timeIntervalSinceNow > -30 && Defaults[.launchCount] == 1
     }
 
     func isAddedFile(event: EonilFSEventsEvent) -> Bool {
@@ -890,12 +921,15 @@ class FileOptimisationWatcher {
             flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified])
     }
 
-    func startWatching() {
+    func stopWatching() {
         if watching {
             EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
             watching = false
         }
+    }
 
+    func startWatching() {
+        stopWatching()
         guard !paths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
 
         try! EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
@@ -906,11 +940,13 @@ class FileOptimisationWatcher {
                     return
                 }
 
-                justAddedFiles.insert(path)
-                addedFileRemovers[path]?.cancel()
-                addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
-                    self?.justAddedFiles.remove(path)
-                    self?.addedFileRemovers.removeValue(forKey: path)
+                justAddedFiles.insert(event)
+                if !withinSafeMeasureTime {
+                    addedFileRemovers[path]?.cancel()
+                    addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
+                        self?.justAddedFiles.remove(event)
+                        self?.addedFileRemovers.removeValue(forKey: path)
+                    }
                 }
             }
 
@@ -920,7 +956,7 @@ class FileOptimisationWatcher {
 
                 guard justAddedFiles.count <= maxFilesToHandle else {
                     log.debug("More than \(maxFilesToHandle) files dropped (\(justAddedFiles.count))")
-                    for path in justAddedFiles.subtracting(cancelledFiles) {
+                    for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
                         log.debug("Cancelling optimisation on \(path)")
                         cancel(path)
                         cancelledFiles.insert(path)
@@ -938,18 +974,73 @@ class FileOptimisationWatcher {
                     return
                 }
 
-                Task.init { [weak self] in
-                    guard let self else { return }
-
-                    var count = optimisedCount
-                    try? await proGuard(count: &count, limit: 5, url: event.path.fileURL) {
-                        self.handler(event)
-                    }
-                    optimisedCount = count
-                }
+                guard !hasSpuriousEvent(event) else { return }
+                process(event: event)
             }
         }
         watching = true
+    }
+    func hasSpuriousEvent(_ event: EonilFSEventsEvent) -> Bool {
+        guard withinSafeMeasureTime, !justAddedFiles.isEmpty else {
+            return false
+        }
+
+        guard justAddedFiles.count <= 5 else {
+            log.warning("More than 5 file events on first launch (\(justAddedFiles.count))")
+
+            addedFilesProcessor = nil
+            stopWatching()
+            Defaults[enabledKey] = false
+            justAddedFiles.removeAll()
+            cancelledFiles.removeAll()
+
+            let alert = NSAlert()
+            alert.messageText = "Too many file events"
+            alert.informativeText = """
+            Clop detected a large number of file change events that happened as soon as Clop started watching the folders.
+
+            This is most likely caused by a third-party app that is constantly modifying files in the folders you selected to automatically optimise.
+
+            To avoid altering files you don't intend to, Clop will stop automatic optimisation in these folders. You can re-enable this feature in the settings.
+            """
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Open Settings")
+            alert.alertStyle = .critical
+            focus()
+
+            if alert.runModal() == .alertSecondButtonReturn {
+                settingsViewManager.tab = fileType.tab
+                WM.open("settings")
+                focus()
+            }
+
+            return true
+        }
+
+        addedFilesProcessor = mainAsyncAfter(ms: 3000) { [weak self] in
+            guard let self else { return }
+            for event in justAddedFiles.filter({ ev in
+                guard let path = ev.path.existingFilePath else { return false }
+                return !self.cancelledFiles.contains(path)
+            }) {
+                process(event: event)
+            }
+            justAddedFiles.removeAll()
+        }
+
+        return true
+    }
+
+    func process(event: EonilFSEventsEvent) {
+        Task.init { [weak self] in
+            guard let self else { return }
+
+            var count = optimisedCount
+            try? await proGuard(count: &count, limit: 5, url: event.path.fileURL) {
+                self.handler(event)
+            }
+            optimisedCount = count
+        }
     }
 
     private var optimisedCount = 0
@@ -1111,11 +1202,6 @@ extension NSView {
             return myImp(self, NSSelectorFromString("_draggingEntered"))
         } as @convention(block) (NSDraggingInfo) -> Void))
     }
-
-//    @objc static func swizzledDraggingEntered(_ info: NSDraggingInfo) {
-//        info.draggingFormation = .pile
-//        return swizzledDraggingEntered(info)
-//    }
 }
 
 class ContextualMenuServiceProvider: NSObject {
