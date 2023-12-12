@@ -103,10 +103,10 @@ struct OnboardingView: View {
             }
             .padding()
             .blur(radius: min(0.6 - maskOpacity, 0.6) * 8)
-            .mask(LinearGradient(
-                gradient: Gradient(colors: [.white, .white.opacity(maskOpacity)]),
-                startPoint: .init(x: 0.2, y: -1), endPoint: .center
-            ))
+            .mask(LinearGradient(stops: [
+                .init(color: .white, location: maskOpacity + 0.1),
+                .init(color: .clear, location: maskOpacity + 0.2),
+            ], startPoint: .top, endPoint: .bottom))
             LinearGradient(
                 gradient: Gradient(
                     colors: [.bg.warm.opacity(min(0.3 - maskOpacity, 0.3)), .bg.warm.opacity(1 - maskOpacity)]
