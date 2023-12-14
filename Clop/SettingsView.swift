@@ -715,7 +715,7 @@ struct AboutSettingsView: View {
 
     var proText: some View {
         #if !SETAPP
-            Text((PRO?.active ?? false) ? "Pro" : "")
+            Text(proactive ? "Pro" : "")
         #else
             Text("Pro")
         #endif

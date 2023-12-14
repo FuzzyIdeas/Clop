@@ -235,7 +235,11 @@ class PDF: Optimisable {
     pdfOptimiseDebouncers[path.string]?.cancel()
     pdfOptimiseDebouncers.removeValue(forKey: path.string)
 
-    opt(path.string)?.stop(animateRemoval: false)
+    guard let optimiser = opt(path.string) else {
+        return
+    }
+    optimiser.stop(animateRemoval: false)
+    optimiser.remove(after: 0, withAnimation: false)
 }
 
 @MainActor func shouldHandlePDF(event: EonilFSEventsEvent) -> Bool {

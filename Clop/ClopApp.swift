@@ -91,7 +91,7 @@ class AppDelegate: AppDelegateParent {
     #endif
 
     @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
-        guard self.finishedOnboarding, NSEvent.pressedMouseButtons > 0, self.pro.active || DM.optimisationCount <= 5 else {
+        guard self.finishedOnboarding, NSEvent.pressedMouseButtons > 0, proactive || DM.optimisationCount <= 5 else {
             return
         }
 
@@ -441,29 +441,13 @@ class AppDelegate: AppDelegateParent {
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
             KM.onPrimaryHotkey = { key in
                 self.handleHotkey(key)
-                #if !DEBUG
-                    #if SETAPP
-                        _ = checkInternalRequirements([], nil)
-                    #else
-                        if let product {
-                            _ = checkInternalRequirements([product], nil)
-                        }
-                    #endif
-                #endif
+                _ = checkInternalRequirements(PRODUCTS, nil)
             }
 
             KM.secondaryKeyModifiers = [.lcmd]
             KM.onSecondaryHotkey = { key in
                 self.handleCommandHotkey(key)
-                #if !DEBUG
-                    #if SETAPP
-                        _ = checkInternalRequirements([], nil)
-                    #else
-                        if let product {
-                            _ = checkInternalRequirements([product], nil)
-                        }
-                    #endif
-                #endif
+                _ = checkInternalRequirements(PRODUCTS, nil)
             }
         }
         super.applicationDidFinishLaunching(_: notification)
@@ -544,15 +528,7 @@ class AppDelegate: AppDelegateParent {
             .store(in: &observers)
         initMachPortListener()
 
-        #if !DEBUG
-            #if SETAPP
-                _ = checkInternalRequirements2([], nil)
-            #else
-                if let product {
-                    _ = checkInternalRequirements2([product], nil)
-                }
-            #endif
-        #endif
+        _ = checkInternalRequirements(PRODUCTS, nil)
         setupServiceProvider()
         startShortcutWatcher()
         Dropshare.fetchAppURL()
@@ -649,17 +625,19 @@ class AppDelegate: AppDelegateParent {
 
     @MainActor func initOptimisers() {
         guard finishedOnboarding else { return }
+        let debounceMS = Defaults[.launchCount] == 1 ? 800 : 150
+
         videoWatcher = FileOptimisationWatcher(
             pathsKey: .videoDirs,
             enabledKey: .enableAutomaticVideoOptimisations,
             maxFilesToHandleKey: .maxVideoFileCount,
             fileType: .video,
             shouldHandle: shouldHandleVideo(event:),
-            cancel: cancelImageOptimisation(path:)
+            cancel: cancelVideoOptimisation(path:)
         ) { event in
             let video = Video(path: FilePath(event.path))
             Task.init {
-                try? await optimiseVideo(video, debounceMS: 200, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
+                try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
         imageWatcher = FileOptimisationWatcher(
@@ -668,11 +646,11 @@ class AppDelegate: AppDelegateParent {
             maxFilesToHandleKey: .maxImageFileCount,
             fileType: .image,
             shouldHandle: shouldHandleImage(event:),
-            cancel: cancelVideoOptimisation(path:)
+            cancel: cancelImageOptimisation(path:)
         ) { event in
             guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
-                try? await optimiseImage(img, debounceMS: 200, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
+                try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
         pdfWatcher = FileOptimisationWatcher(
@@ -685,7 +663,7 @@ class AppDelegate: AppDelegateParent {
         ) { event in
             guard let path = event.path.existingFilePath else { return }
             Task.init {
-                try? await optimisePDF(PDF(path), debounceMS: 200, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
+                try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
 
@@ -693,15 +671,7 @@ class AppDelegate: AppDelegateParent {
             initClipboardOptimiser()
         }
 
-        #if !DEBUG
-            #if SETAPP
-                _ = checkInternalRequirements3([], nil)
-            #else
-                if let product {
-                    _ = checkInternalRequirements3([product], nil)
-                }
-            #endif
-        #endif
+        _ = checkInternalRequirements(PRODUCTS, nil)
     }
 
     @MainActor func initClipboardOptimiser() {
@@ -892,6 +862,9 @@ class FileOptimisationWatcher {
 
     let startedWatchingAt = Date()
 
+    lazy var delayOptimiserID = "file-watcher-delay-\(fileType.rawValue)"
+    var delayOptimiser: Optimiser?
+
     var addedFilesCleaner: DispatchWorkItem? {
         didSet {
             oldValue?.cancel()
@@ -933,17 +906,21 @@ class FileOptimisationWatcher {
         guard !paths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
 
         try! EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
-            guard !SWIFTUI_PREVIEW else { return }
+            guard !SWIFTUI_PREVIEW, self.enabled else { return }
 
             mainAsync { [weak self] in
-                guard let self, isAddedFile(event: event), let path = event.path.existingFilePath else {
+                guard let self, enabled, isAddedFile(event: event), let path = event.path.existingFilePath else {
                     return
                 }
 
+                addedFilesCleaner = nil
+                log.debug("Added \(path.string) to justAddedFiles")
                 justAddedFiles.insert(event)
+                cancelledFiles.remove(path)
                 if !withinSafeMeasureTime {
                     addedFileRemovers[path]?.cancel()
                     addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
+                        log.debug("Removed \(path.string) from justAddedFiles")
                         self?.justAddedFiles.remove(event)
                         self?.addedFileRemovers.removeValue(forKey: path)
                     }
@@ -951,23 +928,8 @@ class FileOptimisationWatcher {
             }
 
             mainActor { [weak self] in
-                guard let self else { return }
+                guard let self, enabled else { return }
                 guard shouldHandle(event) else { return }
-
-                guard justAddedFiles.count <= maxFilesToHandle else {
-                    log.debug("More than \(maxFilesToHandle) files dropped (\(justAddedFiles.count))")
-                    for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
-                        log.debug("Cancelling optimisation on \(path)")
-                        cancel(path)
-                        cancelledFiles.insert(path)
-                    }
-                    addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
-                        self?.cancelledFiles.removeAll()
-                        self?.justAddedFiles.removeAll()
-                    }
-
-                    return
-                }
 
                 if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
                     log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
@@ -975,11 +937,31 @@ class FileOptimisationWatcher {
                 }
 
                 guard !hasSpuriousEvent(event) else { return }
+
+                guard justAddedFiles.count <= maxFilesToHandle else {
+                    let notice = "More than \(maxFilesToHandle) \(fileType.rawValue)s appeared in the\n`\(justAddedFiles.first!.path.filePath?.dir.shellString ?? "folder")`, ignoring…"
+                    log.debug(notice)
+                    showNotice(notice)
+                    for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
+                        log.debug("Cancelling optimisation on \(path)")
+                        cancel(path)
+                        cancelledFiles.insert(path)
+                    }
+                    addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
+                        log.debug("Cleaning up justAddedFiles and cancelledFiles")
+                        self?.cancelledFiles.removeAll()
+                        self?.justAddedFiles.removeAll()
+                    }
+
+                    return
+                }
+
                 process(event: event)
             }
         }
         watching = true
     }
+
     func hasSpuriousEvent(_ event: EonilFSEventsEvent) -> Bool {
         guard withinSafeMeasureTime, !justAddedFiles.isEmpty else {
             return false
@@ -989,10 +971,14 @@ class FileOptimisationWatcher {
             log.warning("More than 5 file events on first launch (\(justAddedFiles.count))")
 
             addedFilesProcessor = nil
+            enabled = false
             stopWatching()
             Defaults[enabledKey] = false
             justAddedFiles.removeAll()
             cancelledFiles.removeAll()
+
+            delayOptimiser?.remove(after: 0)
+            delayOptimiser = nil
 
             let alert = NSAlert()
             alert.messageText = "Too many file events"
@@ -1017,6 +1003,7 @@ class FileOptimisationWatcher {
             return true
         }
 
+        delayOptimiser = OM.optimiser(id: delayOptimiserID, type: .unknown, operation: "Initialising file watcher", hidden: false, source: "file-watcher", indeterminateProgress: true)
         addedFilesProcessor = mainAsyncAfter(ms: 3000) { [weak self] in
             guard let self else { return }
             for event in justAddedFiles.filter({ ev in
@@ -1026,6 +1013,8 @@ class FileOptimisationWatcher {
                 process(event: event)
             }
             justAddedFiles.removeAll()
+            delayOptimiser?.remove(after: 0)
+            delayOptimiser = nil
         }
 
         return true
@@ -1033,7 +1022,8 @@ class FileOptimisationWatcher {
 
     func process(event: EonilFSEventsEvent) {
         Task.init { [weak self] in
-            guard let self else { return }
+            try await Task.sleep(nanoseconds: 300_000_000)
+            guard let self, let path = event.path.existingFilePath, !self.cancelledFiles.contains(path) else { return }
 
             var count = optimisedCount
             try? await proGuard(count: &count, limit: 5, url: event.path.fileURL) {
@@ -1133,7 +1123,7 @@ struct ClopApp: App {
             MenuView()
         }, label: {
             #if !SETAPP
-                SwiftUI.Image(nsImage: NSImage(resource: !(pm.pro?.active ?? false) && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? .menubarIconBadge : .menubarIcon))
+                SwiftUI.Image(nsImage: NSImage(resource: !proactive && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? .menubarIconBadge : .menubarIcon))
             #else
                 SwiftUI.Image(nsImage: NSImage(resource: .menubarIcon))
             #endif
@@ -1155,6 +1145,10 @@ struct ClopApp: App {
 
     }
 }
+
+#if !SETAPP
+    @inline(__always) var proactive: Bool { (PRO?.productActivated ?? false) || (PRO?.onTrial ?? false) }
+#endif
 
 import ObjectiveC.runtime
 
@@ -1183,6 +1177,19 @@ extension NSFilePromiseReceiver {
         }
         log.error(exc.description)
     }
+}
+
+import Paddle
+var PRODUCTS: [PADProduct] {
+    #if SETAPP
+        []
+    #else
+        if let product {
+            [product]
+        } else {
+            []
+        }
+    #endif
 }
 
 extension NSView {
