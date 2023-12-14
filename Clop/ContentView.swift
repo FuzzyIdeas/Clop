@@ -135,7 +135,7 @@ struct MenuView: View {
         }
 
         #if !SETAPP
-            if let pro = pm.pro, !pro.active, !om.skippedBecauseNotPro.isEmpty {
+            if !proactive, !om.skippedBecauseNotPro.isEmpty {
                 proErrors
             }
         #endif
@@ -148,7 +148,15 @@ struct MenuView: View {
                 NSWorkspace.shared.open("https://lowtechguys.com/clop/privacy".url!)
             }
             #if !SETAPP
-                Text("License: \((pm.pro?.active ?? false) ? "Pro" : "Free")")
+                Text("License: \(proactive ? "Pro" : "Free")")
+                #if DEBUG
+                    Button("Reset Trial") {
+                        product?.resetTrial()
+                    }
+                    Button("Expire Trial") {
+                        product?.expireTrial()
+                    }
+                #endif
             #endif
             Text("Version: v\(Bundle.main.version)")
             #if SETAPP
