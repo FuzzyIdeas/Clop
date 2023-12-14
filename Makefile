@@ -36,6 +36,7 @@ upload:
 	rsync -avz Releases/*.html hetzner:/static/lowtechguys/ReleaseNotes/
 	rsync -avzP Releases/appcast.xml hetzner:/static/lowtechguys/clop/
 	cfcli -d lowtechguys.com purge
+	op run -- $(MAKE) sentry
 
 release:
 	gh release create v$(VERSION) -F ReleaseNotes/$(VERSION).md "Releases/Clop-$(VERSION).dmg#Clop.dmg"
