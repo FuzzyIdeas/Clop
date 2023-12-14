@@ -1754,9 +1754,9 @@ enum ClipboardType: Equatable {
 #if !SETAPP
     import LowtechPro
 
-    @discardableResult
+    @discardableResult @inline(__always)
     @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
-        guard let PRO, PRO.active || count < limit else {
+        guard proactive || count < limit, meetsInternalRequirements() else {
             if let url {
                 OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.with(url)
             }
@@ -1770,10 +1770,16 @@ enum ClipboardType: Equatable {
 #else
     import Setapp
 
-    @inline(__always) @inlinable
+    @inline(__always)
     @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
+        guard meetsInternalRequirements() || count < limit else {
+            throw ClopError.proError("Pro limits reached")
+        }
         SetappManager.shared.reportUsageEvent(.userInteraction)
-        return try await action()
+
+        let result = try await action()
+        count += 1
+        return result
     }
 #endif
 
