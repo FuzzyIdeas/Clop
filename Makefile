@@ -50,6 +50,8 @@ setapp:
 
 sentry:
 	sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/
+sentry-setapp:
+	sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Setapp/BuildProductsPath/Release/
 
 appcast: Releases/Clop-$(FULL_VERSION).html
 	rm Releases/Clop.dmg || true
