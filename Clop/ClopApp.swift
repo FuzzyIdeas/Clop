@@ -1146,9 +1146,13 @@ struct ClopApp: App {
     }
 }
 
-#if !SETAPP
-    @inline(__always) var proactive: Bool { (PRO?.productActivated ?? false) || (PRO?.onTrial ?? false) }
-#endif
+@inline(__always) var proactive: Bool {
+    #if !SETAPP
+        (PRO?.productActivated ?? false) || (PRO?.onTrial ?? false)
+    #else
+        true
+    #endif
+}
 
 import ObjectiveC.runtime
 
@@ -1179,8 +1183,11 @@ extension NSFilePromiseReceiver {
     }
 }
 
-import Paddle
-var PRODUCTS: [PADProduct] {
+#if !SETAPP
+    import Paddle
+#endif
+
+var PRODUCTS: [Any] {
     #if SETAPP
         []
     #else
