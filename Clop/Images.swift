@@ -18,8 +18,6 @@ let PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").existingFilePath!
 let JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").existingFilePath!
 let GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").existingFilePath!
 let VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").existingFilePath!
-let HEIF_ENC = BIN_DIR.appendingPathComponent("heif-enc").existingFilePath!
-let CWEBP = BIN_DIR.appendingPathComponent("cwebp").existingFilePath!
 
 extension NSPasteboard.PasteboardType {
     static let jpeg = NSPasteboard.PasteboardType(rawValue: "public.jpeg")
@@ -335,7 +333,7 @@ class Image: CustomStringConvertible {
             allowImage = true
         }
         guard allowImage, let nsImage = nsImage ?? NSImage(pasteboard: pb) ?? nsImageFromPath() else {
-            throw ClopError.noClipboardImage(item.filePath ?? .init())
+            throw ClopError.noClipboardImage(.init())
         }
 
         let optimised = item.string(forType: .optimisationStatus) == "true"
@@ -350,7 +348,7 @@ class Image: CustomStringConvertible {
         }
 
         guard let img = Image(nsImage: nsImage, data: data, optimised: optimised, retinaDownscaled: false) else {
-            throw ClopError.noClipboardImage(item.filePath ?? .init())
+            throw ClopError.noClipboardImage(.init())
         }
 
         return img
