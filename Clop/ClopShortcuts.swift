@@ -248,7 +248,7 @@ struct ConvertImageIntent: AppIntent {
         }
 
         var outFilePath: FilePath = if let outPath = output?.filePath, outPath.string.contains("/"), outPath.string.starts(with: "/") {
-            outPath.isDir ? outPath.appending(stem) : path.dir / generateFileName(template: outPath.name.string, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+            outPath.isDir ? outPath.appending(stem) : outPath.dir / generateFileName(template: outPath.name.string, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
         } else if let output {
             path.dir / generateFileName(template: output, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
         } else {

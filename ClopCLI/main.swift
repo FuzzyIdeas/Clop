@@ -12,6 +12,13 @@ import PDFKit
 import System
 import UniformTypeIdentifiers
 
+var printSemaphore = DispatchSemaphore(value: 1)
+func withPrintLock(_ action: () -> Void) {
+    printSemaphore.wait()
+    action()
+    printSemaphore.signal()
+}
+
 let SIZE_REGEX = #/(\d+)\s*[xX×]\s*(\d+)/#
 let CLOP_APP: URL = {
     let u = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
@@ -268,7 +275,177 @@ func normPath(_ pathString: String?) -> String? {
     return pathString.starts(with: "/") ? pathString : FileManager.default.currentDirectoryPath + "/" + pathString
 }
 
+enum ImageFormat: String, CaseIterable, Equatable, Decodable, ExpressibleByArgument {
+    case avif, heic, webp
+
+    static var allValueStrings: [String] {
+        allCases.map(\.rawValue)
+    }
+
+    var utType: UTType? {
+        switch self {
+        case .avif: .avif
+        case .heic: .heic
+        case .webp: .webp
+        }
+    }
+}
+
 struct Clop: ParsableCommand {
+    struct Convert: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Converts images to more efficient formats like HEIC, WebP, AVIF etc."
+        )
+
+        @Option(name: .shortAndLong, help: "Output format (avif, heic, webp)")
+        var format: ImageFormat
+
+        @Option(name: .shortAndLong, help: "Quality of the output image (0-100)")
+        var quality = 60
+
+        @Option(name: .shortAndLong, help: """
+        Output file path or template (defaults to placing the converted file in the same folder as the original).
+
+        The template may contain the following tokens on the filename:
+
+        %y	Year
+        %m	Month (numeric)
+        %n	Month (name)
+        %d	Day
+        %w	Weekday
+
+        %H	Hour
+        %M	Minutes
+        %S	Seconds
+        %p	AM/PM
+
+        %f	Source file name (without extension)
+        %e  Source file extension
+        %q  Quality
+
+        %r	Random characters
+        %i	Auto-incrementing number
+
+        For example `~/Desktop/%f[converted-from-%e]` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image[converted-from-png].webp`.
+        The extension of the conversion format is automatically added.
+
+        """)
+        var output: String? = nil
+
+        @Flag(name: .long, help: "Replace output file if it already exists")
+        var force = false
+
+        @Argument(help: "Files to convert (can be an image or list of images)")
+        var files: [FilePath] = []
+
+        var type: UTType!
+
+        mutating func validate() throws {
+            guard !files.isEmpty else {
+                throw ValidationError("At least one image must be specified")
+            }
+            guard let type = format.utType else {
+                throw ValidationError("Invalid image format")
+            }
+            self.type = type
+        }
+
+        func convertToAVIF(path: FilePath, outFilePath: FilePath) throws {
+            let args = ["--avif", "-q", "\(quality)", "-o", outFilePath.string, path.string]
+            try runConversionProcess(path: path, outFilePath: outFilePath, executable: HEIF_ENC.string, args: args)
+        }
+
+        func convertToHEIC(path: FilePath, outFilePath: FilePath) throws {
+            let args = ["-q", "\(quality)", "-o", outFilePath.string, path.string]
+            try runConversionProcess(path: path, outFilePath: outFilePath, executable: HEIF_ENC.string, args: args)
+        }
+
+        func convertToWebP(path: FilePath, outFilePath: FilePath) throws {
+            let args = ["-mt", "-q", "\(quality)", "-sharp_yuv", "-metadata", "all", path.string, "-o", outFilePath.string]
+            try runConversionProcess(path: path, outFilePath: outFilePath, executable: CWEBP.string, args: args)
+        }
+
+        func runConversionProcess(path: FilePath, outFilePath: FilePath, executable: String, args: [String]) throws {
+            let errPipe = Pipe()
+
+            let process = Process()
+            process.launchPath = executable
+            process.arguments = args
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = errPipe
+            process.launch()
+            process.waitUntilExit()
+
+            if process.terminationStatus != 0 || !FileManager.default.fileExists(atPath: outFilePath.string) {
+                printerr("\(ERROR_X) \(path.string.underline()) failed")
+                printerr(String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "")
+                return
+            }
+            try? outFilePath.setOptimisationStatusXattr("true")
+        }
+
+        func convert(path: FilePath) throws {
+            guard let stem = path.stem else {
+                printerr("\(ERROR_X) Invalid path \(path.shellString.underline())")
+                return
+            }
+            guard let type = format.utType, let ext = type.preferredFilenameExtension else {
+                printerr("\(ERROR_X) Invalid output format \(format) for \(path.shellString.underline())")
+                return
+            }
+
+            var outFilePath: FilePath = if let outPath = output?.filePath, outPath.string.contains("/"), outPath.string.starts(with: "/") {
+                outPath.isDir
+                    ? outPath.appending(stem)
+                    : outPath.dir / generateFileName(
+                        template: outPath.name.string.replacingOccurrences(of: "%q", with: "\(quality)"),
+                        for: path,
+                        autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber
+                    )
+            } else if let output {
+                path.dir / generateFileName(template: output.replacingOccurrences(of: "%q", with: "\(quality)"), for: path, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
+            } else {
+                path.removingLastComponent().appending(stem)
+            }
+            outFilePath = FilePath("\(outFilePath.string).\(ext)")
+
+            print("\(CIRCLE) Converting \(path.shellString.underline()) to \(format.rawValue.bold())".dim())
+            let tempFile = URL.temporaryDirectory.appendingPathComponent(outFilePath.name.string).filePath!
+            try? FileManager.default.removeItem(at: tempFile.url)
+
+            switch format {
+            case .avif:
+                try convertToAVIF(path: path, outFilePath: tempFile)
+            case .heic:
+                try convertToHEIC(path: path, outFilePath: tempFile)
+            case .webp:
+                try convertToWebP(path: path, outFilePath: tempFile)
+            }
+
+            if FileManager.default.fileExists(atPath: outFilePath.string) {
+                if force {
+                    try FileManager.default.removeItem(at: outFilePath.url)
+                } else {
+                    printerr("\(ERROR_X) \(outFilePath.shellString.underline()) already exists, use `--force` to replace")
+                    printerr("    \(ARROW) converted file kept at \(tempFile.shellString.underline())".dim())
+                    return
+                }
+            }
+            try FileManager.default.moveItem(at: tempFile.url, to: outFilePath.url)
+            print("\(CHECKMARK) \(path.shellString.underline()) \(ARROW) \(outFilePath.shellString.underline())")
+        }
+
+        mutating func run() throws {
+            DispatchQueue.concurrentPerform(iterations: files.count) { i in
+                do {
+                    try convert(path: files[i])
+                } catch {
+                    printerr("\(ERROR_X) \(files[i].shellString.underline()) \(ARROW) \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
     struct UncropPdf: ParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Brings back PDFs to their original size by removing the crop box from PDFs that were cropped non-destructively."
@@ -289,6 +466,7 @@ struct Clop: ParsableCommand {
             guard output == nil || !output!.isEmpty else {
                 throw ValidationError("Output path cannot be empty")
             }
+
             guard !pdfs.isEmpty else {
                 throw ValidationError("At least one PDF file or folder must be specified")
             }
@@ -432,8 +610,6 @@ struct Clop: ParsableCommand {
             abstract: "Deletes EXIF metadata from images and videos."
         )
 
-        static var printSemaphore = DispatchSemaphore(value: 1)
-
         @Flag(name: .shortAndLong, help: "Strip EXIF metadata from all files in subfolders (when using a folder as input)")
         var recursive = false
 
@@ -457,15 +633,15 @@ struct Clop: ParsableCommand {
 
         func strip(path: FilePath) {
             guard FileManager.default.fileExists(atPath: path.string) else {
-                Self.printSemaphore.wait()
+                printSemaphore.wait()
                 printerr("\(ERROR_X) \(path.string.underline()) does not exist")
-                Self.printSemaphore.signal()
+                printSemaphore.signal()
                 return
             }
             guard path.extension?.lowercased() != "pdf" else {
-                Self.printSemaphore.wait()
+                printSemaphore.wait()
                 printerr("\(EXCLAMATION) \(path.string.underline()) is a PDF and `strip-exif` does not work on this type of file")
-                Self.printSemaphore.signal()
+                printSemaphore.signal()
                 return
             }
 
@@ -484,9 +660,9 @@ struct Clop: ParsableCommand {
             process.launch()
             process.waitUntilExit()
 
-            Self.printSemaphore.wait()
+            printSemaphore.wait()
             defer {
-                Self.printSemaphore.signal()
+                printSemaphore.signal()
             }
 
             if process.terminationStatus != 0 || !FileManager.default.fileExists(atPath: tempFile.string) {
@@ -812,6 +988,7 @@ struct Clop: ParsableCommand {
             Optimise.self,
             Crop.self,
             Downscale.self,
+            Convert.self,
             CropPdf.self,
             UncropPdf.self,
             StripExif.self,
@@ -821,6 +998,7 @@ struct Clop: ParsableCommand {
 
 let CHECKMARK = "✓".green()
 let EXCLAMATION = "!".magenta()
+let CIRCLE = "◌".yellow()
 let ERROR_X = "✘".red()
 let ARROW = "->".dim()
 
@@ -981,6 +1159,9 @@ actor ProgressPrinter {
 }
 
 let HOME = NSHomeDirectory()
+extension FilePath {
+    var shellString: String { string.replacingFirstOccurrence(of: HOME, with: "~") }
+}
 extension String {
     func replacingFirstOccurrence(of target: String, with replacement: String) -> String {
         guard let range = range(of: target) else { return self }

@@ -1110,6 +1110,8 @@ let GLOBAL_BIN_DIR_PARENT = FileManager.default.urls(for: .applicationScriptsDir
 let GLOBAL_BIN_DIR = GLOBAL_BIN_DIR_PARENT.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/
 let BIN_DIR = GLOBAL_BIN_DIR.appendingPathComponent(ARCH) // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/arm64
 let EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").existingFilePath!
+let HEIF_ENC = BIN_DIR.appendingPathComponent("heif-enc").existingFilePath!
+let CWEBP = BIN_DIR.appendingPathComponent("cwebp").existingFilePath!
 
 func getURLsFromFolder(_ folder: URL, recursive: Bool, ignorePDF: Bool = false) -> [URL] {
     guard let enumerator = FileManager.default.enumerator(
