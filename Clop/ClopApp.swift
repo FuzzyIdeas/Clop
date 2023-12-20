@@ -429,7 +429,7 @@ class AppDelegate: AppDelegateParent {
             trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
             price = 15
             productName = "Clop Pro"
-            vendorName = "Panaitiu Alin Valentin PFA"
+            vendorName = "The low-tech guys"
             hasFreeFeatures = true
         #endif
 
@@ -454,6 +454,9 @@ class AppDelegate: AppDelegateParent {
         #if !SETAPP
             UM.updater = updateController.updater
             PM.pro = pro
+            if !SWIFTUI_PREVIEW {
+                pro.checkProLicense()
+            }
         #endif
 
         NSApplication.shared.windows.first?.close()
