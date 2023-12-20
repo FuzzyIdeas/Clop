@@ -474,12 +474,18 @@ func unarchiveBinaries() {
     }
 
     let cliDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("ClopCLI")
+    if fm.fileExists(atPath: cliDir.path), (try? fm.destinationOfSymbolicLink(atPath: cliDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
+        try! fm.removeItem(at: cliDir)
+    }
     if !fm.fileExists(atPath: cliDir.path) {
-        try! fm.linkItem(at: GLOBAL_BIN_DIR_PARENT, to: cliDir)
+        try! fm.createSymbolicLink(at: cliDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
     }
 
     let finderOptimiserDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("\(GLOBAL_BIN_DIR_PARENT.lastPathComponent).FinderOptimiser")
+    if fm.fileExists(atPath: finderOptimiserDir.path), (try? fm.destinationOfSymbolicLink(atPath: finderOptimiserDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
+        try! fm.removeItem(at: finderOptimiserDir)
+    }
     if !fm.fileExists(atPath: finderOptimiserDir.path) {
-        try! fm.linkItem(at: GLOBAL_BIN_DIR_PARENT, to: finderOptimiserDir)
+        try! fm.createSymbolicLink(at: finderOptimiserDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
     }
 }

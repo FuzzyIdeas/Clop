@@ -110,7 +110,7 @@ extension String {
     }
 
     var trimmedPath: String {
-        trimmingCharacters(in: ["\"", "'", "\n", "\t", " ", "(", ")", "[", "]", "{", "}", ","])
+        trimmingCharacters(in: ["\"", "'", "\n", "\t", " ", "{", "}", ","])
     }
 }
 
