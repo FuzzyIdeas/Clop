@@ -906,6 +906,9 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 let _ = try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
             }
         }
+        if type.isPDF, path.exists, let pdf {
+            Task.init { try? await optimisePDF(pdf, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+        }
     }
 
     func restoreOriginal() {
@@ -1813,14 +1816,13 @@ var manualOptimisationCount = 0
     let downloadPath = FilePath.downloads.appending("\(name).\(ext)")
 
     let outFilePath: FilePath =
-        if let path = output?.filePath, path.string.contains("/")
-    {
-        path.isDir ? path / "\(name).\(ext)" : path.dir / generateFileName(template: path.name.string, for: downloadPath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-    } else if let output {
-        downloadPath.dir / generateFileName(template: output, for: downloadPath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-    } else {
-        downloadPath
-    }
+        if let path = output?.filePath, path.string.contains("/") {
+            path.isDir ? path / "\(name).\(ext)" : path.dir / generateFileName(template: path.name.string, for: downloadPath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+        } else if let output {
+            downloadPath.dir / generateFileName(template: output, for: downloadPath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+        } else {
+            downloadPath
+        }
     try fileURL.filePath!.move(to: outFilePath, force: true)
 
     guard optimiser.running, !optimiser.inRemoval else {
@@ -1902,23 +1904,21 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         .replacingOccurrences(of: "%z", with: cropSizeStr(cropSize))
         .replacingOccurrences(of: "%x", with: factorStr(changePlaybackSpeedFactor))
     let outFilePath: FilePath? =
-        if let path = output?.filePath, path.string.contains("/"), path.string.starts(with: "/")
-    {
-        path.isDir ? path.appending(item.path.name) : path.dir / generateFileName(template: path.name.string, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-    } else if let output {
-        item.path.dir / generateFileName(template: output, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-    } else {
-        nil
-    }
+        if let path = output?.filePath, path.string.contains("/"), path.string.starts(with: "/") {
+            path.isDir ? path.appending(item.path.name) : path.dir / generateFileName(template: path.name.string, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+        } else if let output {
+            item.path.dir / generateFileName(template: output, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+        } else {
+            nil
+        }
     let item: ClipboardType =
-        if let outFilePath, item.path.exists, case let .image(img) = item
-    {
-        try .image(img.copyWithPath(item.path.copy(to: outFilePath, force: true)))
-    } else if let outFilePath, item.path.exists {
-        try .file(item.path.copy(to: outFilePath, force: true))
-    } else {
-        item
-    }
+        if let outFilePath, item.path.exists, case let .image(img) = item {
+            try .image(img.copyWithPath(item.path.copy(to: outFilePath, force: true)))
+        } else if let outFilePath, item.path.exists {
+            try .file(item.path.copy(to: outFilePath, force: true))
+        } else {
+            item
+        }
 
     switch item {
     case let .image(img):

@@ -83,7 +83,7 @@ else
 endif
 
 Clop/bin.tar.xz: $(wildcard Clop/bin/*) $(wildcard Clop/bin/*/*)
-	fd -t file . Clop/bin -x sh -c 'codesign -v "{}" || codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}"'
+	fd -uu -t file . Clop/bin -x sh -c 'codesign -v "{}" || codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}"'
 	rm Clop/bin.tar.xz; cd Clop/bin/; tar acvf ../bin.tar.xz *
 	sha256sum Clop/bin.tar.xz | cut -d' ' -f1 > Clop/bin.tar.xz.sha256
 bin: Clop/bin.tar.xz
