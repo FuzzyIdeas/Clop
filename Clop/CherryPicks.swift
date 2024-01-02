@@ -136,6 +136,8 @@ let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPON
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
 
 extension NSSize {
+    var s: String { "\(width.i)×\(height.i)" }
+
     var aspectRatio: Double {
         width / height
     }
