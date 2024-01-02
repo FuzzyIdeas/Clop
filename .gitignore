@@ -6,3 +6,4 @@ Clop/bin-*/*
 Releases/*.html
 required.swift
 Releases/old_updates/
+*.tmp

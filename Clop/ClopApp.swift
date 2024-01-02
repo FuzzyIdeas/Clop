@@ -429,7 +429,7 @@ class AppDelegate: AppDelegateParent {
             trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
             price = 15
             productName = "Clop Pro"
-            vendorName = "The low-tech guys"
+            vendorName = "THE LOW TECH GUYS SRL"
             hasFreeFeatures = true
         #endif
 

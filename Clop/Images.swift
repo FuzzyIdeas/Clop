@@ -532,8 +532,10 @@ class Image: CustomStringConvertible {
             var newOutFile = pngOutFile
             do {
                 if Defaults[.convertedImageBehaviour] != .temporary {
+                    pngOutFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
                     try pngOutFile.setOptimisationStatusXattr("true")
-                    newOutFile = try pngOutFile.copy(to: path.dir)
+                    
+                    newOutFile = try pngOutFile.move(to: path.dir, force: true)
                     if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, newOutFile.withExtension(ext).exists {
                         try? newOutFile.withExtension(ext).delete()
                     }
@@ -545,7 +547,9 @@ class Image: CustomStringConvertible {
             }
         }
 
-        tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        if type == .jpeg || Defaults[.convertedImageBehaviour] == .temporary {
+            tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        }
         if Defaults[.preserveDates] {
             tempFile.copyCreationModificationDates(from: backup ?? path)
         }
@@ -640,9 +644,11 @@ class Image: CustomStringConvertible {
             var newOutFile = jpegOutFile
             do {
                 if Defaults[.convertedImageBehaviour] != .temporary {
+                    jpegOutFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
                     try jpegOutFile.setOptimisationStatusXattr("true")
+                    
                     if jpegOutFile != path.dir.appending(jpegOutFile.name) {
-                        newOutFile = try jpegOutFile.copy(to: path.dir)
+                        newOutFile = try jpegOutFile.move(to: path.dir, force: true)
                         if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, newOutFile.withExtension(ext).exists {
                             try? newOutFile.withExtension(ext).delete()
                         }
@@ -656,7 +662,9 @@ class Image: CustomStringConvertible {
             }
         }
 
-        tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        if type == .png || Defaults[.convertedImageBehaviour] == .temporary {
+            tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        }
         if Defaults[.preserveDates] {
             tempFile.copyCreationModificationDates(from: backup ?? path)
         }
@@ -692,9 +700,7 @@ class Image: CustomStringConvertible {
 
         let size = cropSize.computedSize(from: size)
         let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
-        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear"]
-            + (cropSize.smartCrop ? ["--smartcrop", "attention"] : [])
-            + [pathForResize.string]
+        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
         let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
             mainActor { optimiser.processes = [proc] }
         }
