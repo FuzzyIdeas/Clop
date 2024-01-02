@@ -20,6 +20,7 @@ func withPrintLock(_ action: () -> Void) {
 }
 
 let SIZE_REGEX = #/(\d+)\s*[xX×]\s*(\d+)/#
+let RATIO_REGEX = #/(\d+)[.,]?(\d*)\s*:\s*(\d+)[.,]?(\d*)/#
 let CLOP_APP: URL = {
     let u = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
     return u.pathExtension == "app" ? u : URL(fileURLWithPath: "/Applications/Clop.app")
@@ -58,6 +59,47 @@ extension NSSize: ExpressibleByArgument {
     public init?(argument: String) {
         if let size = Int(argument) {
             self.init(width: size, height: size)
+            return
+        }
+
+        guard let match = try? SIZE_REGEX.firstMatch(in: argument) else {
+            return nil
+        }
+        let width = Int(match.1)!
+        let height = Int(match.2)!
+        self.init(width: width, height: height)
+    }
+}
+
+extension CropSize: ExpressibleByArgument {
+    public init?(argument: String) {
+        if let size = Int(argument) {
+            self.init(width: size, height: size)
+            return
+        }
+
+        if let match = try? RATIO_REGEX.firstMatch(in: argument) {
+            var width = Int(match.1)!
+            var height = Int(match.3)!
+            var widthMagnitude = 0
+            var heightMagnitude = 0
+
+            if let decimals = Int(match.2) {
+                width = width * pow(10, match.2.count.d).i + decimals
+                widthMagnitude = match.2.count
+            }
+            if let decimals = Int(match.4) {
+                height = height * pow(10, match.4.count.d).i + decimals
+                heightMagnitude = match.4.count
+            }
+
+            if widthMagnitude > heightMagnitude {
+                height = height * pow(10, (widthMagnitude - heightMagnitude).d).i
+            } else if widthMagnitude < heightMagnitude {
+                width = width * pow(10, (heightMagnitude - widthMagnitude).d).i
+            }
+
+            self.init(width: width, height: height, isAspectRatio: true)
             return
         }
 
@@ -701,6 +743,9 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
 
+        @Flag(name: .long, help: "Crop by centering on features in the image")
+        var smartCrop = false
+
         @Flag(name: .long, help: "Removes audio from optimised videos")
         var removeAudio = false
 
@@ -710,7 +755,7 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
         var copy = false
 
-        @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs\n")
+        @Flag(name: .long, help: "Skips missing files and unreachable URLs\n")
         var skipErrors = false
 
         @Flag(name: .shortAndLong, help: "Output results as a JSON")
@@ -747,9 +792,17 @@ struct Clop: ParsableCommand {
         var output: String? = nil
 
         @Option(
-            help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50\n\nUse 0 for width or height to have it calculated automatically while keeping the original aspect ratio. (e.g. `128x0` or `0x720`)\n"
+            name: .shortAndLong,
+            help: """
+            Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630) or aspect ratio (e.g. 16:9).
+
+            When the size is specified as a single number, it will crop the longer of width or height to that number.
+            Example: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50
+
+            Use 0 for width or height to have it calculated automatically while keeping the original aspect ratio. (e.g. `128x0` or `0x720`)
+            """
         )
-        var size: NSSize
+        var size: CropSize
 
         var urls: [URL] = []
 
@@ -773,7 +826,7 @@ struct Clop: ParsableCommand {
                 OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
-                    size: size.cropSize(longEdge: longEdge),
+                    size: size.withLongEdge(longEdge).withSmartCrop(smartCrop),
                     downscaleFactor: 0.9,
                     changePlaybackSpeedFactor: nil,
                     hideFloatingResult: !gui,
@@ -1111,9 +1164,14 @@ actor ProgressPrinter {
             }
             let isSmaller = response.newBytes < response.oldBytes
             let perc = "\(response.percentageSaved.str(decimals: 2))%".foregroundColor(isSmaller ? .green : .red)
-            let percentageSaved = "(\(perc) \(isSmaller ? "smaller" : "larger"))".dim()
+            let percentageSaved = " (\(perc) \(isSmaller ? "smaller" : "larger"))".dim()
+            let resolutionChangeStr = if let old = response.oldWidthHeight, let new = response.newWidthHeight, old != new {
+                " [\(old.s.dim()) \(ARROW) \(new.s.yellow())]"
+            } else {
+                ""
+            }
             print(
-                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold()) \(percentageSaved)"
+                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold())\(resolutionChangeStr)\(percentageSaved)"
             )
         }
         for response in errors.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {
