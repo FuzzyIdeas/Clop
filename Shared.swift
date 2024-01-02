@@ -126,8 +126,13 @@ struct OptimisationRequest: Codable, Identifiable {
     var removeAudio: Bool?
 }
 
+func runningClopApp() -> NSRunningApplication? {
+    NSRunningApplication.runningApplications(withBundleIdentifier: "com.lowtechguys.Clop-setapp").first
+        ?? NSRunningApplication.runningApplications(withBundleIdentifier: "com.lowtechguys.Clop").first
+}
+
 func isClopRunning() -> Bool {
-    !NSRunningApplication.runningApplications(withBundleIdentifier: "com.lowtechguys.Clop").isEmpty
+    runningClopApp() != nil
 }
 
 import os
@@ -554,23 +559,26 @@ struct CropSize: Codable, Hashable, Identifiable {
         let height = try container.decode(Int.self, forKey: .height)
         let name = try container.decode(String.self, forKey: .name)
         let longEdge = try container.decode(Bool.self, forKey: .longEdge)
+        let smartCrop = try container.decode(Bool.self, forKey: .smartCrop)
         let isAspectRatio = try container.decodeIfPresent(Bool.self, forKey: .isAspectRatio) ?? false
         self.init(width: width, height: height, name: name, longEdge: longEdge, isAspectRatio: isAspectRatio)
     }
 
-    init(width: Int, height: Int, name: String = "", longEdge: Bool = false, isAspectRatio: Bool = false) {
+    init(width: Int, height: Int, name: String = "", longEdge: Bool = false, smartCrop: Bool = false, isAspectRatio: Bool = false) {
         self.width = width
         self.height = height
         self.name = name
         self.longEdge = longEdge
+        self.smartCrop = smartCrop
         self.isAspectRatio = isAspectRatio
     }
 
-    init(width: Double, height: Double, name: String = "", longEdge: Bool = false, isAspectRatio: Bool = false) {
+    init(width: Double, height: Double, name: String = "", longEdge: Bool = false, smartCrop: Bool = false, isAspectRatio: Bool = false) {
         self.width = width.evenInt
         self.height = height.evenInt
         self.name = name
         self.longEdge = longEdge
+        self.smartCrop = smartCrop
         self.isAspectRatio = isAspectRatio
     }
 
@@ -579,6 +587,7 @@ struct CropSize: Codable, Hashable, Identifiable {
         case height
         case name
         case longEdge
+        case smartCrop
         case isAspectRatio
     }
 
@@ -588,6 +597,7 @@ struct CropSize: Codable, Hashable, Identifiable {
     let height: Int
     var name = ""
     var longEdge = false
+    var smartCrop = false
     var isAspectRatio = false
 
     var flipped: CropSize {
@@ -596,7 +606,7 @@ struct CropSize: Codable, Hashable, Identifiable {
             let elements = name.split(separator: ":")
             flippedName = "\(elements.last ?? ""):\(elements.first ?? "")"
         }
-        return CropSize(width: height, height: width, name: flippedName, longEdge: longEdge, isAspectRatio: isAspectRatio)
+        return CropSize(width: height, height: width, name: flippedName, longEdge: longEdge, smartCrop: smartCrop, isAspectRatio: isAspectRatio)
     }
     var orientation: CropOrientation {
         width >= height ? .landscape : .portrait
@@ -611,7 +621,11 @@ struct CropSize: Codable, Hashable, Identifiable {
     var aspectRatio: Double { width.d / height.d }
 
     func withLongEdge(_ longEdge: Bool) -> CropSize {
-        CropSize(width: width, height: height, name: name, longEdge: longEdge, isAspectRatio: isAspectRatio)
+        CropSize(width: width, height: height, name: name, longEdge: longEdge, smartCrop: smartCrop, isAspectRatio: isAspectRatio)
+    }
+
+    func withSmartCrop(_ smartCrop: Bool) -> CropSize {
+        CropSize(width: width, height: height, name: name, longEdge: longEdge, smartCrop: smartCrop, isAspectRatio: isAspectRatio)
     }
 
     func withOrientation(_ orientation: CropOrientation, for size: NSSize? = nil) -> CropSize {

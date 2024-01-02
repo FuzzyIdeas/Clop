@@ -680,19 +680,22 @@ class Image: CustomStringConvertible {
         return try resize(toSize: size, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
     }
 
-    func resize(toSize size: CropSize, optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
+    func resize(toSize cropSize: CropSize, optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
         let pathForResize = FilePath.forResize.appending(path.nameWithoutSize)
         if path != pathForResize {
             try path.copy(to: pathForResize, force: true)
         }
 
         if type == .gif, let gif = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
-            return try gif.optimiseGIF(optimiser: optimiser, cropTo: size, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
+            return try gif.optimiseGIF(optimiser: optimiser, cropTo: cropSize, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
         }
 
-        let size = size.computedSize(from: self.size)
+        let size = cropSize.computedSize(from: size)
         let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
-        let proc = try tryProc(VIPSTHUMBNAIL.string, args: ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", "attention", pathForResize.string], tries: 3) { proc in
+        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear"]
+            + (cropSize.smartCrop ? ["--smartcrop", "attention"] : [])
+            + [pathForResize.string]
+        let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
             mainActor { optimiser.processes = [proc] }
         }
         guard proc.terminationStatus == 0 else {
