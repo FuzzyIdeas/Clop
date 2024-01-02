@@ -561,7 +561,7 @@ struct CropSize: Codable, Hashable, Identifiable {
         let longEdge = try container.decode(Bool.self, forKey: .longEdge)
         let smartCrop = try container.decode(Bool.self, forKey: .smartCrop)
         let isAspectRatio = try container.decodeIfPresent(Bool.self, forKey: .isAspectRatio) ?? false
-        self.init(width: width, height: height, name: name, longEdge: longEdge, isAspectRatio: isAspectRatio)
+        self.init(width: width, height: height, name: name, longEdge: longEdge, smartCrop: smartCrop, isAspectRatio: isAspectRatio)
     }
 
     init(width: Int, height: Int, name: String = "", longEdge: Bool = false, smartCrop: Bool = false, isAspectRatio: Bool = false) {
@@ -1169,4 +1169,11 @@ func isURLOptimisable(_ url: URL, type: UTType? = nil, ignorePDF: Bool = false) 
         return true
     }
     return IMAGE_VIDEO_FORMATS.contains(type) || (!ignorePDF && type == .pdf)
+}
+
+extension String {
+    var shellString: String { replacingFirstOccurrence(of: NSHomeDirectory(), with: "~") }
+}
+extension URL {
+    var shellString: String { isFileURL ? path.shellString : absoluteString }
 }

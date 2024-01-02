@@ -278,14 +278,25 @@ struct CropOptimiseFileIntent: AppIntent {
                 \.$removeAudio
             }
         }, otherwise: {
-            Summary("Crop \(\.$item) to \(\.$width)x\(\.$height) and optimise") {
-                \.$output
-                \.$hideFloatingResult
-                \.$aggressiveOptimisation
-                \.$copyToClipboard
-                \.$longEdge
-                \.$removeAudio
-            }
+            When(\.$isAspectRatio, .equalTo, true, {
+                Summary("Crop \(\.$item) to \(\.$isAspectRatio) \(\.$width):\(\.$height) and optimise") {
+                    \.$output
+                    \.$hideFloatingResult
+                    \.$aggressiveOptimisation
+                    \.$copyToClipboard
+                    \.$longEdge
+                    \.$removeAudio
+                }
+            }, otherwise: {
+                Summary("Crop \(\.$item) to \(\.$isAspectRatio) \(\.$width)×\(\.$height) and optimise") {
+                    \.$output
+                    \.$hideFloatingResult
+                    \.$aggressiveOptimisation
+                    \.$copyToClipboard
+                    \.$longEdge
+                    \.$removeAudio
+                }
+            })
         })
     }
 
@@ -297,6 +308,9 @@ struct CropOptimiseFileIntent: AppIntent {
 
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Size or aspect ratio toggle", default: false, displayName: .init(true: "aspect ratio", false: "size"))
+    var isAspectRatio: Bool
 
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
@@ -360,7 +374,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 clip,
                 id: clip.id,
                 hideFloatingResult: hideFloatingResult,
-                cropTo: CropSize(width: (longEdge ? size : width) ?? 0, height: (longEdge ? size : height) ?? 0, longEdge: longEdge),
+                cropTo: CropSize(width: (longEdge ? size : width) ?? 0, height: (longEdge ? size : height) ?? 0, longEdge: longEdge, isAspectRatio: isAspectRatio),
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
