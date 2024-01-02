@@ -1167,13 +1167,21 @@ actor ProgressPrinter {
             } else {
                 ""
             }
+            let savedAs = if let original = response.forURL.filePath ?? response.convertedFrom?.filePath, let optimised = response.path.filePath, original != optimised {
+                " saved as \(optimised.shellString.underline())".dim()
+            } else {
+                ""
+            }
             print(
-                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold())\(resolutionChangeStr)\(percentageSaved)"
+                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold())\(resolutionChangeStr)\(percentageSaved)\(savedAs)"
             )
         }
         for response in errors.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {
             let url = response.forURL
-            print("\(ERROR_X) \(url.shellString.underline()): \(response.error.replacingOccurrences(of: ": \(url.path)", with: "").foregroundColor(.red))")
+            let err = response.error
+                .replacingOccurrences(of: ": \(url.path)", with: "")
+                .replacingOccurrences(of: ": \(url.shellString)", with: "")
+            print("\(ERROR_X) \(url.shellString.underline()): \(err.foregroundColor(.red))")
         }
         if responses.count > 1 {
             let totalOldBytes = responses.values.map(\.oldBytes).reduce(0, +)
