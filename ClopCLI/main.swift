@@ -556,11 +556,8 @@ struct Clop: ParsableCommand {
         @Option(help: "Crops pages to fit a specific paper size (e.g. A4, Letter)")
         var paperSize: String? = nil
 
-        @Option(help: "Crops pages to fit the aspect ratio of a resolution (e.g. 1640x2360)")
-        var resolution: NSSize? = nil
-
-        @Option(help: "Crops the PDF pages to fit a specific aspect ratio (e.g. 1.7777777778 for 16:9)")
-        var aspectRatio: Double? = nil
+        @Option(help: "Crops pages to fit the aspect ratio of a resolution (e.g. 1640x2360) or a specific aspect ratio (e.g. 16:9)")
+        var aspectRatio: CropSize? = nil
 
         @Flag(name: .shortAndLong, help: "Crop all PDFs in subfolders (when using a folder as input)")
         var recursive = false
@@ -599,9 +596,9 @@ struct Clop: ParsableCommand {
                 throw ExitCode.success
             }
 
-            ratio = DEVICE_SIZES[forDevice ?? ""]?.fractionalAspectRatio ?? PAPER_SIZES[paperSize ?? ""]?.fractionalAspectRatio ?? resolution?.fractionalAspectRatio ?? aspectRatio?.fractionalAspectRatio
+            ratio = DEVICE_SIZES[forDevice ?? ""]?.fractionalAspectRatio ?? PAPER_SIZES[paperSize ?? ""]?.fractionalAspectRatio ?? aspectRatio?.fractionalAspectRatio
             guard let ratio else {
-                throw ValidationError("Invalid aspect ratio, at least one of --for-device, --paper-size, --resolution or --aspect-ratio must be specified")
+                throw ValidationError("Invalid aspect ratio, at least one of --for-device, --paper-size or --aspect-ratio must be specified")
             }
             guard ratio > 0 else {
                 throw ValidationError("Invalid aspect ratio, must be greater than 0")
@@ -1175,7 +1172,8 @@ actor ProgressPrinter {
             )
         }
         for response in errors.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {
-            print("\(ERROR_X) \(response.forURL.shellString.underline()): \(response.error.foregroundColor(.red))")
+            let url = response.forURL
+            print("\(ERROR_X) \(url.shellString.underline()): \(response.error.replacingOccurrences(of: ": \(url.path)", with: "").foregroundColor(.red))")
         }
         if responses.count > 1 {
             let totalOldBytes = responses.values.map(\.oldBytes).reduce(0, +)
@@ -1214,20 +1212,9 @@ actor ProgressPrinter {
     }
 }
 
-let HOME = NSHomeDirectory()
+let HOME = FilePath(NSHomeDirectory())
 extension FilePath {
-    var shellString: String { string.replacingFirstOccurrence(of: HOME, with: "~") }
-}
-extension String {
-    func replacingFirstOccurrence(of target: String, with replacement: String) -> String {
-        guard let range = range(of: target) else { return self }
-        return replacingCharacters(in: range, with: replacement)
-    }
-    var shellString: String { replacingFirstOccurrence(of: HOME, with: "~") }
-}
-
-extension URL {
-    var shellString: String { path.shellString }
+    var shellString: String { string.replacingFirstOccurrence(of: HOME.string, with: "~") }
 }
 
 let LINE_UP = "\u{1B}[1A"
