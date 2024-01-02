@@ -2154,7 +2154,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                         throw ClopError.optimisationFailed(url.shellString)
                     }
 
-                    if let optURL = respPath.fileURL, optURL != url, optURL.deletingLastPathComponent() != url.deletingLastPathComponent() {
+                    if req.output == nil, let optURL = respPath.fileURL, optURL != url, optURL.deletingLastPathComponent() != url.deletingLastPathComponent() {
                         let newURL = url.deletingLastPathComponent().appendingPathComponent(optURL.lastPathComponent)
                         if fm.fileExists(atPath: newURL.path) {
                             try fm.removeItem(at: newURL)
