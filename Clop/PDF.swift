@@ -181,7 +181,7 @@ class PDF: Optimisable {
 
     @discardableResult
     func uncrop(saveTo newPath: FilePath? = nil) -> Bool {
-        guard let document else {
+        guard let document, !document.isEncrypted else {
             return false
         }
         document.uncrop()
@@ -190,7 +190,7 @@ class PDF: Optimisable {
 
     @discardableResult
     func cropTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false, saveTo newPath: FilePath? = nil) -> Bool {
-        guard let document else {
+        guard let document, !document.isEncrypted else {
             return false
         }
 
@@ -199,6 +199,13 @@ class PDF: Optimisable {
     }
 
     func optimise(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil) throws -> PDF {
+        guard let document else {
+            throw ClopError.invalidPDF(path)
+        }
+        guard !document.isEncrypted else {
+            throw ClopError.encryptedPDF(path)
+        }
+
         try? path.setOptimisationStatusXattr("pending")
         let tempFile = FilePath.pdfs.appending(path.lastComponent?.string ?? "clop.pdf")
 
@@ -210,7 +217,7 @@ class PDF: Optimisable {
             mainActor { [weak self] in
                 guard let self else { return }
                 optimiser.processes = [proc]
-                updateProgressGS(pipe: proc.standardOutput as! Pipe, url: path.url, optimiser: optimiser, pageCount: document?.pageCount)
+                updateProgressGS(pipe: proc.standardOutput as! Pipe, url: path.url, optimiser: optimiser, pageCount: document.pageCount)
             }
         }
         guard proc.terminationStatus == 0 else {

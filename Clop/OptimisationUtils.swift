@@ -2050,8 +2050,12 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 throw ClopError.alreadyOptimised(path)
             }
             let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
-                try await optimisePDF(
-                    PDF(path, thumb: !hideFloatingResult),
+                let pdf = PDF(path, thumb: !hideFloatingResult)
+                guard let doc = pdf.document else { throw ClopError.invalidPDF(path) }
+                guard !doc.isEncrypted else { throw ClopError.encryptedPDF(path) }
+
+                return try await optimisePDF(
+                    pdf,
                     copyToClipboard: copyToClipboard,
                     id: id,
                     allowLarger: false,
@@ -2138,7 +2142,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                     }
 
                     guard let result, let opt = await opt(url.absoluteString) else {
-                        throw ClopError.optimisationFailed(url.absoluteString)
+                        throw ClopError.optimisationFailed(url.shellString)
                     }
 
                     var respPath = switch result {
@@ -2147,7 +2151,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                     case let .image(img):
                         img.path.string
                     default:
-                        throw ClopError.optimisationFailed(url.absoluteString)
+                        throw ClopError.optimisationFailed(url.shellString)
                     }
 
                     if let optURL = respPath.fileURL, optURL != url, optURL.deletingLastPathComponent() != url.deletingLastPathComponent() {
