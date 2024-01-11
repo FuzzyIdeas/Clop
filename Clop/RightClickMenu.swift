@@ -165,7 +165,7 @@ struct ConvertMenu: View {
         ForEach(optimiser.type.convertibleTypes) { type in
             Button(type.preferredFilenameExtension ?? type.identifier) {
                 optimiser.convert(to: type)
-            }
+            }.disabled(optimiser.type.utType == type)
         }
     }
 }

@@ -117,6 +117,7 @@ extension Defaults.Keys {
 let DEFAULT_CROP_SIZES: [CropSize] = [
     CropSize(width: 1920, height: 1080, name: "1080p"),
     CropSize(width: 1280, height: 720, name: "720p"),
+    CropSize(width: 1440, height: 900, name: "Mac App Store"),
     CropSize(width: 1200, height: 630, name: "OpenGraph"),
     CropSize(width: 1600, height: 900, name: "Twitter"),
     CropSize(width: 128, height: 128, name: "Small Square"),

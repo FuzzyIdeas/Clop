@@ -12,19 +12,32 @@ import QuickLookUI
 import SwiftUI
 import System
 
-enum ItemType: Equatable {
+enum ItemType: Equatable, Identifiable {
     case image(UTType)
     case video(UTType)
     case pdf
     case url
     case unknown
 
+    var id: String {
+        switch self {
+        case let .image(utType):
+            utType.identifier
+        case let .video(utType):
+            utType.identifier
+        case .pdf:
+            "pdf"
+        case .url:
+            "url"
+        case .unknown:
+            "unknown"
+        }
+    }
+
     var convertibleTypes: [UTType] {
         switch self {
-        case .image(.png):
-            [.jpeg, .webp, .avif, .heic].compactMap { $0 }
-        case .image(.jpeg):
-            [.png, .webp, .avif, .heic].compactMap { $0 }
+        case let .image(type):
+            [.jpeg, .webp, .avif, .heic, .png, .gif].compactMap { $0 }
         default:
             []
         }
@@ -570,7 +583,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         lhs.id == rhs.id
     }
 
-    func convert(to type: UTType) {
+    func convert(to type: UTType, optimise: Bool = false) {
         guard type != self.type.utType else { return }
         let typeStr = type.preferredFilenameExtension ?? type.identifier
         operation = "Converting to \(typeStr)"
@@ -586,7 +599,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 return
             }
             imageOptimisationQueue.addOperation { [weak self] in
-                guard let converted = try? image.convert(to: type, asTempFile: false) else {
+                guard let converted = try? image.convert(to: type, asTempFile: false, optimiser: optimise ? self : nil) else {
                     mainActor {
                         guard let self else { return }
                         self.finish(error: "\(typeStr) conversion failed")
@@ -595,10 +608,14 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 }
                 mainActor {
                     guard let self else { return }
-                    self.convertedFromURL = self.url
+                    if self.convertedFromURL == nil {
+                        self.convertedFromURL = self.url
+                    }
                     self.image = converted
                     self.type = .image(converted.type)
                     self.url = converted.path.url
+                    self.error = nil
+                    self.notice = nil
                     self.finish(oldBytes: self.oldBytes, newBytes: converted.data.count, oldSize: self.oldSize, newSize: converted.size, removeAfterMs: self.lastRemoveAfterMs)
                 }
             }
@@ -671,6 +688,10 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func quicklook() {
         resetRemover()
         OM.quicklook(optimiser: self)
+    }
+
+    func canChangeFormat() -> Bool {
+        type.convertibleTypes.isNotEmpty
     }
 
     func canReoptimise() -> Bool {
@@ -1775,8 +1796,8 @@ enum ClipboardType: Equatable {
 
     @inline(__always)
     @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
-        guard meetsInternalRequirements() || count < limit else {
-            throw ClopError.proError("Pro limits reached")
+        if !meetsInternalRequirements() {
+            throw ClopError.proError("")
         }
         SetappManager.shared.reportUsageEvent(.userInteraction)
 

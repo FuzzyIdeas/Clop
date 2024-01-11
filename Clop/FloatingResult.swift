@@ -8,6 +8,7 @@
 import Defaults
 import Lowtech
 import SwiftUI
+import UniformTypeIdentifiers
 #if !SETAPP
     import LowtechIndie
     import LowtechPro
@@ -157,6 +158,7 @@ struct FloatingPreview: View {
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
         clipEnd.thumbnail = NSImage(resource: .sonomaShot)
+        clipEnd.image = Image(nsImage: clipEnd.thumbnail!, data: Data(), type: .png, retinaDownscaled: false)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
         o.optimisers = [
@@ -197,6 +199,108 @@ struct OnboardingFloatingPreview: View {
 
     var body: some View {
         FloatingResultContainer(om: Self.om, isPreview: true)
+    }
+}
+
+// @MainActor
+// struct DraggableConvertedImage: View {
+//    var format: UTType
+//    var ext: String
+//    var image: Image
+//    var optimiser: Optimiser
+//
+//    @State private var rotation: Double = -2
+//    @State private var offset: Double = -0.5
+//    @State private var hovering: Bool = false
+//
+//    func preview(ext: String) -> some View {
+//        ZStack {
+//            SwiftUI.Image(nsImage: image.image)
+//            Text(ext)
+//                .mono(100, weight: .black)
+//                .foregroundColor(.white)
+//                .shadow(radius: 20)
+//        }
+//    }
+//
+//    var body: some View {
+//        Text(ext.uppercased()).roundbg(radius: 4, verticalPadding: 1, horizontalPadding: 3, color: optimiser.type.utType == format ? .fg.warm : .bg.warm.opacity(0.7), noFG: true)
+//            .foregroundColor(
+//                optimiser.type.utType == format
+//                    ? .bg.warm
+//                    : .fg.warm
+//            )
+//            .rotationEffect(.degrees(rotation), anchor: .top)
+//            .offset(x: offset * 1.5, y: offset * 0.7)
+//            .onAppear {
+//                withAnimation(.easeIn(duration: 0.15).repeatForever(autoreverses: true)) {
+//                    rotation = 3
+//                }
+//                withAnimation(.easeOut(duration: 0.2).repeatForever(autoreverses: true).delay(0.1)) {
+//                    offset = 0.5
+//                }
+//            }
+//            .onHover { hovering in
+//                if hovering {
+//                    withAnimation(.jumpySpring) {
+//                        self.hovering = true
+//                    }
+//                } else {
+//                    self.hovering = false
+//                }
+//            }
+//            .scaleEffect(hovering ? 1.2 : 1)
+//            .if(format == .jpeg) { view in
+//                view.draggable(ConvertedImageJPEG(image: image, optimiser: optimiser), preview: { preview(ext: ext) })
+//            }
+//            .if(format == .png) { view in
+//                view.draggable(ConvertedImagePNG(image: image, optimiser: optimiser), preview: { preview(ext: ext) })
+//            }
+//            .if(format == .avif) { view in
+//                view.draggable(ConvertedImageAVIF(image: image), preview: { preview(ext: ext) })
+//            }
+//            .if(format == .heic) { view in
+//                view.draggable(ConvertedImageHEIC(image: image), preview: { preview(ext: ext) })
+//            }
+//            .if(format == .webP) { view in
+//                view.draggable(ConvertedImageWEBP(image: image), preview: { preview(ext: ext) })
+//            }
+//            .if(format == .gif) { view in
+//                view.draggable(ConvertedImageGIF(image: image, optimiser: optimiser), preview: { preview(ext: ext) })
+//            }
+//    }
+// }
+
+@MainActor struct FormatSelectorView: View {
+    @ObservedObject var optimiser: Optimiser
+
+//    @ObservedObject var km = KM
+
+    var body: some View {
+        if !optimiser.running, optimiser.canChangeFormat() {
+//            , let image = optimiser.image {
+            HStack(spacing: 1) {
+                ForEach(optimiser.type.convertibleTypes) { format in
+                    if let ext = format.preferredFilenameExtension {
+//                        if km.lalt || km.ralt {
+//                            DraggableConvertedImage(format: format, ext: ext, image: image, optimiser: optimiser)
+//                        } else {
+                        button(format: format, ext: ext)
+//                        }
+                    }
+                }
+            }
+            .font(.medium(8))
+        }
+    }
+
+    func button(format: UTType, ext: String) -> some View {
+        Button(ext.uppercased()) {
+            guard optimiser.type.utType != format else { return }
+            optimiser.convert(to: format, optimise: true)
+        }
+        .buttonStyle(PickerButton(color: .bg.warm.opacity(0.7), offTextColor: .fg.warm, horizontalPadding: 3, verticalPadding: 1, radius: 4, enumValue: $optimiser.type, onValue: ItemType.image(format)))
+
     }
 }
 
@@ -543,14 +647,18 @@ struct FloatingResult: View {
                                     anchor: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading
                                 )
                         }
-                        thumbnailView
-                            .contentShape(Rectangle())
-                            .onHover(perform: updateHover(_:))
-                            .if(!optimiser.inRemoval) { view in
-                                view.contextMenu {
-                                    RightClickMenuView(optimiser: optimiser)
+                        Group {
+                            thumbnailView
+                                .contentShape(Rectangle())
+                                .if(!optimiser.inRemoval) { view in
+                                    view.contextMenu {
+                                        RightClickMenuView(optimiser: optimiser)
+                                    }
                                 }
-                            }
+                            FormatSelectorView(optimiser: optimiser)
+                                .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
+                        }
+                        .onHover(perform: updateHover(_:))
                     }
                 } else {
                     noThumbnailView

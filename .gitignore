@@ -1,5 +1,6 @@
 Clop/bin/*
 Clop/bin-*/*
+Clop/bin.zip
 *.dmg
 *.delta
 *.bkp

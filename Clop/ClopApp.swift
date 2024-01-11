@@ -96,7 +96,7 @@ class AppDelegate: AppDelegateParent {
         }
 
         let drag = NSPasteboard(name: .drag)
-        drag.debug()
+//        drag.debug()
         guard self.lastDragChangeCount != drag.changeCount else {
             return
         }
@@ -435,7 +435,7 @@ class AppDelegate: AppDelegateParent {
 
         if !SWIFTUI_PREVIEW {
             LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
-            LowtechSentry.configureSentry(restartOnHang: true, getUser: LowtechSentry.getSentryUser)
+            LowtechSentry.configureSentry(getUser: LowtechSentry.getSentryUser)
 
             KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]

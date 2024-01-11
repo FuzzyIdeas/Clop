@@ -88,12 +88,32 @@ struct ResolutionField: View {
         }
     }
 
+    @ViewBuilder var framingPicker: some View {
+        if optimiser.type.isImage {
+            Picker("", selection: $smartCrop) {
+                Text("Smart").tag(true)
+                    .help("Crop the image by keeping elements that catch attention.")
+                Text("Center").tag(false)
+                    .help("Crop the margins and keep the center of the image.")
+            }
+            .pickerStyle(.segmented)
+            .scaleEffect(x: 0.75, y: 0.75, anchor: .trailing)
+        }
+    }
+
     var saveField: some View {
         HStack(spacing: 9) {
-            TextField("", text: $name, prompt: Text("Name"))
-                .textFieldStyle(.roundedBorder)
-                .focused($focused, equals: .name)
-                .frame(width: 198, alignment: .leading)
+            ZStack(alignment: .trailing) {
+                TextField("", text: $name, prompt: Text("Name"))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focused, equals: .name)
+                    .frame(width: 198, alignment: .leading)
+                Text("\(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)")
+                    .monospaced()
+                    .allowsTightening(false)
+                    .opacity(0.5)
+                    .padding(.trailing, 10)
+            }
 
             Button(action: {
                 guard !preview, !name.isEmpty, tempWidth > 0 || tempHeight > 0
@@ -190,6 +210,8 @@ struct ResolutionField: View {
         }
     }
 
+    @State private var smartCrop = true
+
     var editor: some View {
         VStack(spacing: 10) {
             VStack(alignment: .leading) {
@@ -201,8 +223,13 @@ struct ResolutionField: View {
                         cropSizeButton(size).disabled(size.width > self.size.width.i || size.height > self.size.height.i)
                     }
                     cropSizeButton(CropSize(width: size.width, height: size.height, name: "Default size"))
-                    if !isAspectRatio {
+                    if !isAspectRatio, !savedCropSizes.contains(where: { $0.width == tempWidth && $0.height == tempHeight }) {
                         saveField
+                    }
+                    if !savedCropSizes.contains(DEFAULT_CROP_SIZES) {
+                        Button("Bring back default sizes") {
+                            Defaults[.savedCropSizes] = DEFAULT_CROP_SIZES + Defaults[.savedCropSizes].without(DEFAULT_CROP_SIZES)
+                        }
                     }
                 }
 
@@ -231,43 +258,62 @@ struct ResolutionField: View {
                 aspectRatioPicker.frame(width: 100).padding(.leading, 10)
             }
 
-            let sizeStr = isAspectRatio ? (cropSize?.name ?? "\(tempWidth):\(tempHeight)") : "\(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)"
-            Button("Crop and resize to \(sizeStr)") {
-                guard !preview, tempWidth > 0 || tempHeight > 0 else { return }
-
-                if let pdf = optimiser.pdf {
-                    let lastOrientation = cropOrientation
-                    let size = CropSize(width: tempWidth, height: tempHeight).withOrientation(cropOrientation)
-                    pdf.cropTo(aspectRatio: size.fractionalAspectRatio, alwaysPortrait: cropOrientation == .portrait, alwaysLandscape: cropOrientation == .landscape)
-                    cropOrientation = lastOrientation
-                    optimiser.refetch()
-                    optimiser.oldSize = optimiser.pdf?.originalSize ?? size.computedSize(from: self.size)
-                    optimiser.newSize = optimiser.pdf?.size
-                    optimiser.editingResolution = false
-                    return
-                }
-
-                if isAspectRatio {
-                    optimiser.crop(to: CropSize(
-                        width: cropOrientation == .adaptive ? tempWidth : (cropOrientation == .landscape ? max(tempWidth, tempHeight) : min(tempWidth, tempHeight)),
-                        height: cropOrientation == .adaptive ? tempHeight : (cropOrientation == .portrait ? max(tempWidth, tempHeight) : min(tempWidth, tempHeight)),
-                        longEdge: cropOrientation == .adaptive, isAspectRatio: true
-                    ))
-                } else if tempWidth != 0, tempHeight != 0 {
-                    optimiser.crop(to: CropSize(width: tempWidth, height: tempHeight).withOrientation(cropOrientation))
-                } else {
-                    optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
-                }
+            HStack {
+                Button("1.5x") {
+                    tempWidth = (tempWidth.d * 1.5).evenInt
+                    tempHeight = (tempHeight.d * 1.5).evenInt
+                }.disabled(tempWidth.d * 1.5 > size.width || tempHeight.d * 1.5 > size.height)
+                Button("2x") {
+                    tempWidth = (tempWidth.d * 2).evenInt
+                    tempHeight = (tempHeight.d * 2).evenInt
+                }.disabled(tempWidth * 2 > size.width.i || tempHeight * 2 > size.height.i)
+                Button("3x") {
+                    tempWidth = (tempWidth.d * 3).evenInt
+                    tempHeight = (tempHeight.d * 3).evenInt
+                }.disabled(tempWidth * 3 > size.width.i || tempHeight * 3 > size.height.i)
+                framingPicker
             }
-            .buttonStyle(.bordered)
-            .fontDesign(.rounded)
-            .monospacedDigit()
-            .disabled(optimiser.running || (tempWidth == 0 && tempHeight == 0))
+            cropButton.fixedSize()
 
             uncropButton
         }
         .padding()
         .defaultFocus($focused, .width)
+    }
+
+    @ViewBuilder var cropButton: some View {
+        let sizeStr = isAspectRatio ? (cropSize?.name ?? "\(tempWidth):\(tempHeight)") : "\(tempWidth == 0 ? "Auto" : tempWidth.s)×\(tempHeight == 0 ? "Auto" : tempHeight.s)"
+        Button("Crop and resize to \(sizeStr)") {
+            guard !preview, tempWidth > 0 || tempHeight > 0 else { return }
+
+            if let pdf = optimiser.pdf {
+                let lastOrientation = cropOrientation
+                let size = CropSize(width: tempWidth, height: tempHeight).withOrientation(cropOrientation)
+                pdf.cropTo(aspectRatio: size.fractionalAspectRatio, alwaysPortrait: cropOrientation == .portrait, alwaysLandscape: cropOrientation == .landscape)
+                cropOrientation = lastOrientation
+                optimiser.refetch()
+                optimiser.oldSize = optimiser.pdf?.originalSize ?? size.computedSize(from: self.size)
+                optimiser.newSize = optimiser.pdf?.size
+                optimiser.editingResolution = false
+                return
+            }
+
+            if isAspectRatio {
+                optimiser.crop(to: CropSize(
+                    width: cropOrientation == .adaptive ? tempWidth : (cropOrientation == .landscape ? max(tempWidth, tempHeight) : min(tempWidth, tempHeight)),
+                    height: cropOrientation == .adaptive ? tempHeight : (cropOrientation == .portrait ? max(tempWidth, tempHeight) : min(tempWidth, tempHeight)),
+                    longEdge: cropOrientation == .adaptive, smartCrop: smartCrop, isAspectRatio: true
+                ))
+            } else if tempWidth != 0, tempHeight != 0 {
+                optimiser.crop(to: CropSize(width: tempWidth, height: tempHeight, smartCrop: smartCrop).withOrientation(cropOrientation))
+            } else {
+                optimiser.downscale(toFactor: tempWidth == 0 ? tempHeight.d / size.height.d : tempWidth.d / size.width.d)
+            }
+        }
+        .buttonStyle(.bordered)
+        .fontDesign(.rounded)
+        .monospacedDigit()
+        .disabled(optimiser.running || (tempWidth == 0 && tempHeight == 0))
     }
 
     @State private var hoveringHelpButton = false
