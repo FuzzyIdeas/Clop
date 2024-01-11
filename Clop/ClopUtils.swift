@@ -372,6 +372,18 @@ extension Process {
         (terminationReason == .uncaughtSignal && [SIGKILL, SIGTERM].contains(terminationStatus)) ||
             mainThread { processTerminated.contains(processIdentifier) }
     }
+    func terminatedAsync() async -> Bool {
+        if terminationReason == .uncaughtSignal, [SIGKILL, SIGTERM].contains(terminationStatus) {
+            return true
+        }
+        return await MainActor.run { processTerminated.contains(processIdentifier) }
+    }
+
+    func waitUntilExitAsync() async throws {
+        while isRunning {
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
 }
 
 struct Proc: Hashable {
@@ -453,6 +465,46 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
     }
     if proc.isRunning {
         proc.waitUntilExit()
+    }
+    return proc
+}
+
+func tryProcAsync(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) async throws -> Process {
+    var outPipe = Pipe()
+    var errPipe = Pipe()
+
+    let cmdline = "\(cmd.shellString) \(args.joined(separator: " "))"
+    log.debug("Starting \(cmdline)")
+    guard var proc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
+        throw ClopError.noProcess(cmd)
+    }
+    for tryNum in 1 ... tries {
+        beforeWait?(proc)
+
+        try await proc.waitUntilExitAsync()
+
+        let pid = proc.processIdentifier
+        if proc.terminationStatus == 0 {
+            let _ = await MainActor.run { processTerminated.remove(pid) }
+            break
+        }
+        if await proc.terminatedAsync() {
+            let _ = await MainActor.run { processTerminated.remove(pid) }
+            break
+        }
+
+        log.debug("Retry \(tryNum): \(cmdline)")
+        outPipe.fileHandleForReading.readabilityHandler = nil
+        errPipe.fileHandleForReading.readabilityHandler = nil
+        outPipe = Pipe()
+        errPipe = Pipe()
+        guard let retryProc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
+            throw ClopError.noProcess(cmd)
+        }
+        proc = retryProc
+    }
+    if proc.isRunning {
+        try await proc.waitUntilExitAsync()
     }
     return proc
 }

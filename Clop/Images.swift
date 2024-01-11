@@ -534,7 +534,7 @@ class Image: CustomStringConvertible {
                 if Defaults[.convertedImageBehaviour] != .temporary {
                     pngOutFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
                     try pngOutFile.setOptimisationStatusXattr("true")
-                    
+
                     newOutFile = try pngOutFile.move(to: path.dir, force: true)
                     if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, newOutFile.withExtension(ext).exists {
                         try? newOutFile.withExtension(ext).delete()
@@ -646,7 +646,7 @@ class Image: CustomStringConvertible {
                 if Defaults[.convertedImageBehaviour] != .temporary {
                     jpegOutFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
                     try jpegOutFile.setOptimisationStatusXattr("true")
-                    
+
                     if jpegOutFile != path.dir.appending(jpegOutFile.name) {
                         newOutFile = try jpegOutFile.move(to: path.dir, force: true)
                         if Defaults[.convertedImageBehaviour] == .inPlace, let ext = path.extension, newOutFile.withExtension(ext).exists {
@@ -750,48 +750,26 @@ class Image: CustomStringConvertible {
     }
 
     func convertToAVIF(asTempFile: Bool) throws -> Image {
-        let tempFile = path.tempFile(ext: "avif")
-        let proc = try tryProc(HEIF_ENC.string, args: ["--avif", "-q", "60", "-o", tempFile.string, path.string], tries: 2)
-        guard proc.terminationStatus == 0 else {
-            throw ClopProcError.processError(proc)
-        }
-        try? tempFile.setOptimisationStatusXattr("true")
-        let path = asTempFile ? tempFile : try tempFile.move(to: path.withExtension("avif"), force: true)
-        guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
-            throw ClopError.conversionFailed(self.path)
-        }
-        return Image(data: data, path: path, nsImage: img, type: .avif, retinaDownscaled: retinaDownscaled)
+        try convertWithProc(to: "avif", asTempFile: asTempFile)
     }
-
     func convertToHEIC(asTempFile: Bool) throws -> Image {
-        let tempFile = path.tempFile(ext: "heic")
-        let proc = try tryProc(HEIF_ENC.string, args: ["-q", "60", "-o", tempFile.string, path.string], tries: 2)
-        guard proc.terminationStatus == 0 else {
-            throw ClopProcError.processError(proc)
-        }
-        try? tempFile.setOptimisationStatusXattr("true")
-        let path = asTempFile ? tempFile : try tempFile.move(to: path.withExtension("heic"), force: true)
-        guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
-            throw ClopError.conversionFailed(self.path)
-        }
-        return Image(data: data, path: path, nsImage: img, type: .avif, retinaDownscaled: retinaDownscaled)
+        try convertWithProc(to: "heic", asTempFile: asTempFile)
     }
-
     func convertToWEBP(asTempFile: Bool) throws -> Image {
-        let tempFile = path.tempFile(ext: "webp")
-        let proc = try tryProc(CWEBP.string, args: ["-mt", "-q", "60", "-sharp_yuv", "-metadata", "all", path.string, "-o", tempFile.string], tries: 2)
-        guard proc.terminationStatus == 0 else {
-            throw ClopProcError.processError(proc)
-        }
-        try? tempFile.setOptimisationStatusXattr("true")
-        let path = asTempFile ? tempFile : try tempFile.move(to: path.withExtension("webp"), force: true)
-        guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
-            throw ClopError.conversionFailed(self.path)
-        }
-        return Image(data: data, path: path, nsImage: img, type: .webp, retinaDownscaled: retinaDownscaled)
+        try convertWithProc(to: "webp", asTempFile: asTempFile)
     }
 
-    func convert(to type: UTType, asTempFile: Bool) throws -> Image {
+    func convertToAVIFAsync(asTempFile: Bool) async throws -> Image {
+        try await convertWithProcAsync(to: "avif", asTempFile: asTempFile)
+    }
+    func convertToHEICAsync(asTempFile: Bool) async throws -> Image {
+        try await convertWithProcAsync(to: "heic", asTempFile: asTempFile)
+    }
+    func convertToWEBPAsync(asTempFile: Bool) async throws -> Image {
+        try await convertWithProcAsync(to: "webp", asTempFile: asTempFile)
+    }
+
+    func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil) throws -> Image {
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
         }
@@ -801,9 +779,23 @@ class Image: CustomStringConvertible {
 
         switch type {
         case .avif:
+            guard self.type == .png || self.type == .jpeg else {
+                let png = try convert(to: .png, asTempFile: asTempFile)
+                return try png.convertToAVIF(asTempFile: asTempFile)
+            }
             return try convertToAVIF(asTempFile: asTempFile)
         case .webp:
+            guard self.type == .png || self.type == .jpeg else {
+                let png = try convert(to: .png, asTempFile: asTempFile)
+                return try png.convertToWEBP(asTempFile: asTempFile)
+            }
             return try convertToWEBP(asTempFile: asTempFile)
+        case .heic:
+            guard self.type == .png || self.type == .jpeg else {
+                let png = try convert(to: .png, asTempFile: asTempFile)
+                return try png.convertToHEIC(asTempFile: asTempFile)
+            }
+            return try convertToHEIC(asTempFile: asTempFile)
         default:
             let convPath = path.tempFile(ext: ext)
             guard let data = image.data(using: type.imgType) else {
@@ -816,7 +808,11 @@ class Image: CustomStringConvertible {
             guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
                 throw ClopError.conversionFailed(self.path)
             }
-            return Image(data: data, path: path, nsImage: img, type: type, retinaDownscaled: retinaDownscaled)
+            let converted = Image(data: data, path: path, nsImage: img, type: type, retinaDownscaled: retinaDownscaled)
+            if let optimiser {
+                return try converted.optimise(optimiser: optimiser, allowLarger: true, adaptiveSize: false)
+            }
+            return converted
         }
     }
 
@@ -833,6 +829,53 @@ class Image: CustomStringConvertible {
         pb.clearContents()
         pb.writeObjects([item])
     }
+
+    private func conversionArgs(to format: String, outPath: FilePath) -> [String] {
+        switch format {
+        case "avif": ["--avif", "-q", "60", "-o", outPath.string, path.string]
+        case "heic": ["-q", "60", "-o", outPath.string, path.string]
+        case "webp": ["-mt", "-q", "60", "-sharp_yuv", "-metadata", "all", path.string, "-o", outPath.string]
+        default: []
+        }
+    }
+    private func conversionExecutable(to format: String) -> String {
+        switch format {
+        case "avif": HEIF_ENC.string
+        case "heic": HEIF_ENC.string
+        case "webp": CWEBP.string
+        default: ""
+        }
+    }
+    private func conversionImage(to format: String, from proc: Process, asTempFile: Bool, outPath: FilePath) throws -> Image {
+        guard proc.terminationStatus == 0 else {
+            throw ClopProcError.processError(proc)
+        }
+
+        try? outPath.setOptimisationStatusXattr("true")
+        let path = asTempFile ? outPath : try outPath.move(to: path.withExtension(format), force: true)
+        guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
+            throw ClopError.conversionFailed(self.path)
+        }
+        return Image(data: data, path: path, nsImage: img, type: .avif, retinaDownscaled: retinaDownscaled)
+    }
+
+    private func convertWithProc(to format: String, asTempFile: Bool) throws -> Image {
+        let tempFile = path.tempFile(ext: format)
+        let args = conversionArgs(to: format, outPath: tempFile)
+        let executable = conversionExecutable(to: format)
+
+        let proc = try tryProc(executable, args: args, tries: 2)
+        return try conversionImage(to: format, from: proc, asTempFile: asTempFile, outPath: tempFile)
+    }
+    private func convertWithProcAsync(to format: String, asTempFile: Bool) async throws -> Image {
+        let tempFile = path.tempFile(ext: format)
+        let args = conversionArgs(to: format, outPath: tempFile)
+        let executable = conversionExecutable(to: format)
+
+        let proc = try await tryProcAsync(executable, args: args, tries: 2)
+        return try conversionImage(to: format, from: proc, asTempFile: asTempFile, outPath: tempFile)
+    }
+
 }
 
 @MainActor func optimiseClipboardImage(image: Image? = nil, item: NSPasteboardItem? = nil) {
@@ -1028,7 +1071,10 @@ extension FilePath {
                 if optimisedImage!.type == img.type {
                     try optimisedImage!.path.copy(to: img.path, force: true)
                 } else {
-                    mainActor { optimiser.url = optimisedImage!.path.url }
+                    mainActor {
+                        optimiser.url = optimisedImage!.path.url
+                        optimiser.type = .image(optimisedImage!.type)
+                    }
                 }
 
                 // Save optimised image path to cache to avoid re-optimising it after it is saved to file
@@ -1175,7 +1221,10 @@ extension FilePath {
             if id != Optimiser.IDs.clipboardImage, resized!.type == img.type {
                 newURL = try (resized!.path.copy(to: savePath ?? img.path, force: true)).url
             }
-            mainActor { optimiser.url = newURL }
+            mainActor {
+                optimiser.url = newURL
+                optimiser.type = .image(resized!.type)
+            }
         } catch let ClopProcError.processError(proc) {
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
@@ -1217,3 +1266,92 @@ extension FilePath {
 
     return result
 }
+
+// import CoreTransferable
+//
+// struct ConvertedImageWEBP: Transferable {
+//    static var transferRepresentation: some TransferRepresentation {
+//        FileRepresentation(exportedContentType: .webP) { conv in
+//            guard conv.image.type == .png || conv.image.type == .jpeg else {
+//                let png = try conv.image.convert(to: .png, asTempFile: true)
+//                let converted = try await png.convertToWEBPAsync(asTempFile: true)
+//                return SentTransferredFile(converted.path.url)
+//            }
+//
+//            let converted = try await conv.image.convertToWEBPAsync(asTempFile: true)
+//            return SentTransferredFile(converted.path.url)
+//        }
+//    }
+//
+//    let image: Image
+// }
+//
+// struct ConvertedImageAVIF: Transferable {
+//    static var transferRepresentation: some TransferRepresentation {
+//        FileRepresentation(exportedContentType: .avif ?? .png) { conv in
+//            guard conv.image.type == .png || conv.image.type == .jpeg else {
+//                let png = try conv.image.convert(to: .png, asTempFile: true)
+//                let converted = try await png.convertToAVIFAsync(asTempFile: true)
+//                return SentTransferredFile(converted.path.url)
+//            }
+//
+//            let converted = try await conv.image.convertToAVIFAsync(asTempFile: true)
+//            return SentTransferredFile(converted.path.url)
+//        }
+//    }
+//
+//    let image: Image
+// }
+//
+// struct ConvertedImageHEIC: Transferable {
+//    static var transferRepresentation: some TransferRepresentation {
+//        FileRepresentation(exportedContentType: .heic) { conv in
+//            guard conv.image.type == .png || conv.image.type == .jpeg else {
+//                let png = try conv.image.convert(to: .png, asTempFile: true)
+//                let converted = try await png.convertToHEICAsync(asTempFile: true)
+//                return SentTransferredFile(converted.path.url)
+//            }
+//
+//            let converted = try await conv.image.convertToHEICAsync(asTempFile: true)
+//            return SentTransferredFile(converted.path.url)
+//        }
+//    }
+//
+//    let image: Image
+// }
+//
+// struct ConvertedImageJPEG: Transferable {
+//    static var transferRepresentation: some TransferRepresentation {
+//        FileRepresentation(exportedContentType: .jpeg) { conv in
+//            let converted = try await Task { try conv.image.convert(to: .jpeg, asTempFile: true, optimiser: conv.optimiser) }.value
+//            return SentTransferredFile(converted.path.url)
+//        }
+//    }
+//
+//    let image: Image
+//    let optimiser: Optimiser
+// }
+//
+// struct ConvertedImagePNG: Transferable {
+//    static var transferRepresentation: some TransferRepresentation {
+//        FileRepresentation(exportedContentType: .png) { conv in
+//            let converted = try await Task { try conv.image.convert(to: .png, asTempFile: true, optimiser: conv.optimiser) }.value
+//            return SentTransferredFile(converted.path.url)
+//        }
+//    }
+//
+//    let image: Image
+//    let optimiser: Optimiser
+// }
+//
+// struct ConvertedImageGIF: Transferable {
+//    static var transferRepresentation: some TransferRepresentation {
+//        FileRepresentation(exportedContentType: .gif) { conv in
+//            let converted = try await Task { try conv.image.convert(to: .gif, asTempFile: true, optimiser: conv.optimiser) }.value
+//            return SentTransferredFile(converted.path.url)
+//        }
+//    }
+//
+//    let image: Image
+//    let optimiser: Optimiser
+// }
