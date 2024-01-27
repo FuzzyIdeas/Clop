@@ -206,7 +206,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool) -> Bool
     let itemsToOptimise = DM.itemsToOptimise
     let itemProvidersCount = itemProviders.count
     let copyToClipboard = Defaults[.autoCopyToClipboard]
-    itemProviders.forEach { itemProvider in
+    for itemProvider in itemProviders {
         log.debug("Dropped itemProvider types: \(itemProvider.registeredTypeIdentifiers)")
 
         for identifier in itemProvider.registeredTypeIdentifiers {

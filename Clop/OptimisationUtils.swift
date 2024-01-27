@@ -1323,12 +1323,12 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         lastRemoveAfterMs = nil
         hoveredOptimiserID = nil
 
-        optimisers.forEach {
-            $0.editingFilename = false
+        for optimiser in optimisers {
+            optimiser.editingFilename = false
         }
         if stop {
-            optimisers.filter(\.running).forEach {
-                $0.stop(remove: false)
+            for optimiser in optimisers.filter(\.running) {
+                optimiser.stop(remove: false)
             }
             removedOptimisers = removedOptimisers
                 .filter { o in !optimisers.contains(o) }

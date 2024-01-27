@@ -559,7 +559,7 @@ struct CompactResultList: View {
 
             if hasRunningOptimisers {
                 Button("Stop all") {
-                    OM.optimisers.filter(\.running).forEach { optimiser in
+                    for optimiser in OM.optimisers.filter(\.running) {
                         optimiser.stop(remove: false)
                         optimiser.uiStop()
                     }
