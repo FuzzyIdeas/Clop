@@ -268,8 +268,8 @@ struct AutomationRowView: View {
                 }
             )
             Button("\(SwiftUI.Image(systemName: binding.wrappedValue == nil ? "hammer" : "hammer.fill"))") {
-                if let shortcut = binding.wrappedValue {
-                    NSWorkspace.shared.open("shortcuts://open-shortcut?id=\(shortcut)".url!)
+                if let shortcut = binding.wrappedValue?.identifier.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed), let url = "shortcuts://open-shortcut?id=\(shortcut)".url {
+                    NSWorkspace.shared.open(url)
                 }
             }
             .help("Opens the shortcut in the Shortcuts app for editing")

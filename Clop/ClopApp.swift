@@ -44,7 +44,7 @@ extension NSPasteboard {
                 print("No items")
                 return
             }
-            pasteboardItems.forEach { item in
+            for item in pasteboardItems {
                 item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
                     print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
                 }
@@ -402,13 +402,13 @@ class AppDelegate: AppDelegateParent {
                 }
             let _ = shell("/usr/bin/pkill", args: ["-fl", "Clop/bin/(arm64|x86)/.+"], wait: false)
             signal(SIGTERM) { _ in
-                (OM.optimisers + OM.removedOptimisers).forEach { opt in
+                for opt in OM.optimisers + OM.removedOptimisers {
                     opt.stop(animateRemoval: false)
                 }
                 exit(0)
             }
             signal(SIGKILL) { _ in
-                (OM.optimisers + OM.removedOptimisers).forEach { opt in
+                for opt in OM.optimisers + OM.removedOptimisers {
                     opt.stop(animateRemoval: false)
                 }
                 exit(0)

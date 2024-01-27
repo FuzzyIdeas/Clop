@@ -189,7 +189,26 @@ final class SharedLogger {
 
 let log = SharedLogger.self
 
-func shell(_ command: String, args: [String] = []) -> String? {
+extension DispatchWorkItem {
+    func wait(for timeout: TimeInterval) -> DispatchTimeoutResult {
+        let result = wait(timeout: .now() + timeout)
+        if result == .timedOut {
+            cancel()
+            return .timedOut
+        }
+        return .success
+    }
+}
+
+@discardableResult
+func asyncNow(_ action: @escaping () -> Void) -> DispatchWorkItem {
+    let workItem = DispatchWorkItem(block: action)
+
+    DispatchQueue.global().async(execute: workItem)
+    return workItem
+}
+
+func shell(_ command: String, args: [String] = [], timeout: TimeInterval? = nil) -> String? {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: command)
     task.arguments = args
@@ -199,10 +218,19 @@ func shell(_ command: String, args: [String] = []) -> String? {
 
     do {
         try task.run()
-        task.waitUntilExit()
     } catch {
         log.error(error.localizedDescription)
         return nil
+    }
+
+    if let timeout {
+        let result = asyncNow { task.waitUntilExit() }.wait(for: timeout)
+        if result == .timedOut {
+            task.terminate()
+            return nil
+        }
+    } else {
+        task.waitUntilExit()
     }
 
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
@@ -219,7 +247,7 @@ extension URL {
             return type
         }
 
-        guard let mimeType = shell("/usr/bin/file", args: ["-b", "--mime-type", path]) else {
+        guard let mimeType = shell("/usr/bin/file", args: ["-b", "--mime-type", path], timeout: 5) else {
             return nil
         }
 

@@ -86,8 +86,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "3b9a8e69ca296bd8cd0e317ad7a448e5daf4a342",
-        "version" : "8.18.0"
+        "revision" : "5c8abdeabf8d0dc5055879a657e31bac49bc1624",
+        "version" : "8.19.0"
       }
     },
     {
@@ -95,8 +95,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MacPaw/Setapp-framework",
       "state" : {
-        "revision" : "81446bc4bb2d2c1edbe470cd8739e79f1761b8cf",
-        "version" : "4.1.0"
+        "revision" : "b029b50cd1901a36ee4d553b6dac2a25191d7b6f",
+        "version" : "4.2.0"
       }
     },
     {

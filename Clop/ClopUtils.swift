@@ -271,7 +271,7 @@ extension FilePath {
     }
 
     func fetchFileType() -> String? {
-        shell("/usr/bin/file", args: ["-b", "--mime-type", string]).o
+        shell("/usr/bin/file", args: ["-b", "--mime-type", string], timeout: 5).o
     }
 
     func stripExif() {
@@ -341,6 +341,7 @@ let HALF_HALF = sqrt(0.5)
 
 import Cocoa
 import QuickLookThumbnailing
+
 let SCREEN_SCALE = NSScreen.main!.backingScaleFactor
 
 func generateThumbnail(for url: URL, size: CGSize, onCompletion: @escaping (QLThumbnailRepresentation) -> Void) {
