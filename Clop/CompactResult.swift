@@ -920,6 +920,9 @@ struct CompactPreview: View {
             pdfEnd,
             videoToGIF,
         ]
+        for opt in o.optimisers {
+            opt.isPreview = true
+        }
         mainActor {
             o.updateProgress()
             o.visibleCount = o.visibleOptimisers.count

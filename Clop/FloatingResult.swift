@@ -166,6 +166,9 @@ struct FloatingPreview: View {
             videoOpt,
             noThumb,
         ]
+        for opt in o.optimisers {
+            opt.isPreview = true
+        }
         return o
     }()
 
@@ -191,6 +194,7 @@ struct OnboardingFloatingPreview: View {
         let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
         clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
         clipEnd.thumbnail = NSImage(resource: .sonomaShot)
+        clipEnd.isPreview = true
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
         o.optimisers = [clipEnd]
@@ -777,6 +781,7 @@ struct SizeNotificationView_Previews: PreviewProvider {
             oldSize: CGSize(width: 1920, height: 1080),
             newSize: CGSize(width: 1280, height: 720)
         )
+        o.isPreview = true
         o.finish(error: "A server with the specified hostname could not be found.")
         return o
     }

@@ -416,6 +416,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
     let id: String
     var type: ItemType
     let startedAt = Date()
+    var isPreview = false
     @Published var hidden = false
     @Published var isOriginal = false
     @Published var progress = Progress()
@@ -1172,7 +1173,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
             guard let self else { return }
             guard !hidden else {
                 OM.optimisers = OM.optimisers.filter { $0.id != self.id }
-                OM.removedOptimisers = OM.removedOptimisers.filter { $0.id != self.id }
+                OM.removedOptimisers = OM.removedOptimisers.filter { $0.id != self.id && !$0.hidden && !$0.isPreview }
                 removeDebouncer()
                 return
             }
@@ -1188,7 +1189,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
             self.editingFilename = false
             OM.optimisers = OM.optimisers.filter { $0.id != self.id }
             if url != nil {
-                OM.removedOptimisers = OM.removedOptimisers.without(self).with(self)
+                OM.removedOptimisers = OM.removedOptimisers.without(self).with(self).filter { !$0.hidden && !$0.isPreview }
 
                 self.deleter = mainAsyncAfter(ms: 600_000) { [weak self] in
                     guard let self else { return }
@@ -1331,13 +1332,13 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
                 optimiser.stop(remove: false)
             }
             removedOptimisers = removedOptimisers
-                .filter { o in !optimisers.contains(o) }
-                .with(optimisers.filter { !$0.hidden })
+                .filter { o in !optimisers.contains(o) && !o.hidden && !o.isPreview }
+                .with(optimisers.filter { !$0.hidden && !$0.isPreview })
             optimisers = optimisers.filter(\.hidden)
         } else {
             removedOptimisers = removedOptimisers
-                .filter { o in !optimisers.contains(o) }
-                .with(optimisers.filter { !$0.running && !$0.hidden })
+                .filter { o in !optimisers.contains(o) && !o.hidden && !o.isPreview }
+                .with(optimisers.filter { !$0.running && !$0.hidden && !$0.isPreview })
             optimisers = optimisers.filter { $0.running || $0.hidden }
         }
     }
