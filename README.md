@@ -7,7 +7,7 @@
 
 <p align="center">
     <a href="https://files.lowtechguys.com/releases/Clop.dmg">
-        <img width=300 src="https://files.alinpanaitiu.com/download-button-dark.svg">
+        <img width=200 src="https://files.lowtechguys.com/macos-app.svg">
     </a>
 </p>
 
