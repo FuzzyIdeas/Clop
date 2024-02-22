@@ -691,7 +691,7 @@ class AppDelegate: AppDelegateParent {
                 pauseForNextClipboardEvent = false
                 return
             }
-            guard let item = NSPasteboard.general.pasteboardItems?.first, item.string(forType: .optimisationStatus) != "true" else {
+            guard let item = NSPasteboard.general.pasteboardItems?.first, item.string(forType: .optimisationStatus) == nil else {
                 return
             }
 
@@ -703,6 +703,9 @@ class AppDelegate: AppDelegateParent {
                             SetappManager.shared.reportUsageEvent(.userInteraction)
                         #endif
                     }
+                    return
+                }
+                if item.existingFilePath?.isPDF ?? false {
                     return
                 }
                 #if SETAPP
