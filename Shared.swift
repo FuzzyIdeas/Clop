@@ -33,6 +33,7 @@ extension UTType {
 let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg].compactMap { $0 }
 let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
 let IMAGE_VIDEO_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS
+let ALL_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS + [.pdf]
 
 func printerr(_ msg: String, terminator: String = "\n") {
     fputs("\(msg)\(terminator)", stderr)
@@ -1155,7 +1156,7 @@ let EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").existingFilePath!
 let HEIF_ENC = BIN_DIR.appendingPathComponent("heif-enc").existingFilePath!
 let CWEBP = BIN_DIR.appendingPathComponent("cwebp").existingFilePath!
 
-func getURLsFromFolder(_ folder: URL, recursive: Bool, ignorePDF: Bool = false) -> [URL] {
+func getURLsFromFolder(_ folder: URL, recursive: Bool, types: [UTType]) -> [URL] {
     guard let enumerator = FileManager.default.enumerator(
         at: folder,
         includingPropertiesForKeys: [.isRegularFileKey, .nameKey, .isDirectoryKey, .contentTypeKey],
@@ -1184,7 +1185,7 @@ func getURLsFromFolder(_ folder: URL, recursive: Bool, ignorePDF: Bool = false) 
             continue
         }
 
-        if !isURLOptimisable(fileURL, type: resourceValues.contentType, ignorePDF: ignorePDF) {
+        if !isURLOptimisable(fileURL, type: resourceValues.contentType, types: types) {
             continue
         }
         urls.append(fileURL)
@@ -1192,11 +1193,14 @@ func getURLsFromFolder(_ folder: URL, recursive: Bool, ignorePDF: Bool = false) 
     return urls
 }
 
-func isURLOptimisable(_ url: URL, type: UTType? = nil, ignorePDF: Bool = false) -> Bool {
-    guard url.isFileURL, let type = type ?? url.contentTypeResourceValue ?? url.fetchFileType() else {
+func isURLOptimisable(_ url: URL, type: UTType? = nil, types: [UTType]) -> Bool {
+    guard url.isFileURL else {
         return true
     }
-    return IMAGE_VIDEO_FORMATS.contains(type) || (!ignorePDF && type == .pdf)
+    guard let type = type ?? url.contentTypeResourceValue ?? url.fetchFileType() else {
+        return false
+    }
+    return types.contains(where: { type.conforms(to: $0) })
 }
 
 extension String {
