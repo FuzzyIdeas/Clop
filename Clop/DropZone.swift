@@ -293,9 +293,9 @@ extension NSSecureCoding {
 }
 
 @MainActor
-func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: String? = nil, output: String? = nil) async throws {
+func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: String? = nil, output: String? = nil, types: [UTType]) async throws {
     await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
-        for url in getURLsFromFolder(dir.url, recursive: true) {
+        for url in getURLsFromFolder(dir.url, recursive: true, types: types) {
             let path = url.filePath!
             _ = group.addTaskUnlessCancelled {
                 _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
@@ -313,7 +313,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
     }
 
     guard !path.isDir else {
-        try await optimiseDir(path: path, aggressive: aggressive, source: source, output: output)
+        try await optimiseDir(path: path, aggressive: aggressive, source: source, output: output, types: ALL_FORMATS)
         return
     }
     _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {

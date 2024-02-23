@@ -34,6 +34,41 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
+extension UTType: ExpressibleByArgument {
+    public init?(argument: String) {
+        if argument == "video" || argument == "movie" {
+            self = .movie
+            return
+        }
+        if argument == "image" || argument == "picture" {
+            self = .image
+            return
+        }
+        if let type = UTType(argument), ALL_FORMATS.contains(type) {
+            self = type
+            return
+        }
+        if let type = UTType(filenameExtension: argument), ALL_FORMATS.contains(type) {
+            self = type
+            return
+        }
+        return nil
+    }
+
+    var argDescription: String {
+        switch self {
+        case .image: "image"
+        case .movie, .video: "video"
+        default: preferredFilenameExtension ?? identifier
+        }
+    }
+}
+extension String.StringInterpolation {
+    mutating func appendInterpolation(_ value: UTType) {
+        appendInterpolation("\(value.argDescription)")
+    }
+}
+
 extension PageLayout: ExpressibleByArgument {}
 extension FilePath: ExpressibleByArgument {
     public init?(argument: String) {
@@ -171,7 +206,7 @@ Paper sizes:
                   "Crown Octavo"  "Imperial Octavo"  "Super Octavo"
 """
 
-func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool) throws -> [URL] {
+func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool, types: [UTType]) throws -> [URL] {
     var dirs: [URL] = []
     var urls: [URL] = try items.compactMap { item in
         let url = item.contains(":") ? (URL(string: item) ?? URL(fileURLWithPath: item)) : URL(fileURLWithPath: item)
@@ -190,8 +225,8 @@ func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool) throws 
             return nil
         }
         return url
-    }.filter { isURLOptimisable($0) }
-    urls += dirs.flatMap { getURLsFromFolder($0, recursive: recursive) }
+    }.filter { isURLOptimisable($0, types: types) }
+    urls += dirs.flatMap { getURLsFromFolder($0, recursive: recursive, types: types) }
 
     ensureAppIsRunning()
     sleep(1)
@@ -650,6 +685,12 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Strip EXIF metadata from all files in subfolders (when using a folder as input)")
         var recursive = false
 
+        @Option(name: .long, help: "Types of files to optimise (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`) (default: \(ALL_FORMATS.map(\.argDescription).joined(separator: ", ")))")
+        var types: [UTType] = []
+
+        @Option(name: .long, help: "Types of files to exclude from optimisation (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`)")
+        var excludeTypes: [UTType] = []
+
         @Argument(help: "Images and videos to strip EXIF metadata from (can be a file, folder, or list of files)")
         var files: [FilePath] = []
 
@@ -662,7 +703,15 @@ struct Clop: ParsableCommand {
 
             var isDir: ObjCBool = false
             if let folder = files.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
-                foundPaths = getURLsFromFolder(folder.url, recursive: recursive, ignorePDF: true).compactMap(\.filePath)
+                if types.isEmpty {
+                    types = ALL_FORMATS
+                }
+
+                if !excludeTypes.isEmpty {
+                    foundPaths = getURLsFromFolder(folder.url, recursive: recursive, types: types.filter { !excludeTypes.contains($0) }).compactMap(\.filePath)
+                } else {
+                    foundPaths = getURLsFromFolder(folder.url, recursive: recursive, types: types).compactMap(\.filePath)
+                }
             } else {
                 foundPaths = files
             }
@@ -749,6 +798,12 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
         var recursive = false
 
+        @Option(name: .long, help: "Types of files to optimise (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`) (default: \(ALL_FORMATS.map(\.argDescription).joined(separator: ", ")))")
+        var types: [UTType] = []
+
+        @Option(name: .long, help: "Types of files to exclude from optimisation (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`)")
+        var excludeTypes: [UTType] = []
+
         @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
         var copy = false
 
@@ -814,7 +869,16 @@ struct Clop: ParsableCommand {
                 throw ValidationError("Invalid size, must be greater than 0")
             }
 
-            urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+            if types.isEmpty {
+                types = ALL_FORMATS
+            }
+
+            if !excludeTypes.isEmpty {
+                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types.filter { !excludeTypes.contains($0) })
+            } else {
+                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types)
+            }
+
             try checkOutputIsDir(output, itemCount: urls.count)
         }
 
@@ -859,6 +923,12 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
         var recursive = false
+
+        @Option(name: .long, help: "Types of files to optimise (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`) (default: \(ALL_FORMATS.map(\.argDescription).joined(separator: ", ")))")
+        var types: [UTType] = []
+
+        @Option(name: .long, help: "Types of files to exclude from optimisation (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`)")
+        var excludeTypes: [UTType] = []
 
         @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
         var copy = false
@@ -905,7 +975,17 @@ struct Clop: ParsableCommand {
             guard factor >= 0.01, factor <= 0.99 else {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
             }
-            urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+
+            if types.isEmpty {
+                types = ALL_FORMATS
+            }
+
+            if !excludeTypes.isEmpty {
+                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types.filter { !excludeTypes.contains($0) })
+            } else {
+                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types)
+            }
+
             try checkOutputIsDir(output, itemCount: urls.count)
         }
 
@@ -947,6 +1027,12 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
         var recursive = false
+
+        @Option(name: .long, help: "Types of files to optimise (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`) (default: \(ALL_FORMATS.map(\.argDescription).joined(separator: ", ")))")
+        var types: [UTType] = []
+
+        @Option(name: .long, help: "Types of files to exclude from optimisation (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`)")
+        var excludeTypes: [UTType] = []
 
         @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
         var copy = false
@@ -1007,7 +1093,17 @@ struct Clop: ParsableCommand {
             if let factor = downscaleFactor, factor >= 0.01, factor <= 0.99 {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
             }
-            urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors)
+
+            if types.isEmpty {
+                types = ALL_FORMATS
+            }
+
+            if !excludeTypes.isEmpty {
+                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types.filter { !excludeTypes.contains($0) })
+            } else {
+                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types)
+            }
+
             try checkOutputIsDir(output, itemCount: urls.count)
         }
 
@@ -1186,6 +1282,9 @@ actor ProgressPrinter {
         if responses.count > 1 {
             let totalOldBytes = responses.values.map(\.oldBytes).reduce(0, +)
             let totalNewBytes = responses.values.map(\.newBytes).reduce(0, +)
+            guard totalNewBytes != totalOldBytes else {
+                return
+            }
             let isSmaller = totalNewBytes < totalOldBytes
 
             let totalPerc = "\((100 - (Double(totalNewBytes) / Double(totalOldBytes) * 100)).str(decimals: 2))%".foregroundColor(isSmaller ? .green : .red)
