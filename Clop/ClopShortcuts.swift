@@ -173,7 +173,7 @@ enum ImageFormat: String, CaseIterable, Equatable, AppEnum {
         case .heic: .heic
         case .jpeg: .jpeg
         case .png: .png
-        case .webp: .webp
+        case .webp: .webP
         }
     }
 }

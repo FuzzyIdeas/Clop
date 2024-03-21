@@ -377,7 +377,11 @@ struct VideoSettingsView: View {
                     }
                 }
                 HStack {
-                    Text("Converted video location").regular(13).padding(.trailing, 10)
+                    (
+                        Text("Converted video location").regular(13) +
+                        Text("\nThis only applies to the mp4 files converted from the above formats").round(10)
+                    ).padding(.trailing, 10)
+
                     Button("Temporary folder") {
                         convertedVideoBehaviour = .temporary
                     }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .temporary }))

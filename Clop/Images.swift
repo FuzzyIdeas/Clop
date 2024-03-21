@@ -784,7 +784,7 @@ class Image: CustomStringConvertible {
                 return try png.convertToAVIF(asTempFile: asTempFile)
             }
             return try convertToAVIF(asTempFile: asTempFile)
-        case .webp:
+        case .webP:
             guard self.type == .png || self.type == .jpeg else {
                 let png = try convert(to: .png, asTempFile: asTempFile)
                 return try png.convertToWEBP(asTempFile: asTempFile)
@@ -846,6 +846,14 @@ class Image: CustomStringConvertible {
         default: ""
         }
     }
+    private func conversionType(to format: String) -> UTType? {
+        switch format {
+        case "avif": .avif
+        case "heic": .heic
+        case "webp": .webP
+        default: nil
+        }
+    }
     private func conversionImage(to format: String, from proc: Process, asTempFile: Bool, outPath: FilePath) throws -> Image {
         guard proc.terminationStatus == 0 else {
             throw ClopProcError.processError(proc)
@@ -856,7 +864,7 @@ class Image: CustomStringConvertible {
         guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {
             throw ClopError.conversionFailed(self.path)
         }
-        return Image(data: data, path: path, nsImage: img, type: .avif, retinaDownscaled: retinaDownscaled)
+        return Image(data: data, path: path, nsImage: img, type: conversionType(to: format), retinaDownscaled: retinaDownscaled)
     }
 
     private func convertWithProc(to format: String, asTempFile: Bool) throws -> Image {
