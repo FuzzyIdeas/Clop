@@ -21,7 +21,6 @@ extension UTType: Identifiable {
 
 extension UTType {
     static let avif = UTType("public.avif")
-    static let webp = UTType("org.webmproject.webp")
     static let webm = UTType("org.webmproject.webm")
     static let mkv = UTType("org.matroska.mkv")
     static let mpeg = UTType("public.mpeg")

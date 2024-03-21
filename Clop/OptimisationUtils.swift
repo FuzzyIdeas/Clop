@@ -36,8 +36,8 @@ enum ItemType: Equatable, Identifiable {
 
     var convertibleTypes: [UTType] {
         switch self {
-        case let .image(type):
-            [.jpeg, .webp, .avif, .heic, .png, .gif].compactMap { $0 }
+        case let .image:
+            [.jpeg, .webP, .avif, .heic, .png, .gif].compactMap { $0 }
         default:
             []
         }

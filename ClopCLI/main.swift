@@ -363,7 +363,7 @@ enum ImageFormat: String, CaseIterable, Equatable, Decodable, ExpressibleByArgum
         switch self {
         case .avif: .avif
         case .heic: .heic
-        case .webp: .webp
+        case .webp: .webP
         }
     }
 }
