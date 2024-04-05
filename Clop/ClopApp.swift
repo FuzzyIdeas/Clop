@@ -176,6 +176,8 @@ class AppDelegate: AppDelegateParent {
         return wc
     }()
 
+    var sentryCrashExceptionApplicationType: AnyClass?
+
     @MainActor
     static func handleStopOptimisationRequest(_ req: StopOptimisationRequest) {
         log.debug("Stopping optimisation request: \(req.jsonString)")
@@ -384,8 +386,8 @@ class AppDelegate: AppDelegateParent {
             migrateSettings()
         }
     }
-
     override func applicationDidFinishLaunching(_ notification: Notification) {
+        sentryCrashExceptionApplicationType = SentryCrashExceptionApplication.self
         if !SWIFTUI_PREVIEW {
             handleCLIInstall()
 

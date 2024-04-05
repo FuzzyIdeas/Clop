@@ -16,6 +16,7 @@ import UniformTypeIdentifiers
 
 let PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").existingFilePath!
 let JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").existingFilePath!
+let JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").existingFilePath!
 let GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").existingFilePath!
 let VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").existingFilePath!
 
@@ -489,10 +490,11 @@ class Image: CustomStringConvertible {
         mainActor { optimiser.aggressive = aggressive }
 
         let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
-            "--keep-all", "--force", "--max", aggressive ? "70" : "90",
+            "--keep-all", "--force", "--max", aggressive ? "68" : "85",
             "--all-progressive", "--overwrite",
             "--dest", FilePath.images.string, path.string,
         ])
+
         var procs = [jpegProc]
 
         var pngOutFile: FilePath?
@@ -504,23 +506,33 @@ class Image: CustomStringConvertible {
             }
             let pngProc = Proc(cmd: PNGQUANT.string, args: [
                 "--force",
-                "--speed", aggressive ? "1" : "3",
-                "--quality", aggressive ? "0-90" : "0-100",
+//                "--speed", aggressive ? "1" : "3",
+                "--quality", aggressive ? "0-85" : "0-100",
             ] + (pngOutFile == png.path ? ["--ext", ".png"] : ["--output", pngOutFile!.string]) + [png.path.string])
 
             procs.append(pngProc)
         }
 
         let backup = path.backup(operation: .copy)
-        let procMaps = try tryProcs(procs, tries: 3) { procMap in
+        let procMaps = try tryProcs(procs, tries: 2) { procMap in
             mainActor { optimiser.processes = procMap.values.map { $0 } }
         }
 
         guard let proc = procMaps[jpegProc] else {
             throw ClopError.noProcess(jpegProc.cmdline)
         }
-        guard proc.terminationStatus == 0 else {
-            throw ClopProcError.processError(proc)
+        if proc.terminationStatus != 0 {
+            let args = [
+                "--keep-all", "--force", "--max", aggressive ? "70" : "90",
+                "--all-progressive", "--overwrite",
+                "--dest", FilePath.images.string, path.string,
+            ]
+            let proc = try tryProc(JPEGOPTIM_OLD.string, args: args, tries: 2) { proc in
+                mainActor { optimiser.processes = [proc] }
+            }
+            guard proc.terminationStatus == 0 else {
+                throw ClopProcError.processError(proc)
+            }
         }
 
         var type = UTType.jpeg
@@ -605,8 +617,8 @@ class Image: CustomStringConvertible {
 
         let pngProc = Proc(cmd: PNGQUANT.string, args: [
             "--force",
-            "--speed", aggressive ? "1" : "3",
-            "--quality", aggressive ? "0-90" : "0-100",
+//            "--speed", aggressive ? "1" : "3",
+            "--quality", aggressive ? "0-85" : "0-100",
         ] + (tempFile == path ? ["--ext", ".png"] : ["--output", tempFile.string]) + [path.string])
         var procs = [pngProc]
 
@@ -966,6 +978,7 @@ extension FilePath {
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
+    adaptiveOptimisation: Bool? = nil,
     source: String? = nil
 ) async throws -> Image? {
     let path = img.path
@@ -1071,10 +1084,10 @@ extension FilePath {
                 if shouldDownscale {
                     img.retinaDownscaled = true
                     mainActor { optimiser.retinaDownscaled = true }
-                    optimisedImage = try img.resize(toFraction: (1.0 / img.pixelScale).d, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])
+                    optimisedImage = try img.resize(toFraction: (1.0 / img.pixelScale).d, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
                     mainActor { optimiser.downscaleFactor = (1.0 / img.pixelScale).d }
                 } else {
-                    optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])
+                    optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
                 }
                 if optimisedImage!.type == img.type {
                     try optimisedImage!.path.copy(to: img.path, force: true)
@@ -1166,6 +1179,7 @@ extension FilePath {
     id: String? = nil,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
+    adaptiveOptimisation: Bool? = nil,
     source: String? = nil
 ) async throws -> Image? {
     imageResizeDebouncers[img.path.string]?.cancel()
@@ -1217,12 +1231,12 @@ extension FilePath {
         }
         do {
             if let cropSize, cropSize.width > 0, cropSize.height > 0 {
-                resized = try img.resize(toSize: cropSize, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: false)
+                resized = try img.resize(toSize: cropSize, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: adaptiveOptimisation ?? false)
             } else {
                 if let s = cropSize?.ns {
                     scalingFactor = s.width == 0 ? s.height / img.size.height : s.width / img.size.width
                 }
-                resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: false)
+                resized = try img.resize(toFraction: scalingFactor, optimiser: optimiser, aggressiveOptimisation: aggressive, adaptiveSize: adaptiveOptimisation ?? false)
             }
 
             var newURL = resized!.path.url

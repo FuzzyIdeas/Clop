@@ -82,11 +82,14 @@ else
 	pandoc -f gfm -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css ReleaseNotes/$(VERSION).md
 endif
 
+NOTARIZE=1
 Clop/bin.tar.xz: $(wildcard Clop/bin/*) $(wildcard Clop/bin/*/*)
 	mkdir -p /tmp/tonotarize; rm /tmp/tonotarize/* || true
-	fd -uu -t file . Clop/bin -x sh -c 'codesign -v "{}" || codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}" && cp "{}" /tmp/tonotarize/'
+	fd -uu -t file . Clop/bin -x sh -c 'codesign -v -R="anchor apple generic" "{}" || codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}" && cp "{}" /tmp/tonotarize/'
+ifeq (1, $(NOTARIZE))
 	zip -r /tmp/tonotarize.zip /tmp/tonotarize
 	xcrun notarytool submit --progress --wait --keychain-profile Alin /tmp/tonotarize.zip
+endif
 	rm Clop/bin.tar.xz; cd Clop/bin/; tar acvf ../bin.tar.xz *
 	sha256sum Clop/bin.tar.xz | cut -d' ' -f1 > Clop/bin.tar.xz.sha256
 bin: Clop/bin.tar.xz
