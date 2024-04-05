@@ -121,6 +121,7 @@ struct OptimisationRequest: Codable, Identifiable {
     let hideFloatingResult: Bool
     let copyToClipboard: Bool
     let aggressiveOptimisation: Bool
+    let adaptiveOptimisation: Bool?
     let source: String
     var output: String?
     var removeAudio: Bool?

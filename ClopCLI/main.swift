@@ -12,6 +12,14 @@ import PDFKit
 import System
 import UniformTypeIdentifiers
 
+extension UserDefaults {
+    #if SETAPP
+        static let app: UserDefaults? = .init(suiteName: "com.lowtechguys.Clop-setapp")
+    #else
+        static let app: UserDefaults? = .init(suiteName: "com.lowtechguys.Clop")
+    #endif
+}
+
 var printSemaphore = DispatchSemaphore(value: 1)
 func withPrintLock(_ action: () -> Void) {
     printSemaphore.wait()
@@ -789,6 +797,9 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
 
+        @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression")
+        var adaptiveOptimisation: Bool = UserDefaults.app?.bool(forKey: "adaptiveImageSize") ?? false
+
         @Flag(name: .long, help: "Crop by centering on features in the image")
         var smartCrop = false
 
@@ -893,6 +904,7 @@ struct Clop: ParsableCommand {
                     hideFloatingResult: !gui,
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
+                    adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
                     output: normPath(output),
                     removeAudio: removeAudio
@@ -917,6 +929,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
+
+        @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression")
+        var adaptiveOptimisation = false
 
         @Flag(name: .long, help: "Removes audio from optimised videos")
         var removeAudio = false
@@ -1000,6 +1015,7 @@ struct Clop: ParsableCommand {
                     hideFloatingResult: !gui,
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
+                    adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
                     output: normPath(output),
                     removeAudio: removeAudio
@@ -1024,6 +1040,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
+
+        @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression")
+        var adaptiveOptimisation: Bool = UserDefaults.app?.bool(forKey: "adaptiveImageSize") ?? false
 
         @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
         var recursive = false
@@ -1118,6 +1137,7 @@ struct Clop: ParsableCommand {
                     hideFloatingResult: !gui,
                     copyToClipboard: copy,
                     aggressiveOptimisation: aggressive,
+                    adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
                     output: normPath(output),
                     removeAudio: removeAudio

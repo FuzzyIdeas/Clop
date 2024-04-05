@@ -1562,6 +1562,7 @@ func optimiseURL(
     cropTo cropSize: CropSize? = nil,
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
+    adaptiveOptimisation: Bool? = nil,
     source: String? = nil,
     output: String? = nil,
     removeAudio: Bool? = nil
@@ -1591,9 +1592,9 @@ func optimiseURL(
             clipResult = .image(img)
 
             let result: Image? = if let cropSize, cropSize.cg < img.size {
-                try await downscaleImage(img, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await downscaleImage(img, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, adaptiveOptimisation: adaptiveOptimisation, source: source)
             } else if let scalingFactor, scalingFactor < 1 {
-                try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, adaptiveOptimisation: adaptiveOptimisation, source: source)
             } else {
                 try await optimiseImage(
                     img,
@@ -1603,6 +1604,7 @@ func optimiseURL(
                     allowLarger: false,
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: aggressiveOptimisation,
+                    adaptiveOptimisation: adaptiveOptimisation,
                     source: source
                 )
             }
@@ -1904,6 +1906,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     cropTo cropSize: CropSize? = nil,
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
+    adaptiveOptimisation: Bool? = nil,
     optimisationCount: inout Int,
     copyToClipboard: Bool,
     source: String? = nil,
@@ -1954,12 +1957,32 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                     id: id,
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: aggressiveOptimisation,
+                    adaptiveOptimisation: adaptiveOptimisation,
                     source: source
                 )
             } else if let scalingFactor, scalingFactor < 1 {
-                return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                return try await downscaleImage(
+                    img,
+                    toFactor: scalingFactor,
+                    copyToClipboard: copyToClipboard,
+                    id: id,
+                    hideFloatingResult: hideFloatingResult,
+                    aggressiveOptimisation: aggressiveOptimisation,
+                    adaptiveOptimisation: adaptiveOptimisation,
+                    source: source
+                )
             } else {
-                return try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                return try await optimiseImage(
+                    img,
+                    copyToClipboard: copyToClipboard,
+                    id: id,
+                    allowTiff: true,
+                    allowLarger: false,
+                    hideFloatingResult: hideFloatingResult,
+                    aggressiveOptimisation: aggressiveOptimisation,
+                    adaptiveOptimisation: adaptiveOptimisation,
+                    source: source
+                )
             }
         }
         guard let result else { return nil }
@@ -1985,12 +2008,32 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                         id: id,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
+                        adaptiveOptimisation: adaptiveOptimisation,
                         source: source
                     )
                 } else if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleImage(img, toFactor: scalingFactor, copyToClipboard: copyToClipboard, id: id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await downscaleImage(
+                        img,
+                        toFactor: scalingFactor,
+                        copyToClipboard: copyToClipboard,
+                        id: id,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        adaptiveOptimisation: adaptiveOptimisation,
+                        source: source
+                    )
                 } else {
-                    return try await optimiseImage(img, copyToClipboard: copyToClipboard, id: id, allowTiff: true, allowLarger: false, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
+                    return try await optimiseImage(
+                        img,
+                        copyToClipboard: copyToClipboard,
+                        id: id,
+                        allowTiff: true,
+                        allowLarger: false,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        adaptiveOptimisation: adaptiveOptimisation,
+                        source: source
+                    )
                 }
             }
             guard let result else { return nil }
@@ -2103,6 +2146,7 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 cropTo: cropSize,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
+                adaptiveOptimisation: adaptiveOptimisation,
                 source: source,
                 output: output,
                 removeAudio: removeAudio
@@ -2145,6 +2189,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             cropTo: req.size,
                             changePlaybackSpeedBy: req.changePlaybackSpeedFactor,
                             aggressiveOptimisation: req.aggressiveOptimisation,
+                            adaptiveOptimisation: req.adaptiveOptimisation,
                             optimisationCount: &cliOptimisationCount,
                             copyToClipboard: req.copyToClipboard,
                             source: req.source,

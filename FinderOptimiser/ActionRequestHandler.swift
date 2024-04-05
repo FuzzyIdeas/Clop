@@ -246,6 +246,7 @@ actor RequestSender {
             hideFloatingResult: false,
             copyToClipboard: false,
             aggressiveOptimisation: false,
+            adaptiveOptimisation: nil,
             source: "finder"
         )
         do {
