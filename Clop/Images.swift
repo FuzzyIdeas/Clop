@@ -928,7 +928,7 @@ class Image: CustomStringConvertible {
 
     log.debug("\(path.shellString): \(flag)")
 
-    guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
+    guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
           !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxImageSizeMB] * 1_000_000, imageOptimiseDebouncers[event.path] == nil
     else {

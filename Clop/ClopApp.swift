@@ -178,6 +178,8 @@ class AppDelegate: AppDelegateParent {
 
     var sentryCrashExceptionApplicationType: AnyClass?
 
+    var fileCleaner: Timer?
+
     @MainActor
     static func handleStopOptimisationRequest(_ req: StopOptimisationRequest) {
         log.debug("Stopping optimisation request: \(req.jsonString)")
@@ -386,6 +388,35 @@ class AppDelegate: AppDelegateParent {
             migrateSettings()
         }
     }
+
+    func createFileCleaner() {
+        fileCleaner = Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in
+            let interval = Defaults[.workdirCleanupInterval]
+            guard interval != .never else {
+                return
+            }
+
+            let enumerator = fm.enumerator(at: FilePath.workdir.url, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
+            guard let iterator = enumerator else {
+                return
+            }
+
+            let now = Date()
+            while case let url as URL = iterator.nextObject() {
+                guard let date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
+                    continue
+                }
+
+                if now.timeIntervalSince(date) > interval.rawValue {
+                    log.info("Deleting \(url.path) because it's older than \(interval.title) (last modified \(date))")
+                    try? fm.removeItem(at: url)
+                }
+            }
+        }
+        fileCleaner?.tolerance = 300
+        fileCleaner?.fire()
+    }
+
     override func applicationDidFinishLaunching(_ notification: Notification) {
         sentryCrashExceptionApplicationType = SentryCrashExceptionApplication.self
         if !SWIFTUI_PREVIEW {
@@ -419,6 +450,7 @@ class AppDelegate: AppDelegateParent {
             syncSettings()
             Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
             Migrations.run()
+            createFileCleaner()
         }
 
         #if SETAPP
@@ -466,6 +498,11 @@ class AppDelegate: AppDelegateParent {
 
         guard !SWIFTUI_PREVIEW else { return }
         floatingResultsWindow.animateOnResize = true
+        pub(.workdir)
+            .sink {
+                FilePath.workdir = FilePath.dir($0.newValue, permissions: 0o777)
+            }
+            .store(in: &observers)
         pub(.floatingResultsCorner)
             .sink {
                 floatingResultsWindow.screenCorner = $0.newValue

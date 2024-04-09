@@ -29,6 +29,30 @@ let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PAST
 let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x, .r, .f, .o, .comma, .u]
 let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x, .r, .escape]
 
+enum CleanupInterval: TimeInterval, Codable, Defaults.Serializable {
+    case every10Minutes = 600
+    case hourly = 3600
+    case every12Hours = 43200
+    case daily = 86400
+    case every3Days = 259_200
+    case weekly = 604_800
+    case monthly = 2_592_000
+    case never = 0
+
+    var title: String {
+        switch self {
+        case .every10Minutes: "10 minutes"
+        case .hourly: "1 hour"
+        case .every12Hours: "12 hours"
+        case .daily: "1 day"
+        case .every3Days: "3 days"
+        case .weekly: "1 week"
+        case .monthly: "1 month"
+        case .never: "Never"
+        }
+    }
+}
+
 extension Defaults.Keys {
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
@@ -40,6 +64,9 @@ extension Defaults.Keys {
     static let optimiseImagePathClipboard = Key<Bool>("optimiseImagePathClipboard", default: false)
     static let stripMetadata = Key<Bool>("stripMetadata", default: true)
     static let preserveDates = Key<Bool>("preserveDates", default: true)
+
+    static let workdir = Key<String>("workdir", default: "/tmp/clop")
+    static let workdirCleanupInterval = Key<CleanupInterval>("workdirCleanupInterval", default: .every3Days)
 
     static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])

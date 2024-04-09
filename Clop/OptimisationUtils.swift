@@ -902,7 +902,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 path = (try? originalPath.copy(to: startingPath, force: true)) ?? path
             }
         }
-        if path.starts(with: FilePath.backups) {
+        if path.starts(with: FilePath.clopBackups) {
             path = (try? path.copy(to: type.isImage ? FilePath.images : FilePath.videos, force: true)) ?? path
         }
 

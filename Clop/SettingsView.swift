@@ -16,7 +16,7 @@ extension String: Identifiable {
     public var id: String { self }
 }
 
-let NOT_ALLOWED_TO_WATCH = [FilePath.backups.string, FilePath.images.string, FilePath.videos.string, FilePath.forResize.string, FilePath.conversions.string, FilePath.downloads.string]
+let NOT_ALLOWED_TO_WATCH = [FilePath.clopBackups.string, FilePath.images.string, FilePath.videos.string, FilePath.forResize.string, FilePath.conversions.string, FilePath.downloads.string]
 
 import Combine
 
@@ -385,12 +385,15 @@ struct VideoSettingsView: View {
                     Button("Temporary folder") {
                         convertedVideoBehaviour = .temporary
                     }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .temporary }))
+                        .font(.round(11))
                     Button("In-place (replace original)") {
                         convertedVideoBehaviour = .inPlace
                     }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .inPlace }))
+                        .font(.round(11))
                     Button("Same folder (as original)") {
                         convertedVideoBehaviour = .sameFolder
                     }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .sameFolder }))
+                        .font(.round(11))
                 }
             }
         }.padding(4)
@@ -906,11 +909,27 @@ struct GeneralSettingsView: View {
     @Default(.preserveDates) var preserveDates
     @Default(.syncSettingsCloud) var syncSettingsCloud
 
+    @Default(.workdir) var workdir
+    @Default(.workdirCleanupInterval) var workdirCleanupInterval
+
+    var workdirBinding: Binding<String> {
+        Binding(
+            get: { workdir },
+            set: { value in
+                guard !value.isEmpty, let path = value.existingFilePath else {
+                    return
+                }
+                workdir = path.string
+            }
+        )
+    }
+
     var body: some View {
         Form {
             Toggle("Show menubar icon", isOn: $showMenubarIcon)
             LaunchAtLogin.Toggle()
             Toggle("Sync settings with other Macs via iCloud", isOn: $syncSettingsCloud)
+
             Section(header: SectionHeader(title: "Clipboard")) {
                 Toggle(isOn: $enableClipboardOptimiser) {
                     Text("Enable clipboard optimiser").regular(13)
@@ -929,6 +948,28 @@ struct GeneralSettingsView: View {
                         + Text("\nCopying images from Finder results in file paths instead of image data. This option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
             }
+
+            Section(header: SectionHeader(title: "Working directory", subtitle: "Where temporary files and backups are stored and where the optimised files are saved")) {
+                HStack {
+                    Text("Path").regular(13).padding(.trailing, 10)
+                    TextField("", text: workdirBinding)
+                        .multilineTextAlignment(.center)
+                        .font(.mono(12))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                }
+
+                Picker("Periodically cleanup files older than", selection: $workdirCleanupInterval) {
+                    Text("10 minutes").tag(CleanupInterval.every10Minutes)
+                    Text("1 hour").tag(CleanupInterval.hourly)
+                    Text("12 hours").tag(CleanupInterval.every12Hours)
+                    Text("1 day").tag(CleanupInterval.daily)
+                    Text("3 days").tag(CleanupInterval.every3Days)
+                    Text("1 week").tag(CleanupInterval.weekly)
+                    Text("1 month").tag(CleanupInterval.monthly)
+                    Text("never clean up").tag(CleanupInterval.never)
+                }
+            }
+
             Section(header: SectionHeader(title: "Integrations")) {
                 Toggle(isOn: $enableDragAndDrop) {
                     Text("Enable drop zone").regular(13)

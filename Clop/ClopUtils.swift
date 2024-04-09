@@ -251,13 +251,35 @@ extension FilePath {
     var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
     var isPDF: Bool { hasExtension(from: ["pdf"]) }
 
-    static var videos = FilePath.dir("/tmp/clop/videos", permissions: 0o777)
-    static var images = FilePath.dir("/tmp/clop/images", permissions: 0o777)
-    static var pdfs = FilePath.dir("/tmp/clop/pdfs", permissions: 0o777)
-    static var conversions = FilePath.dir("/tmp/clop/conversions", permissions: 0o777)
-    static var downloads = FilePath.dir("/tmp/clop/downloads", permissions: 0o777)
-    static var forResize = FilePath.dir("/tmp/clop/for-resize", permissions: 0o777)
-    static var forFilters = FilePath.dir("/tmp/clop/for-filters", permissions: 0o777)
+    static var workdir = FilePath.dir(Defaults[.workdir], permissions: 0o777) {
+        didSet {
+            if !workdir.exists {
+                workdir.mkdir(withIntermediateDirectories: true, permissions: 0o777)
+            }
+            guard workdir.exists else {
+                log.error("Can't create workdir: \(workdir)")
+                return
+            }
+
+            clopBackups = FilePath.dir(workdir / "backups", permissions: 0o777)
+            videos = FilePath.dir(workdir / "videos", permissions: 0o777)
+            images = FilePath.dir(workdir / "images", permissions: 0o777)
+            pdfs = FilePath.dir(workdir / "pdfs", permissions: 0o777)
+            conversions = FilePath.dir(workdir / "conversions", permissions: 0o777)
+            downloads = FilePath.dir(workdir / "downloads", permissions: 0o777)
+            forResize = FilePath.dir(workdir / "for-resize", permissions: 0o777)
+            forFilters = FilePath.dir(workdir / "for-filters", permissions: 0o777)
+        }
+    }
+
+    static var clopBackups = FilePath.dir(workdir / "backups", permissions: 0o777)
+    static var videos = FilePath.dir(workdir / "videos", permissions: 0o777)
+    static var images = FilePath.dir(workdir / "images", permissions: 0o777)
+    static var pdfs = FilePath.dir(workdir / "pdfs", permissions: 0o777)
+    static var conversions = FilePath.dir(workdir / "conversions", permissions: 0o777)
+    static var downloads = FilePath.dir(workdir / "downloads", permissions: 0o777)
+    static var forResize = FilePath.dir(workdir / "for-resize", permissions: 0o777)
+    static var forFilters = FilePath.dir(workdir / "for-filters", permissions: 0o777)
 
     func setOptimisationStatusXattr(_ value: String) throws {
         try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)
@@ -319,7 +341,7 @@ extension FilePath {
         let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
             + additionalArgs
             + ["-extractEmbedded", "-tagsFromFile", source.string]
-            + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : [])
+            + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : ["-All:All"])
             + [string]
 
         log.debug(args.joined(separator: " "))
