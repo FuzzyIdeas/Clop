@@ -254,7 +254,7 @@ class Video: Optimisable {
         #if arch(arm64)
             let encoderArgs = useAggressiveOptimisation(aggressiveSetting: aggressiveOptimisation ?? false)
                 ? ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "26"] : [])
-                : ["-vcodec", "h264_videotoolbox", "-q:v", "50", "-tag:v", "avc1"]
+                : ["-vcodec", "h264_videotoolbox", "-q:v", "45", "-tag:v", "avc1"]
         #else
             let encoderArgs = ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "26"] : [])
         #endif
@@ -492,7 +492,7 @@ var processTerminated = Set<pid_t>()
 
     log.debug("\(path.shellString): \(flag)")
 
-    guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.backups.string),
+    guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
           !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxVideoSizeMB] * 1_000_000, videoOptimiseDebouncers[event.path] == nil
     else {

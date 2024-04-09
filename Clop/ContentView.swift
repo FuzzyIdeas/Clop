@@ -94,7 +94,7 @@ struct MenuView: View {
 
         Section("Backups") {
             Button("Open backups folder") {
-                NSWorkspace.shared.open(FilePath.backups.url)
+                NSWorkspace.shared.open(FilePath.clopBackups.url)
             }
 
             Button("Revert last optimisations") {
