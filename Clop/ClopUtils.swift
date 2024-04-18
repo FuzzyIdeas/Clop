@@ -532,8 +532,9 @@ func tryProcAsync(_ cmd: String, args: [String], tries: Int, captureOutput: Bool
     return proc
 }
 
-let BIN_ARCHIVE = Bundle.main.url(forResource: "bin", withExtension: "tar.xz")! // /Applications/Clop.app/Contents/Resources/bin.tar.xz
-let BIN_ARCHIVE_HASH_PATH = Bundle.main.url(forResource: "bin", withExtension: "tar.xz.sha256")! // /Applications/Clop.app/Contents/Resources/bin.tar.xz.sha256
+let LRZIP = Bundle.main.url(forResource: "lrzip", withExtension: "")! // /Applications/Clop.app/Contents/Resources/lrzip
+let BIN_ARCHIVE = Bundle.main.url(forResource: "bin", withExtension: "tar.lrz")! // /Applications/Clop.app/Contents/Resources/bin.tar.lrz
+let BIN_ARCHIVE_HASH_PATH = Bundle.main.url(forResource: "bin", withExtension: "tar.lrz.sha256")! // /Applications/Clop.app/Contents/Resources/bin.tar.lrz.sha256
 let OLD_BIN_DIRS = [
     fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("com.lowtechguys.Clop"), // ~/Library/Application Scripts/com.lowtechguys.Clop/com.lowtechguys.Clop/
     fm.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first!.appendingPathComponent("bin-arm64"), // ~/Library/Application Scripts/com.lowtechguys.Clop/bin-arm64
@@ -554,7 +555,7 @@ func unarchiveBinaries() {
     }
 
     if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
-        let _ = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], wait: true)
+        let _ = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
         fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
     }
 

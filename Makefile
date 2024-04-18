@@ -83,13 +83,14 @@ else
 endif
 
 NOTARIZE=1
-Clop/bin.tar.xz: $(wildcard Clop/bin/*) $(wildcard Clop/bin/*/*)
-	mkdir -p /tmp/tonotarize; rm /tmp/tonotarize/* || true
-	fd -uu -t file . Clop/bin -x sh -c 'codesign -v -R="anchor apple generic" "{}" || codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}" && cp "{}" /tmp/tonotarize/'
+Clop/bin.tar.lrz: PATH=$(shell echo $$PWD:$$PATH)
+Clop/bin.tar.lrz: $(wildcard Clop/bin/*) $(wildcard Clop/bin/*/*)
+	mkdir -p /tmp/tonotarize; rm /tmp/tonotarize.zip /tmp/tonotarize/* || true
+	fd -uu -t file . Clop/bin -x zsh -c 'codesign -v -R="anchor apple generic" "{}" || { codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}" && cp "{}" /tmp/tonotarize/$$(jot -r 1)_{/} ; }'
 ifeq (1, $(NOTARIZE))
-	zip -r /tmp/tonotarize.zip /tmp/tonotarize
-	xcrun notarytool submit --progress --wait --keychain-profile Alin /tmp/tonotarize.zip
+	test $$(ls /tmp/tonotarize | wc -l) -gt 0 && zip -r /tmp/tonotarize.zip /tmp/tonotarize && \
+		xcrun notarytool submit --progress --wait --keychain-profile Alin /tmp/tonotarize.zip
 endif
-	rm Clop/bin.tar.xz; cd Clop/bin/; tar acvf ../bin.tar.xz *
-	sha256sum Clop/bin.tar.xz | cut -d' ' -f1 > Clop/bin.tar.xz.sha256
-bin: Clop/bin.tar.xz
+	rm Clop/bin.tar.lrz; cd Clop/bin/; tar --lrzip -cf ../bin.tar.lrz *
+	sha256sum Clop/bin.tar.lrz | cut -d' ' -f1 > Clop/bin.tar.lrz.sha256
+bin: Clop/bin.tar.lrz

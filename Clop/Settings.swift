@@ -65,7 +65,7 @@ extension Defaults.Keys {
     static let stripMetadata = Key<Bool>("stripMetadata", default: true)
     static let preserveDates = Key<Bool>("preserveDates", default: true)
 
-    static let workdir = Key<String>("workdir", default: "/tmp/clop")
+    static let workdir = Key<String>("workdir", default: URL.cachesDirectory.appendingPathComponent("Clop", conformingTo: .directory).path)
     static let workdirCleanupInterval = Key<CleanupInterval>("workdirCleanupInterval", default: .every3Days)
 
     static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
