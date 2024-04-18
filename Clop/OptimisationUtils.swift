@@ -471,6 +471,8 @@ final class QuickLooker: QLPreviewPanelDataSource {
         return PDF(path, thumb: !hidden, id: id)
     }()
 
+    var comparisonWindow: NSWindow?
+
     @Published var editing = false {
         didSet {
             guard editing != oldValue else {
@@ -622,6 +624,30 @@ final class QuickLooker: QLPreviewPanelDataSource {
             }
         default:
             break
+        }
+    }
+
+    func compare() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
+            styleMask: [.fullSizeContentView],
+            backing: .buffered, defer: false
+        )
+        window.center()
+        window.setFrameAutosaveName("Compare Window")
+//        window.contentView = NSHostingView(rootView: CompareView(optimiser: self))
+        window.makeKeyAndOrderFront(nil)
+
+        NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: window)
+
+        comparisonWindow = window
+    }
+
+    @objc func windowWillClose(_ notification: Notification) {
+//        guard let window = notification.object as? NSWindow else { return }
+
+        mainActor {
+            self.comparisonWindow = nil
         }
     }
 
