@@ -1259,7 +1259,7 @@ actor ProgressPrinter {
 
     func waitUntilDone() async {
         while responses.count + errors.count < urlsToProcess.count {
-            try! await Task.sleep(nanoseconds: 100_000_000)
+            try? await Task.sleep(nanoseconds: 100_000_000)
         }
     }
 

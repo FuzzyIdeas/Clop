@@ -475,13 +475,13 @@ class AppDelegate: AppDelegateParent {
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
             KM.onPrimaryHotkey = { key in
                 self.handleHotkey(key)
-                _ = checkInternalRequirements(PRODUCTS, nil)
+                checkInternalRequirements(PRODUCTS, nil)
             }
 
             KM.secondaryKeyModifiers = [.lcmd]
             KM.onSecondaryHotkey = { key in
                 self.handleCommandHotkey(key)
-                _ = checkInternalRequirements(PRODUCTS, nil)
+                checkInternalRequirements(PRODUCTS, nil)
             }
         }
         super.applicationDidFinishLaunching(_: notification)
@@ -570,7 +570,7 @@ class AppDelegate: AppDelegateParent {
             .store(in: &observers)
         initMachPortListener()
 
-        _ = checkInternalRequirements(PRODUCTS, nil)
+        checkInternalRequirements(PRODUCTS, nil)
         setupServiceProvider()
         startShortcutWatcher()
         Dropshare.fetchAppURL()
@@ -713,7 +713,7 @@ class AppDelegate: AppDelegateParent {
             initClipboardOptimiser()
         }
 
-        _ = checkInternalRequirements(PRODUCTS, nil)
+        checkInternalRequirements(PRODUCTS, nil)
     }
 
     @MainActor func initClipboardOptimiser() {
@@ -950,59 +950,64 @@ class FileOptimisationWatcher {
         stopWatching()
         guard !paths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
 
-        try! EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
-            guard !SWIFTUI_PREVIEW, self.enabled else { return }
+        do {
+            try EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
+                guard !SWIFTUI_PREVIEW, self.enabled else { return }
 
-            mainAsync { [weak self] in
-                guard let self, enabled, isAddedFile(event: event), let path = event.path.existingFilePath else {
-                    return
+                mainAsync { [weak self] in
+                    guard let self, enabled, isAddedFile(event: event), let path = event.path.existingFilePath else {
+                        return
+                    }
+
+                    addedFilesCleaner = nil
+                    log.debug("Added \(path.string) to justAddedFiles")
+                    justAddedFiles.insert(event)
+                    cancelledFiles.remove(path)
+                    if !withinSafeMeasureTime {
+                        addedFileRemovers[path]?.cancel()
+                        addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
+                            log.debug("Removed \(path.string) from justAddedFiles")
+                            self?.justAddedFiles.remove(event)
+                            self?.addedFileRemovers.removeValue(forKey: path)
+                        }
+                    }
                 }
 
-                addedFilesCleaner = nil
-                log.debug("Added \(path.string) to justAddedFiles")
-                justAddedFiles.insert(event)
-                cancelledFiles.remove(path)
-                if !withinSafeMeasureTime {
-                    addedFileRemovers[path]?.cancel()
-                    addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
-                        log.debug("Removed \(path.string) from justAddedFiles")
-                        self?.justAddedFiles.remove(event)
-                        self?.addedFileRemovers.removeValue(forKey: path)
+                mainActor { [weak self] in
+                    guard let self, enabled else { return }
+                    guard shouldHandle(event) else { return }
+
+                    if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
+                        log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
+                        return
                     }
+
+                    guard !hasSpuriousEvent(event) else { return }
+
+                    guard justAddedFiles.count <= maxFilesToHandle else {
+                        let notice = "More than \(maxFilesToHandle) \(fileType.rawValue)s appeared in the\n`\(justAddedFiles.first!.path.filePath?.dir.shellString ?? "folder")`, ignoring…"
+                        log.debug(notice)
+                        showNotice(notice)
+                        for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
+                            log.debug("Cancelling optimisation on \(path)")
+                            cancel(path)
+                            cancelledFiles.insert(path)
+                        }
+                        addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
+                            log.debug("Cleaning up justAddedFiles and cancelledFiles")
+                            self?.cancelledFiles.removeAll()
+                            self?.justAddedFiles.removeAll()
+                        }
+
+                        return
+                    }
+
+                    process(event: event)
                 }
             }
-
-            mainActor { [weak self] in
-                guard let self, enabled else { return }
-                guard shouldHandle(event) else { return }
-
-                if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
-                    log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
-                    return
-                }
-
-                guard !hasSpuriousEvent(event) else { return }
-
-                guard justAddedFiles.count <= maxFilesToHandle else {
-                    let notice = "More than \(maxFilesToHandle) \(fileType.rawValue)s appeared in the\n`\(justAddedFiles.first!.path.filePath?.dir.shellString ?? "folder")`, ignoring…"
-                    log.debug(notice)
-                    showNotice(notice)
-                    for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
-                        log.debug("Cancelling optimisation on \(path)")
-                        cancel(path)
-                        cancelledFiles.insert(path)
-                    }
-                    addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
-                        log.debug("Cleaning up justAddedFiles and cancelledFiles")
-                        self?.cancelledFiles.removeAll()
-                        self?.justAddedFiles.removeAll()
-                    }
-
-                    return
-                }
-
-                process(event: event)
-            }
+        } catch {
+            log.error("Failed to start watching \(fileType.rawValue) folders: \(error)")
+            return
         }
         watching = true
     }

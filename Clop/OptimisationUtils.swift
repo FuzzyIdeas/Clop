@@ -456,20 +456,9 @@ final class QuickLooker: QLPreviewPanelDataSource {
     @Published var sharing = false
     @Published var isVideoWithAudio = false
 
-    lazy var image: Image? = {
-        guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
-        return Image(path: path, type: imageType, retinaDownscaled: false)
-    }()
-
-    lazy var video: Video? = {
-        guard type.isVideo, let path = url?.existingFilePath else { return nil }
-        return Video(path: path, thumb: !hidden, id: id)
-    }()
-
-    lazy var pdf: PDF? = {
-        guard type.isPDF, let path = url?.existingFilePath else { return nil }
-        return PDF(path, thumb: !hidden, id: id)
-    }()
+    lazy var image: Image? = fetchImage()
+    lazy var video: Video? = fetchVideo()
+    lazy var pdf: PDF? = fetchPDF()
 
     var comparisonWindow: NSWindow?
 
@@ -651,26 +640,44 @@ final class QuickLooker: QLPreviewPanelDataSource {
         }
     }
 
+    func fetchVideo() -> Video? {
+        guard type.isVideo, let path = url?.existingFilePath else { return nil }
+        return Video(path: path, thumb: !hidden, id: id)
+    }
+
+    func fetchImage() -> Image? {
+        guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
+        return Image(path: path, type: imageType, retinaDownscaled: false)
+    }
+
+    func fetchPDF() -> PDF? {
+        guard type.isPDF, let path = url?.existingFilePath else { return nil }
+        return PDF(path, thumb: !hidden, id: id)
+    }
+
     func refetch() {
         if let image, image.path != self.url?.filePath {
-            self.image = {
-                guard case let .image(imageType) = type, let path = url?.existingFilePath else { return nil }
-                return Image(path: path, type: imageType, retinaDownscaled: false)
-            }()
+            self.image = fetchImage()
             return
         }
         if let video, video.path != self.url?.filePath {
-            self.video = {
-                guard type.isVideo, let path = url?.existingFilePath else { return nil }
-                return Video(path: path, thumb: !hidden, id: id)
-            }()
+            self.video = fetchVideo()
             return
         }
         if let pdf, pdf.path != self.url?.filePath {
-            self.pdf = {
-                guard type.isPDF, let path = url?.existingFilePath else { return nil }
-                return PDF(path, thumb: !hidden, id: id)
-            }()
+            self.pdf = fetchPDF()
+            return
+        }
+        if let image = fetchImage() {
+            self.image = image
+            return
+        }
+        if let video = fetchVideo() {
+            self.video = video
+            return
+        }
+        if let pdf = fetchPDF() {
+            self.pdf = pdf
             return
         }
     }
