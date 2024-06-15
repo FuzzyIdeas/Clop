@@ -27,6 +27,8 @@
 		C73802022BD1B804001BEE6C /* bin.tar.lrz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */; };
 		C73802032BD1B804001BEE6C /* bin.tar.lrz in Resources */ = {isa = PBXBuildFile; fileRef = C73802012BD1B804001BEE6C /* bin.tar.lrz */; };
 		C73802052BD1B81A001BEE6C /* lrzip in Resources */ = {isa = PBXBuildFile; fileRef = C73802042BD1B81A001BEE6C /* lrzip */; };
+		C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73802062BDCD76D001BEE6C /* CompareView.swift */; };
+		C73802082BDCD773001BEE6C /* CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73802062BDCD76D001BEE6C /* CompareView.swift */; };
 		C7548E7F2B2B9C390002E03D /* Colorize.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70A48ED2B1A06AD00C266DE /* Colorize.swift */; };
 		C75FD1BA2AF4324C000B426B /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C75FD1BB2AF4324C000B426B /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
@@ -236,6 +238,7 @@
 		C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = bin.tar.lrz.sha256; sourceTree = "<group>"; };
 		C73802012BD1B804001BEE6C /* bin.tar.lrz */ = {isa = PBXFileReference; lastKnownFileType = file; path = bin.tar.lrz; sourceTree = "<group>"; };
 		C73802042BD1B81A001BEE6C /* lrzip */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = lrzip; sourceTree = SOURCE_ROOT; };
+		C73802062BDCD76D001BEE6C /* CompareView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompareView.swift; sourceTree = "<group>"; };
 		C744D07D2B444F6B003D77DE /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = "<group>"; };
 		C75FD1EB2AF4324C000B426B /* Clop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C75FD1FD2AF434FE000B426B /* FinderOptimiser-setapp.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "FinderOptimiser-setapp.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -403,6 +406,7 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C73802062BDCD76D001BEE6C /* CompareView.swift */,
 				C7976AC72B07B87D00C4246A /* BatchCropButton.swift */,
 				C735DA012B021D6E001DCAA8 /* Migrations.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
@@ -765,6 +769,7 @@
 				C75FD1C62AF4324C000B426B /* DropZone.swift in Sources */,
 				C75FD1C72AF4324C000B426B /* ClopApp.swift in Sources */,
 				C75FD1C82AF4324C000B426B /* SettingsView.swift in Sources */,
+				C73802082BDCD773001BEE6C /* CompareView.swift in Sources */,
 				C75FD1C92AF4324C000B426B /* Video.swift in Sources */,
 				C75FD1CA2AF4324C000B426B /* ActionButtons.swift in Sources */,
 				C75FD1CB2AF4324C000B426B /* ResolutionField.swift in Sources */,
@@ -834,6 +839,7 @@
 				C7AB38D22AC8320B00F299CE /* DropZone.swift in Sources */,
 				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
+				C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */,
 				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
 				C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */,
 				C78B2A022AD1F02E00B6A19B /* ResolutionField.swift in Sources */,
@@ -882,7 +888,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -898,7 +904,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -917,7 +923,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -933,7 +939,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.FinderOptimiser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -952,7 +958,7 @@
 				CODE_SIGN_ENTITLEMENTS = Setapp/Setapp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -974,7 +980,7 @@
 				);
 				LLVM_LTO = YES_THIN;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				OTHER_LDFLAGS = (
 					"-force_load",
 					"$(BUILT_PRODUCTS_DIR)/libSetapp.a",
@@ -996,7 +1002,7 @@
 				CODE_SIGN_ENTITLEMENTS = Setapp/Setapp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -1018,7 +1024,7 @@
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				OTHER_LDFLAGS = (
 					"-force_load",
 					"$(BUILT_PRODUCTS_DIR)/libSetapp.a",
@@ -1038,7 +1044,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Setapp/FinderOptimiser-setapp.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1053,7 +1059,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp.FinderOptimiser";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1070,7 +1076,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Setapp/FinderOptimiser-setapp.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1085,7 +1091,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.lowtechguys.Clop-setapp.FinderOptimiser";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1323,7 +1329,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -1344,7 +1350,7 @@
 				);
 				LLVM_LTO = YES_THIN;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1363,7 +1369,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.5;
+				CURRENT_PROJECT_VERSION = 2.5.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
@@ -1384,7 +1390,7 @@
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 2.5.5;
+				MARKETING_VERSION = 2.5.6;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";

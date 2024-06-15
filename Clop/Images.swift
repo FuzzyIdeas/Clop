@@ -240,7 +240,7 @@ class Image: CustomStringConvertible {
 
     static var NOT_IMAGE_TYPE_PATTERN =
         try! Regex(
-            #"com\.microsoft\.ole\.source|com\.microsoft\.Art|com\.microsoft\.PowerPoint|com\.microsoft\.image-svg-xml|com\.microsoft\.DataObject|IBPasteboardType|IBDocument|com\.pixelmator|com\.adobe\.[^.]+\.local-private-clipboard-marker"#
+            #"com\.microsoft\.ole\.source|com\.microsoft\.Art|com\.microsoft\.PowerPoint|com\.microsoft\.image-svg-xml|com\.microsoft\.DataObject|IBPasteboardType|IBDocument|com\.pixelmator|com\.adobe\.[^.]+\.local-private-clipboard-marker|com\.apple\.iWork"#
         )
     static var NOT_IMAGE_TYPES: Set<NSPasteboard.PasteboardType> = [
         .icon,
@@ -830,10 +830,12 @@ class Image: CustomStringConvertible {
 
     func copyToClipboard(withPath: Bool? = nil) {
         let item = NSPasteboardItem()
-        item.setData(data, forType: type.pasteboardType)
         if withPath ?? Defaults[.copyImageFilePath] {
-            item.setString(path.string, forType: .string)
             item.setString(URL(fileURLWithPath: path.string, isDirectory: false).absoluteString, forType: .fileURL)
+            item.setData(data, forType: type.pasteboardType)
+            item.setString(path.string, forType: .string)
+        } else {
+            item.setData(data, forType: type.pasteboardType)
         }
         item.setString("true", forType: .optimisationStatus)
 

@@ -638,7 +638,7 @@ struct KeysSettingsView: View {
         Form {
             Section(header: SectionHeader(title: "Trigger keys")) {
                 HStack {
-                    DirectionalModifierView(triggerKeys: $keyComboModifiers, disabled: .false)
+                    DirectionalModifierView(triggerKeys: $keyComboModifiers)
                     Text(" + ")
                 }
             }
@@ -914,7 +914,7 @@ struct GeneralSettingsView: View {
 
     var workdirBinding: Binding<String> {
         Binding(
-            get: { workdir },
+            get: { workdir.shellString },
             set: { value in
                 guard !value.isEmpty, let path = value.existingFilePath else {
                     return

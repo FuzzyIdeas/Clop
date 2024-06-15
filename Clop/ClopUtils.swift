@@ -15,12 +15,15 @@ import System
 extension Process: @unchecked Sendable {}
 
 func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: String]? = nil, out: Pipe? = nil, err: Pipe? = nil) -> Process? {
-    let outputDir = try! fm.url(
+    guard let outputDir = try? fm.url(
         for: .itemReplacementDirectory,
         in: .userDomainMask,
         appropriateFor: fm.homeDirectoryForCurrentUser,
         create: true
-    )
+    ) else {
+        log.error("Error creating output directory for \(launchPath) \(args)")
+        return nil
+    }
 
     let task = Process()
     var env = env ?? ProcessInfo.processInfo.environment
@@ -341,7 +344,7 @@ extension FilePath {
         let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
             + additionalArgs
             + ["-extractEmbedded", "-tagsFromFile", source.string]
-            + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : ["-All:All"])
+            + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : (isVideo ? ["-All:All"] : []))
             + [string]
 
         log.debug(args.joined(separator: " "))
@@ -543,35 +546,78 @@ let OLD_BIN_DIRS = [
 let BIN_ARCHIVE_HASH = fm.contents(atPath: BIN_ARCHIVE_HASH_PATH.path)! // f62955f10479b7df4d516f8a714290f2402faaf8960c6c44cae3dfc68f45aabd
 let BIN_HASH_FILE = BIN_DIR.appendingPathComponent("sha256hash") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/sha256hash
 
+func nsalert(error: String) {
+    let alert = NSAlert()
+    alert.messageText = "Error"
+    alert.informativeText = error
+    alert.alertStyle = .critical
+    alert.addButton(withTitle: "OK")
+
+    print(error)
+    alert.runModal()
+}
+
 func unarchiveBinaries() {
-    for dir in OLD_BIN_DIRS {
-        if fm.fileExists(atPath: dir.path) {
-            try? fm.removeItem(at: dir)
+    for dir in OLD_BIN_DIRS where fm.fileExists(atPath: dir.path) {
+        do {
+            try fm.removeItem(at: dir)
+        } catch {
+            nsalert(error: "Error removing directory \(dir.path): \(error)")
+            exit(1)
         }
     }
 
     if !fm.fileExists(atPath: GLOBAL_BIN_DIR.path) {
-        try! fm.createDirectory(at: GLOBAL_BIN_DIR, withIntermediateDirectories: true, attributes: nil)
+        do {
+            try fm.createDirectory(at: GLOBAL_BIN_DIR, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            nsalert(error: "Error creating directory \(GLOBAL_BIN_DIR.path): \(error)")
+            exit(1)
+        }
     }
 
     if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
-        let _ = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
+        let proc = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
+        guard proc.success else {
+            nsalert(error: "Error unarchiving binaries \(BIN_ARCHIVE.path) into \(GLOBAL_BIN_DIR.path): \(proc.e ?? "") \(proc.o ?? "")")
+            exit(1)
+        }
         fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
     }
 
     let cliDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("ClopCLI")
     if fm.fileExists(atPath: cliDir.path), (try? fm.destinationOfSymbolicLink(atPath: cliDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
-        try! fm.removeItem(at: cliDir)
+        do {
+            try fm.removeItem(at: cliDir)
+        } catch {
+            nsalert(error: "Error removing symbolic link \(cliDir.path): \(error)")
+            exit(1)
+        }
     }
     if !fm.fileExists(atPath: cliDir.path) {
-        try! fm.createSymbolicLink(at: cliDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
+        do {
+            try fm.createSymbolicLink(at: cliDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
+        } catch {
+            nsalert(error: "Error creating symbolic link \(cliDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
+            exit(1)
+        }
     }
 
     let finderOptimiserDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("\(GLOBAL_BIN_DIR_PARENT.lastPathComponent).FinderOptimiser")
     if fm.fileExists(atPath: finderOptimiserDir.path), (try? fm.destinationOfSymbolicLink(atPath: finderOptimiserDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
-        try! fm.removeItem(at: finderOptimiserDir)
+        do {
+            try fm.removeItem(at: finderOptimiserDir)
+        } catch {
+            nsalert(error: "Error removing symbolic link \(finderOptimiserDir.path): \(error)")
+            exit(1)
+        }
     }
     if !fm.fileExists(atPath: finderOptimiserDir.path) {
-        try! fm.createSymbolicLink(at: finderOptimiserDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
+        do {
+            try fm.createSymbolicLink(at: finderOptimiserDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
+        } catch {
+            nsalert(error: "Error creating symbolic link \(finderOptimiserDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
+            exit(1)
+        }
     }
 }
