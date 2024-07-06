@@ -86,8 +86,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "a62862c99f5bcb28fd78617fab1a5fe29607c06c",
-        "version" : "8.28.0"
+        "revision" : "08862789e1cbba7a9561bed69832a9306f339cd3",
+        "version" : "8.29.1"
       }
     },
     {
@@ -104,8 +104,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "41847a58cdef7506b257591fcca6f9495df591d4",
-        "version" : "2.6.2"
+        "revision" : "b456fd404954a9e13f55aa0c88cd5a40b8399638",
+        "version" : "2.6.3"
       }
     },
     {

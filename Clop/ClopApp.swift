@@ -677,8 +677,10 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandleVideo(event:),
             cancel: cancelVideoOptimisation(path:)
         ) { event in
-            let video = Video(path: FilePath(event.path))
             Task.init {
+                await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
+
+                let video = Video(path: FilePath(event.path))
                 try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
@@ -690,8 +692,10 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandleImage(event:),
             cancel: cancelImageOptimisation(path:)
         ) { event in
-            guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
             Task.init {
+                await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
+
+                guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
                 try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
@@ -703,8 +707,10 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandlePDF(event:),
             cancel: cancelPDFOptimisation(path:)
         ) { event in
-            guard let path = event.path.existingFilePath else { return }
             Task.init {
+                await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
+
+                guard let path = event.path.existingFilePath else { return }
                 try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
         }
@@ -1012,6 +1018,38 @@ class FileOptimisationWatcher {
         watching = true
     }
 
+    static func waitForModificationDateToSettle(_ path: String) async {
+        guard let attrs = try? fm.attributesOfItem(atPath: path), let date = attrs[.modificationDate] as? Date else {
+            log.warning("Failed to get modification date of \(path)")
+            return
+        }
+
+        log.debug("Waiting for modification date of \(path) to settle")
+        log.debug("Initial modification date: \(date)")
+        var lastDate = date
+        while true {
+            do {
+                try await Task.sleep(nanoseconds: 300_000_000) // 300ms
+            } catch {
+                log.error("Failed to sleep: \(error)")
+                return
+            }
+            
+            guard let attrs = try? fm.attributesOfItem(atPath: path), let date = attrs[.modificationDate] as? Date else {
+                log.warning("Failed to get modification date of \(path)")
+                return
+            }
+
+            guard date != lastDate else {
+                log.debug("Modification date of \(path) settled at \(date)")
+                return
+            }
+
+            log.debug("Modification date of \(path) is still changing: \(lastDate) -> \(date)")
+            lastDate = date
+        }
+    }
+
     func hasSpuriousEvent(_ event: EonilFSEventsEvent) -> Bool {
         guard withinSafeMeasureTime, !justAddedFiles.isEmpty else {
             return false
@@ -1108,11 +1146,7 @@ class FileOptimisationWatcher {
     @MainActor func proLimitsReached(url: URL? = nil) {}
 #endif
 
-#if DEBUG
-    let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: true, allowsMouse: true)
-#else
-    let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: false, allowsMouse: true)
-#endif
+let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
 var clipboardWatcher: Timer?
 var pbChangeCount = NSPasteboard.general.changeCount
 let THUMB_SIZE = CGSize(width: 300, height: 220)

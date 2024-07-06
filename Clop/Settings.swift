@@ -139,6 +139,7 @@ extension Defaults.Keys {
     static let pauseAutomaticOptimisations = Key<Bool>("pauseAutomaticOptimisations", default: false)
 
     static let syncSettingsCloud = Key<Bool>("syncSettingsCloud", default: true)
+    static let allowClopToAppearInScreenshots = Key<Bool>("allowClopToAppearInScreenshots", default: false)
 }
 
 let DEFAULT_CROP_SIZES: [CropSize] = [

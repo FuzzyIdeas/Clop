@@ -53,12 +53,12 @@ class Optimisable {
     }
 
     func runThroughShortcut(shortcut: Shortcut? = nil, optimiser: Optimiser, allowLarger: Bool, aggressiveOptimisation: Bool, source: String?) throws -> Self? {
-        let shortcutOutFile = FilePath.videos.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(path.stem!)")
+        let shortcutOutFile = (self is PDF ? FilePath.pdfs : FilePath.videos).appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(path.stem!)")
 
         let proc: Process? = if let shortcut {
             optimiser.runShortcut(shortcut, outFile: shortcutOutFile, url: path.url)
         } else {
-            optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: path.url, type: .video(UTType.from(filePath: path) ?? .mpeg4Movie))
+            optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: path.url, type: (self is PDF ? .pdf : (.video(UTType.from(filePath: path) ?? .mpeg4Movie))))
         }
         guard let proc else { return nil }
 
@@ -73,7 +73,7 @@ class Optimisable {
                 Self(shortcutOutFile, id: id)
             }
 
-        guard let outfile, outfile.hash != hash else {
+        guard let outfile, outfile.hash != hash, outfile.fileSize > 0 else {
             return nil
         }
 

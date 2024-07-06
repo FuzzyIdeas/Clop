@@ -1109,7 +1109,7 @@ struct Clop: ParsableCommand {
             if let size = crop, size == .zero {
                 throw ValidationError("Invalid size, must be greater than 0")
             }
-            if let factor = downscaleFactor, factor >= 0.01, factor <= 0.99 {
+            if let factor = downscaleFactor, factor < 0.01, factor > 0.99 {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
             }
 
