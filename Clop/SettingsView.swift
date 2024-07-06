@@ -771,6 +771,7 @@ struct AboutSettingsView: View {
 }
 
 struct FloatingSettingsView: View {
+    @Default(.enableFloatingResults) var enableFloatingResults
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.showImages) var showImages
     @Default(.showCompactImages) var showCompactImages
@@ -790,6 +791,12 @@ struct FloatingSettingsView: View {
 
     var settings: some View {
         Form {
+            Toggle(isOn: $enableFloatingResults) {
+                Text("Show floating results").regular(13)
+                    + Text("\n\nDisabling this will make Clop run in an UI-less mode, but keep optimising files in the background")
+                    .round(10, weight: .regular)
+                    .foregroundColor(.secondary)
+            }
             Section(header: SectionHeader(title: "Layout")) {
                 Picker("Position on screen", selection: $floatingResultsCorner) {
                     Text("Bottom right").tag(ScreenCorner.bottomRight)
@@ -803,7 +810,7 @@ struct FloatingSettingsView: View {
                         .round(10, weight: .regular)
                         .foregroundColor(.secondary)
                 }
-            }
+            }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Full layout")) {
                 Toggle("Show hat icon", isOn: $showFloatingHatIcon)
@@ -835,7 +842,7 @@ struct FloatingSettingsView: View {
                     Text("same as non-clipboard").tag(-1)
                     Text("never").tag(0)
                 }.disabled(!autoHideFloatingResults).padding(.leading, 20)
-            }
+            }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Compact layout")) {
                 Toggle("Show images", isOn: $showCompactImages)
@@ -855,7 +862,7 @@ struct FloatingSettingsView: View {
                     Text("30 minutes").tag(1800)
                     Text("never").tag(0)
                 }
-            }
+            }.disabled(!enableFloatingResults)
 
         }
         .frame(maxWidth: 380).fixedSize()
@@ -872,10 +879,14 @@ struct FloatingSettingsView: View {
                     CompactPreview()
                         .frame(width: THUMB_SIZE.width + 60, height: 450, alignment: .center)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+                        .disabled(!enableFloatingResults)
+                        .saturation(enableFloatingResults ? 1 : 0.5)
                 } else {
                     FloatingPreview()
                         .frame(width: THUMB_SIZE.width + 60, height: 450, alignment: .center)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+                        .disabled(!enableFloatingResults)
+                        .saturation(enableFloatingResults ? 1 : 0.5)
                 }
                 Picker("", selection: $compact) {
                     Text("Compact").tag(true)

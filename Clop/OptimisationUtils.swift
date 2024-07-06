@@ -433,13 +433,6 @@ final class QuickLooker: QLPreviewPanelDataSource {
     @Published var originalURL: URL?
     @Published var startingURL: URL?
     @Published var convertedFromURL: URL?
-    var comparisonOriginalURL: URL? {
-        if let startingURL, startingURL != url, fm.fileExists(atPath: startingURL.path) { return startingURL }
-        if let originalURL, originalURL != url, fm.fileExists(atPath: originalURL.path) { return originalURL }
-        if let convertedFromURL, convertedFromURL != url, fm.fileExists(atPath: convertedFromURL.path) { return convertedFromURL }
-        return nil
-    }
-
     @Published var downscaleFactor = 1.0
     @Published var changePlaybackSpeedFactor = 1.0
     @Published var aggressive = false
@@ -469,6 +462,13 @@ final class QuickLooker: QLPreviewPanelDataSource {
     var comparisonWindowController: NSWindowController?
 
     var isComparing = false
+
+    var comparisonOriginalURL: URL? {
+        if let startingURL, startingURL != url, fm.fileExists(atPath: startingURL.path) { return startingURL }
+        if let originalURL, originalURL != url, fm.fileExists(atPath: originalURL.path) { return originalURL }
+        if let convertedFromURL, convertedFromURL != url, fm.fileExists(atPath: convertedFromURL.path) { return convertedFromURL }
+        return nil
+    }
 
     @Published var editing = false {
         didSet {
