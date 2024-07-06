@@ -527,6 +527,15 @@ class AppDelegate: AppDelegateParent {
                 KM.reinitHotkeys()
             }
             .store(in: &observers)
+        pub(.enableFloatingResults)
+            .sink {
+                if $0.newValue {
+                    showFloatingThumbnails(force: true)
+                } else {
+                    floatingResultsWindow.close()
+                }
+            }
+            .store(in: &observers)
 
         if finishedOnboarding {
             initOptimisers()
@@ -935,6 +944,38 @@ class FileOptimisationWatcher {
         startedWatchingAt.timeIntervalSinceNow > -30 && Defaults[.launchCount] == 1
     }
 
+    static func waitForModificationDateToSettle(_ path: String) async {
+        guard let attrs = try? fm.attributesOfItem(atPath: path), let date = attrs[.modificationDate] as? Date else {
+            log.warning("Failed to get modification date of \(path)")
+            return
+        }
+
+        log.debug("Waiting for modification date of \(path) to settle")
+        log.debug("Initial modification date: \(date)")
+        var lastDate = date
+        while true {
+            do {
+                try await Task.sleep(nanoseconds: 300_000_000) // 300ms
+            } catch {
+                log.error("Failed to sleep: \(error)")
+                return
+            }
+
+            guard let attrs = try? fm.attributesOfItem(atPath: path), let date = attrs[.modificationDate] as? Date else {
+                log.warning("Failed to get modification date of \(path)")
+                return
+            }
+
+            guard date != lastDate else {
+                log.debug("Modification date of \(path) settled at \(date)")
+                return
+            }
+
+            log.debug("Modification date of \(path) is still changing: \(lastDate) -> \(date)")
+            lastDate = date
+        }
+    }
+
     func isAddedFile(event: EonilFSEventsEvent) -> Bool {
         guard let flag = event.flag, let path = event.path.existingFilePath, let stem = path.stem, !stem.starts(with: ".") else {
             return false
@@ -1016,38 +1057,6 @@ class FileOptimisationWatcher {
             return
         }
         watching = true
-    }
-
-    static func waitForModificationDateToSettle(_ path: String) async {
-        guard let attrs = try? fm.attributesOfItem(atPath: path), let date = attrs[.modificationDate] as? Date else {
-            log.warning("Failed to get modification date of \(path)")
-            return
-        }
-
-        log.debug("Waiting for modification date of \(path) to settle")
-        log.debug("Initial modification date: \(date)")
-        var lastDate = date
-        while true {
-            do {
-                try await Task.sleep(nanoseconds: 300_000_000) // 300ms
-            } catch {
-                log.error("Failed to sleep: \(error)")
-                return
-            }
-            
-            guard let attrs = try? fm.attributesOfItem(atPath: path), let date = attrs[.modificationDate] as? Date else {
-                log.warning("Failed to get modification date of \(path)")
-                return
-            }
-
-            guard date != lastDate else {
-                log.debug("Modification date of \(path) settled at \(date)")
-                return
-            }
-
-            log.debug("Modification date of \(path) is still changing: \(lastDate) -> \(date)")
-            lastDate = date
-        }
     }
 
     func hasSpuriousEvent(_ event: EonilFSEventsEvent) -> Bool {

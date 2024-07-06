@@ -58,7 +58,7 @@ class Optimisable {
         let proc: Process? = if let shortcut {
             optimiser.runShortcut(shortcut, outFile: shortcutOutFile, url: path.url)
         } else {
-            optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: path.url, type: (self is PDF ? .pdf : (.video(UTType.from(filePath: path) ?? .mpeg4Movie))))
+            optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: path.url, type: self is PDF ? .pdf : .video(UTType.from(filePath: path) ?? .mpeg4Movie))
         }
         guard let proc else { return nil }
 
