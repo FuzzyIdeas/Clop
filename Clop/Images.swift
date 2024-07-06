@@ -369,7 +369,7 @@ class Image: CustomStringConvertible {
 
         proc.waitUntilExit()
         shortcutOutFile.waitForFile(for: 2)
-        guard shortcutOutFile.exists else {
+        guard shortcutOutFile.exists, (shortcutOutFile.fileSize() ?? 1) > 0 else {
             return nil
         }
         var outImg: Image?

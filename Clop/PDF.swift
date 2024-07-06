@@ -302,6 +302,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
         showFloatingThumbnails()
 
         let fileSize = pdf.fileSize
+        var previouslyCached = true
 
         pdfOptimisationQueue.addOperation {
             var optimisedPDF: PDF?
@@ -329,6 +330,14 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
 
                     throw ClopError.pdfSizeLarger(path)
                 }
+
+                // Save optimised PDF path to cache to avoid re-optimising it after it is saved to file
+                mainActor {
+                    if OM.optimisedFilesByHash[pdf.hash] == nil {
+                        previouslyCached = false
+                        OM.optimisedFilesByHash[pdf.hash] = optimisedPDF!.path
+                    }
+                }
             } catch let ClopProcError.processError(proc) {
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
@@ -346,13 +355,27 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
                 mainActor { optimiser.finish(error: "Optimisation failed") }
             }
 
-            guard let optimisedPDF else { return }
+            guard var optimisedPDF else { return }
+
+            var shortcutChangedPDF = false
+            if let changedPDF = try? optimisedPDF.runThroughShortcut(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
+                optimisedPDF = changedPDF
+                mainActor { optimiser.url = changedPDF.path.url }
+
+                shortcutChangedPDF = true
+            }
+
             mainActor {
                 result = optimisedPDF
                 optimiser.url = optimisedPDF.path.url
                 optimiser.finish(oldBytes: fileSize, newBytes: optimisedPDF.fileSize, oldSize: optimisedPDF.size, removeAfterMs: hideFilesAfter)
+
                 if copyToClipboard {
                     optimiser.copyToClipboard()
+                }
+
+                if !shortcutChangedPDF, !previouslyCached {
+                    OM.optimisedFilesByHash[pdf.hash] = optimisedPDF.path
                 }
             }
         }

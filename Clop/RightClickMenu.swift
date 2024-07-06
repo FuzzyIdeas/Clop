@@ -88,6 +88,10 @@ struct RightClickMenuView: View {
         }
         .keyboardShortcut(" ")
 
+        Button("Compare") {
+            optimiser.compare()
+        }.disabled(optimiser.url == nil || (optimiser.startingURL ?? optimiser.originalURL) == nil)
+
         if !optimiser.running {
             if optimiser.canDownscale() ||
                 optimiser.canChangePlaybackSpeed() ||

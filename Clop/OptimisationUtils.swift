@@ -433,6 +433,12 @@ final class QuickLooker: QLPreviewPanelDataSource {
     @Published var originalURL: URL?
     @Published var startingURL: URL?
     @Published var convertedFromURL: URL?
+    var comparisonOriginalURL: URL? {
+        if let startingURL, startingURL != url, fm.fileExists(atPath: startingURL.path) { return startingURL }
+        if let originalURL, originalURL != url, fm.fileExists(atPath: originalURL.path) { return originalURL }
+        if let convertedFromURL, convertedFromURL != url, fm.fileExists(atPath: convertedFromURL.path) { return convertedFromURL }
+        return nil
+    }
 
     @Published var downscaleFactor = 1.0
     @Published var changePlaybackSpeedFactor = 1.0
@@ -460,7 +466,9 @@ final class QuickLooker: QLPreviewPanelDataSource {
     lazy var video: Video? = fetchVideo()
     lazy var pdf: PDF? = fetchPDF()
 
-    var comparisonWindow: NSWindow?
+    var comparisonWindowController: NSWindowController?
+
+    var isComparing = false
 
     @Published var editing = false {
         didSet {
@@ -618,26 +626,39 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     func compare() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
-            styleMask: [.fullSizeContentView],
+            contentRect: NSRect(x: 0, y: 0, width: COMPARISON_VIEW_SIZE * 2 + 100, height: COMPARISON_VIEW_SIZE + 200),
+            styleMask: [.fullSizeContentView, .titled, .closable],
             backing: .buffered, defer: false
         )
+        window.title = "Comparison"
+        window.isReleasedWhenClosed = true
+        window.titlebarAppearsTransparent = true
         window.center()
         window.setFrameAutosaveName("Compare Window")
-//        window.contentView = NSHostingView(rootView: CompareView(optimiser: self))
+
+        window.contentView = NSHostingView(
+            rootView: CompareView(optimiser: self)
+                .frame(width: COMPARISON_VIEW_SIZE * 2 + 100, height: COMPARISON_VIEW_SIZE + 200)
+                .padding()
+                .background(.regularMaterial)
+        )
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = .clear
+
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        window.center()
+        focus()
 
         NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: window)
 
-        comparisonWindow = window
+        comparisonWindowController = NSWindowController(window: window)
+        isComparing = true
     }
 
     @objc func windowWillClose(_ notification: Notification) {
-//        guard let window = notification.object as? NSWindow else { return }
-
-        mainActor {
-            self.comparisonWindow = nil
-        }
+        isComparing = false
+        PDFKitView.clearCache(for: [url, startingURL ?? originalURL].compactMap { $0 })
     }
 
     func fetchVideo() -> Video? {

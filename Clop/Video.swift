@@ -285,7 +285,7 @@ class Video: Optimisable {
         outputPath.waitForFile(for: 2)
         outputPath.copyExif(from: inputPath, stripMetadata: Defaults[.stripMetadata])
         if Defaults[.preserveDates] {
-            outputPath.copyCreationModificationDates(from: path)
+            outputPath.copyCreationModificationDates(from: inputPath)
         }
         try? outputPath.setOptimisationStatusXattr("true")
 
@@ -540,6 +540,7 @@ var processTerminated = Set<pid_t>()
         showFloatingThumbnails()
 
         let fileSize = video.fileSize
+        var previouslyCached = true
 
         videoOptimisationQueue.addOperation {
             var optimisedVideo: Video?
@@ -567,6 +568,14 @@ var processTerminated = Set<pid_t>()
 
                     throw ClopError.videoSizeLarger(path)
                 }
+
+                // Save optimised video path to cache to avoid re-optimising it after it is saved to file
+                mainActor {
+                    if OM.optimisedFilesByHash[video.hash] == nil {
+                        previouslyCached = false
+                        OM.optimisedFilesByHash[video.hash] = optimisedVideo!.path
+                    }
+                }
             } catch let ClopProcError.processError(proc) {
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
@@ -584,13 +593,27 @@ var processTerminated = Set<pid_t>()
                 mainActor { optimiser.finish(error: "Optimisation failed") }
             }
 
-            guard let optimisedVideo else { return }
+            guard var optimisedVideo else { return }
+
+            var shortcutChangedVideo = false
+            if let changedVideo = try? optimisedVideo.runThroughShortcut(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
+                optimisedVideo = changedVideo
+                mainActor { optimiser.url = changedVideo.path.url }
+
+                shortcutChangedVideo = true
+            }
+
             mainActor {
                 result = optimisedVideo
                 optimiser.url = optimisedVideo.path.url
                 optimiser.finish(oldBytes: fileSize, newBytes: optimisedVideo.fileSize, removeAfterMs: hideFilesAfter)
+
                 if copyToClipboard {
                     optimiser.copyToClipboard()
+                }
+
+                if !shortcutChangedVideo, !previouslyCached {
+                    OM.optimisedFilesByHash[video.hash] = optimisedVideo.path
                 }
             }
         }
