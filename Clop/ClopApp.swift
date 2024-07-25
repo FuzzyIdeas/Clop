@@ -309,8 +309,17 @@ class AppDelegate: AppDelegateParent {
                 opt.restoreOriginal()
             }
         case .p:
-            pauseForNextClipboardEvent = true
-            showNotice("**Paused**\nNext clipboard event will be ignored")
+            if Defaults[.pauseAutomaticOptimisations] {
+                Defaults[.pauseAutomaticOptimisations] = false
+                pauseForNextClipboardEvent = false
+                showNotice("**Running** • Paused • Stopped\nClop is listening for clipboard and file events")
+            } else if pauseForNextClipboardEvent {
+                Defaults[.pauseAutomaticOptimisations] = true
+                showNotice("Running • Paused • **Stopped**\nAll automatic optimisations are stopped")
+            } else {
+                pauseForNextClipboardEvent = true
+                showNotice("Running • **Paused** • Stopped\nNext clipboard event will be ignored")
+            }
         case .c:
             Task.init { try? await optimiseLastClipboardItem() }
         case .a:
@@ -696,6 +705,12 @@ class AppDelegate: AppDelegateParent {
             Task.init {
                 await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
 
+                if pauseForNextClipboardEvent {
+                    log.debug("Skipping video \(event.path) because Clop was paused")
+                    pauseForNextClipboardEvent = false
+                    return
+                }
+
                 let video = Video(path: FilePath(event.path))
                 try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
@@ -711,6 +726,12 @@ class AppDelegate: AppDelegateParent {
             Task.init {
                 await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
 
+                if pauseForNextClipboardEvent {
+                    log.debug("Skipping image \(event.path) because Clop was paused")
+                    pauseForNextClipboardEvent = false
+                    return
+                }
+
                 guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
                 try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
             }
@@ -725,6 +746,12 @@ class AppDelegate: AppDelegateParent {
         ) { event in
             Task.init {
                 await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
+
+                if pauseForNextClipboardEvent {
+                    log.debug("Skipping PDF \(event.path) because Clop was paused")
+                    pauseForNextClipboardEvent = false
+                    return
+                }
 
                 guard let path = event.path.existingFilePath else { return }
                 try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))

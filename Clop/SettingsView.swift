@@ -651,7 +651,7 @@ struct KeysSettingsView: View {
                 keyToggle(.space, actionName: "QuickLook", description: "Preview the latest image or video")
                 keyToggle(.r, actionName: "Rename", description: "Rename the file of the latest image or video")
                 keyToggle(.z, actionName: "Restore original", description: "Revert optimisations and downscaling actions done on the latest image or video")
-                keyToggle(.p, actionName: "Pause for next copy", description: "Don't apply optimisations on the next copied image")
+                keyToggle(.p, actionName: "Pause optimisations", description: "Pause or stop automatic optimisations")
                 keyToggle(.c, actionName: "Optimise current clipboard", description: "Apply optimisations on the copied image, URL or path")
                 keyToggle(.a, actionName: "Optimise aggressively", description: "Apply aggressive optimisations on the copied image, URL or path")
             }.padding(.leading, 20)
