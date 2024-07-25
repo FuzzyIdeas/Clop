@@ -275,6 +275,9 @@ extension FilePath {
         }
     }
 
+    var clopBackupPath: FilePath? {
+        FilePath.clopBackups.appending(nameWithHash)
+    }
     static var clopBackups = FilePath.dir(workdir / "backups", permissions: 0o777)
     static var videos = FilePath.dir(workdir / "videos", permissions: 0o777)
     static var images = FilePath.dir(workdir / "images", permissions: 0o777)

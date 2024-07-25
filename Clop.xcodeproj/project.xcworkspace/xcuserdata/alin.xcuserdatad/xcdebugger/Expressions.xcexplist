@@ -3,18 +3,18 @@
    version = "1.0">
    <ContextStates>
       <ContextState
-         contextName = "optimiseItem(_:id:hideFloatingResult:downscaleTo:cropTo:changePlaybackSpeedBy:aggressiveOptimisation:optimisationCount:copyToClipboard:source:output:removeAudio:):OptimisationUtils.swift">
-         <PersistentStrings>
-            <PersistentString
-               value = "path.string">
-            </PersistentString>
-         </PersistentStrings>
-      </ContextState>
-      <ContextState
          contextName = "LowtechWindow.screenCorner.didset:OSDWindow.swift">
          <PersistentStrings>
             <PersistentString
                value = "screenCorner!">
+            </PersistentString>
+         </PersistentStrings>
+      </ContextState>
+      <ContextState
+         contextName = "optimiseItem(_:id:hideFloatingResult:downscaleTo:cropTo:changePlaybackSpeedBy:aggressiveOptimisation:optimisationCount:copyToClipboard:source:output:removeAudio:):OptimisationUtils.swift">
+         <PersistentStrings>
+            <PersistentString
+               value = "path.string">
             </PersistentString>
          </PersistentStrings>
       </ContextState>

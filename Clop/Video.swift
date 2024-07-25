@@ -218,7 +218,7 @@ class Video: Optimisable {
         try? path.setOptimisationStatusXattr("pending")
 
         let outputPath = forceMP4 ? FilePath.videos.appending("\(name.stem).mp4") : path
-        var inputPath = originalPath ?? ((path == outputPath || backup) ? (path.backup(operation: .copy) ?? path) : path)
+        var inputPath = originalPath ?? ((path == outputPath || backup) ? (path.backup(path: path.clopBackupPath, operation: .copy) ?? path) : path)
         var additionalArgs = [String]()
 
         var newFPS = fps
@@ -307,7 +307,7 @@ class Video: Optimisable {
         if let convertedFrom {
             let behaviour = Defaults[.convertedVideoBehaviour]
             if behaviour == .inPlace {
-                convertedFrom.path.backup(force: true, operation: .move)
+                convertedFrom.path.backup(path: convertedFrom.path.clopBackupPath, force: true, operation: .move)
             }
             if behaviour != .temporary {
                 let path = try newVideo.path.copy(to: convertedFrom.path.dir, force: true)
@@ -560,7 +560,7 @@ var processTerminated = Set<pid_t>()
                     removeAudio: removeAudio
                 )
                 if optimisedVideo!.convertedFrom == nil, optimisedVideo!.fileSize >= fileSize, !allowLarger {
-                    video.path.restore(force: true)
+                    video.path.restore(backupPath: video.path.clopBackupPath, force: true)
                     mainActor {
                         optimiser.oldBytes = fileSize
                         optimiser.url = video.path.url

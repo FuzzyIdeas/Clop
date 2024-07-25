@@ -88,9 +88,11 @@ struct RightClickMenuView: View {
         }
         .keyboardShortcut(" ")
 
-        Button("Compare") {
+        Button("Compare (diff)") {
             optimiser.compare()
-        }.disabled(optimiser.url == nil || (optimiser.startingURL ?? optimiser.originalURL) == nil)
+        }
+        .disabled(optimiser.url == nil || optimiser.comparisonOriginalURL == nil)
+        .keyboardShortcut("d")
 
         if !optimiser.running {
             if optimiser.canDownscale() ||

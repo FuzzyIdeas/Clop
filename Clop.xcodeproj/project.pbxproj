@@ -592,7 +592,7 @@
 				C7AB661D288301590041BEC8 /* Sources */,
 				C7AB661E288301590041BEC8 /* Frameworks */,
 				C7AB661F288301590041BEC8 /* Resources */,
-				C71A88752A94AFAA00ABD6EE /* ShellScript */,
+				C71A88752A94AFAA00ABD6EE /* Create MASReceipt */,
 				C70B5F2A2AC014BF00345739 /* Embed Foundation Extensions */,
 				C7956A4B2AC317C100C0EDF2 /* Copy Files (1 item) */,
 			);
@@ -718,7 +718,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		C71A88752A94AFAA00ABD6EE /* ShellScript */ = {
+		C71A88752A94AFAA00ABD6EE /* Create MASReceipt */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -727,6 +727,7 @@
 			);
 			inputPaths = (
 			);
+			name = "Create MASReceipt";
 			outputFileListPaths = (
 			);
 			outputPaths = (
@@ -1347,6 +1348,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Clop/bin",
+					"$(PROJECT_DIR)/Clop",
 				);
 				LLVM_LTO = YES_THIN;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
@@ -1387,6 +1389,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Clop/bin",
+					"$(PROJECT_DIR)/Clop",
 				);
 				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;

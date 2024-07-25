@@ -237,6 +237,8 @@ class AppDelegate: AppDelegateParent {
             opt.restoreOriginal()
         case .r where !opt.running:
             opt.editingFilename = true
+        case .d where opt.url != nil && opt.comparisonOriginalURL != nil:
+            opt.compare()
         case .c:
             opt.copyToClipboard()
             opt.overlayMessage = "Copied"
@@ -600,7 +602,7 @@ class AppDelegate: AppDelegateParent {
     @objc func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
 
-        if window.title == "Settings" {
+        if window.title == "Settings" || window.title == "Comparison" {
             mainActor {
                 settingsViewManager.windowOpen = false
                 NSApp.setActivationPolicy(.accessory)
@@ -620,6 +622,11 @@ class AppDelegate: AppDelegateParent {
 
     @objc func windowDidBecomeMainNotification(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+
+        if window.title == "Comparison" {
+            NSApp.setActivationPolicy(.regular)
+        }
+
         if window.title == "Settings" {
             mainActor {
                 print(FloatingPreview.om, CompactPreview.om)

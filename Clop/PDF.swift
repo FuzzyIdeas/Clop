@@ -223,7 +223,7 @@ class PDF: Optimisable {
         guard proc.terminationStatus == 0 else {
             throw ClopProcError.processError(proc)
         }
-        path.backup(operation: .copy)
+        path.backup(path: path.clopBackupPath, operation: .copy)
 
         tempFile.waitForFile(for: 2)
         try? tempFile.setOptimisationStatusXattr("true")
@@ -322,7 +322,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
                     optimisedPDF!.cropTo(aspectRatio: cropSize.longEdge ? cropSize.fractionalAspectRatio : cropSize.aspectRatio)
                 }
                 if !allowLarger, cropSize == nil, optimisedPDF!.fileSize >= fileSize {
-                    pdf.path.restore(force: true)
+                    pdf.path.restore(backupPath: pdf.path.clopBackupPath, force: true)
                     mainActor {
                         optimiser.oldBytes = fileSize
                         optimiser.url = pdf.path.url

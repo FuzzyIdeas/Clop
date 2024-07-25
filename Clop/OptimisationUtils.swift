@@ -36,7 +36,7 @@ enum ItemType: Equatable, Identifiable {
 
     var convertibleTypes: [UTType] {
         switch self {
-        case let .image:
+        case .image:
             [.jpeg, .webP, .avif, .heic, .png, .gif].compactMap { $0 }
         default:
             []
@@ -467,6 +467,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         if let startingURL, startingURL != url, fm.fileExists(atPath: startingURL.path) { return startingURL }
         if let originalURL, originalURL != url, fm.fileExists(atPath: originalURL.path) { return originalURL }
         if let convertedFromURL, convertedFromURL != url, fm.fileExists(atPath: convertedFromURL.path) { return convertedFromURL }
+        if let backupPath = path?.clopBackupPath?.url, backupPath != url, fm.fileExists(atPath: backupPath.path) { return backupPath }
         return nil
     }
 
@@ -627,7 +628,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func compare() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: COMPARISON_VIEW_SIZE * 2 + 100, height: COMPARISON_VIEW_SIZE + 200),
-            styleMask: [.fullSizeContentView, .titled, .closable],
+            styleMask: [.fullSizeContentView, .titled, .closable, .resizable],
             backing: .buffered, defer: false
         )
         window.title = "Comparison"
@@ -638,7 +639,10 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
         window.contentView = NSHostingView(
             rootView: CompareView(optimiser: self)
-                .frame(width: COMPARISON_VIEW_SIZE * 2 + 100, height: COMPARISON_VIEW_SIZE + 200)
+                .frame(
+                    minWidth: COMPARISON_VIEW_SIZE + 100, idealWidth: COMPARISON_VIEW_SIZE * 2 + 100,
+                    minHeight: COMPARISON_VIEW_SIZE / 2 + 200, idealHeight: COMPARISON_VIEW_SIZE + 200
+                )
                 .padding()
                 .background(.regularMaterial)
         )
@@ -658,7 +662,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     @objc func windowWillClose(_ notification: Notification) {
         isComparing = false
-        PDFKitView.clearCache(for: [url, startingURL ?? originalURL].compactMap { $0 })
+        let cachedURLs = [url, startingURL, originalURL, convertedFromURL].compactMap { $0 }
+        PDFKitView.clearCache(for: cachedURLs)
+        PannableImage.clearCache(for: cachedURLs)
+        LoopingVideoPlayer.clearCache(for: cachedURLs)
+        comparisonWindowController = nil
     }
 
     func fetchVideo() -> Video? {
@@ -831,7 +839,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         guard let path = originalURL?.filePath ?? path else {
             return
         }
-        let originalPath = (path.backupPath?.exists ?? false) ? path.backupPath : nil
+        let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : nil
         if !path.exists, let originalPath {
             let _ = try? originalPath.copy(to: path)
         }
@@ -876,7 +884,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
             path = selfPath
         }
 
-        let originalPath = (path.backupPath?.exists ?? false) ? path.backupPath : nil
+        let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : nil
         if !path.exists, let originalPath {
             let _ = try? originalPath.copy(to: path)
         }
@@ -910,7 +918,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
                 let _ = try? await downscaleVideo(
                     video,
-                    originalPath: (path.backupPath?.exists ?? false) ? path.backupPath : nil,
+                    originalPath: (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : nil,
                     id: self.id, toFactor: factor, hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
@@ -950,8 +958,8 @@ final class QuickLooker: QLPreviewPanelDataSource {
         notice = nil
 
         if fromOriginal, !path.exists || path.hasOptimisationStatusXattr() {
-            if let backup = path.backupPath, backup.exists {
-                path.restore(force: true)
+            if let backup = path.clopBackupPath, backup.exists {
+                path.restore(backupPath: backup, force: true)
             } else if let startingPath = startingURL?.existingFilePath, let originalPath = originalURL?.existingFilePath, originalPath != startingPath {
                 path = (try? originalPath.copy(to: startingPath, force: true)) ?? path
             }
@@ -996,22 +1004,21 @@ final class QuickLooker: QLPreviewPanelDataSource {
         resetRemover()
 
         let restore: (FilePath) -> Void = { path in
-            try? path.backupPath?.setOptimisationStatusXattr("original")
-            path.restore()
+            guard let backup = path.clopBackupPath, backup.exists else { return }
+            try? backup.setOptimisationStatusXattr("original")
+            path.restore(backupPath: backup)
         }
 
         if let convertedFromURL, let convertedFromPath = convertedFromURL.filePath {
             self.url = convertedFromURL
             path = convertedFromPath
 
-            if path.backupPath?.exists ?? false {
-                restore(path)
-            }
+            restore(path)
 
             if let startingPath = startingURL?.existingFilePath, startingPath != path, startingPath.stem == path.stem, startingPath.dir == path.dir {
                 try? startingPath.delete()
             }
-        } else if let startingURL, let startingPath = startingURL.filePath, startingPath.backupPath?.exists ?? false {
+        } else if let startingURL, let startingPath = startingURL.filePath, startingPath.clopBackupPath?.exists ?? false {
             path = startingPath
             self.url = startingURL
 
