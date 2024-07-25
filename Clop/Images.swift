@@ -449,7 +449,7 @@ class Image: CustomStringConvertible {
         let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationGIF]
         mainActor { optimiser.aggressive = aggressiveOptimisation }
 
-        let backup = path.backup(operation: .copy)
+        let backup = path.backup(path: path.clopBackupPath, operation: .copy)
         let proc = try tryProc(
             GIFSICLE.string,
             args: [
@@ -513,7 +513,7 @@ class Image: CustomStringConvertible {
             procs.append(pngProc)
         }
 
-        let backup = path.backup(operation: .copy)
+        let backup = path.backup(path: path.clopBackupPath, operation: .copy)
         let procMaps = try tryProcs(procs, tries: 2) { procMap in
             mainActor { optimiser.processes = procMap.values.map { $0 } }
         }
@@ -639,7 +639,7 @@ class Image: CustomStringConvertible {
             mainActor { optimiser.processes = procMap.values.map { $0 } }
         }
 
-        let backup = path.backup(operation: .copy)
+        let backup = path.backup(path: path.clopBackupPath, operation: .copy)
         guard let proc = procMaps[pngProc] else {
             throw ClopError.noProcess(pngProc.cmdline)
         }
@@ -1010,7 +1010,7 @@ extension FilePath {
 
         let behaviour = Defaults[.convertedImageBehaviour]
         if behaviour == .inPlace {
-            img.path.backup(force: true, operation: .move)
+            img.path.backup(path: img.path.clopBackupPath, force: true, operation: .move)
         }
         if behaviour != .temporary {
             try converted.path.setOptimisationStatusXattr("pending")
@@ -1058,7 +1058,7 @@ extension FilePath {
         scalingFactor = 1.0
         optimiser.stop(remove: false)
         optimiser.operation = (Defaults[.showImages] ? "Optimising" : "Optimising \(optimiser.filename)") + (aggressiveOptimisation ?? false ? " (aggressive)" : "")
-        optimiser.originalURL = img.path.backup(force: false, operation: .copy)?.url ?? img.path.url
+        optimiser.originalURL = img.path.backup(path: img.path.clopBackupPath, force: false, operation: .copy)?.url ?? img.path.url
         optimiser.url = img.path.url
         if id == Optimiser.IDs.clipboardImage {
             optimiser.startingURL = optimiser.url

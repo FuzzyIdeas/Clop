@@ -32,6 +32,10 @@ class Optimisable {
         OM.optimisers.first(where: { $0.id == id ?? path.string || $0.id == path.string || $0.id == path.url.absoluteString })
     }
 
+    @MainActor static func getOptimiser(id: String? = nil, path: FilePath) -> Optimiser? {
+        OM.optimisers.first(where: { $0.id == id ?? path.string || $0.id == path.string || $0.id == path.url.absoluteString })
+    }
+
     func copyWithPath(_ path: FilePath) -> Self {
         Self(path, thumb: true, id: id)
     }
@@ -42,8 +46,8 @@ class Optimisable {
             log.debug("Using cached thumbnail from \(thumbURL.path) for \(path.string)")
             url = thumbURL
         }
-        generateThumbnail(for: url, size: THUMB_SIZE) { [weak self] thumb in
-            guard let self, let optimiser else {
+        generateThumbnail(for: url, size: THUMB_SIZE) { [url, id, path] thumb in
+            guard let optimiser = Self.getOptimiser(id: id, path: path) else {
                 log.debug("Thumbnail generation cancelled for \(url.path)")
                 return
             }
