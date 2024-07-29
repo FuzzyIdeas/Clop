@@ -15,7 +15,141 @@ func ~= (lhs: UTType?, rhs: UTType) -> Bool {
     return lhs.conforms(to: rhs)
 }
 
-extension UTType: Identifiable {
+enum ClopError: Error, CustomStringConvertible, Codable {
+    case fileNotFound(FilePath)
+    case fileNotImage(FilePath)
+    case noClipboardImage(FilePath)
+    case noProcess(String)
+    case alreadyOptimised(FilePath)
+    case alreadyResized(FilePath)
+    case unknownImageType(FilePath)
+    case skippedType(String)
+    case imageSizeLarger(FilePath)
+    case videoSizeLarger(FilePath)
+    case pdfSizeLarger(FilePath)
+    case videoError(String)
+    case pdfError(String)
+    case downloadError(String)
+    case optimisationPaused(FilePath)
+    case optimisationFailed(String)
+    case conversionFailed(FilePath)
+    case proError(String)
+    case downscaleFailed(FilePath)
+    case dropshareNotRunning(FilePath)
+    case encryptedPDF(FilePath)
+    case invalidPDF(FilePath)
+    case couldNotCreateOutputDirectory(String)
+    case unknownType
+
+    var localizedDescription: String { description }
+    var description: String {
+        switch self {
+        case let .fileNotFound(p):
+            return "File not found: \(p)"
+        case let .fileNotImage(p):
+            return "File is not an image: \(p)"
+        case let .noClipboardImage(p):
+            if p.string.isEmpty { return "No image in clipboard" }
+            return "No image in clipboard: \(p.string.count > 100 ? p.string.prefix(50) + "..." + p.string.suffix(50) : p.string)"
+        case let .noProcess(string):
+            return "Can't start process: \(string)"
+        case let .alreadyOptimised(p):
+            return "Image is already optimised: \(p)"
+        case let .alreadyResized(p):
+            return "Image is already at the correct size or smaller: \(p)"
+        case let .imageSizeLarger(p):
+            return "Optimised image size is larger: \(p)"
+        case let .videoSizeLarger(p):
+            return "Optimised video size is larger: \(p)"
+        case let .pdfSizeLarger(p):
+            return "Optimised PDF size is larger: \(p)"
+        case let .unknownImageType(p):
+            return "Unknown image type: \(p)"
+        case let .videoError(string):
+            return "Error processing video: \(string)"
+        case let .pdfError(string):
+            return "Error processing PDF: \(string)"
+        case let .downloadError(string):
+            return "Download failed: \(string)"
+        case let .skippedType(string):
+            return "Type is skipped: \(string)"
+        case let .optimisationPaused(p):
+            return "Optimisation paused: \(p)"
+        case let .conversionFailed(p):
+            return "Conversion failed: \(p)"
+        case let .proError(string):
+            return "Pro error: \(string)"
+        case let .downscaleFailed(p):
+            return "Downscale failed: \(p)"
+        case let .optimisationFailed(p):
+            return "Optimisation failed: \(p)"
+        case let .dropshareNotRunning(p):
+            return "Dropshare is not running, upload failed: \(p)"
+        case let .invalidPDF(p):
+            return "Can't parse PDF: \(p)"
+        case let .encryptedPDF(p):
+            return "PDF is encrypted: \(p)"
+        case let .couldNotCreateOutputDirectory(location):
+            return "Could not create output directory: \(location)"
+        case .unknownType:
+            return "Unknown type"
+        }
+    }
+    var humanDescription: String {
+        switch self {
+        case .fileNotFound:
+            "File not found"
+        case .fileNotImage:
+            "Not an image"
+        case .noClipboardImage:
+            "No image in clipboard"
+        case .noProcess:
+            "Can't start process"
+        case .alreadyOptimised:
+            "Already optimised"
+        case .alreadyResized:
+            "Image is already at the correct size or smaller"
+        case .imageSizeLarger:
+            "Already optimised"
+        case .videoSizeLarger:
+            "Already optimised"
+        case .pdfSizeLarger:
+            "Already optimised"
+        case .unknownImageType:
+            "Unknown image type"
+        case .videoError:
+            "Video error"
+        case .pdfError:
+            "PDF error"
+        case .downloadError:
+            "Download failed"
+        case .skippedType:
+            "Type is skipped"
+        case .optimisationPaused:
+            "Optimisation paused"
+        case .conversionFailed:
+            "Conversion failed"
+        case .proError:
+            "Pro error"
+        case .downscaleFailed:
+            "Downscale failed"
+        case .optimisationFailed:
+            "Optimisation failed"
+        case .dropshareNotRunning:
+            "Dropshare not running"
+        case .encryptedPDF:
+            "PDF is encrypted"
+        case .invalidPDF:
+            "Can't parse PDF"
+        case .couldNotCreateOutputDirectory:
+            "Could not create output directory"
+        case .unknownType:
+            "Unknown type"
+        }
+    }
+}
+
+extension UTType: Identifiable { // @retroactive Identifiable {
     public var id: String { identifier }
 }
 
@@ -331,7 +465,6 @@ extension NSSize {
     }
 }
 
-@frozen
 enum PageLayout: String, Codable, CaseIterable, Sendable {
     case portrait
     case landscape
@@ -1045,8 +1178,84 @@ enum FileNameToken: String {
     case autoIncrementingNumber = "%i"
     case filename = "%f"
     case ext = "%e"
+    case path = "%P"
 }
-func generateFileName(template: String, for path: FilePath? = nil, autoIncrementingNumber: inout Int) -> String {
+
+func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath {
+    let num = autoIncrementingNumber + 1
+    var placeholderNum = 0
+
+    var newpath = template
+    newpath.components = FilePath.ComponentView(
+        newpath.components.map { component in
+            FilePath(
+                generateFileName(
+                    template: component.string, for: path,
+                    autoIncrementingNumber: &placeholderNum,
+                    safe: !component.string.contains(FileNameToken.path.rawValue)
+                )
+            ).components.map { $0 }
+        }.joined()
+    )
+    if newpath.isRelative, let path {
+        newpath = (template.components.first?.string == FileNameToken.path.rawValue ? FilePath("/") : path.dir).appending(newpath.components)
+    }
+
+    newpath = newpath.lexicallyNormalized()
+    if mkdir {
+        let name = newpath.name.string
+        let dir = (name.last == "/" || !name.contains(".")) ? newpath : newpath.dir
+        guard dir.mkdir(withIntermediateDirectories: true) else {
+            throw ClopError.couldNotCreateOutputDirectory(dir.string)
+        }
+    }
+
+    if !SWIFTUI_PREVIEW, template.string.contains(FileNameToken.autoIncrementingNumber.rawValue) {
+        autoIncrementingNumber = num
+    }
+    return newpath
+}
+
+extension FilePath {
+    var exists: Bool { FileManager.default.fileExists(atPath: string) }
+
+    @discardableResult
+    func mkdir(withIntermediateDirectories: Bool, permissions: Int = 0o755) -> Bool {
+        guard !exists else { return true }
+        do {
+            try FileManager.default.createDirectory(atPath: string, withIntermediateDirectories: withIntermediateDirectories, attributes: [.posixPermissions: permissions])
+        } catch {
+            log.error("Error creating directory '\(string)': \(error)")
+            return false
+        }
+        return true
+    }
+}
+
+func generateFilePath(template: String, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath? {
+    let pathString = generateFileName(template: template, for: path, autoIncrementingNumber: &autoIncrementingNumber, safe: false)
+    guard var newpath = pathString.filePath?.lexicallyNormalized() else {
+        return nil
+    }
+    newpath.components = FilePath.ComponentView(
+        newpath.components.map {
+            FilePath.Component($0.string.safeFilename) ?? $0
+        }
+    )
+    if newpath.isRelative, let path {
+        newpath = path.dir.appending(newpath.components)
+    }
+    if mkdir {
+        let name = newpath.name.string
+        let dir = (name.last == "/" || !name.contains(".")) ? newpath : newpath.dir
+        guard dir.mkdir(withIntermediateDirectories: true) else {
+            throw ClopError.couldNotCreateOutputDirectory(dir.string)
+        }
+    }
+    return newpath
+}
+
+func generateFileName(template: String, for path: FilePath? = nil, autoIncrementingNumber: inout Int, safe: Bool = true) -> String {
     var name = template
     let date = Date()
     let calendar = Calendar.current
@@ -1064,9 +1273,13 @@ func generateFileName(template: String, for path: FilePath? = nil, autoIncrement
         .replacingOccurrences(of: FileNameToken.amPm.rawValue, with: components.hour! > 12 ? "PM" : "AM")
         .replacingOccurrences(of: FileNameToken.randomCharacters.rawValue, with: NanoID.new(alphabet: .lowercasedLatinLetters, size: 5))
         .replacingOccurrences(of: FileNameToken.autoIncrementingNumber.rawValue, with: num.s)
+        .replacingOccurrences(of: FileNameToken.path.rawValue, with: path?.dir.string ?? "")
         .replacingOccurrences(of: FileNameToken.filename.rawValue, with: path?.stem ?? "")
         .replacingOccurrences(of: FileNameToken.ext.rawValue, with: path?.extension ?? "")
-        .safeFilename
+
+    if safe {
+        name = name.safeFilename
+    }
 
     if !SWIFTUI_PREVIEW, template.contains(FileNameToken.autoIncrementingNumber.rawValue) {
         autoIncrementingNumber = num
@@ -1089,15 +1302,15 @@ func cropSizeStr(_ cropSize: CropSize?) -> String {
     let size = cropSize.ns.evenSize
 
     if cropSize.longEdge {
-        return "\(size.width)"
+        return "\(size.width.i)"
     }
     if size.width == 0 {
-        return "\(size.height)"
+        return "\(size.height.i)"
     }
     if size.height == 0 {
-        return "\(size.width)"
+        return "\(size.width.i)"
     }
-    return "\(size.width)x\(size.height)"
+    return "\(size.width.i)x\(size.height.i)"
 }
 
 extension Double {
@@ -1134,12 +1347,14 @@ func ?! <T: BinaryInteger>(_ num: T?, _ num2: T) -> T {
 }
 
 extension FilePath {
-    func tempFile(ext: String? = nil) -> FilePath {
-        Self.tempFile(name: stem, ext: ext ?? `extension` ?? "png")
+    func tempFile(ext: String? = nil, addUniqueID: Bool = false) -> FilePath {
+        Self.tempFile(name: stem, ext: ext ?? `extension` ?? "tmp", addUniqueID: addUniqueID)
     }
 
-    static func tempFile(name: String? = nil, ext: String) -> FilePath {
-        URL.temporaryDirectory.appendingPathComponent("\(name ?? UUID().uuidString).\(ext)").filePath!
+    static func tempFile(name: String? = nil, ext: String, addUniqueID: Bool = false) -> FilePath {
+        URL.temporaryDirectory.appendingPathComponent(
+            "\(name ?? UUID().uuidString)\(name != nil && addUniqueID ? "-\(UUID().uuidString)" : "").\(ext)"
+        ).filePath!
     }
 }
 
@@ -1201,11 +1416,4 @@ func isURLOptimisable(_ url: URL, type: UTType? = nil, types: [UTType]) -> Bool 
         return false
     }
     return types.contains(where: { type.conforms(to: $0) })
-}
-
-extension String {
-    var shellString: String { replacingFirstOccurrence(of: NSHomeDirectory(), with: "~") }
-}
-extension URL {
-    var shellString: String { isFileURL ? path.shellString : absoluteString }
 }

@@ -74,6 +74,16 @@ extension Defaults.Keys {
     static let convertedImageBehaviour = Key<ConvertedFileBehaviour>("convertedImageBehaviour", default: .sameFolder)
     static let convertedVideoBehaviour = Key<ConvertedFileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
 
+    static let optimisedImageBehaviour = Key<OptimisedFileBehaviour>("optimisedImageBehaviour", default: .inPlace)
+    static let optimisedVideoBehaviour = Key<OptimisedFileBehaviour>("optimisedVideoBehaviour", default: .inPlace)
+    static let optimisedPDFBehaviour = Key<OptimisedFileBehaviour>("optimisedPDFBehaviour", default: .inPlace)
+    static let sameFolderNameTemplateImage = Key<String>("sameFolderNameTemplateImage", default: DEFAULT_SAME_FOLDER_NAME_TEMPLATE)
+    static let sameFolderNameTemplateVideo = Key<String>("sameFolderNameTemplateVideo", default: DEFAULT_SAME_FOLDER_NAME_TEMPLATE)
+    static let sameFolderNameTemplatePDF = Key<String>("sameFolderNameTemplatePDF", default: DEFAULT_SAME_FOLDER_NAME_TEMPLATE)
+    static let specificFolderNameTemplateImage = Key<String>("specificFolderNameTemplateImage", default: DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE)
+    static let specificFolderNameTemplateVideo = Key<String>("specificFolderNameTemplateVideo", default: DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE)
+    static let specificFolderNameTemplatePDF = Key<String>("specificFolderNameTemplatePDF", default: DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE)
+
     static let capVideoFPS = Key<Bool>("capVideoFPS", default: true)
     static let targetVideoFPS = Key<Float>("targetVideoFPS", default: 60)
     static let minVideoFPS = Key<Float>("minVideoFPS", default: 30)
@@ -176,6 +186,13 @@ public enum ConvertedFileBehaviour: String, Defaults.Serializable {
     case sameFolder
 }
 
+public enum OptimisedFileBehaviour: String, Defaults.Serializable {
+    case temporary
+    case inPlace
+    case sameFolder
+    case specificFolder
+}
+
 let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     Defaults.Keys.showMenubarIcon,
     .adaptiveImageSize,
@@ -213,6 +230,15 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .maxVideoSizeMB,
     .minVideoFPS,
     .removeAudioFromVideos,
+    .optimisedImageBehaviour,
+    .optimisedVideoBehaviour,
+    .optimisedPDFBehaviour,
+    .sameFolderNameTemplateImage,
+    .sameFolderNameTemplateVideo,
+    .sameFolderNameTemplatePDF,
+    .specificFolderNameTemplateImage,
+    .specificFolderNameTemplateVideo,
+    .specificFolderNameTemplatePDF,
     .optimiseImagePathClipboard,
     .optimiseTIFF,
     .optimiseVideoClipboard,

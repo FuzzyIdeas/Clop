@@ -12,6 +12,20 @@ import PDFKit
 import System
 import UniformTypeIdentifiers
 
+let HOME_DIR_REGEX = (try? Regex("^/*?\(NSHomeDirectory())(/)?", as: (Substring, Substring?).self))?.ignoresCase()
+
+extension String {
+    var shellString: String {
+        guard let homeDirRegex = HOME_DIR_REGEX else {
+            return replacingFirstOccurrence(of: NSHomeDirectory(), with: "~")
+        }
+        return replacing(homeDirRegex, with: { "~" + ($0.1 ?? "") })
+    }
+}
+extension URL {
+    var shellString: String { isFileURL ? path.shellString : absoluteString }
+}
+
 extension UserDefaults {
     #if SETAPP
         static let app: UserDefaults? = .init(suiteName: "com.lowtechguys.Clop-setapp")
@@ -42,7 +56,7 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
-extension UTType: ExpressibleByArgument {
+extension UTType: ExpressibleByArgument { // @retroactive ExpressibleByArgument {
     public init?(argument: String) {
         if argument == "video" || argument == "movie" {
             self = .movie
@@ -78,7 +92,7 @@ extension String.StringInterpolation {
 }
 
 extension PageLayout: ExpressibleByArgument {}
-extension FilePath: ExpressibleByArgument {
+extension FilePath: ExpressibleByArgument { // @retroactive ExpressibleByArgument {
     public init?(argument: String) {
         guard FileManager.default.fileExists(atPath: argument) else {
             return nil
@@ -98,7 +112,7 @@ extension FilePath: ExpressibleByArgument {
     }
 }
 
-extension NSSize: ExpressibleByArgument {
+extension NSSize: ExpressibleByArgument { // @retroactive ExpressibleByArgument {
     public init?(argument: String) {
         if let size = Int(argument) {
             self.init(width: size, height: size)
@@ -292,6 +306,27 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: 
     }
 }
 
+let ABSOLUTE_PATH_REGEX = /^(\/|%P)/
+
+func normalizeRelativePath(_ path: FilePath) -> FilePath {
+    guard path.isRelative else {
+        return path
+    }
+    return FilePath("\(FileManager.default.currentDirectoryPath)/\(path.string.trimmingPrefix("./"))").lexicallyNormalized()
+}
+
+func normalizeRelativeOutput(_ output: String?) -> String? {
+    guard let output = output?.ns.expandingTildeInPath else {
+        return nil
+    }
+
+    if output.contains(ABSOLUTE_PATH_REGEX) {
+        return output
+    }
+
+    return "\(FileManager.default.currentDirectoryPath)/\(output.trimmingPrefix("./"))"
+}
+
 func checkOutputIsDir(_ output: String?, itemCount: Int) throws {
     guard let output, output.contains("/"), !output.contains("%"), itemCount > 1 else {
         return
@@ -300,7 +335,7 @@ func checkOutputIsDir(_ output: String?, itemCount: Int) throws {
     var isDir: ObjCBool = false
     let exists = FileManager.default.fileExists(atPath: output, isDirectory: &isDir)
     if exists, !isDir.boolValue {
-        throw ValidationError("Output path must be a folder when cropping multiple files")
+        throw ValidationError("Output path must be a folder when processing multiple files")
     }
     try FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true, attributes: nil)
 }
@@ -353,13 +388,6 @@ func getPDFsFromFolder(_ folder: FilePath, recursive: Bool) -> [FilePath] {
     return pdfs
 }
 
-func normPath(_ pathString: String?) -> String? {
-    guard let pathString = pathString?.ns.expandingTildeInPath else { return nil }
-    guard pathString.contains("/") else { return pathString }
-
-    return pathString.starts(with: "/") ? pathString : FileManager.default.currentDirectoryPath + "/" + pathString
-}
-
 enum ImageFormat: String, CaseIterable, Equatable, Decodable, ExpressibleByArgument {
     case avif, heic, webp
 
@@ -401,10 +429,11 @@ struct Clop: ParsableCommand {
 
         %H	Hour
         %M	Minutes
-        %S	Seconds
-        %p	AM/PM
+        %S  Seconds
+        %p  AM/PM
 
-        %f	Source file name (without extension)
+        %P  Source file path (without name)
+        %f  Source file name (without extension)
         %e  Source file extension
         %q  Quality
 
@@ -433,6 +462,8 @@ struct Clop: ParsableCommand {
                 throw ValidationError("Invalid image format")
             }
             self.type = type
+
+            files = files.filter { !$0.isDir && $0.exists }
         }
 
         func convertToAVIF(path: FilePath, outFilePath: FilePath) throws {
@@ -479,20 +510,19 @@ struct Clop: ParsableCommand {
                 return
             }
 
-            var outFilePath: FilePath = if let outPath = output?.filePath, outPath.string.contains("/"), outPath.string.starts(with: "/") {
-                outPath.isDir
-                    ? outPath.appending(stem)
-                    : outPath.dir / generateFileName(
-                        template: outPath.name.string.replacingOccurrences(of: "%q", with: "\(quality)"),
-                        for: path,
-                        autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber
+            let output = normalizeRelativeOutput(output)?.replacingOccurrences(of: "%q", with: "\(quality)")
+            var outFilePath: FilePath =
+                if let output, let outPath = output.filePath {
+                    try generateFilePath(
+                        template: outPath,
+                        for: normalizeRelativePath(path),
+                        autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber,
+                        mkdir: true
                     )
-            } else if let output {
-                path.dir / generateFileName(template: output.replacingOccurrences(of: "%q", with: "\(quality)"), for: path, autoIncrementingNumber: &UserDefaults.standard.lastAutoIncrementingNumber)
-            } else {
-                path.removingLastComponent().appending(stem)
-            }
-            outFilePath = FilePath("\(outFilePath.string).\(ext)")
+                } else {
+                    path.removingLastComponent().appending(stem)
+                }
+            outFilePath = outFilePath.isDir ? outFilePath.appending("\(stem).\(ext)") : FilePath("\(outFilePath.string).\(ext)")
 
             print("\(CIRCLE) Converting \(path.shellString.underline()) to \(format.rawValue.bold())".dim())
             let tempFile = URL.temporaryDirectory.appendingPathComponent(outFilePath.name.string).filePath!
@@ -524,6 +554,8 @@ struct Clop: ParsableCommand {
             DispatchQueue.concurrentPerform(iterations: files.count) { i in
                 do {
                     try convert(path: files[i])
+                } catch let error as ClopError {
+                    printerr("\(ERROR_X) \(files[i].shellString.underline()) \(ARROW) \(error.localizedDescription)")
                 } catch {
                     printerr("\(ERROR_X) \(files[i].shellString.underline()) \(ARROW) \(error.localizedDescription)")
                 }
@@ -842,6 +874,7 @@ struct Clop: ParsableCommand {
         Day               %d | AM/PM      %p
         Weekday           %w |
 
+        Source file path (without name)        %P
         Source file name (without extension)   %f
         Source file extension                  %e
 
@@ -889,8 +922,6 @@ struct Clop: ParsableCommand {
             } else {
                 urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types)
             }
-
-            try checkOutputIsDir(output, itemCount: urls.count)
         }
 
         mutating func run() throws {
@@ -906,7 +937,7 @@ struct Clop: ParsableCommand {
                     aggressiveOptimisation: aggressive,
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
-                    output: normPath(output),
+                    output: normalizeRelativeOutput(output),
                     removeAudio: removeAudio
                 )
             }
@@ -966,6 +997,7 @@ struct Clop: ParsableCommand {
         Day               %d | AM/PM      %p
         Weekday           %w |
 
+        Source file path (without name)        %P
         Source file name (without extension)   %f
         Source file extension                  %e
 
@@ -1017,7 +1049,7 @@ struct Clop: ParsableCommand {
                     aggressiveOptimisation: aggressive,
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
-                    output: normPath(output),
+                    output: normalizeRelativeOutput(output),
                     removeAudio: removeAudio
                 )
             }
@@ -1086,6 +1118,7 @@ struct Clop: ParsableCommand {
         Day               %d | AM/PM      %p
         Weekday           %w |
 
+        Source file path (without name)        %P
         Source file name (without extension)   %f
         Source file extension                  %e
 
@@ -1139,7 +1172,7 @@ struct Clop: ParsableCommand {
                     aggressiveOptimisation: aggressive,
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
-                    output: normPath(output),
+                    output: normalizeRelativeOutput(output),
                     removeAudio: removeAudio
                 )
             }

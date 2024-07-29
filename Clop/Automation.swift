@@ -176,7 +176,6 @@ var shortcutCacheResetTask: DispatchWorkItem? {
         oldValue?.cancel()
     }
 }
-import EonilFSEvents
 
 func startShortcutWatcher() {
     guard fm.fileExists(atPath: "\(HOME)/Library/Shortcuts") else {
@@ -184,10 +183,10 @@ func startShortcutWatcher() {
     }
 
     do {
-        try EonilFSEvents.startWatching(paths: ["\(HOME)/Library/Shortcuts"], for: ObjectIdentifier(AppDelegate.instance)) { event in
+        try LowtechFSEvents.startWatching(paths: ["\(HOME)/Library/Shortcuts"], for: ObjectIdentifier(AppDelegate.instance), latency: 0.9) { event in
             guard !SWIFTUI_PREVIEW else { return }
 
-            shortcutCacheResetTask = mainAsyncAfter(ms: 1000) {
+            shortcutCacheResetTask = mainAsyncAfter(ms: 100) {
                 SHM.invalidateCache()
             }
         }

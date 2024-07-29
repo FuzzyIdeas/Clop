@@ -47,6 +47,18 @@ extension NSPasteboard.PasteboardType {
 }
 
 extension UTType {
+    var fileType: ClopFileType? {
+        if conforms(to: UTType.image) {
+            .image
+        } else if conforms(to: UTType.movie) || conforms(to: UTType.video) {
+            .video
+        } else if conforms(to: UTType.pdf) {
+            .pdf
+        } else {
+            nil
+        }
+    }
+
     var imgType: NSBitmapImageRep.FileType {
         switch self {
         case .png:
@@ -189,9 +201,10 @@ class Image: CustomStringConvertible {
             return nil
         }
 
-        var type = type ?? nsImage.type
+        let type = type ?? nsImage.type
+        let rpath: FilePath
         if let path {
-            self.path = path
+            rpath = path
         } else {
             guard let ext = type?.preferredFilenameExtension else { return nil }
 
@@ -199,11 +212,12 @@ class Image: CustomStringConvertible {
 //            let tempPath = fm.temporaryDirectory.appendingPathComponent("\(Int.random(in: 100 ... 100_000)).\(ext)").path
             guard fm.createFile(atPath: tempPath.string, contents: data) else { return nil }
 
-            self.path = tempPath
+            rpath = tempPath
         }
-        type = type ?? UTType(filenameExtension: self.path.extension ?? "") ?? UTType(mimeType: self.path.fetchFileType() ?? "") ?? .png
+        let rtype = type ?? UTType(filenameExtension: rpath.extension ?? "") ?? UTType(mimeType: rpath.fetchFileType() ?? "") ?? .png
+        self.path = rpath
         self.data = data
-        self.type = type!
+        self.type = rtype
         image = nsImage
         self.retinaDownscaled = retinaDownscaled
 
@@ -1092,7 +1106,7 @@ extension FilePath {
                     optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
                 }
                 if optimisedImage!.type == img.type {
-                    try optimisedImage!.path.copy(to: img.path, force: true)
+                    optimisedImage = try optimisedImage?.copyWithPath(optimisedImage!.path.copy(to: img.path, force: true))
                 } else {
                     mainActor {
                         optimiser.url = optimisedImage!.path.url
