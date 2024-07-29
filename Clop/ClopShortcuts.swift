@@ -95,6 +95,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
     %S	Seconds
     %p	AM/PM
 
+    %P	Source file path (without name)
     %f	Source file name (without extension)
     %e	Source file extension
 
@@ -220,6 +221,7 @@ struct ConvertImageIntent: AppIntent {
     %S	Seconds
     %p	AM/PM
 
+    %P	Source file path (without name)
     %f	Source file name (without extension)
     %e	Source file extension
 
@@ -247,14 +249,14 @@ struct ConvertImageIntent: AppIntent {
             convertedImage = await (try? optimiseImage(convertedImage, copyToClipboard: false, debounceMS: 0, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: "shortcuts")) ?? convertedImage
         }
 
-        var outFilePath: FilePath = if let outPath = output?.filePath, outPath.string.contains("/"), outPath.string.starts(with: "/") {
-            outPath.isDir ? outPath.appending(stem) : outPath.dir / generateFileName(template: outPath.name.string, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-        } else if let output {
-            path.dir / generateFileName(template: output, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-        } else {
-            path.removingLastComponent().appending(stem)
-        }
+        var outFilePath: FilePath =
+            if let output, let outPath = output.filePath {
+                try generateFilePath(template: outPath, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber], mkdir: true)
+            } else {
+                path.removingLastComponent().appending(stem)
+            }
         outFilePath = FilePath("\(outFilePath.string).\(ext)")
+
         try convertedImage.path.move(to: outFilePath, force: true)
 
         return .result(value: IntentFile(data: convertedImage.data, filename: outFilePath.name.string, type: type))
@@ -346,6 +348,7 @@ struct CropOptimiseFileIntent: AppIntent {
     %S	Seconds
     %p	AM/PM
 
+    %P	Source file path (without name)
     %f	Source file name (without extension)
     %e	Source file extension
 
@@ -550,6 +553,7 @@ struct OptimiseFileIntent: AppIntent {
     %S	Seconds
     %p	AM/PM
 
+    %P	Source file path (without name)
     %f	Source file name (without extension)
     %e	Source file extension
 
@@ -660,6 +664,7 @@ struct OptimiseURLIntent: AppIntent {
     %S	Seconds
     %p	AM/PM
 
+    %P	Source file path (without name)
     %f	Source file name (without extension)
     %e	Source file extension
 

@@ -486,13 +486,13 @@ class AppDelegate: AppDelegateParent {
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
             KM.onPrimaryHotkey = { key in
                 self.handleHotkey(key)
-                checkInternalRequirements(PRODUCTS, nil)
+                let _ = checkInternalRequirements(PRODUCTS, nil)
             }
 
             KM.secondaryKeyModifiers = [.lcmd]
             KM.onSecondaryHotkey = { key in
                 self.handleCommandHotkey(key)
-                checkInternalRequirements(PRODUCTS, nil)
+                let _ = checkInternalRequirements(PRODUCTS, nil)
             }
         }
         super.applicationDidFinishLaunching(_: notification)
@@ -590,7 +590,7 @@ class AppDelegate: AppDelegateParent {
             .store(in: &observers)
         initMachPortListener()
 
-        checkInternalRequirements(PRODUCTS, nil)
+        let _ = checkInternalRequirements(PRODUCTS, nil)
         setupServiceProvider()
         startShortcutWatcher()
         Dropshare.fetchAppURL()
@@ -701,18 +701,10 @@ class AppDelegate: AppDelegateParent {
             fileType: .video,
             shouldHandle: shouldHandleVideo(event:),
             cancel: cancelVideoOptimisation(path:)
-        ) { event in
+        ) { path in
             Task.init {
-                await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
-
-                if pauseForNextClipboardEvent {
-                    log.debug("Skipping video \(event.path) because Clop was paused")
-                    pauseForNextClipboardEvent = false
-                    return
-                }
-
-                let video = Video(path: FilePath(event.path))
-                try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
+                let video = Video(path: path)
+                let _ = try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count))
             }
         }
         imageWatcher = FileOptimisationWatcher(
@@ -722,18 +714,10 @@ class AppDelegate: AppDelegateParent {
             fileType: .image,
             shouldHandle: shouldHandleImage(event:),
             cancel: cancelImageOptimisation(path:)
-        ) { event in
+        ) { path in
             Task.init {
-                await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
-
-                if pauseForNextClipboardEvent {
-                    log.debug("Skipping image \(event.path) because Clop was paused")
-                    pauseForNextClipboardEvent = false
-                    return
-                }
-
-                guard let img = Image(path: FilePath(event.path), retinaDownscaled: false) else { return }
-                try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
+                guard let img = Image(path: path, retinaDownscaled: false) else { return }
+                let _ = try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count))
             }
         }
         pdfWatcher = FileOptimisationWatcher(
@@ -743,18 +727,9 @@ class AppDelegate: AppDelegateParent {
             fileType: .pdf,
             shouldHandle: shouldHandlePDF(event:),
             cancel: cancelPDFOptimisation(path:)
-        ) { event in
+        ) { path in
             Task.init {
-                await FileOptimisationWatcher.waitForModificationDateToSettle(event.path)
-
-                if pauseForNextClipboardEvent {
-                    log.debug("Skipping PDF \(event.path) because Clop was paused")
-                    pauseForNextClipboardEvent = false
-                    return
-                }
-
-                guard let path = event.path.existingFilePath else { return }
-                try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { event.path.starts(with: $0) }.max(by: \.count))
+                let _ = try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count))
             }
         }
 
@@ -762,7 +737,7 @@ class AppDelegate: AppDelegateParent {
             initClipboardOptimiser()
         }
 
-        checkInternalRequirements(PRODUCTS, nil)
+        let _ = checkInternalRequirements(PRODUCTS, nil)
     }
 
     @MainActor func initClipboardOptimiser() {
@@ -841,10 +816,69 @@ extension NSPasteboardItem {
     }
 }
 
-enum ClopFileType: String, CaseIterable {
+enum ClopFileType: String, CaseIterable, CustomStringConvertible {
     case image
     case video
     case pdf
+
+    var defaultNameTemplatePath: FilePath {
+        switch self {
+        case .image:
+            "~/Desktop/shot.png".filePath!
+        case .video:
+            "~/Desktop/rec.mp4".filePath!
+        case .pdf:
+            "~/Desktop/doc.pdf".filePath!
+        }
+    }
+
+    var optimisedBehaviourKey: Defaults.Key<OptimisedFileBehaviour> {
+        switch self {
+        case .image:
+            .optimisedImageBehaviour
+        case .video:
+            .optimisedVideoBehaviour
+        case .pdf:
+            .optimisedPDFBehaviour
+        }
+    }
+
+    var sameFolderNameTemplateKey: Defaults.Key<String> {
+        switch self {
+        case .image:
+            .sameFolderNameTemplateImage
+        case .video:
+            .sameFolderNameTemplateVideo
+        case .pdf:
+            .sameFolderNameTemplatePDF
+        }
+    }
+
+    var specificFolderNameTemplateKey: Defaults.Key<String> {
+        switch self {
+        case .image:
+            .specificFolderNameTemplateImage
+        case .video:
+            .specificFolderNameTemplateVideo
+        case .pdf:
+            .specificFolderNameTemplatePDF
+        }
+    }
+
+    var optimisedFileBehaviour: OptimisedFileBehaviour {
+        Defaults[optimisedBehaviourKey]
+    }
+
+    var description: String {
+        switch self {
+        case .image:
+            "image"
+        case .video:
+            "video"
+        case .pdf:
+            "PDF"
+        }
+    }
 
     var otherCases: [ClopFileType] {
         ClopFileType.allCases.filter { $0 != self }
@@ -863,7 +897,7 @@ enum ClopFileType: String, CaseIterable {
 
 import Ignore
 
-extension EonilFSEventsEvent: Hashable {
+extension EonilFSEventsEvent: Hashable { // @retroactive Hashable {
     public static func == (lhs: EonilFSEventsEvent, rhs: EonilFSEventsEvent) -> Bool {
         lhs.path == rhs.path
     }
@@ -882,7 +916,7 @@ class FileOptimisationWatcher {
         fileType: ClopFileType,
         shouldHandle: @escaping (EonilFSEventsEvent) -> Bool,
         cancel: @escaping (FilePath) -> Void,
-        handler: @escaping (EonilFSEventsEvent) -> Void
+        handler: @escaping (FilePath) -> Void
     ) {
         self.pathsKey = pathsKey
         self.enabledKey = enabledKey
@@ -945,14 +979,16 @@ class FileOptimisationWatcher {
     var maxFilesToHandleKey: Defaults.Key<Int>
     lazy var maxFilesToHandle: Int = Defaults[maxFilesToHandleKey]
 
-    var handler: (EonilFSEventsEvent) -> Void
+    var handler: (FilePath) -> Void
     var cancel: (FilePath) -> Void
     var shouldHandle: (EonilFSEventsEvent) -> Bool
 
     var observers = Set<AnyCancellable>()
     var justAddedFiles = Set<EonilFSEventsEvent>()
     var cancelledFiles = Set<FilePath>()
+    var alreadyOptimisedFiles = Set<String>()
     var addedFileRemovers = [FilePath: DispatchWorkItem]()
+    var alreadyOptimisedFileRemovers = [String: DispatchWorkItem]()
 
     let startedWatchingAt = Date()
 
@@ -1022,7 +1058,7 @@ class FileOptimisationWatcher {
 
     func stopWatching() {
         if watching {
-            EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+            LowtechFSEvents.stopWatching(for: ObjectIdentifier(self))
             watching = false
         }
     }
@@ -1032,65 +1068,86 @@ class FileOptimisationWatcher {
         guard !paths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
 
         do {
-            try EonilFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self)) { event in
-                guard !SWIFTUI_PREVIEW, self.enabled else { return }
+            try LowtechFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self), latency: 0.3) { [weak self] event in
+                guard !SWIFTUI_PREVIEW, let self, enabled, isAddedFile(event: event),
+                      !self.alreadyOptimisedFiles.contains(event.path),
+                      !OM.optimisers.contains(where: { $0.url?.path == event.path }),
+                      let path = event.path.existingFilePath, shouldHandle(event)
+                else { return }
 
-                mainAsync { [weak self] in
-                    guard let self, enabled, isAddedFile(event: event), let path = event.path.existingFilePath else {
-                        return
-                    }
+                let typeName = fileType.description
+                addedFilesCleaner = nil
+                log.debug("Added \(path.string) to justAddedFiles in the \(typeName) watcher")
+                justAddedFiles.insert(event)
+                cancelledFiles.remove(path)
 
-                    addedFilesCleaner = nil
-                    log.debug("Added \(path.string) to justAddedFiles")
-                    justAddedFiles.insert(event)
-                    cancelledFiles.remove(path)
-                    if !withinSafeMeasureTime {
-                        addedFileRemovers[path]?.cancel()
-                        addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
-                            log.debug("Removed \(path.string) from justAddedFiles")
-                            self?.justAddedFiles.remove(event)
-                            self?.addedFileRemovers.removeValue(forKey: path)
-                        }
+                if !withinSafeMeasureTime {
+                    addedFileRemovers[path]?.cancel()
+                    addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
+                        log.debug("Removed \(path.string) from justAddedFiles in the \(typeName) watcher")
+                        self?.justAddedFiles.remove(event)
+                        self?.addedFileRemovers.removeValue(forKey: path)
                     }
                 }
 
-                mainActor { [weak self] in
-                    guard let self, enabled else { return }
-                    guard shouldHandle(event) else { return }
-
-                    if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
-                        log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
-                        return
-                    }
-
-                    guard !hasSpuriousEvent(event) else { return }
-
-                    guard justAddedFiles.count <= maxFilesToHandle else {
-                        let notice = "More than \(maxFilesToHandle) \(fileType.rawValue)s appeared in the\n`\(justAddedFiles.first!.path.filePath?.dir.shellString ?? "folder")`, ignoring…"
-                        log.debug(notice)
-                        showNotice(notice)
-                        for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
-                            log.debug("Cancelling optimisation on \(path)")
-                            cancel(path)
-                            cancelledFiles.insert(path)
-                        }
-                        addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
-                            log.debug("Cleaning up justAddedFiles and cancelledFiles")
-                            self?.cancelledFiles.removeAll()
-                            self?.justAddedFiles.removeAll()
-                        }
-
-                        return
-                    }
-
-                    process(event: event)
-                }
+                Task.init { [weak self] in await self?.checkEventAndProcess(event) }
             }
         } catch {
             log.error("Failed to start watching \(fileType.rawValue) folders: \(error)")
             return
         }
         watching = true
+    }
+
+    @MainActor
+    func checkEventAndProcess(_ event: EonilFSEventsEvent) async {
+        let shouldContinue = await MainActor.run { [weak self] in
+            guard let self, enabled else { return false }
+            // guard !alreadyOptimisedFiles.contains(event.path) else { return false }
+            // guard shouldHandle(event) else { return false }
+
+            if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
+                log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
+                return false
+            }
+
+            guard !hasSpuriousEvent(event) else { return false }
+
+            guard justAddedFiles.count <= maxFilesToHandle else {
+                let notice = "More than \(maxFilesToHandle) \(fileType.rawValue)s appeared in the\n`\(justAddedFiles.first!.path.filePath?.dir.shellString ?? "folder")`, ignoring…"
+                log.debug(notice)
+                showNotice(notice)
+                for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
+                    log.debug("Cancelling optimisation on \(path)")
+                    cancel(path)
+                    cancelledFiles.insert(path)
+                }
+                addedFilesCleaner = mainAsyncAfter(ms: 1000) { [weak self] in
+                    log.debug("Cleaning up justAddedFiles and cancelledFiles")
+                    self?.cancelledFiles.removeAll()
+                    self?.justAddedFiles.removeAll()
+                }
+
+                return false
+            }
+
+            return true
+        }
+
+        guard shouldContinue else { return }
+        await Self.waitForModificationDateToSettle(event.path)
+
+        if pauseForNextClipboardEvent {
+            log.debug("Skipping \(fileType.description) \(event.path) because Clop was paused")
+            pauseForNextClipboardEvent = false
+            return
+        }
+
+        do {
+            try await process(event: event)
+        } catch {
+            log.error("Failed to process \(fileType.rawValue) \(event.path) file event: \(error)")
+        }
     }
 
     func hasSpuriousEvent(_ event: EonilFSEventsEvent) -> Bool {
@@ -1141,7 +1198,7 @@ class FileOptimisationWatcher {
                 guard let path = ev.path.existingFilePath else { return false }
                 return !self.cancelledFiles.contains(path)
             }) {
-                process(event: event)
+                Task.init { [weak self] in try await self?.process(event: event) }
             }
             justAddedFiles.removeAll()
             delayOptimiser?.remove(after: 0)
@@ -1151,16 +1208,27 @@ class FileOptimisationWatcher {
         return true
     }
 
-    func process(event: EonilFSEventsEvent) {
-        Task.init { [weak self] in
-            try await Task.sleep(nanoseconds: 300_000_000)
-            guard let self, let path = event.path.existingFilePath, !self.cancelledFiles.contains(path) else { return }
+    @MainActor
+    func process(event: EonilFSEventsEvent) async throws {
+        try await Task.sleep(nanoseconds: 300_000_000)
+        guard var path = event.path.existingFilePath, !self.cancelledFiles.contains(path) else { return }
 
-            var count = optimisedCount
-            try? await proGuard(count: &count, limit: 5, url: event.path.fileURL) {
-                self.handler(event)
-            }
-            optimisedCount = count
+        let oldPath = path
+        if let newPath = try getTemplatedPath(type: fileType, path: path), newPath != path {
+            alreadyOptimisedFiles.insert(newPath.string)
+            alreadyOptimisedFiles.insert(path.string)
+            path = try path.copy(to: newPath, force: true)
+        }
+
+        var count = optimisedCount
+        try? await proGuard(count: &count, limit: 5, url: path.url) {
+            self.handler(path)
+        }
+        optimisedCount = count
+        alreadyOptimisedFileRemovers[oldPath.string]?.cancel()
+        alreadyOptimisedFileRemovers[oldPath.string] = mainAsyncAfter(ms: 3000) { [weak self] in
+            self?.alreadyOptimisedFiles.remove(oldPath.string)
+            self?.alreadyOptimisedFileRemovers.removeValue(forKey: oldPath.string)
         }
     }
 

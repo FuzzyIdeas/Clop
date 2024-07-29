@@ -12,7 +12,7 @@ import Lowtech
 import SwiftUI
 import System
 
-extension String: Identifiable {
+extension String: Identifiable { // @retroactive Identifiable {
     public var id: String { self }
 }
 
@@ -224,6 +224,9 @@ struct PDFSettingsView: View {
     @Default(.maxPDFFileCount) var maxPDFFileCount
     @Default(.useAggressiveOptimisationPDF) var useAggressiveOptimisationPDF
     @Default(.enableAutomaticPDFOptimisations) var enableAutomaticPDFOptimisations
+    @Default(.optimisedPDFBehaviour) var optimisedPDFBehaviour
+    @Default(.sameFolderNameTemplatePDF) var sameFolderNameTemplatePDF
+    @Default(.specificFolderNameTemplatePDF) var specificFolderNameTemplatePDF
 
     var body: some View {
         Form {
@@ -231,6 +234,11 @@ struct PDFSettingsView: View {
                 DirListView(fileType: .pdf, dirs: $pdfDirs, enabled: $enableAutomaticPDFOptimisations)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
+                OptimisedFileBehaviourView(
+                    type: .pdf, optimisedBehaviour: $optimisedPDFBehaviour,
+                    sameFolderNameTemplate: $sameFolderNameTemplatePDF,
+                    specificFolderNameTemplate: $specificFolderNameTemplatePDF
+                )
                 HStack {
                     Text("Skip PDFs larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxPDFSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
@@ -245,7 +253,7 @@ struct PDFSettingsView: View {
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
-                    Text(maxPDFFileCount == 1 ? "PDF is dropped" : "PDFs are dropped").regular(13)
+                    Text(maxPDFFileCount == 1 ? "PDF is dropped, copied or moved" : "PDFs are dropped, copied or moved").regular(13)
                 }
 
                 Toggle(isOn: $useAggressiveOptimisationPDF) {
@@ -267,6 +275,9 @@ struct VideoSettingsView: View {
     @Default(.targetVideoFPS) var targetVideoFPS
     @Default(.minVideoFPS) var minVideoFPS
     @Default(.convertedVideoBehaviour) var convertedVideoBehaviour
+    @Default(.optimisedVideoBehaviour) var optimisedVideoBehaviour
+    @Default(.sameFolderNameTemplateVideo) var sameFolderNameTemplateVideo
+    @Default(.specificFolderNameTemplateVideo) var specificFolderNameTemplateVideo
     @Default(.maxVideoFileCount) var maxVideoFileCount
     @Default(.removeAudioFromVideos) var removeAudioFromVideos
 
@@ -282,6 +293,11 @@ struct VideoSettingsView: View {
                 DirListView(fileType: .video, dirs: $videoDirs, enabled: $enableAutomaticVideoOptimisations)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
+                OptimisedFileBehaviourView(
+                    type: .video, optimisedBehaviour: $optimisedVideoBehaviour,
+                    sameFolderNameTemplate: $sameFolderNameTemplateVideo,
+                    specificFolderNameTemplate: $specificFolderNameTemplateVideo
+                )
                 HStack {
                     Text("Skip videos larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxVideoSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
@@ -296,10 +312,12 @@ struct VideoSettingsView: View {
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
-                    Text(maxVideoFileCount == 1 ? "video is dropped" : "videos are dropped").regular(13)
+                    Text(maxVideoFileCount == 1 ? "video is dropped, copied or moved" : "videos are dropped, copied or moved").regular(13)
                 }
                 HStack {
                     Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
+                    Spacer()
+
                     ForEach(VIDEO_FORMATS, id: \.identifier) { format in
                         Button(format.preferredFilenameExtension!) {
                             videoFormatsToSkip.toggle(format)
@@ -333,6 +351,8 @@ struct VideoSettingsView: View {
                 Toggle(isOn: $capVideoFPS.animation(.spring())) {
                     HStack {
                         Text("Cap frames per second to").regular(13).padding(.trailing, 10)
+                        Spacer()
+
                         Button("30fps") {
                             withAnimation(.spring()) { targetVideoFPS = 30 }
                         }.buttonStyle(ToggleButton(isOn: .oneway { targetVideoFPS == 30 }))
@@ -350,6 +370,8 @@ struct VideoSettingsView: View {
                 if targetVideoFPS < 0, capVideoFPS {
                     HStack {
                         Text("but no less than").regular(13).padding(.trailing, 10)
+                        Spacer()
+
                         Button("10fps") {
                             minVideoFPS = 10
                         }.buttonStyle(ToggleButton(isOn: .oneway { minVideoFPS == 10 }))
@@ -370,33 +392,41 @@ struct VideoSettingsView: View {
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
                     (Text("Convert to ").regular(13) + Text("mp4").mono(13)).padding(.trailing, 10)
+                    Spacer()
+
                     ForEach(FORMATS_CONVERTIBLE_TO_MP4, id: \.identifier) { format in
                         Button(format.preferredFilenameExtension!) {
                             formatsToConvertToMP4.toggle(format)
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToMP4.contains(format) }))
                     }
                 }
-                HStack {
-                    (
-                        Text("Converted video location").regular(13) +
-                            Text("\nThis only applies to the mp4 files converted from the above formats").round(10)
-                    ).padding(.trailing, 10)
-
-                    Button("Temporary folder") {
-                        convertedVideoBehaviour = .temporary
-                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .temporary }))
-                        .font(.round(11))
-                    Button("In-place (replace original)") {
-                        convertedVideoBehaviour = .inPlace
-                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .inPlace }))
-                        .font(.round(11))
-                    Button("Same folder (as original)") {
-                        convertedVideoBehaviour = .sameFolder
-                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .sameFolder }))
-                        .font(.round(11))
-                }
+                convertedVideoLocation
             }
         }.padding(4)
+    }
+
+    var convertedVideoLocation: some View {
+        HStack {
+            (
+                Text("Converted video location").regular(13) +
+                    Text("\nThis only applies to the MP4 files resulting from the conversion of the above formats").round(10)
+            ).padding(.trailing, 10)
+
+            Spacer()
+
+            Button("Temporary folder") {
+                convertedVideoBehaviour = .temporary
+            }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .temporary }))
+                .font(.round(11))
+            Button("In-place (replace original)") {
+                convertedVideoBehaviour = .inPlace
+            }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .inPlace }))
+                .font(.round(11))
+            Button("Same folder (as original)") {
+                convertedVideoBehaviour = .sameFolder
+            }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .sameFolder }))
+                .font(.round(11))
+        }
     }
 }
 
@@ -411,6 +441,168 @@ struct SectionHeader: View {
 }
 
 let DEFAULT_NAME_TEMPLATE = "clop_%y-%m-%d_%i"
+let DEFAULT_SAME_FOLDER_NAME_TEMPLATE = "%f-optimised.%e"
+let DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE = "%P/optimised/%f.%e"
+
+struct OptimisedFileBehaviourView: View {
+    let type: ClopFileType
+    @Binding var optimisedBehaviour: OptimisedFileBehaviour
+    @Binding var sameFolderNameTemplate: String
+    @Binding var specificFolderNameTemplate: String
+
+    var body: some View {
+        VStack {
+            HStack {
+                (
+                    Text("Optimised \(type.description) location").regular(13) +
+                        Text("\nWhere to place the optimised files").round(10)
+                ).padding(.trailing, 10)
+
+                Spacer()
+
+                Button("Temporary folder") {
+                    optimisedBehaviour = .temporary
+                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .temporary }))
+                Button("In-place (replace original)") {
+                    optimisedBehaviour = .inPlace
+                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .inPlace }))
+                Button("Same folder (as original)") {
+                    optimisedBehaviour = .sameFolder
+                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .sameFolder }))
+                Button("Specific folder") {
+                    optimisedBehaviour = .specificFolder
+                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .specificFolder }))
+            }
+            if optimisedBehaviour == .sameFolder {
+                SameFolderNameTemplate(type: type, template: $sameFolderNameTemplate)
+                    .roundbg(radius: 10, verticalPadding: 8, horizontalPadding: 8, color: .fg.warm.opacity(0.05))
+            }
+            if optimisedBehaviour == .specificFolder {
+                SpecificFolderNameTemplate(type: type, template: $specificFolderNameTemplate)
+                    .roundbg(radius: 10, verticalPadding: 8, horizontalPadding: 8, color: .fg.warm.opacity(0.05))
+            }
+        }
+    }
+}
+
+struct SameFolderNameTemplate: View {
+    let type: ClopFileType
+    @Binding var template: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Name template").medium(12)
+                + Text("\nRename the optimised file using this template").round(11, weight: .regular).foregroundColor(.secondary)
+
+            HStack {
+                TextField("", text: $template, prompt: Text(DEFAULT_SAME_FOLDER_NAME_TEMPLATE))
+                    .frame(width: 300, height: 18, alignment: .leading)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                Spacer(minLength: 20)
+                Text("Example on \(type.defaultNameTemplatePath.name.string): ")
+                    .round(12)
+                    .lineLimit(1)
+                    .allowsTightening(false)
+                    .foregroundColor(.secondary.opacity(0.6))
+                Text(generateFileName(template: template ?! DEFAULT_SAME_FOLDER_NAME_TEMPLATE, for: type.defaultNameTemplatePath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
+                    .round(12)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+                    .truncationMode(.middle)
+                    .foregroundColor(.secondary)
+            }
+            HStack {
+                Text("""
+                **Date**                | **Time**
+                --------------------|-----------------
+                Year             **%y** | Hour     **%H**
+                Month (numeric)  **%m** | Minutes  **%M**
+                Month (name)     **%n** | Seconds  **%S**
+                Day              **%d** | AM/PM    **%p**
+                Weekday          **%w** |
+                """)
+
+                Spacer()
+
+                Text("""
+                Source file name (without extension)   **%f**
+                Source file extension                  **%e**
+
+                Random characters                      **%r**
+                Auto-incrementing number               **%i**
+                """)
+            }
+            .font(.mono(12, weight: .light))
+            .foregroundColor(.secondary)
+            .padding(6)
+        }
+    }
+}
+struct SpecificFolderNameTemplate: View {
+    let type: ClopFileType
+    @Binding var template: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Path template").medium(12)
+                + Text("\nCreate the optimised file into a path generated by this template").round(11, weight: .regular).foregroundColor(.secondary)
+
+            HStack {
+                TextField("", text: $template, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
+                    .frame(width: 400, height: 18, alignment: .leading)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                Spacer(minLength: 20)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("Example on \(type.defaultNameTemplatePath.shellString): ")
+                        .mono(10)
+                        .lineLimit(1)
+                        .allowsTightening(false)
+                        .foregroundColor(.secondary.opacity(0.6))
+                    Text(
+                        try! generateFilePath(
+                            template: template ?! DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE,
+                            for: type.defaultNameTemplatePath,
+                            autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber],
+                            mkdir: false
+                        )?.shellString ?? "Invalid path"
+                    )
+                    .round(12)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+                    .truncationMode(.middle)
+                    .foregroundColor(.secondary)
+                }
+            }
+            HStack {
+                Text("""
+                **Date**                | **Time**
+                --------------------|-----------------
+                Year             **%y** | Hour     **%H**
+                Month (numeric)  **%m** | Minutes  **%M**
+                Month (name)     **%n** | Seconds  **%S**
+                Day              **%d** | AM/PM    **%p**
+                Weekday          **%w** |
+                """)
+
+                Spacer()
+
+                Text("""
+                Source file path (without name)        **%P**
+                Source file name (without extension)   **%f**
+                Source file extension                  **%e**
+
+                Random characters                      **%r**
+                Auto-incrementing number               **%i**
+                """)
+            }
+            .font(.mono(12, weight: .light))
+            .foregroundColor(.secondary)
+            .padding(6)
+        }
+    }
+}
 
 struct ImagesSettingsView: View {
     @Default(.imageDirs) var imageDirs
@@ -421,6 +613,9 @@ struct ImagesSettingsView: View {
     @Default(.adaptiveImageSize) var adaptiveImageSize
     @Default(.downscaleRetinaImages) var downscaleRetinaImages
     @Default(.convertedImageBehaviour) var convertedImageBehaviour
+    @Default(.optimisedImageBehaviour) var optimisedImageBehaviour
+    @Default(.sameFolderNameTemplateImage) var sameFolderNameTemplateImage
+    @Default(.specificFolderNameTemplateImage) var specificFolderNameTemplateImage
     @Default(.maxImageFileCount) var maxImageFileCount
     @Default(.copyImageFilePath) var copyImageFilePath
     @Default(.customNameTemplateForClipboardImages) var customNameTemplateForClipboardImages
@@ -431,6 +626,47 @@ struct ImagesSettingsView: View {
     @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
     @Default(.enableAutomaticImageOptimisations) var enableAutomaticImageOptimisations
 
+    var customNameTemplate: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Custom name template").regular(13)
+                + Text("\nRename the file using this template before copying the path to the clipboard").round(11, weight: .regular).foregroundColor(.secondary)
+
+            HStack {
+                TextField("", text: $customNameTemplateForClipboardImages, prompt: Text(DEFAULT_NAME_TEMPLATE))
+                    .frame(width: 400, height: 18, alignment: .leading)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray.opacity(useCustomNameTemplateForClipboardImages ? 1 : 0.35), lineWidth: 1))
+                    .disabled(!useCustomNameTemplateForClipboardImages)
+                if useCustomNameTemplateForClipboardImages {
+                    Spacer(minLength: 20)
+                    Text(generateFileName(template: customNameTemplateForClipboardImages ?! DEFAULT_NAME_TEMPLATE, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
+                        .round(12)
+                        .lineLimit(1)
+                        .allowsTightening(true)
+                        .truncationMode(.middle)
+                        .foregroundColor(.secondary)
+                }
+            }
+            if useCustomNameTemplateForClipboardImages {
+                Text("""
+                **Date**                | **Time**
+                --------------------|-----------------
+                Year             **%y** | Hour     **%H**
+                Month (numeric)  **%m** | Minutes  **%M**
+                Month (name)     **%n** | Seconds  **%S**
+                Day              **%d** | AM/PM    **%p**
+                Weekday          **%w** |
+
+                Random characters **%r**
+                Auto-incrementing number **%i**
+                """)
+                .mono(12, weight: .light)
+                .foregroundColor(.secondary)
+                .padding(.top, 6)
+            }
+        }
+
+    }
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
@@ -442,49 +678,17 @@ struct ImagesSettingsView: View {
                         + Text("\nWhen copying optimised image data, also copy the path of the image file").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 Toggle(isOn: $useCustomNameTemplateForClipboardImages.animation(.default)) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Custom name template").regular(13)
-                            + Text("\nRename the file using this template before copying the path to the clipboard").round(11, weight: .regular).foregroundColor(.secondary)
-
-                        HStack {
-                            TextField("", text: $customNameTemplateForClipboardImages, prompt: Text(DEFAULT_NAME_TEMPLATE))
-                                .frame(width: 400, height: 18, alignment: .leading)
-                                .padding(6)
-                                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray.opacity(useCustomNameTemplateForClipboardImages ? 1 : 0.35), lineWidth: 1))
-                                .disabled(!useCustomNameTemplateForClipboardImages)
-                            if useCustomNameTemplateForClipboardImages {
-                                Spacer(minLength: 20)
-                                Text(generateFileName(template: customNameTemplateForClipboardImages ?! DEFAULT_NAME_TEMPLATE, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
-                                    .round(12)
-                                    .lineLimit(1)
-                                    .allowsTightening(true)
-                                    .truncationMode(.middle)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        if useCustomNameTemplateForClipboardImages {
-                            Text("""
-                            **Date**                | **Time**
-                            --------------------|-----------------
-                            Year             **%y** | Hour     **%H**
-                            Month (numeric)  **%m** | Minutes  **%M**
-                            Month (name)     **%n** | Seconds  **%S**
-                            Day              **%d** | AM/PM    **%p**
-                            Weekday          **%w** |
-
-                            Random characters **%r**
-                            Auto-incrementing number **%i**
-                            """)
-                            .mono(12, weight: .light)
-                            .foregroundColor(.secondary)
-                            .padding(.top, 6)
-                        }
-                    }
-
+                    customNameTemplate
                 }.disabled(!copyImageFilePath)
             }
 
             Section(header: SectionHeader(title: "Optimisation rules")) {
+                OptimisedFileBehaviourView(
+                    type: .image, optimisedBehaviour: $optimisedImageBehaviour,
+                    sameFolderNameTemplate: $sameFolderNameTemplateImage,
+                    specificFolderNameTemplate: $specificFolderNameTemplateImage
+                )
+
                 HStack {
                     Text("Skip images larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxImageSizeMB, formatter: BoundFormatter(min: 1, max: 500))
@@ -499,11 +703,13 @@ struct ImagesSettingsView: View {
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
-                    Text(maxImageFileCount == 1 ? "image is dropped" : "images are dropped").regular(13)
+                    Text(maxImageFileCount == 1 ? "image is dropped, copied or moved" : "images are dropped, copied or moved").regular(13)
                 }
 
                 HStack {
                     Text("Ignore images with extension").regular(13).padding(.trailing, 10)
+                    Spacer()
+
                     ForEach(IMAGE_FORMATS, id: \.identifier) { format in
                         Button(format.preferredFilenameExtension!) {
                             imageFormatsToSkip.toggle(format)
@@ -512,6 +718,8 @@ struct ImagesSettingsView: View {
                 }
                 HStack {
                     Text("Use more aggressive optimisation for").regular(13).padding(.trailing, 10)
+                    Spacer()
+
                     Button("jpeg") {
                         useAggressiveOptimisationJPEG.toggle()
                     }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationJPEG))
@@ -535,6 +743,8 @@ struct ImagesSettingsView: View {
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
                     (Text("Convert to ").regular(13) + Text("jpeg").mono(13)).padding(.trailing, 10)
+                    Spacer()
+
                     ForEach(FORMATS_CONVERTIBLE_TO_JPEG, id: \.identifier) { format in
                         Button(format.preferredFilenameExtension!) {
                             formatsToConvertToJPEG.toggle(format)
@@ -546,6 +756,8 @@ struct ImagesSettingsView: View {
                 }
                 HStack {
                     (Text("Convert to ").regular(13) + Text("png").mono(13)).padding(.trailing, 10)
+                    Spacer()
+
                     ForEach(FORMATS_CONVERTIBLE_TO_PNG, id: \.identifier) { format in
                         Button(format.preferredFilenameExtension!) {
                             formatsToConvertToPNG.toggle(format)
@@ -555,22 +767,30 @@ struct ImagesSettingsView: View {
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToPNG.contains(format) }))
                     }
                 }
-                HStack {
-                    Text("Converted image location").regular(13).padding(.trailing, 10)
-                    Button("Temporary folder") {
-                        convertedImageBehaviour = .temporary
-                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .temporary }))
-                    Button("In-place (replace original)") {
-                        convertedImageBehaviour = .inPlace
-                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .inPlace }))
-                    Button("Same folder (as original)") {
-                        convertedImageBehaviour = .sameFolder
-                    }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .sameFolder }))
-                }
-
+                convertedImageLocation
             }
 
         }.padding(4)
+    }
+    var convertedImageLocation: some View {
+        HStack {
+            (
+                Text("Converted image location").regular(13) +
+                    Text("\nThis only applies to JPGs and PNGs resulting from the conversion of the above formats").round(10)
+            ).padding(.trailing, 10)
+
+            Spacer()
+
+            Button("Temporary folder") {
+                convertedImageBehaviour = .temporary
+            }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .temporary }))
+            Button("In-place (replace original)") {
+                convertedImageBehaviour = .inPlace
+            }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .inPlace }))
+            Button("Same folder (as original)") {
+                convertedImageBehaviour = .sameFolder
+            }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .sameFolder }))
+        }
     }
 }
 

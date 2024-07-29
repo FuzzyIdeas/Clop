@@ -463,6 +463,18 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     var isComparing = false
 
+    var fileType: ClopFileType? {
+        switch type {
+        case .image:
+            .image
+        case .video:
+            .video
+        case .pdf:
+            .pdf
+        default:
+            url?.utType()?.fileType
+        }
+    }
     var comparisonOriginalURL: URL? {
         if let startingURL, startingURL != url, fm.fileExists(atPath: startingURL.path) { return startingURL }
         if let originalURL, originalURL != url, fm.fileExists(atPath: originalURL.path) { return originalURL }
@@ -1195,7 +1207,8 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 aggressiveOptimisation: aggressive,
                 optimisationCount: &manualOptimisationCount,
                 copyToClipboard: id == IDs.clipboardImage,
-                source: source
+                source: source,
+                optimisedFileBehaviour: .inPlace
             )
         }
     }
@@ -1908,7 +1921,13 @@ var manualOptimisationCount = 0
         } else {
             downloadPath
         }
-    try fileURL.filePath!.move(to: outFilePath, force: true)
+    guard let path = fileURL.existingFilePath else {
+        throw ClopError.downloadError("file not found at \(fileURL.path)")
+    }
+    guard outFilePath.dir.mkdir(withIntermediateDirectories: true) else {
+        throw ClopError.downloadError("could not create directory \(outFilePath.dir.string)")
+    }
+    try path.move(to: outFilePath, force: true)
 
     guard optimiser.running, !optimiser.inRemoval else {
         return nil
@@ -1958,6 +1977,19 @@ var manualOptimisationCount = 0
 
 var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
+func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour: OptimisedFileBehaviour? = nil) throws -> FilePath? {
+    switch optimisedFileBehaviour ?? type.optimisedFileBehaviour {
+    case .temporary:
+        path.tempFile(addUniqueID: true)
+    case .inPlace:
+        path
+    case .sameFolder:
+        path.dir / generateFileName(template: Defaults[type.sameFolderNameTemplateKey], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+    case .specificFolder:
+        try generateFilePath(template: Defaults[type.specificFolderNameTemplateKey], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber], mkdir: true)
+    }
+}
+
 @discardableResult
 @MainActor func optimiseItem(
     _ item: ClipboardType,
@@ -1972,7 +2004,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
     copyToClipboard: Bool,
     source: String? = nil,
     output: String? = nil,
-    removeAudio: Bool? = nil
+    removeAudio: Bool? = nil,
+    optimisedFileBehaviour: OptimisedFileBehaviour? = nil
 ) async throws -> ClipboardType? {
     func nope(notice: String, thumbnail: NSImage? = nil, url: URL? = nil, type: ItemType? = nil) {
         let optimiser = OM.optimiser(id: id, type: type ?? .unknown, operation: "", hidden: hideFloatingResult)
@@ -1985,18 +2018,20 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         optimiser.finish(notice: notice)
     }
 
+    var outFilePath: FilePath?
     let output = output?
         .replacingOccurrences(of: "%s", with: factorStr(scalingFactor))
         .replacingOccurrences(of: "%z", with: cropSizeStr(cropSize))
         .replacingOccurrences(of: "%x", with: factorStr(changePlaybackSpeedFactor))
-    let outFilePath: FilePath? =
-        if let path = output?.filePath, path.string.contains("/"), path.string.starts(with: "/") {
-            path.isDir ? path.appending(item.path.name) : path.dir / generateFileName(template: path.name.string, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-        } else if let output {
-            item.path.dir / generateFileName(template: output, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-        } else {
-            nil
+    if let output {
+        do {
+            outFilePath = try generateFilePath(template: output, for: item.path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber], mkdir: true)
+        } catch {
+            nope(notice: error.localizedDescription)
+            return nil
         }
+    }
+
     let item: ClipboardType =
         if let outFilePath, item.path.exists, case let .image(img) = item {
             try .image(img.copyWithPath(item.path.copy(to: outFilePath, force: true)))
@@ -2007,7 +2042,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         }
 
     switch item {
-    case let .image(img):
+    case var .image(img):
+        if outFilePath == nil, let newPath = try getTemplatedPath(type: .image, path: img.path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != img.path {
+            img = try img.copyWithPath(img.path.copy(to: newPath, force: true))
+        }
+
         let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: img.path.url) {
             if let cropSize {
                 guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
@@ -2048,8 +2087,8 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
         }
         guard let result else { return nil }
         return .image(result)
-    case let .file(path):
-        if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
+    case var .file(path):
+        if path.isImage, var img = Image(path: path, retinaDownscaled: false) {
             guard aggressiveOptimisation == true || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
                 let optimiser = OM.optimiser(id: id, type: .image(img.type), operation: "", hidden: hideFloatingResult, source: source)
                 optimiser.url = path.url
@@ -2058,6 +2097,12 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 optimiser.finish(oldBytes: fileSize, newBytes: fileSize, oldSize: img.size)
                 throw ClopError.alreadyOptimised(path)
             }
+
+            if outFilePath == nil, let newPath = try getTemplatedPath(type: .image, path: img.path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != img.path {
+                path = try path.copy(to: newPath, force: true)
+                img = img.copyWithPath(path)
+            }
+
             let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 if let cropSize {
                     guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
@@ -2113,6 +2158,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
                 }
                 throw ClopError.alreadyOptimised(path)
             }
+
+            if outFilePath == nil, let newPath = try getTemplatedPath(type: .video, path: path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != path {
+                path = try path.copy(to: newPath, force: true)
+            }
+
             let result: Video? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 let video = await (try? Video.byFetchingMetadata(path: path, thumb: !hideFloatingResult)) ?? Video(path: path, thumb: !hideFloatingResult)
 
@@ -2175,6 +2225,11 @@ var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
                 throw ClopError.alreadyOptimised(path)
             }
+
+            if outFilePath == nil, let newPath = try getTemplatedPath(type: .pdf, path: path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != path {
+                path = try path.copy(to: newPath, force: true)
+            }
+
             let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                 let pdf = PDF(path, thumb: !hideFloatingResult)
                 guard let doc = pdf.document else { throw ClopError.invalidPDF(path) }
@@ -2255,7 +2310,8 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             copyToClipboard: req.copyToClipboard,
                             source: req.source,
                             output: req.output,
-                            removeAudio: req.removeAudio
+                            removeAudio: req.removeAudio,
+                            optimisedFileBehaviour: .inPlace
                         )
 
                         if let origURL = req.originalUrls[url] {
