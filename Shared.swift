@@ -1182,6 +1182,7 @@ enum FileNameToken: String {
 }
 
 func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath {
+    log.verbose("Generating file path from '\(template.string)' for '\(path?.string ?? "NOPATH")' [num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
     let num = autoIncrementingNumber + 1
     var placeholderNum = 0
 
@@ -1206,6 +1207,7 @@ func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncreme
         let name = newpath.name.string
         let dir = (name.last == "/" || !name.contains(".")) ? newpath : newpath.dir
         guard dir.mkdir(withIntermediateDirectories: true) else {
+            log.error("Could not create output directory '\(dir.string)'")
             throw ClopError.couldNotCreateOutputDirectory(dir.string)
         }
     }
@@ -1213,26 +1215,12 @@ func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncreme
     if !SWIFTUI_PREVIEW, template.string.contains(FileNameToken.autoIncrementingNumber.rawValue) {
         autoIncrementingNumber = num
     }
+    log.verbose("Generated file path \(newpath.string) [template: '\(template)', path: '\(path?.string ?? "NOPATH")', num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
     return newpath
 }
 
-extension FilePath {
-    var exists: Bool { FileManager.default.fileExists(atPath: string) }
-
-    @discardableResult
-    func mkdir(withIntermediateDirectories: Bool, permissions: Int = 0o755) -> Bool {
-        guard !exists else { return true }
-        do {
-            try FileManager.default.createDirectory(atPath: string, withIntermediateDirectories: withIntermediateDirectories, attributes: [.posixPermissions: permissions])
-        } catch {
-            log.error("Error creating directory '\(string)': \(error)")
-            return false
-        }
-        return true
-    }
-}
-
 func generateFilePath(template: String, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath? {
+    log.verbose("Generating file path from '\(template)' for '\(path?.string ?? "NOPATH")' [num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
     let pathString = generateFileName(template: template, for: path, autoIncrementingNumber: &autoIncrementingNumber, safe: false)
     guard var newpath = pathString.filePath?.lexicallyNormalized() else {
         return nil
@@ -1249,9 +1237,11 @@ func generateFilePath(template: String, for path: FilePath? = nil, autoIncrement
         let name = newpath.name.string
         let dir = (name.last == "/" || !name.contains(".")) ? newpath : newpath.dir
         guard dir.mkdir(withIntermediateDirectories: true) else {
+            log.error("Could not create output directory '\(dir.string)'")
             throw ClopError.couldNotCreateOutputDirectory(dir.string)
         }
     }
+    log.verbose("Generated file path \(newpath.string) [template: '\(template)', path: '\(path?.string ?? "NOPATH")', num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
     return newpath
 }
 
@@ -1416,4 +1406,20 @@ func isURLOptimisable(_ url: URL, type: UTType? = nil, types: [UTType]) -> Bool 
         return false
     }
     return types.contains(where: { type.conforms(to: $0) })
+}
+
+extension FilePath {
+    var exists: Bool { FileManager.default.fileExists(atPath: string) }
+
+    @discardableResult
+    func mkdir(withIntermediateDirectories: Bool, permissions: Int = 0o755) -> Bool {
+        guard !exists else { return true }
+        do {
+            try FileManager.default.createDirectory(atPath: string, withIntermediateDirectories: withIntermediateDirectories, attributes: [.posixPermissions: permissions])
+        } catch {
+            log.error("Error creating directory '\(string)': \(error)")
+            return false
+        }
+        return true
+    }
 }
