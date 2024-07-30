@@ -116,6 +116,9 @@
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
+		C7E1F5912C58122F00F83036 /* lrzip in Resources */ = {isa = PBXBuildFile; fileRef = C73802042BD1B81A001BEE6C /* lrzip */; };
+		C7E1F5922C58122F00F83036 /* bin.tar.lrz in Resources */ = {isa = PBXBuildFile; fileRef = C73802012BD1B804001BEE6C /* bin.tar.lrz */; };
+		C7E1F5932C58122F00F83036 /* bin.tar.lrz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */; };
 		C7EE11372AF5737F0060A0A9 /* FinderOptimiser-setapp.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C75FD1FD2AF434FE000B426B /* FinderOptimiser-setapp.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C7EE11382AF573870060A0A9 /* ClopCLI-setapp in Copy Files (1 item) */ = {isa = PBXBuildFile; fileRef = C75FD20C2AF4351D000B426B /* ClopCLI-setapp */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EFD28B2B22577100A6D843 /* Onboarding.swift */; };
@@ -676,13 +679,16 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C7E1F5912C58122F00F83036 /* lrzip in Resources */,
 				C75FD20E2AF43581000B426B /* setappPublicKey.pem in Resources */,
 				C75FD1D92AF4324C000B426B /* Preview Assets.xcassets in Resources */,
 				C75FD1DA2AF4324C000B426B /* Upload to Backblaze.shortcut in Resources */,
 				C75FD1DB2AF4324C000B426B /* Upload to SSH server.shortcut in Resources */,
+				C7E1F5932C58122F00F83036 /* bin.tar.lrz.sha256 in Resources */,
 				C75FD1DC2AF4324C000B426B /* Clop - PDF.shortcut in Resources */,
 				C75FD1DD2AF4324C000B426B /* Clop - image.shortcut in Resources */,
 				C75FD1DE2AF4324C000B426B /* Clop - video.shortcut in Resources */,
+				C7E1F5922C58122F00F83036 /* bin.tar.lrz in Resources */,
 				C75FD1E02AF4324C000B426B /* Assets.xcassets in Resources */,
 				C75FD1E22AF4324C000B426B /* Upload with Dropshare.shortcut in Resources */,
 			);
