@@ -407,13 +407,16 @@ class AppDelegate: AppDelegateParent {
                 return
             }
 
-            let enumerator = fm.enumerator(at: FilePath.workdir.url, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
+            let enumerator = fm.enumerator(at: FilePath.workdir.url, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
             guard let iterator = enumerator else {
                 return
             }
 
             let now = Date()
             while case let url as URL = iterator.nextObject() {
+                if let isdir = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory, isdir {
+                    continue
+                }
                 guard let date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
                     continue
                 }
