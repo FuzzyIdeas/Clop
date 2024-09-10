@@ -1347,8 +1347,12 @@ struct ClopApp: App {
         .onChange(of: wm.windowToOpen) { window in
             guard let window else { return }
             openWindow(id: window)
+            focus()
+            NSApp.keyWindow?.orderFrontRegardless()
             wm.windowToOpen = nil
         }
+
+        settingsWindow
 
     }
 }

@@ -261,7 +261,9 @@ struct PDFSettingsView: View {
                         + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
-        }.padding(4)
+        }
+        .scrollContentBackground(.hidden)
+        .padding(4)
     }
 }
 
@@ -402,7 +404,9 @@ struct VideoSettingsView: View {
                 }
                 convertedVideoLocation
             }
-        }.padding(4)
+        }
+        .scrollContentBackground(.hidden)
+        .padding(4)
     }
 
     var convertedVideoLocation: some View {
@@ -770,7 +774,9 @@ struct ImagesSettingsView: View {
                 convertedImageLocation
             }
 
-        }.padding(4)
+        }
+        .scrollContentBackground(.hidden)
+        .padding(4)
     }
     var convertedImageLocation: some View {
         HStack {
@@ -885,6 +891,7 @@ struct KeysSettingsView: View {
                 }.fixedSize()
             }.padding(.leading, 20)
         }
+        .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity)
         .environmentObject(keyEnv)
     }
@@ -1085,6 +1092,7 @@ struct FloatingSettingsView: View {
             }.disabled(!enableFloatingResults)
 
         }
+        .scrollContentBackground(.hidden)
         .frame(maxWidth: 380).fixedSize()
     }
 
@@ -1228,6 +1236,7 @@ struct GeneralSettingsView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
         .padding(.horizontal, 50)
         .padding(.vertical, 20)
     }
@@ -1358,6 +1367,7 @@ struct SettingsView: View {
     var settings: some View {
         ZStack(alignment: .topTrailing) {
             tabView
+                .hfill()
                 .padding(.top, 20)
                 .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
                     guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }

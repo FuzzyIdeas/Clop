@@ -34,6 +34,7 @@ struct MenuView: View {
     @Default(.useAggressiveOptimisationMP4) var useAggressiveOptimisationMP4
     @Default(.cliInstalled) var cliInstalled
     @Default(.pauseAutomaticOptimisations) var pauseAutomaticOptimisations
+    @Default(.allowClopToAppearInScreenshots) var allowClopToAppearInScreenshots
 
     @State var cliInstallResult: String?
 
@@ -181,6 +182,8 @@ struct MenuView: View {
             }
         #endif
 
+        Toggle("Show Clop UI in screenshots", isOn: $allowClopToAppearInScreenshots)
+        Divider()
         Button("Quit") {
             NSApp.terminate(nil)
         }.keyboardShortcut("q")
