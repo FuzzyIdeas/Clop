@@ -31,6 +31,11 @@ build:
 	make-app --build --devid --dmg -s Clop -t Clop -c Release --version $(FULL_VERSION)
 	xcp /tmp/apps/Clop-$(FULL_VERSION).dmg Releases/
 
+dmg: SHELL=fish
+dmg:
+	make-app --dmg -s Clop -t Clop -c Release --version $(FULL_VERSION) /tmp/apps/Clop.app
+	xcp /tmp/apps/Clop-$(FULL_VERSION).dmg Releases/
+
 upload:
 	rsync -avzP Releases/*.{delta,dmg} hetzner:/static/lowtechguys/releases/ || true
 	rsync -avz Releases/*.html hetzner:/static/lowtechguys/ReleaseNotes/
@@ -44,6 +49,10 @@ release:
 setapp: SHELL=fish
 setapp:
 	make-app --build --devid --notarize -s Setapp -t Clop-setapp -c Release --version $(FULL_VERSION)
+	$(MAKE) setapp-zip
+
+setapp-zip: SHELL=fish
+setapp-zip:
 	cp Clop/Assets.xcassets/AppIcon.appiconset/icon_512x512.png /tmp/apps/AppIcon.png
 	rm /tmp/apps/Clop-setapp.zip || true
 	cd /tmp/apps && zip --symlinks -r Clop-setapp.zip Clop.app AppIcon.png

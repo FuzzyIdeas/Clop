@@ -421,14 +421,14 @@ struct Clop: ParsableCommand {
 
         The template may contain the following tokens on the filename:
 
-        %y	Year
-        %m	Month (numeric)
-        %n	Month (name)
-        %d	Day
-        %w	Weekday
+        %y    Year
+        %m    Month (numeric)
+        %n    Month (name)
+        %d    Day
+        %w    Weekday
 
-        %H	Hour
-        %M	Minutes
+        %H    Hour
+        %M    Minutes
         %S  Seconds
         %p  AM/PM
 
@@ -437,8 +437,8 @@ struct Clop: ParsableCommand {
         %e  Source file extension
         %q  Quality
 
-        %r	Random characters
-        %i	Auto-incrementing number
+        %r    Random characters
+        %i    Auto-incrementing number
 
         For example `~/Desktop/%f[converted-from-%e]` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image[converted-from-png].webp`.
         The extension of the conversion format is automatically added.
@@ -454,34 +454,22 @@ struct Clop: ParsableCommand {
 
         var type: UTType!
 
-        mutating func validate() throws {
-            guard !files.isEmpty else {
-                throw ValidationError("At least one image must be specified")
-            }
-            guard let type = format.utType else {
-                throw ValidationError("Invalid image format")
-            }
-            self.type = type
-
-            files = files.filter { !$0.isDir && $0.exists }
-        }
-
-        func convertToAVIF(path: FilePath, outFilePath: FilePath) throws {
+        static func convertToAVIF(path: FilePath, outFilePath: FilePath, quality: Int) throws {
             let args = ["--avif", "-q", "\(quality)", "-o", outFilePath.string, path.string]
             try runConversionProcess(path: path, outFilePath: outFilePath, executable: HEIF_ENC.string, args: args)
         }
 
-        func convertToHEIC(path: FilePath, outFilePath: FilePath) throws {
+        static func convertToHEIC(path: FilePath, outFilePath: FilePath, quality: Int) throws {
             let args = ["-q", "\(quality)", "-o", outFilePath.string, path.string]
             try runConversionProcess(path: path, outFilePath: outFilePath, executable: HEIF_ENC.string, args: args)
         }
 
-        func convertToWebP(path: FilePath, outFilePath: FilePath) throws {
+        static func convertToWebP(path: FilePath, outFilePath: FilePath, quality: Int) throws {
             let args = ["-mt", "-q", "\(quality)", "-sharp_yuv", "-metadata", "all", path.string, "-o", outFilePath.string]
             try runConversionProcess(path: path, outFilePath: outFilePath, executable: CWEBP.string, args: args)
         }
 
-        func runConversionProcess(path: FilePath, outFilePath: FilePath, executable: String, args: [String]) throws {
+        static func runConversionProcess(path: FilePath, outFilePath: FilePath, executable: String, args: [String]) throws {
             let errPipe = Pipe()
 
             let process = Process()
@@ -500,7 +488,7 @@ struct Clop: ParsableCommand {
             try? outFilePath.setOptimisationStatusXattr("true")
         }
 
-        func convert(path: FilePath) throws {
+        static func convert(path: FilePath, format: ImageFormat, quality: Int, output: String?, force: Bool) throws {
             guard let stem = path.stem else {
                 printerr("\(ERROR_X) Invalid path \(path.shellString.underline())")
                 return
@@ -530,11 +518,11 @@ struct Clop: ParsableCommand {
 
             switch format {
             case .avif:
-                try convertToAVIF(path: path, outFilePath: tempFile)
+                try convertToAVIF(path: path, outFilePath: tempFile, quality: quality)
             case .heic:
-                try convertToHEIC(path: path, outFilePath: tempFile)
+                try convertToHEIC(path: path, outFilePath: tempFile, quality: quality)
             case .webp:
-                try convertToWebP(path: path, outFilePath: tempFile)
+                try convertToWebP(path: path, outFilePath: tempFile, quality: quality)
             }
 
             if FileManager.default.fileExists(atPath: outFilePath.string) {
@@ -550,10 +538,28 @@ struct Clop: ParsableCommand {
             print("\(CHECKMARK) \(path.shellString.underline()) \(ARROW) \(outFilePath.shellString.underline())")
         }
 
+        mutating func validate() throws {
+            guard !files.isEmpty else {
+                throw ValidationError("At least one image must be specified")
+            }
+            guard let type = format.utType else {
+                throw ValidationError("Invalid image format")
+            }
+            self.type = type
+
+            files = files.filter { !$0.isDir && $0.exists }
+        }
+
         mutating func run() throws {
+            let files = files
+            let format = format
+            let quality = quality
+            let output = output
+            let force = force
+
             DispatchQueue.concurrentPerform(iterations: files.count) { i in
                 do {
-                    try convert(path: files[i])
+                    try Self.convert(path: files[i], format: format, quality: quality, output: output, force: force)
                 } catch let error as ClopError {
                     printerr("\(ERROR_X) \(files[i].shellString.underline()) \(ARROW) \(error.localizedDescription)")
                 } catch {
@@ -736,28 +742,7 @@ struct Clop: ParsableCommand {
 
         var foundPaths: [FilePath] = []
 
-        mutating func validate() throws {
-            guard !files.isEmpty else {
-                throw ValidationError("At least one file or folder must be specified")
-            }
-
-            var isDir: ObjCBool = false
-            if let folder = files.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
-                if types.isEmpty {
-                    types = ALL_FORMATS
-                }
-
-                if !excludeTypes.isEmpty {
-                    foundPaths = getURLsFromFolder(folder.url, recursive: recursive, types: types.filter { !excludeTypes.contains($0) }).compactMap(\.filePath)
-                } else {
-                    foundPaths = getURLsFromFolder(folder.url, recursive: recursive, types: types).compactMap(\.filePath)
-                }
-            } else {
-                foundPaths = files
-            }
-        }
-
-        func strip(path: FilePath) {
+        static func strip(path: FilePath) {
             guard FileManager.default.fileExists(atPath: path.string) else {
                 printSemaphore.wait()
                 printerr("\(ERROR_X) \(path.string.underline()) does not exist")
@@ -779,7 +764,7 @@ struct Clop: ParsableCommand {
             let errPipe = Pipe()
 
             let process = Process()
-            process.launchPath = "/usr/bin/perl5.30"
+            process.launchPath = "/usr/bin/perl"
             process.arguments = args
             process.standardOutput = FileHandle.nullDevice
             process.standardError = errPipe
@@ -805,9 +790,31 @@ struct Clop: ParsableCommand {
             print("\(CHECKMARK) \(path.string.underline()) done".dim())
         }
 
+        mutating func validate() throws {
+            guard !files.isEmpty else {
+                throw ValidationError("At least one file or folder must be specified")
+            }
+
+            var isDir: ObjCBool = false
+            if let folder = files.first, FileManager.default.fileExists(atPath: folder.string, isDirectory: &isDir), isDir.boolValue {
+                if types.isEmpty {
+                    types = ALL_FORMATS
+                }
+
+                if !excludeTypes.isEmpty {
+                    foundPaths = getURLsFromFolder(folder.url, recursive: recursive, types: types.filter { !excludeTypes.contains($0) }).compactMap(\.filePath)
+                } else {
+                    foundPaths = getURLsFromFolder(folder.url, recursive: recursive, types: types).compactMap(\.filePath)
+                }
+            } else {
+                foundPaths = files
+            }
+        }
+
         mutating func run() throws {
+            let foundPaths = foundPaths
             DispatchQueue.concurrentPerform(iterations: foundPaths.count) { i in
-                strip(path: foundPaths[i])
+                Self.strip(path: foundPaths[i])
             }
         }
     }

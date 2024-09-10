@@ -91,7 +91,6 @@ enum ClopProcError: Error, CustomStringConvertible {
         switch self {
         case .processError:
             "Process error"
-
         }
     }
 }
@@ -134,29 +133,20 @@ extension FilePath {
                 log.error("Can't create workdir: \(workdir)")
                 return
             }
-
-            clopBackups = FilePath.dir(workdir / "backups", permissions: 0o777)
-            videos = FilePath.dir(workdir / "videos", permissions: 0o777)
-            images = FilePath.dir(workdir / "images", permissions: 0o777)
-            pdfs = FilePath.dir(workdir / "pdfs", permissions: 0o777)
-            conversions = FilePath.dir(workdir / "conversions", permissions: 0o777)
-            downloads = FilePath.dir(workdir / "downloads", permissions: 0o777)
-            forResize = FilePath.dir(workdir / "for-resize", permissions: 0o777)
-            forFilters = FilePath.dir(workdir / "for-filters", permissions: 0o777)
         }
     }
 
     var clopBackupPath: FilePath? {
         FilePath.clopBackups.appending(nameWithHash)
     }
-    static var clopBackups = FilePath.dir(workdir / "backups", permissions: 0o777)
-    static var videos = FilePath.dir(workdir / "videos", permissions: 0o777)
-    static var images = FilePath.dir(workdir / "images", permissions: 0o777)
-    static var pdfs = FilePath.dir(workdir / "pdfs", permissions: 0o777)
-    static var conversions = FilePath.dir(workdir / "conversions", permissions: 0o777)
-    static var downloads = FilePath.dir(workdir / "downloads", permissions: 0o777)
-    static var forResize = FilePath.dir(workdir / "for-resize", permissions: 0o777)
-    static var forFilters = FilePath.dir(workdir / "for-filters", permissions: 0o777)
+    static var clopBackups: FilePath { FilePath.dir(workdir / "backups", permissions: 0o777) }
+    static var videos: FilePath { FilePath.dir(workdir / "videos", permissions: 0o777) }
+    static var images: FilePath { FilePath.dir(workdir / "images", permissions: 0o777) }
+    static var pdfs: FilePath { FilePath.dir(workdir / "pdfs", permissions: 0o777) }
+    static var conversions: FilePath { FilePath.dir(workdir / "conversions", permissions: 0o777) }
+    static var downloads: FilePath { FilePath.dir(workdir / "downloads", permissions: 0o777) }
+    static var forResize: FilePath { FilePath.dir(workdir / "for-resize", permissions: 0o777) }
+    static var forFilters: FilePath { FilePath.dir(workdir / "for-filters", permissions: 0o777) }
 
     func setOptimisationStatusXattr(_ value: String) throws {
         try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)
@@ -179,7 +169,7 @@ extension FilePath {
             + ["-all=", "-tagsFromFile", "@"]
             + ["-XResolution", "-YResolution", "-Orientation"]
             + ["-o", tempFile.string, string]
-        let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
+        let exifProc = shell("/usr/bin/perl", args: args, wait: true)
 
         guard tempFile.exists else {
             log.error("Error stripping EXIF from \(self): \(exifProc.e ?? "")")
@@ -210,6 +200,12 @@ extension FilePath {
     }
 
     func copyExif(from source: FilePath, excludeTags: [String]? = nil, stripMetadata: Bool = true) {
+        guard source != self else { return }
+
+        if stripMetadata {
+            _ = shell("/usr/bin/perl", args: [EXIFTOOL.string, "-overwrite_original", "-all=", string], wait: true)
+        }
+
         var additionalArgs: [String] = []
         if let excludeTags, excludeTags.isNotEmpty {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
@@ -222,7 +218,7 @@ extension FilePath {
             + [string]
 
         log.debug(args.joined(separator: " "))
-        let exifProc = shell("/usr/bin/perl5.30", args: args, wait: true)
+        let exifProc = shell("/usr/bin/perl", args: args, wait: true)
         log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
     }
 

@@ -36,13 +36,13 @@ struct ResolutionField: View {
                 HStack(spacing: 3) {
                     let hideOldSize = OM.compactResults && optimiser.newBytes > 0 && optimiser.newSize != nil && optimiser.newSize! != size // && (optimiser.newSize!.s + size.s).count > 14
                     if !hideOldSize {
-                        Text(size == .zero ? "Crop" : "\(size.width.i)×\(size.height.i)")
+                        Text(size == .zero ? "Crop" : "\(size.width.i.s)×\(size.height.i.s)")
                     }
                     if let newSize = optimiser.newSize, newSize != size {
                         if !hideOldSize {
                             SwiftUI.Image(systemName: "arrow.right")
                         }
-                        Text("\(newSize.width.i)×\(newSize.height.i)")
+                        Text("\(newSize.width.i.s)×\(newSize.height.i.s)")
                     }
                 }
                 .lineLimit(1)
@@ -242,14 +242,14 @@ struct ResolutionField: View {
             Divider()
 
             HStack {
-                TextField("", value: $tempWidth, formatter: NumberFormatter(), prompt: Text("Width"))
+                TextField("", value: $tempWidth, formatter: NumberFormatter.int, prompt: Text("Width"))
                     .textFieldStyle(.roundedBorder)
                     .focused($focused, equals: .width)
                     .frame(width: 60, alignment: .center)
                     .multilineTextAlignment(.center)
                     .disabled(isAspectRatio && !optimiser.type.isPDF)
                 Text(isAspectRatio ? ":" : "×")
-                TextField("", value: $tempHeight, formatter: NumberFormatter(), prompt: Text("Height"))
+                TextField("", value: $tempHeight, formatter: NumberFormatter.int, prompt: Text("Height"))
                     .textFieldStyle(.roundedBorder)
                     .focused($focused, equals: .height)
                     .frame(width: 60, alignment: .center)

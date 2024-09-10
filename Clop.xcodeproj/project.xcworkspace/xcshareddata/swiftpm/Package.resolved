@@ -59,8 +59,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
       "state" : {
-        "revision" : "c7db1c83f6a53a85bce2be8e3d32d49980a396a3",
-        "version" : "4.0.1"
+        "revision" : "45cadc3e5f95d33bddea532886370d09257af45d",
+        "version" : "4.1.2"
       }
     },
     {
@@ -86,8 +86,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "5421f94cc859eb65f5ae3866165a053aa634431e",
-        "version" : "8.32.0"
+        "revision" : "5575af93efb776414f243e93d6af9f6258dc539a",
+        "version" : "8.36.0"
       }
     },
     {
@@ -95,8 +95,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MacPaw/Setapp-framework",
       "state" : {
-        "revision" : "b029b50cd1901a36ee4d553b6dac2a25191d7b6f",
-        "version" : "4.2.0"
+        "revision" : "595cb24b4decf15f04888a1cb1e191ace02cdc7c",
+        "version" : "4.2.1"
       }
     },
     {
