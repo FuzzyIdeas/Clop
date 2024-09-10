@@ -433,7 +433,7 @@ class AppDelegate: AppDelegateParent {
         if !SWIFTUI_PREVIEW {
             handleCLIInstall()
 
-            NSApplication.shared.windows.first?.close()
+            NSApplication.shared.windows.first { $0.title == "Settings" }?.close()
             unarchiveBinaries()
             print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
             NSView.swizzleDragFormation()
@@ -504,7 +504,6 @@ class AppDelegate: AppDelegateParent {
             }
         #endif
 
-        NSApplication.shared.windows.first?.close()
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
 
         guard !SWIFTUI_PREVIEW else { return }
@@ -1303,8 +1302,9 @@ struct ClopApp: App {
     #if !SETAPP
         @ObservedObject var pm = PM
     #endif
-    var body: some Scene {
-        Window("Settings", id: "settings") {
+
+    var settingsWindow: some Scene {
+        let w = Window("Settings", id: "settings") {
             SettingsView()
                 .frame(minWidth: 850, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
@@ -1314,6 +1314,15 @@ struct ClopApp: App {
             CommandGroup(replacing: .help) {}
         }
 
+        if #available(macOS 15.0, *) {
+            return w
+                .windowToolbarLabelStyle(fixed: .titleAndIcon)
+        } else {
+            return w
+        }
+    }
+
+    var body: some Scene {
         MenuBarExtra(isInserted: $showMenubarIcon, content: {
             MenuView()
         }, label: {

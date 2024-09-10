@@ -1551,7 +1551,7 @@ enum MediaEngineCores: Int {
             return .base
         }
 
-        var ret = [CChar].init(repeating: 0, count: size + 1)
+        var ret = [CChar](repeating: 0, count: size + 1)
         res = Darwin.sysctlbyname("machdep.cpu.brand_string", &ret, &size, nil, 0)
 
         guard let brand = res == 0 ? String(cString: ret) : nil else {

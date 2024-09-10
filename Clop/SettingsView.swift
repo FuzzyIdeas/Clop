@@ -1296,73 +1296,83 @@ struct SettingsView: View {
         }
     }
 
+    var tabView: some View {
+        let t = TabView(selection: $svm.tab) {
+            GeneralSettingsView()
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
+                .tag(Tabs.general)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            VideoSettingsView()
+                .tabItem {
+                    Label("Video", systemImage: "video")
+                }
+                .tag(Tabs.video)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            ImagesSettingsView()
+                .tabItem {
+                    Label("Images", systemImage: "photo")
+                }
+                .tag(Tabs.images)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            PDFSettingsView()
+                .tabItem {
+                    Label("PDF", systemImage: "doc")
+                }
+                .tag(Tabs.pdf)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            FloatingSettingsView()
+                .tabItem {
+                    Label("Floating results", systemImage: "square.stack")
+                }
+                .tag(Tabs.floating)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            KeysSettingsView()
+                .tabItem {
+                    Label("Keyboard shortcuts", systemImage: "command.square")
+                }
+                .tag(Tabs.keys)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            AutomationSettingsView()
+                .tabItem {
+                    Label("Automation", systemImage: "hammer")
+                }
+                .tag(Tabs.automation)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            AboutSettingsView()
+                .tabItem {
+                    Label("About", systemImage: "info.circle")
+                }
+                .tag(Tabs.about)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+
+        if #available(macOS 15.0, *) {
+            return t.tabViewStyle(.grouped)
+        } else {
+            return t
+        }
+    }
+
     var settings: some View {
         ZStack(alignment: .topTrailing) {
-            TabView(selection: $svm.tab) {
-                GeneralSettingsView()
-                    .tabItem {
-                        Label("General", systemImage: "gear")
+            tabView
+                .padding(.top, 20)
+                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
+                    guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
+                    if window.title == "Settings" {
+                        log.debug("Starting settings tab key monitor")
+                        tabKeyMonitor.start()
                     }
-                    .tag(Tabs.general)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                VideoSettingsView()
-                    .tabItem {
-                        Label("Video", systemImage: "video")
-                    }
-                    .tag(Tabs.video)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                ImagesSettingsView()
-                    .tabItem {
-                        Label("Images", systemImage: "photo")
-                    }
-                    .tag(Tabs.images)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                PDFSettingsView()
-                    .tabItem {
-                        Label("PDF", systemImage: "doc")
-                    }
-                    .tag(Tabs.pdf)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                FloatingSettingsView()
-                    .tabItem {
-                        Label("Floating results", systemImage: "square.stack")
-                    }
-                    .tag(Tabs.floating)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                KeysSettingsView()
-                    .tabItem {
-                        Label("Keyboard shortcuts", systemImage: "command.square")
-                    }
-                    .tag(Tabs.keys)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                AutomationSettingsView()
-                    .tabItem {
-                        Label("Automation", systemImage: "hammer")
-                    }
-                    .tag(Tabs.automation)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                AboutSettingsView()
-                    .tabItem {
-                        Label("About", systemImage: "info.circle")
-                    }
-                    .tag(Tabs.about)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-            .padding(.top, 20)
-            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
-                guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
-                if window.title == "Settings" {
-                    log.debug("Starting settings tab key monitor")
-                    tabKeyMonitor.start()
                 }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notif in
-                guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
-                if window.title == "Settings" {
-                    log.debug("Stopping settings tab key monitor")
-                    tabKeyMonitor.stop()
+                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notif in
+                    guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
+                    if window.title == "Settings" {
+                        log.debug("Stopping settings tab key monitor")
+                        tabKeyMonitor.stop()
+                    }
                 }
-            }
 
             Button("Quit", role: .destructive) { NSApp.terminate(nil) }
                 .buttonStyle(.borderedProminent)
