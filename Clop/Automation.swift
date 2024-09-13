@@ -30,18 +30,18 @@ extension Optimiser {
             return nil
         }
 
-        guard let key = type.shortcutKey, let shortcut = Defaults[key][source] else {
+        guard let key = type.shortcutKey, let shortcut = Defaults[key][source.string] else {
             return nil
         }
         return runShortcut(shortcut, outFile: outFile, url: url)
     }
 
-    nonisolated func runAutomation(outFile: FilePath, source: String?, url: URL?, type: ItemType) -> Process? {
+    nonisolated func runAutomation(outFile: FilePath, source: OptimisationSource?, url: URL?, type: ItemType) -> Process? {
         guard let source, let url, let key = type.shortcutKey else {
             return nil
         }
 
-        guard let shortcut = Defaults[key][source] else {
+        guard let shortcut = Defaults[key][source.string] else {
             return nil
         }
         return runShortcut(shortcut, outFile: outFile, url: url)
@@ -201,7 +201,7 @@ struct AutomationRowView: View {
     var icon: String
     var type: String
     var color: Color
-    var sources: [String] = []
+    var sources: [OptimisationSource] = []
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -239,7 +239,7 @@ struct AutomationRowView: View {
                 .saturation(1.5)
             }
             ForEach(sources, id: \.self) { s in
-                picker(source: s)
+                picker(source: s.string)
                     .padding(.leading)
             }
         }
@@ -303,9 +303,9 @@ struct AutomationSettingsView: View {
     @ObservedObject var shortcutsManager = SHM
 
     var body: some View {
-        let imageSources = ((enableClipboardOptimiser || optimiseImagePathClipboard) ? ["clipboard"] : []) + (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.imageDirs]
-        let videoSources = (optimiseVideoClipboard ? ["clipboard"] : []) + (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.videoDirs]
-        let pdfSources = (enableDragAndDrop ? ["drop zone"] : []) + Defaults[.pdfDirs]
+        let imageSources = ((enableClipboardOptimiser || optimiseImagePathClipboard) ? [.clipboard] : []) + (enableDragAndDrop ? [.dropZone] : []) + Defaults[.imageDirs].map(\.optSource)
+        let videoSources = (optimiseVideoClipboard ? [.clipboard] : []) + (enableDragAndDrop ? [.dropZone] : []) + Defaults[.videoDirs].map(\.optSource)
+        let pdfSources = (enableDragAndDrop ? [.dropZone] : []) + Defaults[.pdfDirs].map(\.optSource)
 
         Form {
             Section(header: SectionHeader(
@@ -317,7 +317,7 @@ struct AutomationSettingsView: View {
                         shortcuts: $shortcutToRunOnImage,
                         icon: "photo", type: "image",
                         color: .calmBlue,
-                        sources: imageSources
+                        sources: imageSources.compactMap { $0 }
                     )
                 }
                 if videoSources.isNotEmpty {
@@ -325,7 +325,7 @@ struct AutomationSettingsView: View {
                         shortcuts: $shortcutToRunOnVideo,
                         icon: "video", type: "video",
                         color: .red,
-                        sources: videoSources
+                        sources: videoSources.compactMap { $0 }
                     )
                 }
                 if pdfSources.isNotEmpty {
@@ -333,7 +333,7 @@ struct AutomationSettingsView: View {
                         shortcuts: $shortcutToRunOnPdf,
                         icon: "doc.text.magnifyingglass", type: "PDF",
                         color: .burntSienna,
-                        sources: pdfSources
+                        sources: pdfSources.compactMap { $0 }
                     )
                 }
             }

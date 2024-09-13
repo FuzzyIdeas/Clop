@@ -121,7 +121,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 changePlaybackSpeedBy: playbackSpeedFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
-                copyToClipboard: false, source: "shortcuts",
+                copyToClipboard: false, source: .shortcuts,
                 output: output,
                 removeAudio: removeAudio
             )
@@ -246,7 +246,7 @@ struct ConvertImageIntent: AppIntent {
         }
         var convertedImage = try img.convert(to: type, asTempFile: true)
         if type == .png || type == .jpeg {
-            convertedImage = await (try? optimiseImage(convertedImage, copyToClipboard: false, debounceMS: 0, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: "shortcuts")) ?? convertedImage
+            convertedImage = await (try? optimiseImage(convertedImage, copyToClipboard: false, debounceMS: 0, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: .shortcuts)) ?? convertedImage
         }
 
         var outFilePath: FilePath =
@@ -381,7 +381,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
-                source: "shortcuts",
+                source: .shortcuts,
                 output: output,
                 removeAudio: removeAudio
             )
@@ -580,7 +580,7 @@ struct OptimiseFileIntent: AppIntent {
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
-                source: "shortcuts",
+                source: .shortcuts,
                 output: overwrite ? nil : output,
                 removeAudio: removeAudio
             )
@@ -691,7 +691,7 @@ struct OptimiseURLIntent: AppIntent {
                 aggressiveOptimisation: aggressiveOptimisation,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
-                source: "shortcuts",
+                source: .shortcuts,
                 output: output,
                 removeAudio: removeAudio
             )

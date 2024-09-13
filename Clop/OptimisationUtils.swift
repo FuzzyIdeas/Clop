@@ -450,7 +450,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     @Atomic var retinaDownscaled = false
 
-    var source: String?
+    var source: OptimisationSource?
 
     @Published var sharing = false
     @Published var isVideoWithAudio = false
@@ -1458,7 +1458,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         removeVisibleOptimisers(after: lastRemoveAfterMs)
     }
 
-    func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false, source: String? = nil, indeterminateProgress: Bool = false) -> Optimiser {
+    func optimiser(id: String, type: ItemType, operation: String, hidden: Bool = false, source: OptimisationSource? = nil, indeterminateProgress: Bool = false) -> Optimiser {
         let optimiser = (
             OM.optimisers.first(where: { $0.id == id }) ??
                 (current?.id == id ? current : nil) ??
@@ -1637,7 +1637,7 @@ func optimiseURL(
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
-    source: String? = nil,
+    source: OptimisationSource? = nil,
     output: String? = nil,
     removeAudio: Bool? = nil
 ) async throws -> ClipboardType? {
@@ -1966,7 +1966,7 @@ var manualOptimisationCount = 0
         aggressiveOptimisation: aggressiveOptimisation,
         optimisationCount: &manualOptimisationCount,
         copyToClipboard: true,
-        source: "clipboard"
+        source: .clipboard
     )
 }
 
@@ -2002,7 +2002,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
     adaptiveOptimisation: Bool? = nil,
     optimisationCount: inout Int,
     copyToClipboard: Bool,
-    source: String? = nil,
+    source: OptimisationSource? = nil,
     output: String? = nil,
     removeAudio: Bool? = nil,
     optimisedFileBehaviour: OptimisedFileBehaviour? = nil
@@ -2291,7 +2291,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
             THUMBNAIL_URLS = ThreadSafeDictionary(dict: req.originalUrls)
         }
         for url in req.urls {
-            _ = group.addTaskUnlessCancelled {
+            let added = group.addTaskUnlessCancelled {
                 let clip = ClipboardType.fromURL(url)
 
                 do {
@@ -2308,7 +2308,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             adaptiveOptimisation: req.adaptiveOptimisation,
                             optimisationCount: &cliOptimisationCount,
                             copyToClipboard: req.copyToClipboard,
-                            source: req.source,
+                            source: req.source.optSource,
                             output: req.output,
                             removeAudio: req.removeAudio,
                             optimisedFileBehaviour: .inPlace
@@ -2360,6 +2360,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                     throw BatchOptimisationError.wrappedError(error, url)
                 }
             }
+            guard added else { break }
         }
 
         var responses = [OptimisationResponse]()
