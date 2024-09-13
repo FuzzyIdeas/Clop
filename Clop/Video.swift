@@ -260,7 +260,7 @@ class Video: Optimisable {
         #endif
         let args = ["-y", "-i", inputPath.string]
             + (["mp4", "mov", "hevc"].contains(outputPath.extension?.lowercased()) ? encoderArgs : [])
-            + (audioRemoved ? ["-an"] : ["-c:a", "copy", "-map", "0"])
+            + (audioRemoved ? ["-an"] : ["-c:a", "copy", "-map", "0:v", "-map", "0:a?"])
             + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         var realDuration: Int64?
