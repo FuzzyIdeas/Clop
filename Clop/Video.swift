@@ -515,7 +515,7 @@ var processTerminated = Set<pid_t>()
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
-    source: String? = nil,
+    source: OptimisationSource? = nil,
     removeAudio: Bool? = nil
 ) async throws -> Video? {
     let path = video.path
@@ -637,7 +637,7 @@ var processTerminated = Set<pid_t>()
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
-    source: String? = nil,
+    source: OptimisationSource? = nil,
     removeAudio: Bool? = nil
 ) async throws -> Video? {
     guard let resolution = video.size else {
@@ -700,7 +700,7 @@ var processTerminated = Set<pid_t>()
                 resizeTo: newSize,
                 cropTo: cropSize,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
-                originalPath: ["cli", "finder", "service", "drop zone"].contains(source) ? video.path : originalPath,
+                originalPath: [.cli, .finder, .service, .dropZone].contains(source) ? video.path : originalPath,
                 aggressiveOptimisation: aggressive,
                 removeAudio: removeAudio
             )
@@ -759,7 +759,7 @@ var processTerminated = Set<pid_t>()
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
-    source: String? = nil,
+    source: OptimisationSource? = nil,
     removeAudio: Bool? = nil
 ) async throws -> Video? {
     let pathString = video.path.string
@@ -818,7 +818,7 @@ var processTerminated = Set<pid_t>()
                 forceMP4: !noConversion && Defaults[.formatsToConvertToMP4].contains(itemType.utType ?? .mpeg4Movie),
                 resizeTo: resolution,
                 changePlaybackSpeedBy: changePlaybackSpeedFactor,
-                originalPath: ["cli", "finder", "service", "drop zone"].contains(source) ? video.path : originalPath,
+                originalPath: [.cli, .finder, .service, .dropZone].contains(source) ? video.path : originalPath,
                 aggressiveOptimisation: aggressive,
                 removeAudio: removeAudio
             )

@@ -62,6 +62,51 @@ extension NSPasteboard {
     typealias AppDelegateParent = LowtechProAppDelegate
 #endif
 
+enum OptimisationSource: Codable, Equatable, Hashable {
+    case clipboard
+    case service
+    case photos
+    case openWith
+    case fileWatcher
+    case shortcuts
+    case cli
+    case dropZone
+    case finder
+    case dir(String)
+
+    var string: String {
+        switch self {
+        case .clipboard: "clipboard"
+        case .service: "service"
+        case .photos: "photos"
+        case .openWith: "openWith"
+        case .fileWatcher: "fileWatcher"
+        case .shortcuts: "shortcuts"
+        case .cli: "cli"
+        case .dropZone: "dropZone"
+        case .finder: "finder"
+        case let .dir(dir): dir
+        }
+    }
+}
+
+extension String {
+    var optSource: OptimisationSource? {
+        switch self {
+        case "clipboard": .clipboard
+        case "service": .service
+        case "photos": .photos
+        case "shortcuts": .shortcuts
+        case "cli": .cli
+        case "finder": .finder
+        case "openWith", "open-with", "open with": .openWith
+        case "fileWatcher", "file-watcher", "file watcher": .fileWatcher
+        case "dropZone", "drop-zone", "drop zone": .dropZone
+        default: .dir(self)
+        }
+    }
+}
+
 class AppDelegate: AppDelegateParent {
     var didBecomeActiveAtLeastOnce = false
 
@@ -72,7 +117,6 @@ class AppDelegate: AppDelegateParent {
     @MainActor var swipeEnded = true
 
     @Setting(.floatingResultsCorner) var floatingResultsCorner
-
     lazy var draggingSet: PassthroughSubject<Bool, Never> = debouncer(in: &observers, every: .milliseconds(200)) { dragging in
         mainActor {
             DM.dragging = dragging
@@ -206,6 +250,46 @@ class AppDelegate: AppDelegateParent {
         sem.wait()
 
         return resp.jsonData
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        Task.init {
+            await handleURLs(application, urls)
+        }
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        Task.init {
+            await handleURLs(sender, filenames.compactMap(\.url))
+        }
+    }
+
+    func handleURLs(_ application: NSApplication, _ urls: [URL]) async {
+        do {
+            try await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
+                for item in urls.map(ClipboardType.fromURL(_:)) {
+                    let source: OptimisationSource = item.path.string.contains("com.apple.Photos") ? .photos : .openWith
+                    let added = group.addTaskUnlessCancelled {
+                        try await optimiseItem(
+                            item,
+                            id: item.id,
+                            adaptiveOptimisation: false,
+                            optimisationCount: &manualOptimisationCount,
+                            copyToClipboard: false,
+                            source: source,
+                            removeAudio: false,
+                            optimisedFileBehaviour: source == .photos ? .inPlace : nil
+                        )
+                    }
+                    guard added else { break }
+                    try await group.next()
+                }
+            }
+        } catch {
+            log.error("Error optimising files from 'Open with': \(error.localizedDescription)")
+            await application.reply(toOpenOrPrint: .failure)
+        }
+        await application.reply(toOpenOrPrint: .success)
     }
 
     func setupServiceProvider() {
@@ -706,7 +790,7 @@ class AppDelegate: AppDelegateParent {
         ) { path in
             Task.init {
                 let video = Video(path: path)
-                let _ = try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count))
+                let _ = try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
         }
         imageWatcher = FileOptimisationWatcher(
@@ -719,7 +803,7 @@ class AppDelegate: AppDelegateParent {
         ) { path in
             Task.init {
                 guard let img = Image(path: path, retinaDownscaled: false) else { return }
-                let _ = try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count))
+                let _ = try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
         }
         pdfWatcher = FileOptimisationWatcher(
@@ -731,7 +815,7 @@ class AppDelegate: AppDelegateParent {
             cancel: cancelPDFOptimisation(path:)
         ) { path in
             Task.init {
-                let _ = try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count))
+                let _ = try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
         }
 
@@ -763,7 +847,7 @@ class AppDelegate: AppDelegateParent {
             mainActor {
                 if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo, !path.hasOptimisationStatusXattr() {
                     Task.init {
-                        let _ = try? await optimiseVideo(Video(path: path), source: "clipboard")
+                        let _ = try? await optimiseVideo(Video(path: path), source: .clipboard)
                         #if SETAPP
                             SetappManager.shared.reportUsageEvent(.userInteraction)
                         #endif
@@ -1193,7 +1277,7 @@ class FileOptimisationWatcher {
             return true
         }
 
-        delayOptimiser = OM.optimiser(id: delayOptimiserID, type: .unknown, operation: "Initialising file watcher", hidden: false, source: "file-watcher", indeterminateProgress: true)
+        delayOptimiser = OM.optimiser(id: delayOptimiserID, type: .unknown, operation: "Initialising file watcher", hidden: false, source: .fileWatcher, indeterminateProgress: true)
         addedFilesProcessor = mainAsyncAfter(ms: 3000) { [weak self] in
             guard let self else { return }
             for event in justAddedFiles.filter({ ev in
@@ -1353,6 +1437,7 @@ struct ClopApp: App {
         }
 
         settingsWindow
+            .handlesExternalEvents(matching: ["openSettings"])
 
     }
 }
@@ -1462,7 +1547,7 @@ class ContextualMenuServiceProvider: NSObject {
                     aggressiveOptimisation: nil,
                     optimisationCount: &manualOptimisationCount,
                     copyToClipboard: false,
-                    source: "service"
+                    source: .service
                 )
             }
         }

@@ -97,6 +97,24 @@ struct MenuView: View {
             Button("Open backups folder") {
                 NSWorkspace.shared.open(FilePath.clopBackups.url)
             }
+            Button("Open working directory") {
+                NSWorkspace.shared.open(FilePath.workdir.url)
+            }
+            Button("Force clean working directory") {
+                do {
+                    try FileManager.default.removeItem(at: FilePath.workdir.url)
+                } catch {
+                    showNotice("Failed to clean working directory\n\(error.localizedDescription)")
+                }
+
+                FilePath.workdir.mkdir(withIntermediateDirectories: true, permissions: 0o755)
+                guard FilePath.workdir.exists else {
+                    showNotice("Failed to create working directory")
+                    return
+                }
+
+                showNotice("Working directory cleaned")
+            }
 
             Button("Revert last optimisations") {
                 om.clipboardImageOptimiser?.restoreOriginal()

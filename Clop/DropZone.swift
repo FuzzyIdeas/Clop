@@ -216,14 +216,14 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool) -> Bool
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: "drop zone", output: output)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output)
                 }
             case UTType.pdf.identifier:
                 tryAsync {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: "drop zone", output: output)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output)
                 }
             case IMAGE_FORMATS.map(\.identifier):
                 tryAsync {
@@ -233,7 +233,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool) -> Bool
                     let nsImage = item as? NSImage ?? (data != nil ? NSImage(data: data!) : nil)
 
                     if path == nil, data == nil, nsImage == nil, itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                        try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone", output: output)
+                        try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: .dropZone, output: output)
                         return
                     }
 
@@ -244,26 +244,26 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool) -> Bool
                         return
                     }
 
-                    try await optimiseItem(.image(image), id: image.path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone", output: output)
+                    try await optimiseItem(.image(image), id: image.path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: .dropZone, output: output)
                 }
             case VIDEO_FORMATS.map(\.identifier):
                 tryAsync {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         if itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                            try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone", output: output)
+                            try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: .dropZone, output: output)
                         }
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: "drop zone", output: output)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output)
                 }
             case [UTType.plainText.identifier, UTType.utf8PlainText.identifier]:
                 tryAsync {
                     let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier)
                     if let path = item?.existingFilePath, path.isImage || path.isVideo {
-                        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone", output: output)
+                        try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: .dropZone, output: output)
                     }
                     if let url = item?.url, url.isImage || url.isVideo {
-                        try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone", output: output)
+                        try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: .dropZone, output: output)
                     }
                 }
             case UTType.url.identifier:
@@ -271,7 +271,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool) -> Bool
                     guard let url = try await itemProvider.loadItem(forTypeIdentifier: identifier) as? URL, url.isImage || url.isVideo else {
                         return
                     }
-                    try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: "drop zone", output: output)
+                    try await optimiseItem(.url(url), id: url.absoluteString, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: .dropZone, output: output)
                 }
             default:
                 break
@@ -293,21 +293,22 @@ extension NSSecureCoding {
 }
 
 @MainActor
-func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: String? = nil, output: String? = nil, types: [UTType]) async throws {
+func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, types: [UTType]) async throws {
     await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
         for url in getURLsFromFolder(dir.url, recursive: true, types: types) {
             let path = url.filePath!
-            _ = group.addTaskUnlessCancelled {
+            let added = group.addTaskUnlessCancelled {
                 _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
                     try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: false, source: source, output: output)
                 }
             }
+            guard added else { break }
         }
     }
 }
 
 @MainActor
-func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: String? = nil, output: String? = nil) async throws {
+func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil) async throws {
     guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF || path.isDir else {
         return
     }

@@ -369,7 +369,7 @@ class Image: CustomStringConvertible {
         return img
     }
 
-    func runThroughShortcut(shortcut: Shortcut? = nil, optimiser: Optimiser, allowLarger: Bool, aggressiveOptimisation: Bool, source: String?) throws -> Image? {
+    func runThroughShortcut(shortcut: Shortcut? = nil, optimiser: Optimiser, allowLarger: Bool, aggressiveOptimisation: Bool, source: OptimisationSource?) throws -> Image? {
         let shortcutOutFile = FilePath.images.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(path.stem!)")
 
         let proc: Process? = if let shortcut {
@@ -919,7 +919,7 @@ class Image: CustomStringConvertible {
         return
     }
 
-    Task.init { try? await optimiseImage(img, copyToClipboard: true, id: Optimiser.IDs.clipboardImage, source: "clipboard") }
+    Task.init { try? await optimiseImage(img, copyToClipboard: true, id: Optimiser.IDs.clipboardImage, source: .clipboard) }
 }
 
 @MainActor func cancelImageOptimisation(path: FilePath) {
@@ -995,7 +995,7 @@ extension FilePath {
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
-    source: String? = nil
+    source: OptimisationSource? = nil
 ) async throws -> Image? {
     let path = img.path
     var img = img
@@ -1196,7 +1196,7 @@ extension FilePath {
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
-    source: String? = nil
+    source: OptimisationSource? = nil
 ) async throws -> Image? {
     imageResizeDebouncers[img.path.string]?.cancel()
     if let cropSize {
