@@ -851,7 +851,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         guard let path = originalURL?.filePath ?? path else {
             return
         }
-        let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : nil
+        let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath
         if !path.exists, let originalPath {
             let _ = try? originalPath.copy(to: path)
         }
@@ -896,7 +896,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
             path = selfPath
         }
 
-        let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : nil
+        let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath
         if !path.exists, let originalPath {
             let _ = try? originalPath.copy(to: path)
         }
@@ -930,7 +930,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
                 let _ = try? await downscaleVideo(
                     video,
-                    originalPath: (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : nil,
+                    originalPath: (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath,
                     id: self.id, toFactor: factor, hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )

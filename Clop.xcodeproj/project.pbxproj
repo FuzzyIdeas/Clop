@@ -262,7 +262,6 @@
 		C7956A412AC208DD00C0EDF2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClopCLI.entitlements; sourceTree = "<group>"; };
 		C7976AC72B07B87D00C4246A /* BatchCropButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchCropButton.swift; sourceTree = "<group>"; };
-		C79797122CBBDBB000B593B5 /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = /System/Volumes/Data/Users/alin/Projects/macOS/Lowtech; sourceTree = "<absolute>"; };
 		C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopShortcuts.swift; sourceTree = "<group>"; };
 		C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightClickMenu.swift; sourceTree = "<group>"; };
 		C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CherryPicks.swift; sourceTree = "<group>"; };
@@ -382,7 +381,6 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
-				C79797122CBBDBB000B593B5 /* Lowtech */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				C7C0666F2AF62055004237F8 /* Setapp */,
 				C7AB6623288301590041BEC8 /* Clop */,

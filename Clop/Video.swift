@@ -304,15 +304,20 @@ class Video: Optimisable {
         let convertedFrom = forceMP4 && inputPath.extension?.lowercased() != "mp4" ? self : nil
         var newVideo = Video(path: outputPath, metadata: metadata, convertedFrom: convertedFrom)
 
-        if let convertedFrom {
+        if let convertedFrom, convertedFrom.path.exists {
             let behaviour = Defaults[.convertedVideoBehaviour]
-            if behaviour == .inPlace {
-                convertedFrom.path.backup(path: convertedFrom.path.clopBackupPath, force: true, operation: .move)
+            if behaviour == .inPlace, let backupPath = convertedFrom.path.clopBackupPath {
+                convertedFrom.path.backup(path: backupPath, force: true, operation: .move)
+                mainActor {
+                    optimiser.convertedFromURL = backupPath.url
+                }
             }
             if behaviour != .temporary {
                 let path = try newVideo.path.copy(to: convertedFrom.path.dir, force: true)
-                mainActor {
-                    optimiser.convertedFromURL = convertedFrom.path.url
+                if behaviour != .inPlace {
+                    mainActor {
+                        optimiser.convertedFromURL = convertedFrom.path.url
+                    }
                 }
                 newVideo = Video(path: path, metadata: metadata, convertedFrom: convertedFrom)
             }

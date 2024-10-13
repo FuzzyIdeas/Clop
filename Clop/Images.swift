@@ -1023,8 +1023,8 @@ extension FilePath {
         }
 
         let behaviour = Defaults[.convertedImageBehaviour]
-        if behaviour == .inPlace {
-            img.path.backup(path: img.path.clopBackupPath, force: true, operation: .move)
+        if behaviour == .inPlace, let backupPath = img.path.clopBackupPath {
+            img.path.backup(path: backupPath, force: true, operation: .move)
         }
         if behaviour != .temporary {
             try converted.path.setOptimisationStatusXattr("pending")

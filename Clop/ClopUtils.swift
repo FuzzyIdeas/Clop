@@ -217,7 +217,7 @@ extension FilePath {
             + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : (isVideo ? ["-All:All"] : []))
             + [string]
 
-        log.debug(args.joined(separator: " "))
+        log.debug(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
         log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
     }
@@ -293,7 +293,8 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
     var outPipes = procs.dict { ($0, Pipe()) }
     var errPipes = procs.dict { ($0, Pipe()) }
 
-    log.debug("Starting\n\t\(procs.map(\.cmdline.shellString).joined(separator: "\n\t"))")
+    let cmdline = procs.map(\.cmdline.shellString).joined(separator: "\n\t")
+    log.debug("Starting\n\t\(cmdline)")
     var processes: [Proc: Process] = procs.dict { proc in
         guard let p = shellProc(proc.cmd, args: proc.args, out: outPipes[proc]!, err: errPipes[proc]!)
         else { return nil }
@@ -335,8 +336,8 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
     var outPipe = Pipe()
     var errPipe = Pipe()
 
-    let cmdline = "\(cmd.shellString) \(args.joined(separator: " "))"
-    log.debug("Starting \(cmdline)")
+    let cmdline = "\(cmd.shellString.replacingOccurrences(of: " ", with: "\\ ")) \(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))"
+    log.debug("Starting\n\t\(cmdline)")
     guard var proc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
         throw ClopError.noProcess(cmd)
     }
@@ -369,8 +370,8 @@ func tryProcAsync(_ cmd: String, args: [String], tries: Int, captureOutput: Bool
     var outPipe = Pipe()
     var errPipe = Pipe()
 
-    let cmdline = "\(cmd.shellString) \(args.joined(separator: " "))"
-    log.debug("Starting \(cmdline)")
+    let cmdline = "\(cmd.shellString.replacingOccurrences(of: " ", with: "\\ ")) \(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))"
+    log.debug("Starting\n\t\(cmdline)")
     guard var proc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
         throw ClopError.noProcess(cmd)
     }

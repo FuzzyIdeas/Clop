@@ -778,7 +778,7 @@ class AppDelegate: AppDelegateParent {
 
     @MainActor func initOptimisers() {
         guard finishedOnboarding else { return }
-        let debounceMS = Defaults[.launchCount] == 1 ? 800 : 150
+        let debounceMS = Defaults[.launchCount] == 1 ? 800 : 100
 
         videoWatcher = FileOptimisationWatcher(
             pathsKey: .videoDirs,
@@ -788,6 +788,9 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandleVideo(event:),
             cancel: cancelVideoOptimisation(path:)
         ) { path in
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+                return
+            }
             Task.init {
                 let video = Video(path: path)
                 let _ = try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
@@ -801,6 +804,9 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandleImage(event:),
             cancel: cancelImageOptimisation(path:)
         ) { path in
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+                return
+            }
             Task.init {
                 guard let img = Image(path: path, retinaDownscaled: false) else { return }
                 let _ = try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
@@ -814,6 +820,9 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandlePDF(event:),
             cancel: cancelPDFOptimisation(path:)
         ) { path in
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+                return
+            }
             Task.init {
                 let _ = try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
