@@ -303,7 +303,7 @@ struct OnboardingFloatingPreview: View {
             guard optimiser.type.utType != format else { return }
             optimiser.convert(to: format, optimise: true)
         }
-        .buttonStyle(PickerButton(color: .bg.warm.opacity(0.7), offColor: .bg.warm.opacity(0.7), offTextColor: .fg.warm, horizontalPadding: 3, verticalPadding: 1, radius: 4, enumValue: $optimiser.type, onValue: ItemType.image(format)))
+        .buttonStyle(PickerButton(color: .bg.warm.opacity(0.7), offColor: .bg.warm.opacity(0.7), offTextColor: .fg.warm, horizontalPadding: 3, verticalPadding: 1, radius: 4, enumValue: optimiser.type, onValue: ItemType.image(format)))
 
     }
 }

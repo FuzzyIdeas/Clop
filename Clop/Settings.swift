@@ -12,7 +12,6 @@ import Lowtech
 import System
 import UniformTypeIdentifiers
 
-extension SauceKey: Defaults.Serializable {}
 extension UTType: Defaults.Serializable {}
 
 let FORMATS_CONVERTIBLE_TO_MP4: [UTType] = VIDEO_FORMATS.without([.mpeg4Movie])
