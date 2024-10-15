@@ -94,7 +94,7 @@ Clop uses the following open source tools for optimising files, images and video
 
 It may also use `libvips` for resizing images if it is installed on your system.
 
-The app is licensed under [GPLv3](https://github.com/FuzzyIdeas/Clop/blob/main/LICENSE.md).
+The app is licensed under [GPLv3](https://github.com/FuzzyIdeas/Clop/blob/main/LICENSE).
 
 ## What's up with the hat?
 
