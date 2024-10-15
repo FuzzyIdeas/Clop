@@ -102,7 +102,9 @@ struct MenuView: View {
             }
             Button("Force clean working directory") {
                 do {
-                    try FileManager.default.removeItem(at: FilePath.workdir.url)
+                    for dir in [FilePath.clopBackups, FilePath.videos, FilePath.images, FilePath.pdfs, FilePath.conversions, FilePath.downloads, FilePath.forResize, FilePath.forFilters] {
+                        try FileManager.default.removeItem(at: dir.url)
+                    }
                 } catch {
                     showNotice("Failed to clean working directory\n\(error.localizedDescription)")
                 }
