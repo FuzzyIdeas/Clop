@@ -491,23 +491,25 @@ class AppDelegate: AppDelegateParent {
                 return
             }
 
-            let enumerator = fm.enumerator(at: FilePath.workdir.url, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
-            guard let iterator = enumerator else {
-                return
-            }
-
-            let now = Date()
-            while case let url as URL = iterator.nextObject() {
-                if let isdir = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory, isdir {
-                    continue
-                }
-                guard let date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
-                    continue
+            for dir in [FilePath.clopBackups, FilePath.videos, FilePath.images, FilePath.pdfs, FilePath.conversions, FilePath.downloads, FilePath.forResize, FilePath.forFilters] {
+                let enumerator = fm.enumerator(at: dir.url, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
+                guard let iterator = enumerator else {
+                    return
                 }
 
-                if now.timeIntervalSince(date) > interval.rawValue {
-                    log.info("Deleting \(url.path) because it's older than \(interval.title) (last modified \(date))")
-                    try? fm.removeItem(at: url)
+                let now = Date()
+                while case let url as URL = iterator.nextObject() {
+                    if let isdir = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory, isdir {
+                        continue
+                    }
+                    guard let date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
+                        continue
+                    }
+
+                    if now.timeIntervalSince(date) > interval.rawValue {
+                        log.info("Deleting \(url.path) because it's older than \(interval.title) (last modified \(date))")
+                        try? fm.removeItem(at: url)
+                    }
                 }
             }
         }
