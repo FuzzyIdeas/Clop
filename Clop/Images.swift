@@ -254,7 +254,7 @@ class Image: CustomStringConvertible {
 
     static var NOT_IMAGE_TYPE_PATTERN =
         try! Regex(
-            #"com\.microsoft\.ole\.source|com\.microsoft\.Art|com\.microsoft\.PowerPoint|com\.microsoft\.image-svg-xml|com\.microsoft\.DataObject|IBPasteboardType|IBDocument|com\.pixelmator|com\.adobe\.[^.]+\.local-private-clipboard-marker|com\.apple\.iWork"#
+            #"com\.apple\.freeform\.CRLNative|com\.microsoft\.ole\.source|com\.microsoft\.Art|com\.microsoft\.PowerPoint|com\.microsoft\.image-svg-xml|com\.microsoft\.DataObject|IBPasteboardType|IBDocument|com\.pixelmator|com\.adobe\.[^.]+\.local-private-clipboard-marker|com\.apple\.iWork"#
         )
     static var NOT_IMAGE_TYPES: Set<NSPasteboard.PasteboardType> = [
         .icon,
