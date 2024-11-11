@@ -8,8 +8,8 @@ import Lowtech
 import System
 import UniformTypeIdentifiers
 
-let FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").existingFilePath!
-let GIFSKI = BIN_DIR.appendingPathComponent("gifski").existingFilePath!
+var FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").filePath!
+var GIFSKI = BIN_DIR.appendingPathComponent("gifski").filePath!
 
 extension Double {
     var i64: Int64 { Int64(self) }

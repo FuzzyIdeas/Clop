@@ -56,7 +56,7 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
-extension UTType: ExpressibleByArgument { // @retroactive ExpressibleByArgument {
+extension UTType: @retroactive ExpressibleByArgument {
     public init?(argument: String) {
         if argument == "video" || argument == "movie" {
             self = .movie
@@ -92,7 +92,7 @@ extension String.StringInterpolation {
 }
 
 extension PageLayout: ExpressibleByArgument {}
-extension FilePath: ExpressibleByArgument { // @retroactive ExpressibleByArgument {
+extension FilePath: @retroactive ExpressibleByArgument {
     public init?(argument: String) {
         guard FileManager.default.fileExists(atPath: argument) else {
             return nil
@@ -112,7 +112,7 @@ extension FilePath: ExpressibleByArgument { // @retroactive ExpressibleByArgumen
     }
 }
 
-extension NSSize: ExpressibleByArgument { // @retroactive ExpressibleByArgument {
+extension NSSize: @retroactive ExpressibleByArgument {
     public init?(argument: String) {
         if let size = Int(argument) {
             self.init(width: size, height: size)

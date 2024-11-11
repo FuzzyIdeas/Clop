@@ -10,6 +10,8 @@ import Foundation
 import SwiftUI
 
 struct OnboardingView: View {
+    @ObservedObject var bm = BM
+
     var clopLogo: some View {
         ZStack(alignment: .topLeading) {
             Text("Clop")
@@ -97,8 +99,15 @@ struct OnboardingView: View {
                         DirListView(fileType: .video, dirs: $videoDirs, enabled: $enableAutomaticVideoOptimisations, hideIgnoreRules: true)
                     }
                 }
-                Button("Start using Clop") {
-                    (AppDelegate.instance as? AppDelegate)?.onboardingWindowController?.close()
+
+                if bm.decompressingBinaries {
+                    ProgressView("Decompressing binaries...")
+                        .progressViewStyle(.linear)
+                        .padding()
+                } else {
+                    Button("Start using Clop") {
+                        (AppDelegate.instance as? AppDelegate)?.onboardingWindowController?.close()
+                    }
                 }
             }
             .padding()

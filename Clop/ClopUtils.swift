@@ -418,77 +418,100 @@ let BIN_ARCHIVE_HASH = fm.contents(atPath: BIN_ARCHIVE_HASH_PATH.path)! // f6295
 let BIN_HASH_FILE = BIN_DIR.appendingPathComponent("sha256hash") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/sha256hash
 
 func nsalert(error: String) {
-    let alert = NSAlert()
-    alert.messageText = "Error"
-    alert.informativeText = error
-    alert.alertStyle = .critical
-    alert.addButton(withTitle: "OK")
+    mainThread {
+        let alert = NSAlert()
+        alert.messageText = "Error"
+        alert.informativeText = error
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "OK")
 
-    print(error)
-    alert.runModal()
+        print(error)
+        alert.runModal()
+    }
 }
 
-func unarchiveBinaries() {
-    for dir in OLD_BIN_DIRS where fm.fileExists(atPath: dir.path) {
-        do {
-            try fm.removeItem(at: dir)
-        } catch {
-            nsalert(error: "Error removing directory \(dir.path): \(error)")
-            exit(1)
+@MainActor func unarchiveBinaries() {
+    DispatchQueue.global().async {
+        for dir in OLD_BIN_DIRS where fm.fileExists(atPath: dir.path) {
+            do {
+                try fm.removeItem(at: dir)
+            } catch {
+                nsalert(error: "Error removing directory \(dir.path): \(error)")
+                exit(1)
+            }
         }
-    }
 
-    if !fm.fileExists(atPath: GLOBAL_BIN_DIR.path) {
-        do {
-            try fm.createDirectory(at: GLOBAL_BIN_DIR, withIntermediateDirectories: true, attributes: nil)
-        } catch {
-            nsalert(error: "Error creating directory \(GLOBAL_BIN_DIR.path): \(error)")
-            exit(1)
+        if !fm.fileExists(atPath: GLOBAL_BIN_DIR.path) {
+            do {
+                try fm.createDirectory(at: GLOBAL_BIN_DIR, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                nsalert(error: "Error creating directory \(GLOBAL_BIN_DIR.path): \(error)")
+                exit(1)
+            }
         }
-    }
 
-    if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
-        let proc = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
-        guard proc.success else {
-            nsalert(error: "Error unarchiving binaries \(BIN_ARCHIVE.path) into \(GLOBAL_BIN_DIR.path): \(proc.e ?? "") \(proc.o ?? "")")
-            exit(1)
+        if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
+            mainActor { BM.decompressingBinaries = true }
+            let proc = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
+            guard proc.success else {
+                nsalert(error: "Error unarchiving binaries \(BIN_ARCHIVE.path) into \(GLOBAL_BIN_DIR.path): \(proc.e ?? "") \(proc.o ?? "")")
+                mainActor { BM.decompressingBinaries = false }
+                exit(1)
+            }
+            fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
         }
-        fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
-    }
+        defer {
+            mainActor { BM.decompressingBinaries = false }
+        }
 
-    let cliDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("ClopCLI")
-    if fm.fileExists(atPath: cliDir.path), (try? fm.destinationOfSymbolicLink(atPath: cliDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
-        do {
-            try fm.removeItem(at: cliDir)
-        } catch {
-            nsalert(error: "Error removing symbolic link \(cliDir.path): \(error)")
-            exit(1)
+        let cliDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("ClopCLI")
+        if fm.fileExists(atPath: cliDir.path), (try? fm.destinationOfSymbolicLink(atPath: cliDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
+            do {
+                try fm.removeItem(at: cliDir)
+            } catch {
+                nsalert(error: "Error removing symbolic link \(cliDir.path): \(error)")
+                exit(1)
+            }
         }
-    }
-    if !fm.fileExists(atPath: cliDir.path) {
-        do {
-            try fm.createSymbolicLink(at: cliDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
-        } catch {
-            nsalert(error: "Error creating symbolic link \(cliDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
-            exit(1)
+        if !fm.fileExists(atPath: cliDir.path) {
+            do {
+                try fm.createSymbolicLink(at: cliDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
+            } catch {
+                nsalert(error: "Error creating symbolic link \(cliDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
+                exit(1)
+            }
         }
-    }
 
-    let finderOptimiserDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("\(GLOBAL_BIN_DIR_PARENT.lastPathComponent).FinderOptimiser")
-    if fm.fileExists(atPath: finderOptimiserDir.path), (try? fm.destinationOfSymbolicLink(atPath: finderOptimiserDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
-        do {
-            try fm.removeItem(at: finderOptimiserDir)
-        } catch {
-            nsalert(error: "Error removing symbolic link \(finderOptimiserDir.path): \(error)")
-            exit(1)
+        let finderOptimiserDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("\(GLOBAL_BIN_DIR_PARENT.lastPathComponent).FinderOptimiser")
+        if fm.fileExists(atPath: finderOptimiserDir.path), (try? fm.destinationOfSymbolicLink(atPath: finderOptimiserDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
+            do {
+                try fm.removeItem(at: finderOptimiserDir)
+            } catch {
+                nsalert(error: "Error removing symbolic link \(finderOptimiserDir.path): \(error)")
+                exit(1)
+            }
         }
-    }
-    if !fm.fileExists(atPath: finderOptimiserDir.path) {
-        do {
-            try fm.createSymbolicLink(at: finderOptimiserDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
-        } catch {
-            nsalert(error: "Error creating symbolic link \(finderOptimiserDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
-            exit(1)
+        if !fm.fileExists(atPath: finderOptimiserDir.path) {
+            do {
+                try fm.createSymbolicLink(at: finderOptimiserDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
+            } catch {
+                nsalert(error: "Error creating symbolic link \(finderOptimiserDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
+                exit(1)
+            }
         }
+        mainActor { setBinPaths() }
     }
+}
+
+@MainActor func setBinPaths() {
+    EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").filePath!
+    HEIF_ENC = BIN_DIR.appendingPathComponent("heif-enc").filePath!
+    CWEBP = BIN_DIR.appendingPathComponent("cwebp").filePath!
+    PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").filePath!
+    JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
+    JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").filePath!
+    GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").filePath!
+    VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
+    FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").filePath!
+    GIFSKI = BIN_DIR.appendingPathComponent("gifski").filePath!
 }

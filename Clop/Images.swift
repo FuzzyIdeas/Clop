@@ -14,11 +14,11 @@ import Lowtech
 import System
 import UniformTypeIdentifiers
 
-let PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").existingFilePath!
-let JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").existingFilePath!
-let JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").existingFilePath!
-let GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").existingFilePath!
-let VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").existingFilePath!
+var PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").filePath!
+var JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
+var JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").filePath!
+var GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").filePath!
+var VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
 
 extension NSPasteboard.PasteboardType {
     static let jpeg = NSPasteboard.PasteboardType(rawValue: "public.jpeg")

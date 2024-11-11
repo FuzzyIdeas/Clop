@@ -12,7 +12,7 @@ import Lowtech
 import SwiftUI
 import System
 
-extension String: Identifiable { // @retroactive Identifiable {
+extension String: @retroactive Identifiable {
     public var id: String { self }
 }
 

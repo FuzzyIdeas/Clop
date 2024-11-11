@@ -7,7 +7,7 @@ import PDFKit
 import System
 import UniformTypeIdentifiers
 
-let GS = BIN_DIR.appendingPathComponent("gs").existingFilePath!
+var GS = BIN_DIR.appendingPathComponent("gs").filePath!
 
 let GS_LOSSY_ARGS: [String] = [
     "-dAutoFilterGrayImages=true",
