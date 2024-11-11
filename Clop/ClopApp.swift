@@ -205,7 +205,7 @@ class AppDelegate: AppDelegateParent {
     var machPortThread: Thread?
     var machPortStopThread: Thread?
 
-    var finishedOnboarding = Defaults[.launchCount] > 0
+    var finishedOnboarding = Defaults[.finishedOnboarding] || Defaults[.launchCount] > 5
 
     lazy var onboardingWindowController: NSWindowController? = {
         let window = NSWindow(contentViewController: NSHostingController(rootView: OnboardingView()))
@@ -709,6 +709,7 @@ class AppDelegate: AppDelegateParent {
         if window.title == "Onboarding" {
             mainActor {
                 self.finishedOnboarding = true
+                Defaults[.finishedOnboarding] = true
                 self.initOptimisers()
                 NSApp.setActivationPolicy(.accessory)
                 self.onboardingWindowController?.window = nil

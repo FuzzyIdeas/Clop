@@ -47,6 +47,7 @@ class DragManager: ObservableObject {
 let DM = DragManager()
 
 struct DropZoneView: View {
+    var blurredBackground = true
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.enableDragAndDrop) var enableDragAndDrop
@@ -98,10 +99,15 @@ struct DropZoneView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(
-            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)
-                .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 3).any
-                .overlay(Color.calmGreen.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            blurredBackground
+                ? VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)
+                    .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 3).any
+                    .overlay(Color.calmGreen.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .any
+                : Color.calmGreen.opacity(0.25)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .any
         )
     }
 

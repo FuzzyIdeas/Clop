@@ -53,6 +53,7 @@ enum CleanupInterval: TimeInterval, Codable, Defaults.Serializable {
 }
 
 extension Defaults.Keys {
+    static let finishedOnboarding = Key<Bool>("finishedOnboarding", default: false)
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
     static let alwaysShowCompactResults = Key<Bool>("alwaysShowCompactResults", default: false)

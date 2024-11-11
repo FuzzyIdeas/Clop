@@ -7,10 +7,98 @@
 
 import Defaults
 import Foundation
+import Lowtech
 import SwiftUI
 
+struct DropZoneDemoAnimationView: View {
+    @Binding var dropped: Bool
+
+    var image: some View {
+        VStack(spacing: 10) {
+            SwiftUI.Image(nsImage: NSImage(resource: .sonomaShot))
+                .resizable()
+                .background(
+                    Rectangle()
+                        .fill(Color.white)
+                        .scaleEffect(x: 1.15, y: 1.2)
+                        .shadow(radius: 8)
+                )
+                .scaledToFill()
+                .frame(width: 70, height: 50)
+            Text("screenshot.png")
+                .font(.round(12))
+                .foregroundColor(clicked ? .white : .primary)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.blue.opacity(clicked ? 1.0 : 0.0))
+                        .scaleEffect(1.1)
+                )
+        }
+    }
+    var imageFileWithCursor: some View {
+        ZStack {
+            image
+                .scaleEffect(letGo ? 0.0 : (clicked ? 1.05 : 1.0))
+            SwiftUI.Image(systemName: clicked ? "cursorarrow.rays" : "cursorarrow")
+                .foregroundColor(.black)
+                .font(.system(size: clicked ? 32 : 24, weight: .bold))
+                .offset(x: 10, y: 0)
+        }
+    }
+    var body: some View {
+        VStack {
+            HStack(spacing: 100) {
+                ZStack {
+                    image.offset(Self.INITIAL_OFFSET)
+                    imageFileWithCursor.offset(draggedFileOffset)
+                }
+                DropZoneView(blurredBackground: false).padding(.horizontal, -20)
+            }
+            Text("Drag files into the **drop zone** at\nthe **bottom right** corner of your screen")
+                .multilineTextAlignment(.center)
+        }
+        .onAppear {
+            mainAsyncAfter(ms: 1000) {
+                withAnimation(.snappy(duration: 0.2)) {
+                    clicked = true
+                }
+                mainAsyncAfter(ms: 300) {
+                    withAnimation(.smooth(duration: 0.7)) {
+                        draggedFileOffset = CGSize(width: 310, height: 10)
+                    }
+                }
+                mainAsyncAfter(ms: 700) {
+                    withAnimation(.jumpySpring) {
+                        dragManager.dragHovering = true
+                    }
+                }
+                mainAsyncAfter(ms: 1300) {
+                    withAnimation(.smooth(duration: 0.2)) {
+                        letGo = true
+                        clicked = false
+                    }
+                }
+                mainAsyncAfter(ms: 2000) {
+                    withAnimation(.easeOut) {
+                        dropped = true
+                        dragManager.dragHovering = false
+                    }
+                }
+            }
+        }
+    }
+
+    private static var INITIAL_OFFSET = CGSize(width: 0, height: -30)
+
+    @State private var draggedFileOffset = INITIAL_OFFSET
+    @State private var clicked = false
+    @State private var letGo = false
+    @ObservedObject private var dragManager = DM
+
+}
 struct OnboardingView: View {
     @ObservedObject var bm = BM
+    @State private var fileDropped = true
 
     var clopLogo: some View {
         ZStack(alignment: .topLeading) {
@@ -69,18 +157,30 @@ struct OnboardingView: View {
                         .border(Color.black.opacity(colorScheme == .dark ? 0.4 : 0.1))
                         .scaleEffect(x: 1.3, y: 1.15)
                         .offset(y: 5)
-                    HStack {
-                        OnboardingFloatingPreview()
-                            .offset(x: -40, y: 0)
-                        Text("""
-                        Optimised images will appear
-                        as **floating thumbnails** in
-                        the **corner of your screen**,
-                        so you can further act on them.
-                        """)
+
+                    if fileDropped {
+                        VStack {
+                            HStack {
+                                OnboardingFloatingPreview()
+                                    .offset(x: -40, y: 0)
+                                Text("""
+                                Optimised images will appear
+                                as **floating thumbnails** in
+                                the **corner of your screen**,
+                                so you can further act on them.
+                                """)
+                            }
+                            Button("Replay") {
+                                fileDropped = false
+                            }
+                        }
+                        .frame(width: 530, height: 200)
+                    } else {
+                        DropZoneDemoAnimationView(dropped: $fileDropped)
+                            .frame(width: 530, height: 200)
                     }
-                    .padding(.vertical, -30)
                 }
+                .padding(.bottom, 20)
 
                 Text("""
                 Clop can also watch folders for new **images** and **videos**
@@ -99,15 +199,18 @@ struct OnboardingView: View {
                         DirListView(fileType: .video, dirs: $videoDirs, enabled: $enableAutomaticVideoOptimisations, hideIgnoreRules: true)
                     }
                 }
+                .padding(.bottom, 20)
 
                 if bm.decompressingBinaries {
-                    ProgressView("Decompressing binaries...")
+                    ProgressView("Preparing optimisers...")
                         .progressViewStyle(.linear)
                         .padding()
                 } else {
                     Button("Start using Clop") {
                         (AppDelegate.instance as? AppDelegate)?.onboardingWindowController?.close()
                     }
+                    .font(.mono(16, weight: .semibold))
+                    .foregroundColor(.primary.opacity(0.9))
                 }
             }
             .padding()
@@ -131,6 +234,9 @@ struct OnboardingView: View {
         .onAppear {
             withAnimation(.linear(duration: 2.5)) {
                 maskOpacity = 1
+            }
+            mainAsyncAfter(ms: 5000) {
+                fileDropped = false
             }
         }
     }
