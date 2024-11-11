@@ -12,6 +12,17 @@ import Lowtech
 import SwiftUI
 import System
 
+let TEXT_FIELD_OFFSET: CGFloat = if #available(macOS 15.0, *) {
+    4
+} else {
+    0
+}
+let TEXT_FIELD_SCALE: CGFloat = if #available(macOS 15.0, *) {
+    1.2
+} else {
+    1.0
+}
+
 extension String: @retroactive Identifiable {
     public var id: String { self }
 }
@@ -244,7 +255,7 @@ struct PDFSettingsView: View {
                     TextField("", value: $maxPDFSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
                         .multilineTextAlignment(.center)
                         .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
                 }
                 HStack {
@@ -252,7 +263,7 @@ struct PDFSettingsView: View {
                     TextField("", value: $maxPDFFileCount, formatter: BoundFormatter(min: 1, max: 100))
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text(maxPDFFileCount == 1 ? "PDF is dropped, copied or moved" : "PDFs are dropped, copied or moved").regular(13)
                 }
 
@@ -305,7 +316,7 @@ struct VideoSettingsView: View {
                     TextField("", value: $maxVideoSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
                         .multilineTextAlignment(.center)
                         .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
                 }
                 HStack {
@@ -313,7 +324,7 @@ struct VideoSettingsView: View {
                     TextField("", value: $maxVideoFileCount, formatter: BoundFormatter(min: 1, max: 100))
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text(maxVideoFileCount == 1 ? "video is dropped, copied or moved" : "videos are dropped, copied or moved").regular(13)
                 }
                 HStack {
@@ -324,6 +335,7 @@ struct VideoSettingsView: View {
                         Button(format.preferredFilenameExtension!) {
                             videoFormatsToSkip.toggle(format)
                         }.buttonStyle(ToggleButton(isOn: .oneway { videoFormatsToSkip.contains(format) }))
+                            .font(.mono(11))
                     }
                 }
                 #if arch(arm64)
@@ -400,6 +412,7 @@ struct VideoSettingsView: View {
                         Button(format.preferredFilenameExtension!) {
                             formatsToConvertToMP4.toggle(format)
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToMP4.contains(format) }))
+                            .font(.mono(11))
                     }
                 }
                 convertedVideoLocation
@@ -413,23 +426,27 @@ struct VideoSettingsView: View {
         HStack {
             (
                 Text("Converted video location").regular(13) +
-                    Text("\nThis only applies to the MP4 files resulting from the conversion of the above formats").round(10)
+                    Text("\nThis only applies to the MP4 files resulting\nfrom the conversion of the above formats").round(10)
+                    .foregroundColor(.secondary)
             ).padding(.trailing, 10)
 
             Spacer()
 
-            Button("Temporary folder") {
+            Button("Temporary\nfolder") {
                 convertedVideoBehaviour = .temporary
             }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .temporary }))
-                .font(.round(11))
-            Button("In-place (replace original)") {
+                .font(.round(10))
+                .multilineTextAlignment(.center)
+            Button("In-place\n(replace original)") {
                 convertedVideoBehaviour = .inPlace
             }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .inPlace }))
-                .font(.round(11))
-            Button("Same folder (as original)") {
+                .font(.round(10))
+                .multilineTextAlignment(.center)
+            Button("Same folder\n(as original)") {
                 convertedVideoBehaviour = .sameFolder
             }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .sameFolder }))
-                .font(.round(11))
+                .font(.round(10))
+                .multilineTextAlignment(.center)
         }
     }
 }
@@ -459,23 +476,31 @@ struct OptimisedFileBehaviourView: View {
             HStack {
                 (
                     Text("Optimised \(type.description) location").regular(13) +
-                        Text("\nWhere to place the optimised files").round(10)
+                        Text("\nWhere to place the optimised files").round(10).foregroundColor(.secondary)
                 ).padding(.trailing, 10)
 
                 Spacer()
 
-                Button("Temporary folder") {
+                Button("Temporary\nfolder") {
                     optimisedBehaviour = .temporary
                 }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .temporary }))
-                Button("In-place (replace original)") {
+                    .font(.round(10))
+                    .multilineTextAlignment(.center)
+                Button("In-place\n(replace original)") {
                     optimisedBehaviour = .inPlace
                 }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .inPlace }))
-                Button("Same folder (as original)") {
+                    .font(.round(10))
+                    .multilineTextAlignment(.center)
+                Button("Same folder\n(as original)") {
                     optimisedBehaviour = .sameFolder
                 }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .sameFolder }))
-                Button("Specific folder") {
+                    .font(.round(10))
+                    .multilineTextAlignment(.center)
+                Button("Specific\nfolder") {
                     optimisedBehaviour = .specificFolder
                 }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .specificFolder }))
+                    .font(.round(10))
+                    .multilineTextAlignment(.center)
             }
             if optimisedBehaviour == .sameFolder {
                 SameFolderNameTemplate(type: type, template: $sameFolderNameTemplate)
@@ -502,7 +527,7 @@ struct SameFolderNameTemplate: View {
                 TextField("", text: $template, prompt: Text(DEFAULT_SAME_FOLDER_NAME_TEMPLATE))
                     .frame(width: 300, height: 18, alignment: .leading)
                     .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                 Spacer(minLength: 20)
                 Text("Example on \(type.defaultNameTemplatePath.name.string): ")
                     .round(12)
@@ -556,7 +581,7 @@ struct SpecificFolderNameTemplate: View {
                 TextField("", text: $template, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
                     .frame(width: 400, height: 18, alignment: .leading)
                     .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                 Spacer(minLength: 20)
                 VStack(alignment: .trailing, spacing: 0) {
                     Text("Example on \(type.defaultNameTemplatePath.shellString): ")
@@ -639,7 +664,10 @@ struct ImagesSettingsView: View {
                 TextField("", text: $customNameTemplateForClipboardImages, prompt: Text(DEFAULT_NAME_TEMPLATE))
                     .frame(width: 400, height: 18, alignment: .leading)
                     .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray.opacity(useCustomNameTemplateForClipboardImages ? 1 : 0.35), lineWidth: 1))
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray.opacity(useCustomNameTemplateForClipboardImages ? 1 : 0.35), lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE)
+                            .offset(x: TEXT_FIELD_OFFSET)
+                    )
                     .disabled(!useCustomNameTemplateForClipboardImages)
                 if useCustomNameTemplateForClipboardImages {
                     Spacer(minLength: 20)
@@ -698,7 +726,7 @@ struct ImagesSettingsView: View {
                     TextField("", value: $maxImageSizeMB, formatter: BoundFormatter(min: 1, max: 500))
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
                 }
                 HStack {
@@ -706,7 +734,7 @@ struct ImagesSettingsView: View {
                     TextField("", value: $maxImageFileCount, formatter: BoundFormatter(min: 1, max: 100))
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text(maxImageFileCount == 1 ? "image is dropped, copied or moved" : "images are dropped, copied or moved").regular(13)
                 }
 
@@ -718,6 +746,7 @@ struct ImagesSettingsView: View {
                         Button(format.preferredFilenameExtension!) {
                             imageFormatsToSkip.toggle(format)
                         }.buttonStyle(ToggleButton(isOn: .oneway { imageFormatsToSkip.contains(format) }))
+                            .font(.mono(11))
                     }
                 }
                 HStack {
@@ -727,12 +756,15 @@ struct ImagesSettingsView: View {
                     Button("jpeg") {
                         useAggressiveOptimisationJPEG.toggle()
                     }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationJPEG))
+                        .font(.mono(11))
                     Button("png") {
                         useAggressiveOptimisationPNG.toggle()
                     }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationPNG))
+                        .font(.mono(11))
                     Button("gif") {
                         useAggressiveOptimisationGIF.toggle()
                     }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationGIF))
+                        .font(.mono(11))
                 }
                 Toggle(isOn: $adaptiveImageSize) {
                     Text("Adaptive optimisation").regular(13)
@@ -756,6 +788,7 @@ struct ImagesSettingsView: View {
                                 formatsToConvertToPNG.remove(format)
                             }
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToJPEG.contains(format) }))
+                            .font(.mono(11))
                     }
                 }
                 HStack {
@@ -769,6 +802,7 @@ struct ImagesSettingsView: View {
                                 formatsToConvertToJPEG.remove(format)
                             }
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToPNG.contains(format) }))
+                            .font(.mono(11))
                     }
                 }
                 convertedImageLocation
@@ -782,20 +816,27 @@ struct ImagesSettingsView: View {
         HStack {
             (
                 Text("Converted image location").regular(13) +
-                    Text("\nThis only applies to JPGs and PNGs resulting from the conversion of the above formats").round(10)
+                    Text("\nThis only applies to JPGs and PNGs resulting\nfrom the conversion of the above formats").round(10)
+                    .foregroundColor(.secondary)
             ).padding(.trailing, 10)
 
             Spacer()
 
-            Button("Temporary folder") {
+            Button("Temporary\nfolder") {
                 convertedImageBehaviour = .temporary
             }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .temporary }))
-            Button("In-place (replace original)") {
+                .font(.round(10))
+                .multilineTextAlignment(.center)
+            Button("In-place\n(replace original)") {
                 convertedImageBehaviour = .inPlace
             }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .inPlace }))
-            Button("Same folder (as original)") {
+                .font(.round(10))
+                .multilineTextAlignment(.center)
+            Button("Same folder\n(as original)") {
                 convertedImageBehaviour = .sameFolder
             }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .sameFolder }))
+                .font(.round(10))
+                .multilineTextAlignment(.center)
         }
     }
 }
@@ -1180,11 +1221,11 @@ struct GeneralSettingsView: View {
                 }.disabled(!enableClipboardOptimiser)
                 Toggle(isOn: $optimiseVideoClipboard) {
                     Text("Optimise copied video files").regular(13)
-                        + Text("\nSystem pasteboard can't hold video data, only video file paths. This option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
+                        + Text("\nSystem pasteboard can't hold video data, only video file paths.\nThis option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
                 Toggle(isOn: $optimiseImagePathClipboard) {
                     Text("Optimise copied image files").regular(13)
-                        + Text("\nCopying images from Finder results in file paths instead of image data. This option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
+                        + Text("\nCopying images from Finder results in file paths instead of image data.\nThis option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
             }
 
@@ -1194,7 +1235,7 @@ struct GeneralSettingsView: View {
                     TextField("", text: workdirBinding)
                         .multilineTextAlignment(.center)
                         .font(.mono(12))
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                 }
 
                 Picker("Periodically cleanup files older than", selection: $workdirCleanupInterval) {
@@ -1216,13 +1257,13 @@ struct GeneralSettingsView: View {
                 }
                 Toggle(isOn: $onlyShowDropZoneOnOption) {
                     Text("Require pressing ⌥ Option while dragging to show drop zone").regular(13)
-                        + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
+                        + Text("\nHide drop zone by default to avoid distractions while dragging files,\nshow it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 .padding(.leading, 20)
                 .disabled(!enableDragAndDrop)
                 Toggle(isOn: $autoCopyToClipboard) {
                     Text("Auto Copy optimised files to clipboard").regular(13)
-                        + Text("\nCopy files resulting from drop zone or file watch optimisation so they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
+                        + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
             Section(header: SectionHeader(title: "Optimisation")) {
