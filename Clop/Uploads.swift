@@ -3,8 +3,8 @@ import Foundation
 import Lowtech
 import System
 
-extension NSRunningApplication: @unchecked Sendable {} // @retroactive @unchecked Sendable {}
-extension NSWorkspace.OpenConfiguration: @unchecked Sendable {} // @retroactive @unchecked Sendable {}
+extension NSRunningApplication: @retroactive @unchecked Sendable {}
+extension NSWorkspace.OpenConfiguration: @retroactive @unchecked Sendable {}
 
 @MainActor
 class Dropshare {

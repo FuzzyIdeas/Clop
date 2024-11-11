@@ -277,20 +277,14 @@ struct OnboardingFloatingPreview: View {
 
 @MainActor struct FormatSelectorView: View {
     @ObservedObject var optimiser: Optimiser
-
-//    @ObservedObject var km = KM
+    @Environment(\.preview) var preview
 
     var body: some View {
         if !optimiser.running, optimiser.canChangeFormat() {
-//            , let image = optimiser.image {
             HStack(spacing: 1) {
                 ForEach(optimiser.type.convertibleTypes) { format in
                     if let ext = format.preferredFilenameExtension {
-//                        if km.lalt || km.ralt {
-//                            DraggableConvertedImage(format: format, ext: ext, image: image, optimiser: optimiser)
-//                        } else {
                         button(format: format, ext: ext)
-//                        }
                     }
                 }
             }
@@ -300,7 +294,7 @@ struct OnboardingFloatingPreview: View {
 
     func button(format: UTType, ext: String) -> some View {
         Button(ext.uppercased()) {
-            guard optimiser.type.utType != format else { return }
+            guard !preview, optimiser.type.utType != format else { return }
             optimiser.convert(to: format, optimise: true)
         }
         .buttonStyle(PickerButton(color: .bg.warm.opacity(0.7), offColor: .bg.warm.opacity(0.7), offTextColor: .fg.warm, horizontalPadding: 3, verticalPadding: 1, radius: 4, enumValue: optimiser.type, onValue: ItemType.image(format)))

@@ -856,6 +856,9 @@ class AppDelegate: AppDelegateParent {
             }
 
             mainActor {
+                guard !BM.decompressingBinaries else {
+                    return
+                }
                 if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo, !path.hasOptimisationStatusXattr() {
                     Task.init {
                         let _ = try? await optimiseVideo(Video(path: path), source: .clipboard)
@@ -994,7 +997,7 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible {
 
 import Ignore
 
-extension EonilFSEventsEvent: Hashable { // @retroactive Hashable {
+extension EonilFSEventsEvent: @retroactive Hashable {
     public static func == (lhs: EonilFSEventsEvent, rhs: EonilFSEventsEvent) -> Bool {
         lhs.path == rhs.path
     }
@@ -1166,7 +1169,7 @@ class FileOptimisationWatcher {
 
         do {
             try LowtechFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self), latency: 0.3) { [weak self] event in
-                guard !SWIFTUI_PREVIEW, let self, enabled, isAddedFile(event: event),
+                guard !SWIFTUI_PREVIEW, !BM.decompressingBinaries, let self, enabled, isAddedFile(event: event),
                       !self.alreadyOptimisedFiles.contains(event.path),
                       !OM.optimisers.contains(where: { $0.url?.path == event.path }),
                       let path = event.path.existingFilePath, shouldHandle(event)

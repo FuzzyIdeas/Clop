@@ -11,8 +11,8 @@ import Foundation
 import System
 import UniformTypeIdentifiers
 
-extension NSExtensionContext: @unchecked Sendable {} // @retroactive @unchecked Sendable {}
-extension NSItemProvider: @unchecked Sendable {} // @retroactive @unchecked Sendable {}
+extension NSExtensionContext: @retroactive @unchecked Sendable {}
+extension NSItemProvider: @retroactive @unchecked Sendable {}
 
 let CLOP_APP: URL = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 

@@ -34,6 +34,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case optimisationFailed(String)
     case conversionFailed(FilePath)
     case proError(String)
+    case decompressingBinariesError
     case downscaleFailed(FilePath)
     case dropshareNotRunning(FilePath)
     case encryptedPDF(FilePath)
@@ -79,6 +80,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             return "Conversion failed: \(p)"
         case let .proError(string):
             return "Pro error: \(string)"
+        case .decompressingBinariesError:
+            return "Decompressing binaries"
         case let .downscaleFailed(p):
             return "Downscale failed: \(p)"
         case let .optimisationFailed(p):
@@ -143,13 +146,15 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Can't parse PDF"
         case .couldNotCreateOutputDirectory:
             "Could not create output directory"
+        case .decompressingBinariesError:
+            "Decompressing binaries"
         case .unknownType:
             "Unknown type"
         }
     }
 }
 
-extension UTType: Identifiable { // @retroactive Identifiable {
+extension UTType: @retroactive Identifiable {
     public var id: String { identifier }
 }
 
@@ -1357,9 +1362,9 @@ let ARCH: String = {
 let GLOBAL_BIN_DIR_PARENT = FileManager.default.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first! // ~/Library/Application Scripts/com.lowtechguys.Clop
 let GLOBAL_BIN_DIR = GLOBAL_BIN_DIR_PARENT.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/
 let BIN_DIR = GLOBAL_BIN_DIR.appendingPathComponent(ARCH) // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/arm64
-let EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").existingFilePath!
-let HEIF_ENC = BIN_DIR.appendingPathComponent("heif-enc").existingFilePath!
-let CWEBP = BIN_DIR.appendingPathComponent("cwebp").existingFilePath!
+var EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").filePath!
+var HEIF_ENC = BIN_DIR.appendingPathComponent("heif-enc").filePath!
+var CWEBP = BIN_DIR.appendingPathComponent("cwebp").filePath!
 
 func getURLsFromFolder(_ folder: URL, recursive: Bool, types: [UTType]) -> [URL] {
     guard let enumerator = FileManager.default.enumerator(

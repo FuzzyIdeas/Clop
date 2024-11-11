@@ -391,6 +391,12 @@ final class QuickLooker: QLPreviewPanelDataSource {
     }
 }
 
+@MainActor final class BinaryManager: ObservableObject {
+    @Published var decompressingBinaries = false
+}
+
+@MainActor var BM = BinaryManager()
+
 // MARK: - Optimiser
 
 @MainActor final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, CustomStringConvertible {
@@ -1857,6 +1863,7 @@ enum ClipboardType: Equatable {
 
     @discardableResult @inline(__always)
     @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
+        guard !BM.decompressingBinaries else { throw ClopError.decompressingBinariesError }
         guard proactive || count < limit, meetsInternalRequirements() else {
             if let url {
                 OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.with(url)
