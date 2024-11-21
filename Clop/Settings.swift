@@ -64,6 +64,7 @@ extension Defaults.Keys {
     static let optimiseImagePathClipboard = Key<Bool>("optimiseImagePathClipboard", default: false)
     static let stripMetadata = Key<Bool>("stripMetadata", default: true)
     static let preserveDates = Key<Bool>("preserveDates", default: true)
+    static let preserveColorMetadata = Key<Bool>("preserveColorMetadata", default: true)
 
     static let workdir = Key<String>("workdir", default: URL.cachesDirectory.appendingPathComponent("Clop", conformingTo: .directory).path)
     static let workdirCleanupInterval = Key<CleanupInterval>("workdirCleanupInterval", default: .every3Days)
@@ -244,6 +245,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .optimiseVideoClipboard,
     .pdfDirs,
     .preserveDates,
+    .preserveColorMetadata,
     .quickResizeKeys,
     .savedCropSizes,
     .shortcutToRunOnImage,

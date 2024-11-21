@@ -1186,6 +1186,7 @@ struct GeneralSettingsView: View {
     @Default(.enableDragAndDrop) var enableDragAndDrop
     @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
     @Default(.stripMetadata) var stripMetadata
+    @Default(.preserveColorMetadata) var preserveColorMetadata
     @Default(.preserveDates) var preserveDates
     @Default(.syncSettingsCloud) var syncSettingsCloud
 
@@ -1271,6 +1272,13 @@ struct GeneralSettingsView: View {
                     Text("Strip EXIF Metadata").regular(13)
                         + Text("\nDeleted identifiable metadata from files (e.g. camera that took the photo, location, date and time etc.)").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                Toggle(isOn: $preserveColorMetadata) {
+                    Text("Preserve color profile metadata").regular(13)
+                        + Text("\nKeep color profile metadata tags untouched when stripping EXIF metadata").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                .padding(.leading, 20)
+                .disabled(!stripMetadata)
+
                 Toggle(isOn: $preserveDates) {
                     Text("Preserve file creation and modification dates").regular(13)
                         + Text("\nThe optimised file will have the same creation and modification dates as the original file").round(11, weight: .regular).foregroundColor(.secondary)

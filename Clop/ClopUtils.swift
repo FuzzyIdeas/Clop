@@ -211,10 +211,11 @@ extension FilePath {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
 
+        let tagsToKeep = (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags"] : []) : (isVideo ? ["-All:All"] : []))
         let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
             + additionalArgs
             + ["-extractEmbedded", "-tagsFromFile", source.string]
-            + (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] : (isVideo ? ["-All:All"] : []))
+            + tagsToKeep
             + [string]
 
         log.debug(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))
