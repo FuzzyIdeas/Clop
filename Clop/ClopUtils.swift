@@ -15,15 +15,7 @@ import System
 extension Process: @unchecked Sendable {}
 
 func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: String]? = nil, out: Pipe? = nil, err: Pipe? = nil) -> Process? {
-    guard let outputDir = try? fm.url(
-        for: .itemReplacementDirectory,
-        in: .userDomainMask,
-        appropriateFor: fm.homeDirectoryForCurrentUser,
-        create: true
-    ) else {
-        log.error("Error creating output directory for \(launchPath) \(args)")
-        return nil
-    }
+    let outputDir = FilePath.processLogs.appending("\(launchPath) \(args)".safeFilename)
 
     let task = Process()
     var env = env ?? ProcessInfo.processInfo.environment
@@ -31,7 +23,7 @@ func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: 
     if let out {
         task.standardOutput = out
     } else {
-        let stdoutFilePath = outputDir.appendingPathComponent("stdout").path
+        let stdoutFilePath = outputDir.withExtension("out").string
         fm.createFile(atPath: stdoutFilePath, contents: nil, attributes: nil)
         guard let stdoutFile = FileHandle(forWritingAtPath: stdoutFilePath) else {
             return nil
@@ -43,7 +35,7 @@ func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: 
     if let err {
         task.standardError = err
     } else {
-        let stderrFilePath = outputDir.appendingPathComponent("stderr").path
+        let stderrFilePath = outputDir.withExtension("err").string
         fm.createFile(atPath: stderrFilePath, contents: nil, attributes: nil)
         guard let stderrFile = FileHandle(forWritingAtPath: stderrFilePath) else {
             return nil
@@ -147,6 +139,8 @@ extension FilePath {
     static var downloads: FilePath { FilePath.dir(workdir / "downloads", permissions: 0o755) }
     static var forResize: FilePath { FilePath.dir(workdir / "for-resize", permissions: 0o755) }
     static var forFilters: FilePath { FilePath.dir(workdir / "for-filters", permissions: 0o755) }
+    static var processLogs: FilePath { FilePath.dir(workdir / "process-logs", permissions: 0o755) }
+    static var finderQuickAction: FilePath { FilePath.dir(workdir / "finder-quick-action", permissions: 0o755) }
 
     func setOptimisationStatusXattr(_ value: String) throws {
         try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)

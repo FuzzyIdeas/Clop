@@ -495,7 +495,7 @@ class AppDelegate: AppDelegateParent {
                 return
             }
 
-            for dir in [FilePath.clopBackups, FilePath.videos, FilePath.images, FilePath.pdfs, FilePath.conversions, FilePath.downloads, FilePath.forResize, FilePath.forFilters] {
+            for dir in [FilePath.clopBackups, .videos, .images, .pdfs, .conversions, .downloads, .forResize, .forFilters, .finderQuickAction, .processLogs] {
                 let enumerator = fm.enumerator(at: dir.url, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
                 guard let iterator = enumerator else {
                     return

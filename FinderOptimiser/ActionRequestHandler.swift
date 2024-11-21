@@ -69,14 +69,16 @@ class ActionRequestHandler: NSObject, NSExtensionRequestHandling {
 func sandboxURL(_ url: URL, completion: @escaping (URL) -> Void) {
     let coordinator = NSFileCoordinator()
     coordinator.coordinate(readingItemAt: url, options: [], error: nil) { url in
-        guard let itemReplacementDirectory = try? FileManager.default.url(
-            for: .itemReplacementDirectory, in: .userDomainMask,
+        guard let cacheDirectory = try? FileManager.default.url(
+            for: .cachesDirectory, in: .userDomainMask,
             appropriateFor: URL(fileURLWithPath: NSHomeDirectory()), create: true
-        ) else { return }
+        ) else {
+            return
+        }
 
-        let _tempURL = itemReplacementDirectory.appendingPathComponent(url.lastPathComponent)
+        let _tempURL = cacheDirectory.appendingPathComponent(url.lastPathComponent)
         let tempURL = FileManager.default.fileExists(atPath: _tempURL.path)
-            ? itemReplacementDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
+            ? cacheDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
             : _tempURL
 
         try? FileManager.default.removeItem(at: tempURL)
