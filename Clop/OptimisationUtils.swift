@@ -1099,14 +1099,14 @@ final class QuickLooker: QLPreviewPanelDataSource {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    func uploadWithDropshare() {
+    func addToYoink() {
         guard let file = url?.existingFilePath else { return }
-        guard Dropshare.appURL != nil else {
-            NSWorkspace.shared.open("https://dropshare.app/".url!)
+        guard YOINK.appURL != nil else {
+            NSWorkspace.shared.open("https://eternalstorms.at/yoink/mac/".url!)
             return
         }
         tryAsync {
-            try await Dropshare.upload(file)
+            try await YOINK.open(file)
         }
         if OM.compactResults ? Defaults[.dismissCompactResultOnUpload] : Defaults[.dismissFloatingResultOnUpload] {
             remove(after: 100, withAnimation: true)
@@ -1420,26 +1420,6 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
                 .filter { o in !optimisers.contains(o) && !o.hidden && !o.isPreview }
                 .with(optimisers.filter { !$0.running && !$0.hidden && !$0.isPreview })
             optimisers = optimisers.filter { $0.running || $0.hidden }
-        }
-    }
-
-    func uploadWithDropshare(optimisers: [Optimiser]? = nil) {
-        let workingWithSelection = optimisers != nil
-        let optimisers = optimisers ?? visibleOptimisers.arr
-
-        guard !optimisers.isEmpty else { return }
-        guard Dropshare.appURL != nil else {
-            NSWorkspace.shared.open("https://dropshare.app/".url!)
-            return
-        }
-
-        let files = optimisers.compactMap(\.url?.existingFilePath)
-
-        tryAsync {
-            try await Dropshare.upload(files)
-        }
-        if Defaults[.dismissCompactResultOnUpload], !workingWithSelection {
-            clearVisibleOptimisers()
         }
     }
 

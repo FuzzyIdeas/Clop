@@ -36,7 +36,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case proError(String)
     case decompressingBinariesError
     case downscaleFailed(FilePath)
-    case dropshareNotRunning(FilePath)
+    case appNotRunning(FilePath)
     case encryptedPDF(FilePath)
     case invalidPDF(FilePath)
     case couldNotCreateOutputDirectory(String)
@@ -86,8 +86,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             return "Downscale failed: \(p)"
         case let .optimisationFailed(p):
             return "Optimisation failed: \(p)"
-        case let .dropshareNotRunning(p):
-            return "Dropshare is not running, upload failed: \(p)"
+        case let .appNotRunning(p):
+            return "App is not running, integration failed: \(p)"
         case let .invalidPDF(p):
             return "Can't parse PDF: \(p)"
         case let .encryptedPDF(p):
@@ -138,8 +138,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Downscale failed"
         case .optimisationFailed:
             "Optimisation failed"
-        case .dropshareNotRunning:
-            "Dropshare not running"
+        case .appNotRunning:
+            "App integration not running"
         case .encryptedPDF:
             "PDF is encrypted"
         case .invalidPDF:

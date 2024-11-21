@@ -140,9 +140,18 @@ struct RightClickMenuView: View {
             Divider()
 
             Button("Upload with Dropshare") {
-                optimiser.uploadWithDropshare()
+                DROPSHARE.open(optimiser: optimiser)
             }
             .keyboardShortcut("u")
+            Button("Add to Yoink") {
+                YOINK.open(optimiser: optimiser)
+            }
+            .keyboardShortcut("y")
+            Button("Add to Dockside") {
+                DOCKSIDE.open(optimiser: optimiser)
+            }
+
+            Divider()
 
             if !optimiser.type.isPDF {
                 Button("Strip EXIF metadata") {
@@ -232,9 +241,19 @@ struct BatchRightClickMenuView: View {
         Divider()
 
         Button("Upload with Dropshare") {
-            sm.uploadWithDropshare()
+            DROPSHARE.open(optimisers: sm.optimisers)
             sm.selection = []
         }
+        Button("Add to Yoink") {
+            YOINK.open(optimisers: sm.optimisers)
+            sm.selection = []
+        }
+        Button("Add to Dockside") {
+            DOCKSIDE.open(optimisers: sm.optimisers)
+            sm.selection = []
+        }
+
+        Divider()
 
         Button("Strip EXIF metadata") {
             for optimiser in optimisers {

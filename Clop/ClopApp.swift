@@ -331,7 +331,7 @@ class AppDelegate: AppDelegateParent {
         case .f:
             opt.showInFinder()
         case .u:
-            opt.uploadWithDropshare()
+            DROPSHARE.open(optimiser: opt)
         case .o:
             guard let url = opt.url ?? opt.originalURL else { return }
             NSWorkspace.shared.open(url)
@@ -681,7 +681,9 @@ class AppDelegate: AppDelegateParent {
         let _ = checkInternalRequirements(PRODUCTS, nil)
         setupServiceProvider()
         startShortcutWatcher()
-        Dropshare.fetchAppURL()
+        DROPSHARE.fetchAppURL()
+        YOINK.fetchAppURL()
+        DOCKSIDE.fetchAppURL()
 
         // listen for NSWindow.willCloseNotification to release the window
         NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: nil)

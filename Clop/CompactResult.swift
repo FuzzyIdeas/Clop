@@ -422,11 +422,6 @@ class SelectionManager: ObservableObject {
     func quicklook() {
         OM.quicklook()
     }
-
-    func uploadWithDropshare() {
-        OM.uploadWithDropshare(optimisers: optimisers)
-    }
-
 }
 
 @MainActor let SM = SelectionManager()
