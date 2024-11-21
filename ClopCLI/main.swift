@@ -1213,6 +1213,14 @@ struct CLIResult: Codable {
     let failed: [OptimisationResponseError]
 }
 
+@discardableResult
+@inline(__always) public func mainThread<T>(_ action: () -> T) -> T {
+    guard !Thread.isMainThread else {
+        return action()
+    }
+    return DispatchQueue.main.sync { action() }
+}
+
 actor ProgressPrinter {
     init(urls: [URL]) {
         urlsToProcess = urls
@@ -1289,7 +1297,7 @@ actor ProgressPrinter {
             if itemStr.count > 50 {
                 itemStr = "..." + itemStr.suffix(40)
             }
-            if let desc = progress.localizedAdditionalDescription {
+            if let desc = mainThread { progress.localizedAdditionalDescription } {
                 printerr("\(itemStr): \(desc) \(progressBarStr) (\(progressInt)%)")
             } else {
                 printerr("\(itemStr): \(progressBarStr) \(progressInt)%")
