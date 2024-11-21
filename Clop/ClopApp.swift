@@ -158,6 +158,10 @@ class AppDelegate: AppDelegateParent {
 
         let toOptimise: [ClipboardType] = items.compactMap { item -> ClipboardType? in
             let types = item.types
+            guard !types.contains(.init("com.apple.finalcutpro.xml")) else {
+                return nil
+            }
+
             if types.contains(.fileURL), let url = item.string(forType: .fileURL)?.url,
                let path = url.existingFilePath, path.isImage || path.isVideo || path.isPDF
             {
@@ -1041,8 +1045,8 @@ class FileOptimisationWatcher {
             if change.newValue {
                 startWatching()
             } else if watching {
-                EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
                 watching = false
+                EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
             }
         }.store(in: &observers)
 
@@ -1055,8 +1059,8 @@ class FileOptimisationWatcher {
 
             if change.newValue {
                 if watching {
-                    EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
                     watching = false
+                    EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
                 }
             } else {
                 startWatching()
@@ -1068,6 +1072,7 @@ class FileOptimisationWatcher {
 
     deinit {
         guard watching else { return }
+        watching = false
         EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
     }
 
@@ -1161,8 +1166,8 @@ class FileOptimisationWatcher {
 
     func stopWatching() {
         if watching {
-            LowtechFSEvents.stopWatching(for: ObjectIdentifier(self))
             watching = false
+            LowtechFSEvents.stopWatching(for: ObjectIdentifier(self))
         }
     }
 
@@ -1195,11 +1200,11 @@ class FileOptimisationWatcher {
 
                 Task.init { [weak self] in await self?.checkEventAndProcess(event) }
             }
+            watching = true
         } catch {
             log.error("Failed to start watching \(fileType.rawValue) folders: \(error)")
             return
         }
-        watching = true
     }
 
     @MainActor
