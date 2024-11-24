@@ -758,6 +758,7 @@ extension Device: AppEnum {
 
     static var caseDisplayRepresentations: [Device: DisplayRepresentation] {
         [
+            .iPhone16ProMax: "iPhone 16 Pro Max", .iPhone16Pro: "iPhone 16 Pro", .iPhone16Plus: "iPhone 16 Plus", .iPhone16: "iPhone 16",
             .iPhone15ProMax: "iPhone 15 Pro Max", .iPhone15Pro: "iPhone 15 Pro", .iPhone15Plus: "iPhone 15 Plus", .iPhone15: "iPhone 15",
             .iPadPro: "iPad Pro", .iPadPro6129Inch: "iPad Pro 6 12.9inch", .iPadPro611Inch: "iPad Pro 6 11inch",
             .iPad: "iPad", .iPad10: "iPad 10",
