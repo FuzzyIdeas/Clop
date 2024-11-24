@@ -18,6 +18,8 @@
 				<string>MOV</string>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
+				<key>LSHandlerRank</key>
+				<string>Alternate</string>
 				<key>LSItemContentTypes</key>
 				<array>
 					<string>com.apple.quicktime-movie</string>
@@ -41,6 +43,8 @@
 				<string>MP4</string>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
+				<key>LSHandlerRank</key>
+				<string>Alternate</string>
 				<key>LSItemContentTypes</key>
 				<array>
 					<string>public.mpeg-4</string>
@@ -64,6 +68,8 @@
 				<string>GIF</string>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
+				<key>LSHandlerRank</key>
+				<string>Alternate</string>
 				<key>LSItemContentTypes</key>
 				<array>
 					<string>com.compuserve.gif</string>
@@ -87,6 +93,8 @@
 				<string>PNG</string>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
+				<key>LSHandlerRank</key>
+				<string>Alternate</string>
 				<key>LSItemContentTypes</key>
 				<array>
 					<string>public.png</string>
@@ -113,6 +121,8 @@
 				<string>JPEG</string>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
+				<key>LSHandlerRank</key>
+				<string>Alternate</string>
 				<key>LSItemContentTypes</key>
 				<array>
 					<string>public.jpeg</string>
@@ -127,6 +137,8 @@
 				<string>Folder</string>
 				<key>CFBundleTypeRole</key>
 				<string>Editor</string>
+				<key>LSHandlerRank</key>
+				<string>Alternate</string>
 				<key>LSItemContentTypes</key>
 				<array>
 					<string>public.folder</string>

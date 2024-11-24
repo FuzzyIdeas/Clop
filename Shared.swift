@@ -624,6 +624,10 @@ let PAPER_CROP_SIZES: [String: [String: CropSize]] = PAPER_SIZES_BY_CATEGORY.red
 }
 
 let DEVICE_SIZES = [
+    "iPhone 16 Pro Max": NSSize(width: 1320, height: 2868),
+    "iPhone 16 Pro": NSSize(width: 1206, height: 2622),
+    "iPhone 16 Plus": NSSize(width: 1290, height: 2796),
+    "iPhone 16": NSSize(width: 1179, height: 2556),
     "iPhone 15 Pro Max": NSSize(width: 1290, height: 2796),
     "iPhone 15 Pro": NSSize(width: 1179, height: 2556),
     "iPhone 15 Plus": NSSize(width: 1290, height: 2796),
@@ -858,6 +862,10 @@ extension NSSize {
 }
 
 enum Device: String, Codable, Sendable, CaseIterable {
+    case iPhone16ProMax = "iPhone 16 Pro Max"
+    case iPhone16Pro = "iPhone 16 Pro"
+    case iPhone16Plus = "iPhone 16 Plus"
+    case iPhone16 = "iPhone 16"
     case iPhone15ProMax = "iPhone 15 Pro Max"
     case iPhone15Pro = "iPhone 15 Pro"
     case iPhone15Plus = "iPhone 15 Plus"

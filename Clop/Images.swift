@@ -400,7 +400,7 @@ class Image: CustomStringConvertible {
             return nil
         }
         let optimisedImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? outImg
-        if optimisedImg.path != path {
+        if optimisedImg.path != path, optimisedImg.path.extension == path.extension {
             try optimisedImg.path.copy(to: path, force: true)
         }
         return optimisedImg.copyWithPath(path)
