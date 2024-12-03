@@ -2,6 +2,23 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <item>
+            <title>2.7.0</title>
+            <pubDate>Tue, 03 Dec 2024 23:28:17 +0200</pubDate>
+            <link>https://lowtechguys.com/clop</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>2.7.0</sparkle:version>
+            <sparkle:shortVersionString>2.7.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.7.0.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.7.0.dmg" length="90740931" type="application/octet-stream" sparkle:edSignature="94VyYhHrk4MLBHHOcK+w6Gfcn/8kAOjca6eI1LLvcM+8LtqxmN1CYUdd6MCdcrmg/15gqtOUnlaj3NfjlJamCg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.7.0-2.6.5.delta" sparkle:deltaFrom="2.6.5" length="1108678" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="w0zZXFw7GDR3L1HvKai0Fr2ZSykPloRtz0Kb7N3032UbPbh6aLhUXVTf4MSHR/YCPzEwkQJ38dDHs10f5MEEBQ=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.7.0-2.6.4.delta" sparkle:deltaFrom="2.6.4" length="1381166" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="ltVL0IKYveYJeEfQN81gXmhmMjMWZOfJOLfJs+qeDkJlvfp/KJ6I+J2rUZfaBsjzBZW4svfk9c39mVJUWzA1CQ=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.7.0-2.6.3.delta" sparkle:deltaFrom="2.6.3" length="1591762" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="O4lbrj4bXJj+nFa9xkxxPi9KHXi8WqB9HMMVrLmylJHEhBT4trWxZdBPBiPvVpo0WRqIiep0M95UzNKF8uDdBA=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop2.7.0-2.6.2.delta" sparkle:deltaFrom="2.6.2" length="1666122" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="wXftORqh8mZFVr4TZM+GVteeII9rJbQ7uBJthDAwg/FZm317xNCIABLeRHCqmAun9eDm8v/O303K3sg4jKTiAg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>2.6.5</title>
             <pubDate>Mon, 11 Nov 2024 17:23:02 +0200</pubDate>
             <link>https://lowtechguys.com/clop</link>
@@ -129,17 +146,6 @@
             <sparkle:deltas>
                 <enclosure url="https://files.lowtechguys.com/releases/Clop2.5.3-2.5.2.delta" sparkle:deltaFrom="2.5.2" length="1400690" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="865120" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="TJmpEugpjlnXr8u1d+DrJ0AXayYOYMwTnqao6VZdgKmQOIiEufkXnSPgY5EwdSOjEiY28yBooH4b3NBdlY3ZBA=="/>
             </sparkle:deltas>
-        </item>
-        <item>
-            <title>2.5.2</title>
-            <pubDate>Thu, 21 Dec 2023 18:43:54 +0200</pubDate>
-            <link>https://lowtechguys.com/clop</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
-            <sparkle:version>2.5.2</sparkle:version>
-            <sparkle:shortVersionString>2.5.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.5.2.html</sparkle:releaseNotesLink>
-            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.5.2.dmg" length="92180718" type="application/octet-stream" sparkle:edSignature="42/oIxu2YT/wlpdQAoNNwCf0NBTPZB8GJjA3RuU0Ujc2ZTdufib2vRXRcmHDaCLFlujVIHMggYKtis6war0pBw=="/>
         </item>
     </channel>
 </rss>

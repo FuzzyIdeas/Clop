@@ -202,6 +202,12 @@ struct ConvertImageIntent: AppIntent {
     @Parameter(title: "Hide floating result")
     var hideFloatingResult: Bool
 
+    @Parameter(title: "Show converted image as result")
+    var addFloatingResult: Bool
+
+    @Parameter(title: "Delete original image")
+    var deleteOriginal: Bool
+
     @Parameter(title: "Format", default: .webp)
     var format: ImageFormat
 
@@ -258,6 +264,15 @@ struct ConvertImageIntent: AppIntent {
         outFilePath = FilePath("\(outFilePath.string).\(ext)")
 
         try convertedImage.path.move(to: outFilePath, force: true)
+
+        if deleteOriginal {
+            try path.delete()
+        }
+
+        if addFloatingResult {
+            let opt = OM.optimiser(id: convertedImage.path.string, type: .image(type), operation: "Converting to \(format.rawValue)", source: .shortcuts, indeterminateProgress: true)
+            opt.running = false
+        }
 
         return .result(value: IntentFile(data: convertedImage.data, filename: outFilePath.name.string, type: type))
     }

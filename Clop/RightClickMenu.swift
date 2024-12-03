@@ -285,6 +285,7 @@ struct ShortcutChoiceMenu: View {
                     ForEach(shorts, id: \.key) { folder, shortcuts in
                         Section(folder) { shortcutList(shortcuts) }
                     }
+
                 }
             }
         } else {
