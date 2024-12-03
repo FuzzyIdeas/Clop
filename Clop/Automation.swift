@@ -245,11 +245,29 @@ struct AutomationRowView: View {
         }
     }
 
+    @ViewBuilder var defaultShortcutList: some View {
+        let shortcutNames = SHM.shortcutsMap?.values.joined().map(\.name) ?? []
+        Section("Default Shortcuts") {
+            let shorts = CLOP_SHORTCUTS.filter { sh in
+                !shortcutNames.contains(sh.deletingPathExtension().lastPathComponent)
+            }
+            ForEach(shorts, id: \.self) { url in
+                Text(url.deletingPathExtension().lastPathComponent)
+                    .tag(Shortcut(name: url.deletingPathExtension().lastPathComponent, identifier: url.absoluteString))
+            }
+        }
+    }
+
     @ViewBuilder
     func picker(source: String) -> some View {
         let binding = Binding<Shortcut?>(
             get: { shortcuts[source] },
             set: {
+                if let shortcut = $0, let url = shortcut.identifier.url {
+                    NSWorkspace.shared.open(url)
+                    return
+                }
+
                 if let shortcut = $0 {
                     shortcuts = shortcuts.copyWith(key: source, value: shortcut)
                 } else {
@@ -265,6 +283,7 @@ struct AutomationRowView: View {
                     Text("do nothing").tag(nil as Shortcut?)
                     Divider()
                     ShortcutChoiceMenu()
+                    defaultShortcutList
                 },
                 label: {
                     HStack {
@@ -284,11 +303,13 @@ struct AutomationRowView: View {
             .disabled(binding.wrappedValue == nil)
         }
     }
+
 }
 
 let CLOP_SHORTCUTS = Bundle.main
     .urls(forResourcesWithExtension: "shortcut", subdirectory: nil)!
     .filter { !$0.lastPathComponent.hasPrefix("Clop - ") }
+    .sorted(by: \.lastPathComponent)
 
 struct AutomationSettingsView: View {
     @Default(.shortcutToRunOnImage) var shortcutToRunOnImage
