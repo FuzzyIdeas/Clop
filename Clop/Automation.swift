@@ -324,9 +324,9 @@ struct AutomationSettingsView: View {
     @ObservedObject var shortcutsManager = SHM
 
     var body: some View {
-        let imageSources = ((enableClipboardOptimiser || optimiseImagePathClipboard) ? [.clipboard] : []) + (enableDragAndDrop ? [.dropZone] : []) + Defaults[.imageDirs].map(\.optSource)
-        let videoSources = (optimiseVideoClipboard ? [.clipboard] : []) + (enableDragAndDrop ? [.dropZone] : []) + Defaults[.videoDirs].map(\.optSource)
-        let pdfSources = (enableDragAndDrop ? [.dropZone] : []) + Defaults[.pdfDirs].map(\.optSource)
+        let imageSources = ((enableClipboardOptimiser || optimiseImagePathClipboard) ? [.clipboard] : []) + (enableDragAndDrop ? [.dropZone] : []) + Defaults[.imageDirs].compactMap(\.optSource).sorted(by: \.string)
+        let videoSources = (optimiseVideoClipboard ? [.clipboard] : []) + (enableDragAndDrop ? [.dropZone] : []) + Defaults[.videoDirs].compactMap(\.optSource).sorted(by: \.string)
+        let pdfSources = (enableDragAndDrop ? [.dropZone] : []) + Defaults[.pdfDirs].compactMap(\.optSource).sorted(by: \.string)
 
         Form {
             Section(header: SectionHeader(

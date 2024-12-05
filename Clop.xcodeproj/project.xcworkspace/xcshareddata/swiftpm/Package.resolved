@@ -1,5 +1,4 @@
 {
-  "originHash" : "4c579411bc51eedd21a157420218961172c8384b6b7747a63c9307dfaad93a5b",
   "pins" : [
     {
       "identity" : "appreceiptvalidator",
@@ -53,15 +52,6 @@
       "state" : {
         "revision" : "a04ec1c363be3627734f6dad757d82f5d4fa8fcc",
         "version" : "1.1.0"
-      }
-    },
-    {
-      "identity" : "lowtech",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/FuzzyIdeas/Lowtech",
-      "state" : {
-        "branch" : "ventura",
-        "revision" : "8938b32bca8edb55e1c202f30d59f9efc7bf2a0b"
       }
     },
     {
@@ -173,5 +163,5 @@
       }
     }
   ],
-  "version" : 3
+  "version" : 2
 }
