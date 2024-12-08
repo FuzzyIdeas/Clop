@@ -73,6 +73,7 @@ struct FloatingResultContainer: View {
     @ObservedObject var om = OM
     @ObservedObject var sm = SM
     @ObservedObject var dragManager = DM
+
     var isPreview = false
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showImages) var showImages

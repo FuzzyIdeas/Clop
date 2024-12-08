@@ -56,23 +56,10 @@ struct LoopingVideoPlayer: View {
     static var videoCache = [URL: AVPlayerItem]()
     static var timeObserverTokens = [URL: Any]()
 
-    var videoURL: URL
-    var otherVideoURL: URL?
-
     @Binding var playing: Bool
 
-    var body: some View {
-        AVPlayerControllerRepresented(player: player)
-            .onAppear { player.play() }
-            .onDisappear { player.pause() }
-            .onChange(of: playing) { playing in
-                if playing {
-                    player.play()
-                } else {
-                    player.pause()
-                }
-            }
-    }
+    var videoURL: URL
+    var otherVideoURL: URL?
 
     var otherPlayer: AVQueuePlayer? {
         get {
@@ -87,6 +74,19 @@ struct LoopingVideoPlayer: View {
             }
             Self.playerCache[otherVideoURL] = newValue
         }
+    }
+
+    var body: some View {
+        AVPlayerControllerRepresented(player: player)
+            .onAppear { player.play() }
+            .onDisappear { player.pause() }
+            .onChange(of: playing) { playing in
+                if playing {
+                    player.play()
+                } else {
+                    player.pause()
+                }
+            }
     }
 
     static func clearCache(for urls: [URL]) {
@@ -155,10 +155,10 @@ struct PannableImage: View {
 
     static var imageCache = [URL: NSImage]()
 
+    @Binding var fitOrFill: ContentMode
+
     var url: URL
     var image: NSImage?
-
-    @Binding var fitOrFill: ContentMode
 
     var body: some View {
         if let image {
@@ -367,16 +367,6 @@ struct CompareView: View {
         .focusable(false)
     }
 
-    func flagsChanged(_ flags: Set<TriggerKey>) {
-        guard NSApp.isActive else { return }
-        withAnimation(.fastSpring) {
-            zoomed = flags.hasElements(from: [.lcmd, .rcmd, .cmd])
-            zoom = zoomed ? (flags.hasElements(from: [.lalt, .ralt, .alt]) ? 8.0 : 3.0) : 1.0
-            if !zoomed {
-                zoomOffset = .center
-            }
-        }
-    }
     func preview(url: URL, title: String, bytes: Int? = nil, size: CGSize? = nil, aspectRatio: Double = 1, @ViewBuilder content: () -> some View) -> some View {
         VStack {
             VStack {
@@ -420,6 +410,17 @@ struct CompareView: View {
             .frame(minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE)
             .foregroundColor(.secondary)
             .padding(.top, 4)
+        }
+    }
+
+    func flagsChanged(_ flags: Set<TriggerKey>) {
+        guard NSApp.isActive else { return }
+        withAnimation(.fastSpring) {
+            zoomed = flags.hasElements(from: [.lcmd, .rcmd, .cmd])
+            zoom = zoomed ? (flags.hasElements(from: [.lalt, .ralt, .alt]) ? 8.0 : 3.0) : 1.0
+            if !zoomed {
+                zoomOffset = .center
+            }
         }
     }
 

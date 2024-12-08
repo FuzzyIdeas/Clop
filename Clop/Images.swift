@@ -936,10 +936,17 @@ class Image: CustomStringConvertible {
 @MainActor func shouldHandleImage(event: EonilFSEventsEvent) -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
-          IMAGE_EXTENSIONS.contains(ext), !Defaults[.imageFormatsToSkip].lazy.compactMap(\.preferredFilenameExtension).contains(ext)
+          IMAGE_EXTENSIONS.contains(ext)
     else {
         return false
+    }
 
+    let formatsToSkip = Defaults[.imageFormatsToSkip]
+        .lazy
+        .compactMap { $0 == .jpeg ? ["jpg", "jpeg"] : [$0.preferredFilenameExtension] }
+        .joined()
+    guard !formatsToSkip.contains(ext) else {
+        return false
     }
 
     log.debug("\(path.shellString): \(flag)")
