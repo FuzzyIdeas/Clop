@@ -228,6 +228,183 @@ class AppDelegate: AppDelegateParent {
 
     var fileCleaner: Timer?
 
+    override func applicationDidFinishLaunching(_ notification: Notification) {
+        sentryCrashExceptionApplicationType = SentryCrashExceptionApplication.self
+        if !SWIFTUI_PREVIEW {
+            handleCLIInstall()
+
+            NSApplication.shared.windows.first { $0.title == "Settings" }?.close()
+            unarchiveBinaries()
+            print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
+            NSView.swizzleDragFormation()
+            shouldRestartOnCrash = true
+
+            NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+                .forEach {
+                    $0.forceTerminate()
+                }
+            let _ = shell("/usr/bin/pkill", args: ["-fl", "Clop/bin/(arm64|x86)/.+"], wait: false)
+            signal(SIGTERM) { _ in
+                for opt in OM.optimisers + OM.removedOptimisers {
+                    opt.stop(animateRemoval: false)
+                }
+                exit(0)
+            }
+            signal(SIGKILL) { _ in
+                for opt in OM.optimisers + OM.removedOptimisers {
+                    opt.stop(animateRemoval: false)
+                }
+                exit(0)
+            }
+
+            syncSettings()
+            Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
+            Migrations.run()
+            createFileCleaner()
+        }
+
+        #if SETAPP
+            SetappManager.shared.showReleaseNotesWindowIfNeeded()
+        #else
+            paddleVendorID = "122873"
+            paddleAPIKey = "e1e517a68c1ed1bea2ac968a593ac147"
+            paddleProductID = "841006"
+            trialDays = 14
+            trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
+            price = 15
+            productName = "Clop Pro"
+            vendorName = "THE LOW TECH GUYS SRL"
+            hasFreeFeatures = true
+        #endif
+
+        if !SWIFTUI_PREVIEW {
+            LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
+            LowtechSentry.configureSentry(getUser: LowtechSentry.getSentryUser)
+
+            KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
+            KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
+            KM.onPrimaryHotkey = { key in
+                self.handleHotkey(key)
+                let _ = checkInternalRequirements(PRODUCTS, nil)
+            }
+
+            KM.secondaryKeyModifiers = [.lcmd]
+            KM.onSecondaryHotkey = { key in
+                self.handleCommandHotkey(key)
+                let _ = checkInternalRequirements(PRODUCTS, nil)
+            }
+        }
+        super.applicationDidFinishLaunching(_: notification)
+        #if !SETAPP
+            UM.updater = updateController.updater
+            PM.pro = pro
+            if !SWIFTUI_PREVIEW {
+                pro.checkProLicense()
+            }
+        #endif
+
+        Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
+
+        guard !SWIFTUI_PREVIEW else { return }
+        floatingResultsWindow.animateOnResize = true
+        pub(.workdir)
+            .sink {
+                FilePath.workdir = FilePath.dir($0.newValue, permissions: 0o777)
+            }
+            .store(in: &observers)
+        pub(.floatingResultsCorner)
+            .sink {
+                floatingResultsWindow.screenCorner = $0.newValue
+                floatingResultsWindow.moveToScreen(.withMouse, corner: $0.newValue)
+            }
+            .store(in: &observers)
+        pub(.keyComboModifiers)
+            .sink {
+                KM.primaryKeyModifiers = $0.newValue
+                KM.reinitHotkeys()
+            }
+            .store(in: &observers)
+        pub(.quickResizeKeys)
+            .sink {
+                KM.primaryKeys = Defaults[.enabledKeys] + $0.newValue
+                KM.reinitHotkeys()
+            }
+            .store(in: &observers)
+        pub(.enabledKeys)
+            .sink {
+                KM.primaryKeys = $0.newValue + Defaults[.quickResizeKeys]
+                KM.reinitHotkeys()
+            }
+            .store(in: &observers)
+        pub(.enableFloatingResults)
+            .sink {
+                if $0.newValue {
+                    showFloatingThumbnails(force: true)
+                } else {
+                    floatingResultsWindow.close()
+                }
+            }
+            .store(in: &observers)
+
+        if finishedOnboarding {
+            initOptimisers()
+        } else {
+            onboardFileOptimisation()
+        }
+        trackScrollWheel()
+
+        if Defaults[.enableDragAndDrop] {
+            dragMonitor.start()
+            mouseUpMonitor.start()
+        }
+        pub(.enableDragAndDrop)
+            .sink { enabled in
+                if enabled.newValue {
+                    self.dragMonitor.start()
+                    self.mouseUpMonitor.start()
+                } else {
+                    self.dragMonitor.stop()
+                    self.mouseUpMonitor.stop()
+                }
+            }
+            .store(in: &observers)
+        pub(.enableClipboardOptimiser)
+            .sink { enabled in
+                if enabled.newValue {
+                    self.initClipboardOptimiser()
+                } else {
+                    clipboardWatcher?.invalidate()
+                }
+            }
+            .store(in: &observers)
+        pub(.pauseAutomaticOptimisations)
+            .sink { paused in
+                if paused.newValue {
+                    clipboardWatcher?.invalidate()
+                } else {
+                    self.initClipboardOptimiser()
+                }
+            }
+            .store(in: &observers)
+        initMachPortListener()
+
+        let _ = checkInternalRequirements(PRODUCTS, nil)
+        setupServiceProvider()
+        startShortcutWatcher()
+        DROPSHARE.fetchAppURL()
+        YOINK.fetchAppURL()
+        DOCKSIDE.fetchAppURL()
+
+        // listen for NSWindow.willCloseNotification to release the window
+        NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(windowDidBecomeMainNotification), name: NSWindow.didBecomeMainNotification, object: nil)
+    }
+
+    override func applicationDidBecomeActive(_ notification: Notification) {
+        didBecomeActiveAtLeastOnce = true
+    }
+
     @MainActor
     static func handleStopOptimisationRequest(_ req: StopOptimisationRequest) {
         log.debug("Stopping optimisation request: \(req.jsonString)")
@@ -521,179 +698,6 @@ class AppDelegate: AppDelegateParent {
         fileCleaner?.fire()
     }
 
-    override func applicationDidFinishLaunching(_ notification: Notification) {
-        sentryCrashExceptionApplicationType = SentryCrashExceptionApplication.self
-        if !SWIFTUI_PREVIEW {
-            handleCLIInstall()
-
-            NSApplication.shared.windows.first { $0.title == "Settings" }?.close()
-            unarchiveBinaries()
-            print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
-            NSView.swizzleDragFormation()
-            shouldRestartOnCrash = true
-
-            NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
-                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
-                .forEach {
-                    $0.forceTerminate()
-                }
-            let _ = shell("/usr/bin/pkill", args: ["-fl", "Clop/bin/(arm64|x86)/.+"], wait: false)
-            signal(SIGTERM) { _ in
-                for opt in OM.optimisers + OM.removedOptimisers {
-                    opt.stop(animateRemoval: false)
-                }
-                exit(0)
-            }
-            signal(SIGKILL) { _ in
-                for opt in OM.optimisers + OM.removedOptimisers {
-                    opt.stop(animateRemoval: false)
-                }
-                exit(0)
-            }
-
-            syncSettings()
-            Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
-            Migrations.run()
-            createFileCleaner()
-        }
-
-        #if SETAPP
-            SetappManager.shared.showReleaseNotesWindowIfNeeded()
-        #else
-            paddleVendorID = "122873"
-            paddleAPIKey = "e1e517a68c1ed1bea2ac968a593ac147"
-            paddleProductID = "841006"
-            trialDays = 14
-            trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
-            price = 15
-            productName = "Clop Pro"
-            vendorName = "THE LOW TECH GUYS SRL"
-            hasFreeFeatures = true
-        #endif
-
-        if !SWIFTUI_PREVIEW {
-            LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
-            LowtechSentry.configureSentry(getUser: LowtechSentry.getSentryUser)
-
-            KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
-            KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
-            KM.onPrimaryHotkey = { key in
-                self.handleHotkey(key)
-                let _ = checkInternalRequirements(PRODUCTS, nil)
-            }
-
-            KM.secondaryKeyModifiers = [.lcmd]
-            KM.onSecondaryHotkey = { key in
-                self.handleCommandHotkey(key)
-                let _ = checkInternalRequirements(PRODUCTS, nil)
-            }
-        }
-        super.applicationDidFinishLaunching(_: notification)
-        #if !SETAPP
-            UM.updater = updateController.updater
-            PM.pro = pro
-            if !SWIFTUI_PREVIEW {
-                pro.checkProLicense()
-            }
-        #endif
-
-        Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
-
-        guard !SWIFTUI_PREVIEW else { return }
-        floatingResultsWindow.animateOnResize = true
-        pub(.workdir)
-            .sink {
-                FilePath.workdir = FilePath.dir($0.newValue, permissions: 0o777)
-            }
-            .store(in: &observers)
-        pub(.floatingResultsCorner)
-            .sink {
-                floatingResultsWindow.screenCorner = $0.newValue
-                floatingResultsWindow.moveToScreen(.withMouse, corner: $0.newValue)
-            }
-            .store(in: &observers)
-        pub(.keyComboModifiers)
-            .sink {
-                KM.primaryKeyModifiers = $0.newValue
-                KM.reinitHotkeys()
-            }
-            .store(in: &observers)
-        pub(.quickResizeKeys)
-            .sink {
-                KM.primaryKeys = Defaults[.enabledKeys] + $0.newValue
-                KM.reinitHotkeys()
-            }
-            .store(in: &observers)
-        pub(.enabledKeys)
-            .sink {
-                KM.primaryKeys = $0.newValue + Defaults[.quickResizeKeys]
-                KM.reinitHotkeys()
-            }
-            .store(in: &observers)
-        pub(.enableFloatingResults)
-            .sink {
-                if $0.newValue {
-                    showFloatingThumbnails(force: true)
-                } else {
-                    floatingResultsWindow.close()
-                }
-            }
-            .store(in: &observers)
-
-        if finishedOnboarding {
-            initOptimisers()
-        } else {
-            onboardFileOptimisation()
-        }
-        trackScrollWheel()
-
-        if Defaults[.enableDragAndDrop] {
-            dragMonitor.start()
-            mouseUpMonitor.start()
-        }
-        pub(.enableDragAndDrop)
-            .sink { enabled in
-                if enabled.newValue {
-                    self.dragMonitor.start()
-                    self.mouseUpMonitor.start()
-                } else {
-                    self.dragMonitor.stop()
-                    self.mouseUpMonitor.stop()
-                }
-            }
-            .store(in: &observers)
-        pub(.enableClipboardOptimiser)
-            .sink { enabled in
-                if enabled.newValue {
-                    self.initClipboardOptimiser()
-                } else {
-                    clipboardWatcher?.invalidate()
-                }
-            }
-            .store(in: &observers)
-        pub(.pauseAutomaticOptimisations)
-            .sink { paused in
-                if paused.newValue {
-                    clipboardWatcher?.invalidate()
-                } else {
-                    self.initClipboardOptimiser()
-                }
-            }
-            .store(in: &observers)
-        initMachPortListener()
-
-        let _ = checkInternalRequirements(PRODUCTS, nil)
-        setupServiceProvider()
-        startShortcutWatcher()
-        DROPSHARE.fetchAppURL()
-        YOINK.fetchAppURL()
-        DOCKSIDE.fetchAppURL()
-
-        // listen for NSWindow.willCloseNotification to release the window
-        NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(windowDidBecomeMainNotification), name: NSWindow.didBecomeMainNotification, object: nil)
-    }
-
     @MainActor
     func onboardFileOptimisation() {
         print(OnboardingFloatingPreview.om)
@@ -777,10 +781,6 @@ class AppDelegate: AppDelegateParent {
 
         return true
     }
-    override func applicationDidBecomeActive(_ notification: Notification) {
-        didBecomeActiveAtLeastOnce = true
-    }
-
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }

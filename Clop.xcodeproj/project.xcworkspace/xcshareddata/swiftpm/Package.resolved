@@ -1,4 +1,5 @@
 {
+  "originHash" : "4c579411bc51eedd21a157420218961172c8384b6b7747a63c9307dfaad93a5b",
   "pins" : [
     {
       "identity" : "appreceiptvalidator",
@@ -55,6 +56,15 @@
       }
     },
     {
+      "identity" : "lowtech",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FuzzyIdeas/Lowtech",
+      "state" : {
+        "branch" : "ventura",
+        "revision" : "9035d97248d020120109adc45ff2c35c8d466021"
+      }
+    },
+    {
       "identity" : "magnet",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
@@ -86,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "5575af93efb776414f243e93d6af9f6258dc539a",
-        "version" : "8.36.0"
+        "revision" : "56bfb7e723c76614be4c0861ee820ccbaed14c6d",
+        "version" : "8.41.0"
       }
     },
     {
@@ -95,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MacPaw/Setapp-framework",
       "state" : {
-        "revision" : "595cb24b4decf15f04888a1cb1e191ace02cdc7c",
-        "version" : "4.2.1"
+        "revision" : "325aba75c006be6726420907eeb242a35f180e91",
+        "version" : "4.2.2"
       }
     },
     {
@@ -163,5 +173,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

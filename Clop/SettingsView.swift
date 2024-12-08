@@ -986,6 +986,7 @@ struct AboutSettingsView: View {
         @ObservedObject var pm: ProManager = PM
 
     #endif
+
     @Default(.enableSentry) var enableSentry
 
     var proText: some View {
