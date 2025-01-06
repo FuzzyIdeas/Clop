@@ -498,6 +498,7 @@ class Image: CustomStringConvertible {
     }
 
     func optimiseJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, testPNG: Bool = false) throws -> Image {
+        let backupPath = path.clopBackupPath
         var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
 
         let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
@@ -527,7 +528,7 @@ class Image: CustomStringConvertible {
             procs.append(pngProc)
         }
 
-        let backup = path.backup(path: path.clopBackupPath, operation: .copy)
+        let backup = (backupPath?.exists ?? false) ? backupPath : path.backup(path: path.clopBackupPath, operation: .copy)
         let procMaps = try tryProcs(procs, tries: 2) { procMap in
             mainActor { optimiser.processes = procMap.values.map { $0 } }
         }
@@ -621,6 +622,7 @@ class Image: CustomStringConvertible {
     }
 
     func optimisePNG(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, testJPEG: Bool = false) throws -> Image {
+        let backupPath = path.clopBackupPath
         var tempFile = FilePath.images.appending(path.name.string)
         if tempFile != path {
             try? tempFile.delete()
@@ -653,7 +655,7 @@ class Image: CustomStringConvertible {
             mainActor { optimiser.processes = procMap.values.map { $0 } }
         }
 
-        let backup = path.backup(path: path.clopBackupPath, operation: .copy)
+        let backup = (backupPath?.exists ?? false) ? backupPath : path.backup(path: path.clopBackupPath, operation: .copy)
         guard let proc = procMaps[pngProc] else {
             throw ClopError.noProcess(pngProc.cmdline)
         }

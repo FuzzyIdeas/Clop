@@ -1367,7 +1367,9 @@ let ARCH: String = {
     Darwin.sysctlbyname("hw.cputype", &ret, &size, nil, 0)
     return ret == NSBundleExecutableArchitectureARM64 ? "arm64" : "x86"
 }()
-let GLOBAL_BIN_DIR_PARENT = FileManager.default.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first! // ~/Library/Application Scripts/com.lowtechguys.Clop
+let APP_SCRIPTS_DIR = FileManager.default.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Application Scripts/com.lowtechguys.Clop")
+
+let GLOBAL_BIN_DIR_PARENT = APP_SCRIPTS_DIR // ~/Library/Application Scripts/com.lowtechguys.Clop
 let GLOBAL_BIN_DIR = GLOBAL_BIN_DIR_PARENT.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/
 let BIN_DIR = GLOBAL_BIN_DIR.appendingPathComponent(ARCH) // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/arm64
 var EXIFTOOL = BIN_DIR.appendingPathComponent("exiftool").filePath!
