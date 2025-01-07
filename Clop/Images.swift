@@ -982,7 +982,7 @@ extension FilePath {
     }
 
     guard optImg.path != img.path else {
-        return optImg
+        return nil
     }
 
     if optImg.type == img.type {
