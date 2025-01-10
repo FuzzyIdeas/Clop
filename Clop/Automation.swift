@@ -12,7 +12,7 @@ extension Defaults.Keys {
 
 extension Optimiser {
     nonisolated func runShortcut(_ shortcut: Shortcut, outFile: FilePath, url: URL) -> Process? {
-        guard let proc = Clop.runShortcut(shortcut, url.path, outFile: outFile.string) else {
+        guard let proc = runShortcutProcess(shortcut, url.path, outFile: outFile.string) else {
             return nil
         }
 
@@ -53,6 +53,15 @@ struct Shortcut: Codable, Hashable, Defaults.Serializable, Identifiable {
     var identifier: String
 
     var id: String { identifier }
+    var url: URL {
+        if let url = identifier.url {
+            return url
+        }
+        guard let id = identifier.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return "shortcuts://".url!
+        }
+        return "shortcuts://open-shortcut?id=\(id)".url!
+    }
 }
 
 struct CachedShortcuts {
@@ -97,6 +106,7 @@ func getShortcutsMapOrCached() -> [String: [Shortcut]] {
 }
 
 func getShortcuts(folder: String? = nil) -> [Shortcut]? {
+    guard !SWIFTUI_PREVIEW else { return nil }
     log.debug("Getting shortcuts for folder \(folder ?? "nil")")
 
     let additionalArgs = folder.map { ["--folder-name", $0] } ?? []
@@ -108,7 +118,7 @@ func getShortcuts(folder: String? = nil) -> [Shortcut]? {
     var shortcuts: [Shortcut] = []
     for line in lines {
         let parts = line.split(separator: " ")
-        guard let identifier = parts.last?.trimmingCharacters(in: ["(", ")"]) else {
+        guard let identifier = parts.last?.trimmingCharacters(in: CharacterSet(charactersIn: "()")) else {
             continue
         }
         let name = parts.dropLast().joined(separator: " ")
@@ -138,7 +148,7 @@ func getShortcutsMap() -> [String: [Shortcut]] {
     }.reduce(into: [:]) { $0[$1.0] = $1.1 }
 }
 
-func runShortcut(_ shortcut: Shortcut, _ file: String, outFile: String) -> Process? {
+func runShortcutProcess(_ shortcut: Shortcut, _ file: String, outFile: String) -> Process? {
     shellProc("/usr/bin/shortcuts", args: ["run", shortcut.identifier, "--input-path", file, "--output-path", outFile])
 }
 
@@ -245,19 +255,6 @@ struct AutomationRowView: View {
         }
     }
 
-    @ViewBuilder var defaultShortcutList: some View {
-        let shortcutNames = SHM.shortcutsMap?.values.joined().map(\.name) ?? []
-        Section("Default Shortcuts") {
-            let shorts = CLOP_SHORTCUTS.filter { sh in
-                !shortcutNames.contains(sh.deletingPathExtension().lastPathComponent)
-            }
-            ForEach(shorts, id: \.self) { url in
-                Text(url.deletingPathExtension().lastPathComponent)
-                    .tag(Shortcut(name: url.deletingPathExtension().lastPathComponent, identifier: url.absoluteString))
-            }
-        }
-    }
-
     @ViewBuilder
     func picker(source: String) -> some View {
         let binding = Binding<Shortcut?>(
@@ -283,7 +280,7 @@ struct AutomationRowView: View {
                     Text("do nothing").tag(nil as Shortcut?)
                     Divider()
                     ShortcutChoiceMenu()
-                    defaultShortcutList
+                    DefaultShortcutList()
                 },
                 label: {
                     HStack {
@@ -294,7 +291,7 @@ struct AutomationRowView: View {
                 }
             )
             Button("\(SwiftUI.Image(systemName: binding.wrappedValue == nil ? "hammer" : "hammer.fill"))") {
-                if let shortcut = binding.wrappedValue?.identifier.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed), let url = "shortcuts://open-shortcut?id=\(shortcut)".url {
+                if let url = binding.wrappedValue?.url {
                     NSWorkspace.shared.open(url)
                 }
             }
@@ -304,6 +301,21 @@ struct AutomationRowView: View {
         }
     }
 
+}
+
+struct DefaultShortcutList: View {
+    var body: some View {
+        let shortcutNames = SHM.shortcutsMap?.values.joined().map(\.name) ?? []
+        Section("Default Shortcuts") {
+            let shorts = CLOP_SHORTCUTS.filter { sh in
+                !shortcutNames.contains(sh.deletingPathExtension().lastPathComponent)
+            }
+            ForEach(shorts, id: \.self) { url in
+                Text(url.deletingPathExtension().lastPathComponent)
+                    .tag(Shortcut(name: url.deletingPathExtension().lastPathComponent, identifier: url.absoluteString))
+            }
+        }
+    }
 }
 
 let CLOP_SHORTCUTS = Bundle.main
@@ -386,6 +398,7 @@ struct AutomationSettingsView_Previews: PreviewProvider {
 
 class ShortcutsManager: ObservableObject {
     init() {
+        guard !SWIFTUI_PREVIEW else { return }
         DispatchQueue.global().async { [self] in
             let shortcutsMap = getShortcutsMapOrCached()
             mainActor {
@@ -394,10 +407,20 @@ class ShortcutsManager: ObservableObject {
         }
     }
 
-    @Published var shortcutsMap: [String: [Shortcut]]? = nil
+    @Published var shortcutsMap: [String: [Shortcut]]? = !SWIFTUI_PREVIEW
+        ? nil
+        : [
+            "Clop": [
+                Shortcut(name: "Limit media size", identifier: "F1185611-9E75-4FC1-A4D1-67DB58B35992"),
+                Shortcut(name: "Convert to WEBP", identifier: "FA6F8F4F-ACEB-4BCC-8F25-A6E5CC3BB46D"),
+                Shortcut(name: "Blog images", identifier: "F28D4833-C074-48B2-BA85-A582F4940F5D"),
+                Shortcut(name: "Menubar Icon", identifier: "666F6660-0B12-4628-A88B-A53899D6F39C"),
+            ],
+        ]
     @Published var cacheIsValid = true
 
     func invalidateCache() {
+        guard !SWIFTUI_PREVIEW else { return }
         cacheIsValid = false
         if shortcutsCacheByFolder.isNotEmpty {
             shortcutsCacheByFolder = [:]
@@ -406,6 +429,7 @@ class ShortcutsManager: ObservableObject {
     }
 
     func fetch() {
+        guard !SWIFTUI_PREVIEW else { return }
         DispatchQueue.global().async { [self] in
             let shortcutsMap = getShortcutsMapOrCached()
             mainActor {
@@ -416,6 +440,7 @@ class ShortcutsManager: ObservableObject {
     }
 
     func refetch() {
+        guard !SWIFTUI_PREVIEW else { return }
         if shortcutsCacheByFolder.isNotEmpty {
             shortcutsCacheByFolder = [:]
         }

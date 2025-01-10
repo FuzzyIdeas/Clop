@@ -327,6 +327,46 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
 
 }
 
+func tryProc(_ cmd: String, args: [[String]], captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
+    var outPipe = Pipe()
+    var errPipe = Pipe()
+
+    var proc: Process?
+    for (tryNum, args) in args.enumerated() {
+        let cmdline = "\(cmd.shellString.replacingOccurrences(of: " ", with: "\\ ")) \(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))"
+        log.debug("Starting\n\t\(cmdline)")
+
+        guard let subproc = shellProc(cmd, args: args, env: env, out: outPipe, err: errPipe) else {
+            throw ClopError.noProcess(cmd)
+        }
+        defer {
+            proc = subproc
+        }
+        beforeWait?(subproc)
+
+        subproc.waitUntilExit()
+        if subproc.terminationStatus == 0 || subproc.terminated {
+            mainThread { processTerminated.remove(subproc.processIdentifier) }
+            break
+        }
+
+        log.debug("Retry \(tryNum): \(cmd)")
+        outPipe.fileHandleForReading.readabilityHandler = nil
+        errPipe.fileHandleForReading.readabilityHandler = nil
+        outPipe = Pipe()
+        errPipe = Pipe()
+    }
+
+    guard let proc else {
+        throw ClopError.noProcess(cmd)
+    }
+    if proc.isRunning {
+        proc.waitUntilExit()
+    }
+    return proc
+
+}
+
 func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
     var outPipe = Pipe()
     var errPipe = Pipe()

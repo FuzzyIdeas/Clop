@@ -199,6 +199,7 @@ struct MenuView: View {
 
             Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {
                 checkForUpdates()
+                focus()
             }
         #endif
 

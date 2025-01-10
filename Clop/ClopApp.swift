@@ -923,7 +923,7 @@ extension NSPasteboardItem {
     }
 }
 
-enum ClopFileType: String, CaseIterable, CustomStringConvertible {
+enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
     case image
     case video
     case pdf
@@ -1000,9 +1000,21 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible {
             .pdf
         }
     }
-}
 
-import Ignore
+    var symbolName: String {
+        switch self {
+        case .image:
+            "photo"
+        case .video:
+            "film"
+        case .pdf:
+            "doc"
+        }
+    }
+}
+#if !DEBUG
+    import Ignore
+#endif
 
 extension EonilFSEventsEvent: @retroactive Hashable {
     public static func == (lhs: EonilFSEventsEvent, rhs: EonilFSEventsEvent) -> Bool {
@@ -1214,10 +1226,12 @@ class FileOptimisationWatcher {
             // guard !alreadyOptimisedFiles.contains(event.path) else { return false }
             // guard shouldHandle(event) else { return false }
 
-            if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
-                log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
-                return false
-            }
+            #if !DEBUG
+                if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
+                    log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
+                    return false
+                }
+            #endif
 
             guard !hasSpuriousEvent(event) else { return false }
 
@@ -1389,6 +1403,8 @@ func migrateSettings() {
     }
 }
 
+let WINDOW_MIN_SIZE = CGSize(width: 870, height: 750)
+
 // MARK: - ClopApp
 
 @main
@@ -1415,7 +1431,7 @@ struct ClopApp: App {
     var settingsWindow: some Scene {
         let w = Window("Settings", id: "settings") {
             SettingsView()
-                .frame(minWidth: 850, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
+                .frame(minWidth: WINDOW_MIN_SIZE.width, maxWidth: .infinity, minHeight: WINDOW_MIN_SIZE.height, maxHeight: .infinity)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)

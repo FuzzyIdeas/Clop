@@ -285,7 +285,8 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
     hideFloatingResult: Bool = false,
     cropTo cropSize: CropSize? = nil,
     aggressiveOptimisation: Bool? = nil,
-    source: OptimisationSource? = nil
+    source: OptimisationSource? = nil,
+    shortcut: Shortcut? = nil
 ) async throws -> PDF? {
     let path = pdf.path
     let pathString = path.string
@@ -358,7 +359,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
             guard var optimisedPDF else { return }
 
             var shortcutChangedPDF = false
-            if let changedPDF = try? optimisedPDF.runThroughShortcut(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
+            if let changedPDF = try? optimisedPDF.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
                 optimisedPDF = changedPDF
                 mainActor { optimiser.url = changedPDF.path.url }
 

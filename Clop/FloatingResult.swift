@@ -58,6 +58,7 @@ struct FloatingResultList: View {
             if let updateVersion = um.newVersion {
                 Button(short ? "v\(updateVersion) available" : "v\(updateVersion) update available") {
                     checkForUpdates()
+                    focus()
                 }
                 .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
                 .font(.medium(11))
