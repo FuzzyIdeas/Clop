@@ -403,7 +403,11 @@ class Image: CustomStringConvertible {
         if optimisedImg.path != path, optimisedImg.path.extension == path.extension {
             try optimisedImg.path.copy(to: path, force: true)
         }
-        return optimisedImg.copyWithPath(path)
+        return optimisedImg.copyWithPath(
+            type == optimisedImg.type
+                ? path
+                : path.withExtension(optimisedImg.type.preferredFilenameExtension ?? optimisedImg.path.extension ?? path.extension ?? "")
+        )
     }
 
     func copyWithPath(_ path: FilePath) -> Image {
@@ -604,7 +608,7 @@ class Image: CustomStringConvertible {
             let jpeg = path.withExtension("jpeg")
             try path.copy(to: jpeg, force: true)
             let img = Image(data: data, path: jpeg, type: .jpeg, retinaDownscaled: retinaDownscaled)
-            return try img.optimiseJPEG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, testPNG: adaptiveSize)
+            return try img.optimiseJPEG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, testPNG: adaptiveSize && (img.image.largeAreaEntropy ?? 0) < 5)
         }
 
         if data.starts(with: Image.GIF_HEADER) {
@@ -758,7 +762,7 @@ class Image: CustomStringConvertible {
         case .png:
             img = try optimisePNG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, testJPEG: adaptiveSize)
         case .jpeg:
-            img = try optimiseJPEG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, testPNG: adaptiveSize)
+            img = try optimiseJPEG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, testPNG: adaptiveSize && (image.largeAreaEntropy ?? 0) < 5)
         case .gif:
             img = try optimiseGIF(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
         case .tiff:
@@ -1004,7 +1008,8 @@ extension FilePath {
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
-    source: OptimisationSource? = nil
+    source: OptimisationSource? = nil,
+    shortcut: Shortcut? = nil
 ) async throws -> Image? {
     let path = img.path
     var img = img
@@ -1151,9 +1156,12 @@ extension FilePath {
             guard var optimisedImage else { return }
 
             var shortcutChangedImage = false
-            if let changedImage = try? optimisedImage.runThroughShortcut(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
+            if let changedImage = try? optimisedImage.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
                 optimisedImage = changedImage
-                mainActor { optimiser.url = changedImage.path.url }
+                mainActor {
+                    optimiser.url = changedImage.path.url
+                    optimiser.type = .image(changedImage.type)
+                }
 
                 shortcutChangedImage = true
             }
@@ -1402,3 +1410,82 @@ extension FilePath {
 //    let image: Image
 //    let optimiser: Optimiser
 // }
+
+import Accelerate
+import CoreGraphics
+
+extension NSImage {
+    var largeAreaEntropy: Double? {
+        size.area > 1_000_000 ? entropy : nil
+    }
+    var entropy: Double? {
+        guard let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        return calculateShannonEntropy(from: cgImage)
+    }
+}
+
+func calculateShannonEntropy(from cgImage: CGImage) -> Double? {
+    guard let dataProvider = cgImage.dataProvider,
+          let data = dataProvider.data
+    else {
+        return nil
+    }
+
+    let pixelData = CFDataGetBytePtr(data)
+    let width = cgImage.width
+    let height = cgImage.height
+    let bytesPerRow = cgImage.bytesPerRow
+
+    var buffer = vImage_Buffer(
+        data: UnsafeMutableRawPointer(mutating: pixelData),
+        height: vImagePixelCount(height),
+        width: vImagePixelCount(width),
+        rowBytes: bytesPerRow
+    )
+
+    var histogramAlpha = [vImagePixelCount](repeating: 0, count: 256)
+    var histogramRed = [vImagePixelCount](repeating: 0, count: 256)
+    var histogramGreen = [vImagePixelCount](repeating: 0, count: 256)
+    var histogramBlue = [vImagePixelCount](repeating: 0, count: 256)
+
+    let error = histogramAlpha.withUnsafeMutableBufferPointer { zeroPtr in
+        histogramRed.withUnsafeMutableBufferPointer { onePtr in
+            histogramGreen.withUnsafeMutableBufferPointer { twoPtr in
+                histogramBlue.withUnsafeMutableBufferPointer { threePtr in
+
+                    var histogramBins = [
+                        zeroPtr.baseAddress,
+                        onePtr.baseAddress,
+                        twoPtr.baseAddress,
+                        threePtr.baseAddress,
+                    ]
+
+                    return histogramBins.withUnsafeMutableBufferPointer { histogramBinsPtr in
+                        vImageHistogramCalculation_ARGB8888(
+                            &buffer,
+                            histogramBinsPtr.baseAddress!,
+                            vImage_Flags(kvImageLeaveAlphaUnchanged)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    guard error == kvImageNoError else {
+        return nil
+    }
+
+    let totalPixels = Double(width * height) * 3
+    var entropy = 0.0
+
+    let histogram = histogramRed + histogramGreen + histogramBlue
+    for count in histogram.filter({ $0 > 0 }) {
+        let probability = Double(count) / totalPixels
+        entropy -= probability * log2(probability)
+    }
+
+    return entropy
+}

@@ -1625,7 +1625,8 @@ func optimiseURL(
     adaptiveOptimisation: Bool? = nil,
     source: OptimisationSource? = nil,
     output: String? = nil,
-    removeAudio: Bool? = nil
+    removeAudio: Bool? = nil,
+    shortcut: Shortcut? = nil
 ) async throws -> ClipboardType? {
     showFloatingThumbnails(force: true)
 
@@ -1665,7 +1666,8 @@ func optimiseURL(
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: aggressiveOptimisation,
                     adaptiveOptimisation: adaptiveOptimisation,
-                    source: source
+                    source: source,
+                    shortcut: shortcut
                 )
             }
 
@@ -1702,7 +1704,8 @@ func optimiseURL(
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: aggressiveOptimisation,
                     source: source,
-                    removeAudio: removeAudio
+                    removeAudio: removeAudio,
+                    shortcut: shortcut
                 )
             }
 
@@ -1719,7 +1722,8 @@ func optimiseURL(
                 hideFloatingResult: hideFloatingResult,
                 cropTo: cropSize,
                 aggressiveOptimisation: aggressiveOptimisation,
-                source: source
+                source: source,
+                shortcut: shortcut
             )
 
             if let result {
@@ -1752,6 +1756,31 @@ enum ClipboardType: Equatable {
     case file(FilePath)
     case url(URL)
     case unknown
+
+    var isImage: Bool {
+        switch self {
+        case .image: true
+        case let .file(path): path.isImage
+        case let .url(url): url.isImage
+        default: false
+        }
+    }
+
+    var isVideo: Bool {
+        switch self {
+        case let .file(path): path.isVideo
+        case let .url(url): url.isVideo
+        default: false
+        }
+    }
+
+    var isPDF: Bool {
+        switch self {
+        case let .file(path): path.isPDF
+        case let .url(url): url.isPDF
+        default: false
+        }
+    }
 
     var id: String {
         switch self {
@@ -1992,7 +2021,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
     source: OptimisationSource? = nil,
     output: String? = nil,
     removeAudio: Bool? = nil,
-    optimisedFileBehaviour: OptimisedFileBehaviour? = nil
+    optimisedFileBehaviour: OptimisedFileBehaviour? = nil,
+    shortcut: Shortcut? = nil
 ) async throws -> ClipboardType? {
     func nope(notice: String, thumbnail: NSImage? = nil, url: URL? = nil, type: ItemType? = nil) {
         let optimiser = OM.optimiser(id: id, type: type ?? .unknown, operation: "", hidden: hideFloatingResult)
@@ -2068,7 +2098,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: aggressiveOptimisation,
                     adaptiveOptimisation: adaptiveOptimisation,
-                    source: source
+                    source: source,
+                    shortcut: shortcut
                 )
             }
         }
@@ -2125,7 +2156,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
                         adaptiveOptimisation: adaptiveOptimisation,
-                        source: source
+                        source: source,
+                        shortcut: shortcut
                     )
                 }
             }
@@ -2196,7 +2228,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
                         source: source,
-                        removeAudio: removeAudio
+                        removeAudio: removeAudio,
+                        shortcut: shortcut
                     )
                 }
             }
@@ -2230,7 +2263,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     hideFloatingResult: hideFloatingResult,
                     cropTo: cropSize,
                     aggressiveOptimisation: aggressiveOptimisation,
-                    source: source
+                    source: source,
+                    shortcut: shortcut
                 )
             }
             guard let result else { return nil }
@@ -2252,7 +2286,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 adaptiveOptimisation: adaptiveOptimisation,
                 source: source,
                 output: output,
-                removeAudio: removeAudio
+                removeAudio: removeAudio,
+                shortcut: shortcut
             )
         }
         return result

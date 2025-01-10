@@ -272,8 +272,22 @@ class Video: Optimisable {
             }
         }
 
+        var args2 = args
+        var args3 = args
+        if let mapArgsRange = args.firstRange(of: ["-map", "0:v", "-map", "0:a?"]) {
+            args2.removeSubrange(mapArgsRange)
+        }
+        if let mapArgsRange = args.firstRange(of: ["-c:a", "copy", "-map", "0:v", "-map", "0:a?"]) {
+            args3.removeSubrange(mapArgsRange)
+        }
+        let argArray = [
+            args,
+            args2,
+            args3,
+        ]
+
         let videoURL = path.url
-        let proc = try tryProc(FFMPEG.string, args: args, tries: 3, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, args: argArray, captureOutput: true) { proc in
             mainActor {
                 optimiser.processes = [proc]
                 updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: videoURL, optimiser: optimiser, duration: realDuration)
@@ -522,7 +536,8 @@ var processTerminated = Set<pid_t>()
     aggressiveOptimisation: Bool? = nil,
     noConversion: Bool = false,
     source: OptimisationSource? = nil,
-    removeAudio: Bool? = nil
+    removeAudio: Bool? = nil,
+    shortcut: Shortcut? = nil
 ) async throws -> Video? {
     let path = video.path
     let pathString = path.string
@@ -602,7 +617,7 @@ var processTerminated = Set<pid_t>()
             guard var optimisedVideo else { return }
 
             var shortcutChangedVideo = false
-            if let changedVideo = try? optimisedVideo.runThroughShortcut(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
+            if let changedVideo = try? optimisedVideo.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
                 optimisedVideo = changedVideo
                 mainActor { optimiser.url = changedVideo.path.url }
 

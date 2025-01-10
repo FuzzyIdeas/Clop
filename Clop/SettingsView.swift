@@ -1039,6 +1039,170 @@ struct AboutSettingsView: View {
     }
 }
 
+import SymbolPicker
+
+struct IconPickerView: View {
+    @Binding var icon: String
+
+    var body: some View {
+        Button {
+            iconPickerPresented = true
+        } label: {
+            SwiftUI.Image(systemName: icon)
+        }
+        .sheet(isPresented: $iconPickerPresented) {
+            SymbolPicker(symbol: $icon)
+        }
+    }
+
+    @State private var iconPickerPresented = false
+
+}
+
+struct DropZoneSettingsView: View {
+    @Default(.enableDragAndDrop) var enableDragAndDrop
+    @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
+    @Default(.autoCopyToClipboard) var autoCopyToClipboard
+    @Default(.presetZones) var presetZones
+    @Default(.floatingResultsCorner) var floatingResultsCorner
+
+    @State var editingZone: PresetZone? = nil
+
+    var zones: some View {
+        Section(header: SectionHeader(title: "Preset zones", subtitle: "Quickly optimise files by dragging them to these zones")) {
+            HStack(spacing: 6) {
+                Text("Icon").bold(13).frame(width: 30, alignment: .leading)
+                Divider().foregroundColor(.secondary)
+                Text("Name").bold(13).frame(width: 100, alignment: .leading)
+                Divider().foregroundColor(.secondary)
+                Text("Appears for").bold(13).frame(width: 100, alignment: .leading)
+                Divider().foregroundColor(.secondary)
+                Text("Shortcut").bold(13).frame(width: 150, alignment: .leading)
+                Divider().foregroundColor(.secondary)
+            }
+            .padding(4)
+
+            VStack {
+                ForEach(presetZones) { zone in
+                    if let editingZone, editingZone.id == zone.id {
+                        PresetZoneEditor(zone: $editingZone)
+                    } else {
+                        zoneItem(zone: zone)
+                    }
+                }
+                PresetZoneEditor(zone: .constant(nil)).opacity(editingZone == nil ? 1 : 0.3)
+            }
+        }
+    }
+
+    func zoneItem(zone: PresetZone) -> some View {
+        HStack(spacing: 6) {
+            SwiftUI.Image(systemName: zone.icon).frame(width: 30, alignment: .center)
+            Divider().foregroundColor(.secondary)
+            Text(zone.name)
+                .minimumScaleFactor(0.5)
+                .frame(width: 100, alignment: .leading)
+            Divider().foregroundColor(.secondary)
+
+            Label(zone.type != nil ? "\(zone.type!.description)s" : "Any file", systemImage: zone.type?.symbolName ?? "inset.filled.square.dashed")
+                .frame(width: 100, alignment: .leading)
+            Divider().foregroundColor(.secondary)
+
+            HStack {
+                Link(destination: zone.shortcut.url) {
+                    HStack {
+                        Text(zone.shortcut.name)
+                        Spacer()
+                        SwiftUI.Image(systemName: "arrow.up.right.square")
+                    }
+                }
+            }
+            .frame(width: 150, alignment: .leading)
+            Divider().foregroundColor(.secondary)
+            Spacer()
+
+            Button(
+                action: { editingZone = zone },
+                label: {
+                    SwiftUI.Image(systemName: "pencil")
+                        .fontWeight(.bold)
+                }
+            )
+            .frame(width: 30)
+            .help("Edit this preset zone")
+            Button(
+                role: .destructive,
+                action: {
+                    presetZones = presetZones.filter { $0.id != zone.id }
+                },
+                label: {
+                    SwiftUI.Image(systemName: "trash")
+                        .foregroundColor(Color.systemRed.opacity(0.8))
+                        .fontWeight(.bold)
+                }
+            )
+            .frame(width: 30)
+            .help("Delete this preset zone")
+        }
+        .padding(4)
+        .tag(zone.id)
+
+    }
+    var settings: some View {
+        Form {
+            Toggle(isOn: $enableDragAndDrop) {
+                Text("Enable drop zone").regular(13)
+                    + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
+            }
+            Toggle(isOn: $onlyShowDropZoneOnOption) {
+                Text("Require pressing ⌥ Option to show drop zone").regular(13)
+                    + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
+            }
+            .padding(.leading, 20)
+            .disabled(!enableDragAndDrop)
+            Toggle(isOn: $autoCopyToClipboard) {
+                Text("Auto Copy optimised files to clipboard").regular(13)
+                    + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
+            }
+            zones
+        }
+    }
+
+    func dropZoneSection(_ title: String) -> some View {
+        HStack {
+            Text(title).semibold(11)
+                .frame(width: DROPZONE_SIZE.width + DROPZONE_PADDING.width * 2, alignment: floatingResultsCorner.isTrailing ? .bottomLeading : .bottomTrailing)
+                .padding(1)
+        }
+        .frame(width: THUMB_SIZE.width - 20, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
+        .offset(x: floatingResultsCorner.isTrailing ? -HAT_ICON_SIZE : HAT_ICON_SIZE, y: 5)
+    }
+    var body: some View {
+        HStack(alignment: .top) {
+            ScrollView(.vertical, showsIndicators: false) {
+                settings
+            }
+
+            VStack(spacing: 0) {
+                dropZoneSection("PDF preset zones")
+                DropZoneView(presetFileType: .pdf)
+                dropZoneSection("Video preset zones")
+                DropZoneView(presetFileType: .video)
+                dropZoneSection("Image preset zones")
+                DropZoneView(presetFileType: .image)
+                DropZoneView()
+            }
+            .frame(width: THUMB_SIZE.width - 50, height: WINDOW_MIN_SIZE.height - 100, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+            .disabled(!enableDragAndDrop)
+            .saturation(enableDragAndDrop ? 1 : 0.5)
+            .preview(true)
+        }
+        .hfill()
+        .padding(.top)
+    }
+}
+
 struct FloatingSettingsView: View {
     @Default(.enableFloatingResults) var enableFloatingResults
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
@@ -1183,9 +1347,6 @@ struct GeneralSettingsView: View {
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
-    @Default(.autoCopyToClipboard) var autoCopyToClipboard
-    @Default(.enableDragAndDrop) var enableDragAndDrop
-    @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
     @Default(.stripMetadata) var stripMetadata
     @Default(.preserveColorMetadata) var preserveColorMetadata
     @Default(.preserveDates) var preserveDates
@@ -1252,22 +1413,6 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Section(header: SectionHeader(title: "Integrations")) {
-                Toggle(isOn: $enableDragAndDrop) {
-                    Text("Enable drop zone").regular(13)
-                        + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
-                }
-                Toggle(isOn: $onlyShowDropZoneOnOption) {
-                    Text("Require pressing ⌥ Option while dragging to show drop zone").regular(13)
-                        + Text("\nHide drop zone by default to avoid distractions while dragging files,\nshow it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
-                }
-                .padding(.leading, 20)
-                .disabled(!enableDragAndDrop)
-                Toggle(isOn: $autoCopyToClipboard) {
-                    Text("Auto Copy optimised files to clipboard").regular(13)
-                        + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
-                }
-            }
             Section(header: SectionHeader(title: "Optimisation")) {
                 Toggle(isOn: $stripMetadata) {
                     Text("Strip EXIF Metadata").regular(13)
@@ -1300,49 +1445,15 @@ class SettingsViewManager: ObservableObject {
 let settingsViewManager = SettingsViewManager()
 
 struct SettingsView: View {
-    enum Tabs: Hashable {
-        case general, advanced, video, images, floating, keys, about, pdf, automation
+    enum Tabs: Int, Hashable {
+        case general, video, images, pdf, dropzone, floating, keys, automation, about
 
         var next: Tabs {
-            switch self {
-            case .general:
-                .video
-            case .video:
-                .images
-            case .images:
-                .pdf
-            case .pdf:
-                .floating
-            case .floating:
-                .keys
-            case .keys:
-                .automation
-            case .automation:
-                .about
-            default:
-                self
-            }
+            Tabs(rawValue: rawValue + 1) ?? .general
         }
 
         var previous: Tabs {
-            switch self {
-            case .video:
-                .general
-            case .images:
-                .video
-            case .pdf:
-                .images
-            case .floating:
-                .pdf
-            case .keys:
-                .floating
-            case .automation:
-                .keys
-            case .about:
-                .automation
-            default:
-                self
-            }
+            Tabs(rawValue: rawValue - 1) ?? .automation
         }
 
     }
@@ -1380,6 +1491,12 @@ struct SettingsView: View {
                     Label("PDF", systemImage: "doc")
                 }
                 .tag(Tabs.pdf)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            DropZoneSettingsView()
+                .tabItem {
+                    Label("Drop zone", systemImage: "square.stack")
+                }
+                .tag(Tabs.dropzone)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             FloatingSettingsView()
                 .tabItem {
@@ -1462,27 +1579,8 @@ struct SettingsView: View {
         return nil
     }
 
-    if combo.modifierFlags == [.command] {
-        switch combo.key {
-        case .one:
-            settingsViewManager.tab = .general
-        case .two:
-            settingsViewManager.tab = .video
-        case .three:
-            settingsViewManager.tab = .images
-        case .four:
-            settingsViewManager.tab = .pdf
-        case .five:
-            settingsViewManager.tab = .floating
-        case .six:
-            settingsViewManager.tab = .keys
-        case .seven:
-            settingsViewManager.tab = .automation
-        case .eight:
-            settingsViewManager.tab = .about
-        default:
-            return event
-        }
+    if combo.modifierFlags == [.command], let num = combo.key.character.i, let tab = SettingsView.Tabs(rawValue: num - 1) {
+        settingsViewManager.tab = tab
         return nil
     }
     return event
@@ -1491,6 +1589,6 @@ struct SettingsView: View {
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView()
-            .frame(minWidth: 850, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
+            .frame(minWidth: WINDOW_MIN_SIZE.width, maxWidth: .infinity, minHeight: WINDOW_MIN_SIZE.height, maxHeight: .infinity)
     }
 }

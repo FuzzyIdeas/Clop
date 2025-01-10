@@ -209,7 +209,7 @@ struct OnboardingView: View {
                     Button("Start using Clop") {
                         (AppDelegate.instance as? AppDelegate)?.onboardingWindowController?.close()
                     }
-                    .font(.mono(16, weight: .semibold))
+                    .font(.round(14, weight: .semibold))
                     .foregroundColor(.primary.opacity(0.9))
                 }
             }

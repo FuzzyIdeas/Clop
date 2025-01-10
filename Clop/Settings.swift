@@ -148,6 +148,7 @@ extension Defaults.Keys {
 
     static let savedCropSizes = Key<[CropSize]>("savedCropSizes", default: DEFAULT_CROP_SIZES)
     static let pauseAutomaticOptimisations = Key<Bool>("pauseAutomaticOptimisations", default: false)
+    static let presetZones = Key<[PresetZone]>("presetZones", default: [])
 
     static let syncSettingsCloud = Key<Bool>("syncSettingsCloud", default: true)
     static let allowClopToAppearInScreenshots = Key<Bool>("allowClopToAppearInScreenshots", default: false)
@@ -246,6 +247,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .pdfDirs,
     .preserveDates,
     .preserveColorMetadata,
+    .presetZones,
     .quickResizeKeys,
     .savedCropSizes,
     .shortcutToRunOnImage,

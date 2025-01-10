@@ -1,5 +1,5 @@
 {
-  "originHash" : "4c579411bc51eedd21a157420218961172c8384b6b7747a63c9307dfaad93a5b",
+  "originHash" : "32c508d076677b9aa229f0b095ea04e415e350a451c5a737a5a683e0c61c956c",
   "pins" : [
     {
       "identity" : "appreceiptvalidator",
@@ -61,7 +61,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "9035d97248d020120109adc45ff2c35c8d466021"
+        "revision" : "80f940ce52dfeb858b6f3de87319b693431035a3"
       }
     },
     {
@@ -170,6 +170,15 @@
       "state" : {
         "revision" : "5127afab23337699a714e036588f02d9481ae612",
         "version" : "1.2.0"
+      }
+    },
+    {
+      "identity" : "symbolpicker",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/xnth97/SymbolPicker",
+      "state" : {
+        "revision" : "da4136a37736de04df11f47ef096efe5557d066a",
+        "version" : "1.6.0"
       }
     }
   ],
