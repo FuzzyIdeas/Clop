@@ -57,6 +57,7 @@ class ActionRequestHandler: NSObject, NSExtensionRequestHandling {
                     return
                 }
 
+                log.debug("Processing attachment \(url.path) of type \(type.identifier)")
                 sandboxURL(url) { tempURL in
                     Task.init { await self.requestSender.add(tempURL, type: type, attachment: attachment, originalURL: url) }
                 }
@@ -78,10 +79,12 @@ func sandboxURL(_ url: URL, completion: @escaping (URL) -> Void) {
 
         let _tempURL = cacheDirectory.appendingPathComponent(url.lastPathComponent)
         let tempURL = FileManager.default.fileExists(atPath: _tempURL.path)
-            ? cacheDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))-\(url.lastPathComponent)")
+            ? cacheDirectory.appendingPathComponent("\(Int.random(in: 10 ... 10000))").appendingPathComponent(url.lastPathComponent)
             : _tempURL
 
+        try? FileManager.default.createDirectory(at: tempURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
         try? FileManager.default.removeItem(at: tempURL)
+        log.debug("Copying \(url.path) to \(tempURL.path)")
         try? FileManager.default.copyItem(at: url, to: tempURL)
 
         completion(tempURL)
@@ -144,40 +147,42 @@ actor RequestSender {
     func observe(_ url: URL, type: UTType, completion: @escaping (URL?, Bool, Error?) -> Void) {
         if let response = responses[url], let urlType = response.path.url.fetchFileType() {
             guard urlType == type || urlType.isSubtype(of: type) else {
-                completion(nil, false, "Wrong type".err)
+                log.debug("Item \(url.path) is not of type \(type.identifier), calling completion handler")
+                completion(url, false, nil)
                 return
             }
 
-            log.debug("Item \(url) is ready, calling completion handler")
-            completion(response.path.url, false, nil)
+            log.debug("Item \(url.path) is ready, calling completion handler")
+            completion(url, false, nil)
             return
         }
         if let resp = errors[url] {
-            log.debug("Item \(url) failed, calling completion handler")
-            completion(nil, false, resp.error.err)
+            log.debug("Item \(url.path) failed, calling completion handler with error: \(resp.error)")
+            completion(url, false, nil)
             return
         }
 
-        log.debug("Observing \(url) for file completion")
+        log.debug("Observing \(url.path) for file completion")
 
         lastResponse.sink { resp in
             guard resp.forURL == url, let urlType = resp.path.url.fetchFileType() else {
                 return
             }
             guard urlType == type || urlType.isSubtype(of: type) else {
-                completion(nil, false, "Wrong type".err)
+                log.debug("Received '\(resp.path)' of type \(urlType.identifier) for item \(url.path), but expected \(type.identifier), calling completion handler")
+                completion(url, false, nil)
                 return
             }
 
-            log.debug("Received '\(resp.path)' of type \(type.identifier) for item \(url), calling completion handler")
-            completion(resp.path.url, false, nil)
+            log.debug("Received '\(resp.path)' of type \(type.identifier) for item \(url.path), calling completion handler")
+            completion(url, false, nil)
         }.store(in: &observers)
 
         lastResponseError.sink { resp in
             guard resp.forURL == url else { return }
             log.debug("Failed with '\(resp.error)' for item \(url), calling completion handler")
 
-            completion(nil, false, resp.error.err)
+            completion(url, false, nil)
         }.store(in: &observers)
     }
 
