@@ -1067,6 +1067,7 @@ struct DropZoneSettingsView: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
     @State var editingZone: PresetZone? = nil
+    @ObservedObject var shortcutsManager = SHM
 
     var zones: some View {
         Section(header: SectionHeader(title: "Preset zones", subtitle: "Quickly optimise files by dragging them to these zones")) {
@@ -1177,6 +1178,7 @@ struct DropZoneSettingsView: View {
         .frame(width: THUMB_SIZE.width - 20, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
         .offset(x: floatingResultsCorner.isTrailing ? -HAT_ICON_SIZE : HAT_ICON_SIZE, y: 5)
     }
+
     var body: some View {
         HStack(alignment: .top) {
             ScrollView(.vertical, showsIndicators: false) {
@@ -1200,6 +1202,18 @@ struct DropZoneSettingsView: View {
         }
         .hfill()
         .padding(.top)
+        .onChange(of: shortcutsManager.cacheIsValid) { cacheIsValid in
+            if !cacheIsValid {
+                log.debug("Re-fetching Shortcuts from AutomationSettingsView.onChange")
+                shortcutsManager.fetch()
+            }
+        }
+        .onAppear {
+            if !shortcutsManager.cacheIsValid {
+                log.debug("Re-fetching Shortcuts from AutomationSettingsView.onAppear")
+                shortcutsManager.fetch()
+            }
+        }
     }
 }
 

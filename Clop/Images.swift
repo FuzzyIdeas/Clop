@@ -311,6 +311,10 @@ class Image: CustomStringConvertible {
     }
     var size: NSSize { image.realSize }
 
+    var canBeOptimised: Bool {
+        [UTType.png, .jpeg, .gif, .tiff].contains(type)
+    }
+
     static func isRaw(pasteboardItem: NSPasteboardItem) -> Bool {
         pasteboardItem.types.contains(where: { $0.rawValue.contains("raw-image") })
     }
@@ -396,17 +400,26 @@ class Image: CustomStringConvertible {
             outImg = Image(path: path, retinaDownscaled: retinaDownscaled)
         }
 
-        guard let outImg, outImg.hash != hash else {
+        guard var outImg, outImg.hash != hash else {
             return nil
         }
-        let optimisedImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? outImg
-        if optimisedImg.path != path, optimisedImg.path.extension == path.extension {
-            try optimisedImg.path.copy(to: path, force: true)
+        if let ext = outImg.type.preferredFilenameExtension ?? outImg.path.extension,
+           let newPath = try? outImg.path.copy(to: outImg.path.withExtension(ext))
+        {
+            outImg = outImg.copyWithPath(newPath)
         }
-        return optimisedImg.copyWithPath(
-            type == optimisedImg.type
+
+        if outImg.canBeOptimised {
+            outImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? outImg
+        }
+
+        if outImg.path != path, outImg.type == type {
+            try outImg.path.copy(to: path, force: true)
+        }
+        return outImg.copyWithPath(
+            type == outImg.type
                 ? path
-                : path.withExtension(optimisedImg.type.preferredFilenameExtension ?? optimisedImg.path.extension ?? path.extension ?? "")
+                : path.withExtension(outImg.type.preferredFilenameExtension ?? outImg.path.extension ?? path.extension ?? "")
         )
     }
 
