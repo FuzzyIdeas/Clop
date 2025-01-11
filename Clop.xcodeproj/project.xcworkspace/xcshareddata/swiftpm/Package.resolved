@@ -1,5 +1,5 @@
 {
-  "originHash" : "32c508d076677b9aa229f0b095ea04e415e350a451c5a737a5a683e0c61c956c",
+  "originHash" : "1a99977d939e4d6ca17e3a8c1ff472042797d425e6a9af61084a9bd4d6fe3335",
   "pins" : [
     {
       "identity" : "appreceiptvalidator",
@@ -175,10 +175,10 @@
     {
       "identity" : "symbolpicker",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/xnth97/SymbolPicker",
+      "location" : "https://github.com/alin23/SymbolPicker",
       "state" : {
-        "revision" : "da4136a37736de04df11f47ef096efe5557d066a",
-        "version" : "1.6.0"
+        "revision" : "51777341afa03665a064a6a88f982a2b5d99c2af",
+        "version" : "2.0.0"
       }
     }
   ],
