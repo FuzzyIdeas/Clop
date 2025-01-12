@@ -411,6 +411,7 @@ class ShortcutsManager: ObservableObject {
         ? nil
         : [
             "Clop": [
+                Shortcut(name: "Change video playback speed by 1.5x", identifier: "F2185611-9E75-4FC1-A4D1-67DB58B35992"),
                 Shortcut(name: "Limit media size", identifier: "F1185611-9E75-4FC1-A4D1-67DB58B35992"),
                 Shortcut(name: "Convert to WEBP", identifier: "FA6F8F4F-ACEB-4BCC-8F25-A6E5CC3BB46D"),
                 Shortcut(name: "Blog images", identifier: "F28D4833-C074-48B2-BA85-A582F4940F5D"),

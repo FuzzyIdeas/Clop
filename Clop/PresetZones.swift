@@ -135,7 +135,6 @@ struct PresetZoneEditor: View {
                 DefaultShortcutList()
             }
         )
-        .fixedSize()
     }
 
     func setFields(zone: PresetZone?) {
