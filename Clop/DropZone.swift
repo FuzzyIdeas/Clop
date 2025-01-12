@@ -164,7 +164,7 @@ struct DropZonePresetsView: View {
         }) {
             VStack(spacing: 5) {
                 zoneIcon(systemName: zone.map(\.icon) ?? (nextPreset ? "plus.square.dashed" : "square.dashed"))
-                    .rotation3DEffect(.degrees(selectedPresetIndex == index ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.4)
+                    .rotation3DEffect(.degrees(selectedPresetIndex == index ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.2)
 
                 Text(zone.map(\.name) ?? (nextPreset ? "Add preset" : "No preset"))
                     .round(10)
@@ -294,6 +294,7 @@ struct DropZoneView: View {
         VStack {
             if ctrlPressed || presetFileType != nil {
                 DropZonePresetsView(type: presetFileType ?? dragManager.fileType, selectedPreset: $selectedPreset)
+                    .overlay(Color.mauvish.opacity(keysManager.flags.sideIndependentModifiers.contains(.command) ? 0.05 : 0.0))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 if hoverState {
@@ -316,10 +317,19 @@ struct DropZoneView: View {
                     Text(hoverState ? "Drop to optimise" : "Drop here to optimise")
                         .font(.system(size: hoverState ? 16 : 14, weight: hoverState ? .heavy : .semibold, design: .rounded))
                         .padding(.bottom, 8)
+
+                    Text("^: show preset zones")
+                        .medium(10)
+                        .foregroundColor(.primary)
+                        .opacity(0.8)
                     if !hoverState {
-                        Text("⌥: dismiss this drop zone").medium(10)
+                        Text("⌥: dismiss this drop zone")
+                            .medium(10)
+                            .foregroundColor(.primary)
+                            .opacity(0.8)
                     }
-                    Text("⌘: use aggressive optimisation").medium(10)
+                    Text("⌘: use aggressive optimisation")
+                        .medium(10)
                         .foregroundColor(keysManager.flags.sideIndependentModifiers.contains(.command) ? .mauvish : .primary)
                         .opacity(0.8)
                 }
