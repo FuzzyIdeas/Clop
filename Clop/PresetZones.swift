@@ -27,7 +27,7 @@ struct DropZoneSettingsView_Previews: PreviewProvider {
                 .formStyle(.grouped)
                 .padding()
         }
-        .frame(minWidth: 850, maxWidth: .infinity, minHeight: 650, maxHeight: .infinity)
+        .frame(minWidth: WINDOW_MIN_SIZE.width, maxWidth: .infinity, minHeight: WINDOW_MIN_SIZE.height, maxHeight: .infinity)
     }
 }
 

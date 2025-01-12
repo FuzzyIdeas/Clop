@@ -1070,7 +1070,7 @@ struct DropZoneSettingsView: View {
     @ObservedObject var shortcutsManager = SHM
 
     var zones: some View {
-        Section(header: SectionHeader(title: "Preset zones", subtitle: "Quickly optimise files by dragging them to these zones")) {
+        Section(header: SectionHeader(title: "Preset zones", subtitle: "Optimise and pass files through Shortcuts by dragging them to these zones")) {
             HStack(spacing: 6) {
                 Text("Icon").bold(13).frame(width: 30, alignment: .leading)
                 Divider().foregroundColor(.secondary)
@@ -1185,20 +1185,27 @@ struct DropZoneSettingsView: View {
                 settings
             }
 
-            VStack(spacing: 0) {
-                dropZoneSection("PDF preset zones")
-                DropZoneView(presetFileType: .pdf)
-                dropZoneSection("Video preset zones")
-                DropZoneView(presetFileType: .video)
-                dropZoneSection("Image preset zones")
-                DropZoneView(presetFileType: .image)
-                DropZoneView()
+            VStack(spacing: 4) {
+                VStack(spacing: 0) {
+                    dropZoneSection("PDF preset zones")
+                    DropZoneView(presetFileType: .pdf)
+                    dropZoneSection("Video preset zones")
+                    DropZoneView(presetFileType: .video)
+                    dropZoneSection("Image preset zones")
+                    DropZoneView(presetFileType: .image)
+                    DropZoneView()
+                }
+                .frame(width: THUMB_SIZE.width - 50, height: WINDOW_MIN_SIZE.height - 100, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+                .disabled(!enableDragAndDrop)
+                .saturation(enableDragAndDrop ? 1 : 0.5)
+                .preview(true)
+
+                Text("Hold **`^ Control`** while dragging\nto show preset zones")
+                    .font(.system(size: 12))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
             }
-            .frame(width: THUMB_SIZE.width - 50, height: WINDOW_MIN_SIZE.height - 100, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
-            .disabled(!enableDragAndDrop)
-            .saturation(enableDragAndDrop ? 1 : 0.5)
-            .preview(true)
         }
         .hfill()
         .padding(.top)
