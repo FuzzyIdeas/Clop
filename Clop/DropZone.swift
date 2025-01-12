@@ -153,7 +153,7 @@ struct DropZonePresetsView: View {
         let disabled = !nextPreset && zone == nil
 
         Button(action: {
-            guard let w = NSApp.keyWindow, w.title != "Settings" else {
+            guard let w = NSApp.keyWindow, w.title == "Settings" else {
                 settingsViewManager.tab = .dropzone
                 WM.open("settings")
                 focus()
