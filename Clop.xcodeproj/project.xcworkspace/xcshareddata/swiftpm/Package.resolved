@@ -61,7 +61,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "80f940ce52dfeb858b6f3de87319b693431035a3"
+        "revision" : "90c61a98c65aff578972ad1a6683571af0c01b7d"
       }
     },
     {
@@ -177,8 +177,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/SymbolPicker",
       "state" : {
-        "revision" : "51777341afa03665a064a6a88f982a2b5d99c2af",
-        "version" : "2.0.0"
+        "revision" : "10e1f1c24354711baa14780b7fdcdb83fcbdbc7e",
+        "version" : "2.0.1"
       }
     }
   ],
