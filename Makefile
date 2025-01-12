@@ -80,7 +80,7 @@ setversion: OLD_VERSION=$(shell rg -o --no-filename 'MARKETING_VERSION = ([^;]+)
 setversion: SHELL=fish
 setversion:
 ifneq (, $(FULL_VERSION))
-	sdf '((?:CURRENT_PROJECT|MARKETING)_VERSION) = $(OLD_VERSION);' '$$1 = $(FULL_VERSION);'
+	sdfk '((?:CURRENT_PROJECT|MARKETING)_VERSION) = $(OLD_VERSION);' '$$1 = $(FULL_VERSION);'
 endif
 
 Releases/Clop-%.html: ReleaseNotes/$(VERSION)*.md
