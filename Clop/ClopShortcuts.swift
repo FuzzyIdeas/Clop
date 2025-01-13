@@ -629,6 +629,128 @@ struct OptimiseFileIntent: AppIntent {
     }
 }
 
+struct DownscaleFileIntent: AppIntent {
+    init() {}
+
+    static var title: LocalizedStringResource = "Downscale image or video"
+    static var description = IntentDescription("Downscales an image or video received as input.")
+
+    static var parameterSummary: some ParameterSummary {
+        When(\.$overwrite, .equalTo, true, {
+            Summary("Downscale \(\.$item) by \(\.$downscaleFactor) and \(\.$overwrite)") {
+                \.$hideFloatingResult
+                \.$aggressiveOptimisation
+                \.$copyToClipboard
+                \.$removeAudio
+            }
+        }, otherwise: {
+            Summary("Downscale \(\.$item) by \(\.$downscaleFactor) and \(\.$overwrite) \(\.$output)") {
+                \.$hideFloatingResult
+                \.$aggressiveOptimisation
+                \.$copyToClipboard
+                \.$removeAudio
+            }
+        })
+    }
+
+    @Parameter(title: "Video or image")
+    var item: IntentFile
+
+    @Parameter(title: "Hide floating result")
+    var hideFloatingResult: Bool
+
+    @Parameter(title: "Overwrite original file", default: true, displayName: .init(true: "overwrite original file", false: "save to"))
+    var overwrite: Bool
+
+    @Parameter(title: "Use aggressive optimisation")
+    var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Copy to clipboard")
+    var copyToClipboard: Bool
+
+    @Parameter(title: "Remove audio from video")
+    var removeAudio: Bool
+
+    @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 1.0, controlStyle: .field, inclusiveRange: (0.1, 1.0))
+    var downscaleFactor: Double
+
+    @Parameter(title: "Output path", description: """
+    Output file path or template (defaults to overwriting the original file).
+
+    The template may contain the following tokens on the filename:
+
+    %y	Year
+    %m	Month (numeric)
+    %n	Month (name)
+    %d	Day
+    %w	Weekday
+
+    %H	Hour
+    %M	Minutes
+    %S	Seconds
+    %p	AM/PM
+
+    %P	Source file path (without name)
+    %f	Source file name (without extension)
+    %e	Source file extension
+
+    %s	Scale factor
+    %r	Random characters
+    %i	Auto-incrementing number
+
+    For example `~/Desktop/%f_optimised.%e` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image_optimised.png`.
+
+    """)
+    var output: String?
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        let clip = ClipboardType.fromURL(item.url)
+
+        let result: ClipboardType?
+        do {
+            result = try await optimiseItem(
+                clip,
+                id: clip.id,
+                hideFloatingResult: hideFloatingResult,
+                downscaleTo: downscaleFactor,
+                aggressiveOptimisation: aggressiveOptimisation,
+                optimisationCount: &shortcutsOptimisationCount,
+                copyToClipboard: copyToClipboard,
+                source: .shortcuts,
+                output: overwrite ? nil : output,
+                removeAudio: removeAudio
+            )
+        } catch let ClopError.alreadyOptimised(path) {
+            guard path.exists else {
+                throw IntentError.message("Couldn't find file at \(path)")
+            }
+            let file = IntentFile(fileURL: path.url, filename: path.name.string)
+            return .result(value: file)
+        } catch let error as ClopError {
+            throw IntentError.message(error.description)
+        } catch {
+            log.error(error.localizedDescription)
+            throw IntentError.message(error.localizedDescription)
+        }
+
+        guard let result else {
+            throw IntentError.message("Couldn't optimise item")
+        }
+
+        switch result {
+        case let .file(path):
+            let file = IntentFile(fileURL: path.url, filename: path.name.string)
+            return .result(value: file)
+        case let .image(img):
+            let file = IntentFile(fileURL: img.path.url, filename: img.path.name.string, type: img.type)
+            return .result(value: file)
+        default:
+            throw IntentError.message("Bad optimisation result")
+        }
+    }
+}
+
 struct OptimiseURLIntent: AppIntent {
     init() {}
 

@@ -730,7 +730,7 @@ class AppDelegate: AppDelegateParent {
 
     @objc func windowDidBecomeMainNotification(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
-        
+
         if window.title.contains("Updat") {
             focus()
             return
