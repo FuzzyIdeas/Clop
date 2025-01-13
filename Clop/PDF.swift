@@ -318,12 +318,13 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
                     mainActor { OM.current = optimiser }
                 }
 
+                let backupPath = pdf.path.clopBackupPath
                 optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
                 if let cropSize {
                     optimisedPDF!.cropTo(aspectRatio: cropSize.longEdge ? cropSize.fractionalAspectRatio : cropSize.aspectRatio)
                 }
                 if !allowLarger, cropSize == nil, optimisedPDF!.fileSize >= fileSize {
-                    pdf.path.restore(backupPath: pdf.path.clopBackupPath, force: true)
+                    pdf.path.restore(backupPath: backupPath ?? pdf.path.clopBackupPath, force: true)
                     mainActor {
                         optimiser.oldBytes = fileSize
                         optimiser.url = pdf.path.url

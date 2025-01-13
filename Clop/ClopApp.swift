@@ -1094,6 +1094,8 @@ class FileOptimisationWatcher {
         EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
     }
 
+    var semaphore = DispatchSemaphore(value: 1)
+
     var watching = false
     var fileType: ClopFileType
 
@@ -1184,6 +1186,9 @@ class FileOptimisationWatcher {
 
     func stopWatching() {
         if watching {
+            semaphore.wait()
+            defer { semaphore.signal() }
+
             watching = false
             LowtechFSEvents.stopWatching(for: ObjectIdentifier(self))
         }
@@ -1195,6 +1200,9 @@ class FileOptimisationWatcher {
 
         do {
             try LowtechFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self), latency: 0.3) { [weak self] event in
+                self?.semaphore.wait()
+                defer { self?.semaphore.signal() }
+
                 guard !SWIFTUI_PREVIEW, !BM.decompressingBinaries, let self, enabled, isAddedFile(event: event),
                       !self.alreadyOptimisedFiles.contains(event.path),
                       !OM.optimisers.contains(where: { $0.url?.path == event.path }),
