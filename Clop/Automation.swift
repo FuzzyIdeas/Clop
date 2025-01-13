@@ -19,7 +19,7 @@ extension Optimiser {
         mainActor { [weak self] in
             self?.running = true
             self?.progress = Progress()
-            self?.operation = "Running \"\(shortcut.name)\""
+            self?.operation = "❯ \(shortcut.name)"
             self?.processes = [proc]
         }
         return proc
