@@ -637,14 +637,14 @@ struct DownscaleFileIntent: AppIntent {
 
     static var parameterSummary: some ParameterSummary {
         When(\.$overwrite, .equalTo, true, {
-            Summary("Downscale \(\.$item) by \(\.$downscaleFactor) and \(\.$overwrite)") {
+            Summary("Downscale \(\.$item) to \(\.$downscaleFactor)x and \(\.$overwrite)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
                 \.$copyToClipboard
                 \.$removeAudio
             }
         }, otherwise: {
-            Summary("Downscale \(\.$item) by \(\.$downscaleFactor) and \(\.$overwrite) \(\.$output)") {
+            Summary("Downscale \(\.$item) to \(\.$downscaleFactor)x and \(\.$overwrite) \(\.$output)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
                 \.$copyToClipboard
@@ -671,7 +671,7 @@ struct DownscaleFileIntent: AppIntent {
     @Parameter(title: "Remove audio from video")
     var removeAudio: Bool
 
-    @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 1.0, controlStyle: .field, inclusiveRange: (0.1, 1.0))
+    @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 0.5, controlStyle: .field, inclusiveRange: (0.1, 1.0))
     var downscaleFactor: Double
 
     @Parameter(title: "Output path", description: """

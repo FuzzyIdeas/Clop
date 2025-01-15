@@ -149,7 +149,9 @@ func getShortcutsMap() -> [String: [Shortcut]] {
 }
 
 func runShortcutProcess(_ shortcut: Shortcut, _ file: String, outFile: String) -> Process? {
-    shellProc("/usr/bin/shortcuts", args: ["run", shortcut.identifier, "--input-path", file, "--output-path", outFile])
+    log.debug("Running /usr/bin/shortcuts run \(shortcut.identifier) --input-path \(file) --output-path \(outFile)")
+    let ps = shell(command: "/usr/bin/shortcuts run '\(shortcut.identifier)' --input-path '\(file)' --output-path '\(outFile)'")
+    return ps.process
 }
 
 struct ShortcutsIcon: View {
