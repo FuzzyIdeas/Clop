@@ -386,6 +386,7 @@ class Image: CustomStringConvertible {
         }
 
         proc.waitUntilExit()
+        log.debug("Shortcut ran with status \(proc.terminationStatus)")
         shortcutOutFile.waitForFile(for: 2)
         guard shortcutOutFile.exists, (shortcutOutFile.fileSize() ?? 1) > 0 else {
             return nil
@@ -1168,9 +1169,14 @@ extension FilePath {
 
             guard var optimisedImage else { return }
 
+            var newBytes = optimisedImage.data.count
+            var newSize = optimisedImage.size
+
             var shortcutChangedImage = false
             if let changedImage = try? optimisedImage.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation ?? false, source: source) {
                 optimisedImage = changedImage
+                newBytes = changedImage.data.count
+                newSize = changedImage.size
                 mainActor {
                     optimiser.url = changedImage.path.url
                     optimiser.type = .image(changedImage.type)
@@ -1184,8 +1190,8 @@ extension FilePath {
                     OM.current = optimiser
                 }
                 optimiser.finish(
-                    oldBytes: img.data.count, newBytes: optimisedImage.data.count,
-                    oldSize: img.size, newSize: optimisedImage.size,
+                    oldBytes: img.data.count, newBytes: newBytes,
+                    oldSize: img.size, newSize: newSize,
                     removeAfterMs: id == Optimiser.IDs.clipboardImage ? hideClipboardAfter : hideFilesAfter
                 )
 
