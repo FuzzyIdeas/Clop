@@ -149,8 +149,10 @@ func getShortcutsMap() -> [String: [Shortcut]] {
 }
 
 func runShortcutProcess(_ shortcut: Shortcut, _ file: String, outFile: String) -> Process? {
-    log.debug("Running /usr/bin/shortcuts run \(shortcut.identifier) --input-path \(file) --output-path \(outFile)")
-    let ps = shell(command: "/usr/bin/shortcuts run '\(shortcut.identifier)' --input-path '\(file)' --output-path '\(outFile)'")
+    let cmd =
+        "/usr/bin/shortcuts run $'\(shortcut.identifier.replacingOccurrences(of: "'", with: "\\'"))' --input-path '\(file.replacingOccurrences(of: "'", with: "\\'"))' --output-path '\(outFile.replacingOccurrences(of: "'", with: "\\'"))'"
+    log.debug("Running: \(cmd)")
+    let ps = shell(command: cmd)
     return ps.process
 }
 
