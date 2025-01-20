@@ -41,7 +41,7 @@ upload:
 	rsync -avz Releases/*.html hetzner:/static/lowtechguys/ReleaseNotes/
 	rsync -avzP Releases/appcast.xml hetzner:/static/lowtechguys/clop/
 	cfcli -d lowtechguys.com purge
-	op run -- $(MAKE) sentry
+	$(MAKE) sentry
 
 release:
 	gh release create v$(VERSION) -F ReleaseNotes/$(VERSION).md "Releases/Clop-$(VERSION).dmg#Clop.dmg"
@@ -58,9 +58,9 @@ setapp-zip:
 	cd /tmp/apps && zip --symlinks -r Clop-setapp.zip Clop.app AppIcon.png
 
 sentry:
-	sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/
+	op run -- sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/
 sentry-setapp:
-	sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Setapp/BuildProductsPath/Release/
+	op run -- sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Setapp/BuildProductsPath/Release/
 
 appcast: Releases/Clop-$(FULL_VERSION).html
 	rm Releases/Clop.dmg || true

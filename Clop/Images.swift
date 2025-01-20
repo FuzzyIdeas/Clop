@@ -260,6 +260,8 @@ class Image: CustomStringConvertible {
         .icon,
         .init("public.svg-image"),
         .init("public.xml"),
+        .init("public.html"),
+        .init("com.trolltech.anymime.Kingsoft Data Descriptor"),
         .init("com.adobe.illustrator.ai-image"),
         .init("com.adobe.photoshop-image"),
         .init("com.adobe.photoshop-large-image"),
