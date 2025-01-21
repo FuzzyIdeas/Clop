@@ -308,6 +308,11 @@ class AppDelegate: AppDelegateParent {
 
         guard !SWIFTUI_PREVIEW else { return }
         floatingResultsWindow.animateOnResize = true
+        pub(.allowClopToAppearInScreenshots)
+            .sink {
+                floatingResultsWindow.sharingType = $0.newValue ? .readOnly : .none
+            }
+            .store(in: &observers)
         pub(.workdir)
             .sink {
                 FilePath.workdir = FilePath.dir($0.newValue, permissions: 0o777)
