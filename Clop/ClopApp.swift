@@ -155,6 +155,8 @@ class AppDelegate: AppDelegateParent {
 
         dropZoneKeyGlobalMonitor.start()
         dropZoneKeyLocalMonitor.start()
+        presetZonesKeyGlobalMonitor.start()
+        presetZonesKeyLocalMonitor.start()
 
         let toOptimise: [ClipboardType] = items.compactMap { item -> ClipboardType? in
             let types = item.types

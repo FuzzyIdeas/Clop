@@ -324,6 +324,46 @@ var hoveredOptimiserID: String? {
     return event
 }
 
+@MainActor var lastPresetZonesModifierFlags: NSEvent.ModifierFlags = []
+@MainActor var possibleControlPresetZones = true
+
+@MainActor var presetZonesKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
+    let flags = event.modifierFlags.intersection([.command, .control, .control, .shift])
+    defer {
+        lastPresetZonesModifierFlags = flags
+        if flags.isEmpty {
+            possibleControlPresetZones = true
+        }
+    }
+
+    if flags.isNotEmpty, flags != [.control] {
+        possibleControlPresetZones = false
+    }
+
+    if possibleControlPresetZones, lastPresetZonesModifierFlags == [.control], flags == [] {
+        DM.showPresetZones.toggle()
+    }
+}
+@MainActor var presetZonesKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
+    let flags = event.modifierFlags.intersection([.command, .control, .control, .shift])
+    defer {
+        lastPresetZonesModifierFlags = flags
+        if flags.isEmpty {
+            possibleControlPresetZones = true
+        }
+    }
+
+    if flags.isNotEmpty, flags != [.control] {
+        possibleControlPresetZones = false
+    }
+
+    if possibleControlPresetZones, lastPresetZonesModifierFlags == [.control], flags == [] {
+        DM.showPresetZones.toggle()
+        return nil
+    }
+    return event
+}
+
 @MainActor
 class OptimiserProgressDelegate: NSObject, URLSessionDataDelegate {
     init(optimiser: Optimiser) {
