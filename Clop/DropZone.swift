@@ -22,10 +22,25 @@ class DragManager: ObservableObject {
         didSet {
             dropZoneKeyGlobalMonitor.stop()
             dropZoneKeyLocalMonitor.stop()
+            presetZonesKeyGlobalMonitor.stop()
+            presetZonesKeyLocalMonitor.stop()
             DM.showDropZone = false
+            DM.showPresetZones = false
         }
     }
 
+    @MainActor @Published var showPresetZones = false {
+        didSet {
+            guard showPresetZones != oldValue else {
+                return
+            }
+            if showPresetZones {
+                log.debug("Control pressed, showing preset zones")
+            } else {
+                log.debug("Control pressed, hiding preset zones")
+            }
+        }
+    }
     @MainActor @Published var showDropZone = false {
         didSet {
             guard showDropZone != oldValue else {
@@ -114,6 +129,7 @@ struct DropZonePresetsView: View {
     @Environment(\.preview) var preview
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject var dragManager = DM
+    @ObservedObject var keysManager = KM
 
     var presetZoneArray: [PresetZone] {
         switch type {
@@ -151,6 +167,8 @@ struct DropZonePresetsView: View {
         let zone = presetZoneArray[safe: index]
         let nextPreset = presetZoneArray.count == index
         let disabled = !nextPreset && zone == nil
+        let hovered = selectedPresetIndex == index
+        let top = index < 2
 
         Button(action: {
             guard let w = NSApp.keyWindow, w.title == "Settings" else {
@@ -162,9 +180,9 @@ struct DropZonePresetsView: View {
             editingZone = zone
             showPresetEditor = true
         }) {
-            VStack(spacing: 5) {
+            VStack(spacing: hovered ? 2 : 5) {
                 zoneIcon(systemName: zone.map(\.icon) ?? (nextPreset ? "plus.square.dashed" : "square.dashed"))
-                    .rotation3DEffect(.degrees(selectedPresetIndex == index ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.2)
+                    .rotation3DEffect(.degrees(hovered ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.2)
 
                 Text(zone.map(\.name) ?? (nextPreset ? "Add preset" : "No preset"))
                     .round(10)
@@ -173,7 +191,9 @@ struct DropZonePresetsView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.5)
                     .frame(width: DROPZONE_SIZE.width / 2, height: 14)
-            }.frame(width: DROPZONE_SIZE.width / 2 - 2, height: DROPZONE_SIZE.height / 2 + 2)
+            }
+            .frame(width: DROPZONE_SIZE.width / 2 - 2, height: DROPZONE_SIZE.height / 2)
+            .padding(top ? .top : .bottom, 4)
         }
         .buttonStyle(
             FlatButton(
@@ -208,7 +228,13 @@ struct DropZonePresetsView: View {
                 }
             }
         }
-        .overlay { Color.peach.opacity(selectedPresetIndex == index ? 0.1 : 0.0) }
+        .background {
+            (cmdPressed ? Color.red : Color.peach).opacity(hovered ? 0.3 : 0.0)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .scaleEffect(0.90)
+                .padding(top ? .top : .bottom, 2)
+        }
+        .shadow(color: Color.black.opacity(hovered ? 0.5 : 0.0), radius: 5, x: 0, y: top ? 3 : -3)
         .if(enableDragAndDrop && !preview) {
             $0.onDrop(
                 of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf],
@@ -220,6 +246,8 @@ struct DropZonePresetsView: View {
             .background(DragPileView().fill(.center))
         }
     }
+
+    var cmdPressed: Bool { keysManager.lcmd || keysManager.rcmd }
 
     var body: some View {
         Grid(horizontalSpacing: 0, verticalSpacing: 0) {
@@ -284,23 +312,27 @@ struct DropZoneView: View {
     @State var hovering = false
     @State var selectedPreset: PresetZone? = nil
     var ctrlPressed: Bool { keysManager.lctrl || keysManager.rctrl }
+    var cmdPressed: Bool { keysManager.lcmd || keysManager.rcmd }
     var presetFileType: ClopFileType?
 
     var hoverState: Bool {
-        (preview ? hovering : dragManager.dragHovering) || ctrlPressed || presetFileType != nil
+        (preview ? hovering : dragManager.dragHovering) || dragManager.showPresetZones || presetFileType != nil
     }
 
     @ViewBuilder var draggingOutsideView: some View {
         VStack {
-            if ctrlPressed || presetFileType != nil {
+            if dragManager.showPresetZones || presetFileType != nil {
                 DropZonePresetsView(type: presetFileType ?? dragManager.fileType, selectedPreset: $selectedPreset)
-                    .overlay(Color.mauvish.opacity(keysManager.flags.sideIndependentModifiers.contains(.command) ? 0.05 : 0.0))
+                    .background(
+                        roundRect(14, fill: .sunYellow.opacity(cmdPressed ? 0.5 : 0.0))
+                            .overlay(roundRect(14, stroke: .black.opacity(cmdPressed ? 0.7 : 0.0), lineWidth: 3))
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 if hoverState {
                     SwiftUI.Image(systemName: "livephoto")
                         .font(.bold(hoverState ? 50 : 0))
-                        .padding(hoverState ? 5 : 0)
+                        .padding(hoverState ? 3 : 0)
                         .rotationEffect(rotation)
                         .onAppear {
                             guard !SWIFTUI_PREVIEW else { return }
@@ -316,7 +348,7 @@ struct DropZoneView: View {
                 VStack(spacing: -1) {
                     Text(hoverState ? "Drop to optimise" : "Drop here to optimise")
                         .font(.system(size: hoverState ? 16 : 14, weight: hoverState ? .heavy : .semibold, design: .rounded))
-                        .padding(.bottom, 8)
+                        .padding(.bottom, 6)
 
                     Text("^: show preset zones")
                         .medium(10)
@@ -332,6 +364,7 @@ struct DropZoneView: View {
                         .medium(10)
                         .foregroundColor(keysManager.flags.sideIndependentModifiers.contains(.command) ? .mauvish : .primary)
                         .opacity(0.8)
+                        .padding(.bottom, 6)
                 }
                 .lineLimit(1)
                 .multilineTextAlignment(.center)
@@ -380,7 +413,12 @@ struct DropZoneView: View {
         .frame(width: THUMB_SIZE.width, height: THUMB_SIZE.height / 2, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
         .padding()
         .fixedSize()
-        .if(enableDragAndDrop && !preview && !ctrlPressed) {
+        .onChange(of: ctrlPressed) { ctrlPressed in
+            if !Defaults[.onlyShowPresetZonesOnControlTapped] {
+                dragManager.showPresetZones = ctrlPressed
+            }
+        }
+        .if(enableDragAndDrop && !preview && !dragManager.showPresetZones) {
             $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], delegate: self)
                 .background(DragPileView().fill(.center))
         }

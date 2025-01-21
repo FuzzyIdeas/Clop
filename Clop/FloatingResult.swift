@@ -79,7 +79,6 @@ struct FloatingResultContainer: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showImages) var showImages
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
-    @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
 
     var shouldShowDropZone: Bool {
         !isPreview && dragManager.showDropZone

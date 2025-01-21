@@ -125,6 +125,7 @@ extension Defaults.Keys {
     static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
     static let onlyShowDropZoneOnOption = Key<Bool>("onlyShowDropZoneOnOption", default: false)
+    static let onlyShowPresetZonesOnControlTapped = Key<Bool>("onlyShowPresetZonesOnControlTapped", default: false)
     static let showImages = Key<Bool>("showImages", default: true)
     static let showCompactImages = Key<Bool>("showCompactImages", default: false)
     static let autoHideFloatingResults = Key<Bool>("autoHideFloatingResults", default: true)
@@ -216,6 +217,8 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .enableClipboardOptimiser,
     .enabledKeys,
     .enableDragAndDrop,
+    .onlyShowDropZoneOnOption,
+    .onlyShowPresetZonesOnControlTapped,
     .enableFloatingResults,
     .floatingResultsCorner,
     .formatsToConvertToJPEG,

@@ -1062,6 +1062,7 @@ struct IconPickerView: View {
 struct DropZoneSettingsView: View {
     @Default(.enableDragAndDrop) var enableDragAndDrop
     @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
+    @Default(.onlyShowPresetZonesOnControlTapped) var onlyShowPresetZonesOnControlTapped
     @Default(.autoCopyToClipboard) var autoCopyToClipboard
     @Default(.presetZones) var presetZones
     @Default(.floatingResultsCorner) var floatingResultsCorner
@@ -1071,6 +1072,11 @@ struct DropZoneSettingsView: View {
 
     var zones: some View {
         Section(header: SectionHeader(title: "Preset zones", subtitle: "Optimise and pass files through Shortcuts by dragging them to these zones")) {
+            Toggle(isOn: $onlyShowPresetZonesOnControlTapped) {
+                Text("Tap ^ Control to show preset zones").regular(13)
+                    + Text("\nToggle preset zones by tapping ^ Control instead of by holding it").round(11, weight: .regular).foregroundColor(.secondary)
+            }
+
             HStack(spacing: 6) {
                 Text("Icon").bold(13).frame(width: 30, alignment: .leading)
                 Divider().foregroundColor(.secondary)
