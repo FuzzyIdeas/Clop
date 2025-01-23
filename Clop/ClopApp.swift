@@ -1071,7 +1071,7 @@ class FileOptimisationWatcher {
                 startWatching()
             } else if watching {
                 watching = false
-                EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+                LowtechFSEvents.stopWatching(for: ObjectIdentifier(self))
             }
         }.store(in: &observers)
 
@@ -1085,7 +1085,7 @@ class FileOptimisationWatcher {
             if change.newValue {
                 if watching {
                     watching = false
-                    EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+                    LowtechFSEvents.stopWatching(for: ObjectIdentifier(self))
                 }
             } else {
                 startWatching()
@@ -1098,7 +1098,7 @@ class FileOptimisationWatcher {
     deinit {
         guard watching else { return }
         watching = false
-        EonilFSEvents.stopWatching(for: ObjectIdentifier(self))
+        LowtechFSEvents.stopWatching(for: ObjectIdentifier(self))
     }
 
     var semaphore = DispatchSemaphore(value: 1)
@@ -1206,7 +1206,8 @@ class FileOptimisationWatcher {
         guard !paths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
 
         do {
-            try LowtechFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self), latency: 0.3) { [weak self] event in
+            try LowtechFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self), latency: 0.3, flags: [.noDefer, .fileEvents, .ignoreSelf, .markSelf]) { [weak self] event in
+                guard event.flag?.contains(.ownEvent) == false else { return }
                 self?.semaphore.wait()
                 defer { self?.semaphore.signal() }
 
