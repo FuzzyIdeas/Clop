@@ -1283,6 +1283,9 @@ func generateFileName(template: String, for path: FilePath? = nil, autoIncrement
     if safe {
         name = name.safeFilename
     }
+    if let ext = path?.extension {
+        name = "\(name).\(ext)"
+    }
 
     if !SWIFTUI_PREVIEW, template.contains(FileNameToken.autoIncrementingNumber.rawValue) {
         autoIncrementingNumber = num
