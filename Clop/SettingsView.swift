@@ -562,7 +562,7 @@ struct SameFolderNameTemplate: View {
                 Auto-incrementing number               **%i**
                 """)
             }
-            .font(.mono(12, weight: .light))
+            .font(.mono(11, weight: .light))
             .foregroundColor(.secondary)
             .padding(6)
         }
