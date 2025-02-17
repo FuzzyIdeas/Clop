@@ -280,14 +280,10 @@ class Video: Optimisable {
         if let mapArgsRange = args.firstRange(of: ["-c:a", "copy", "-map", "0:v", "-map", "0:a?"]) {
             args3.removeSubrange(mapArgsRange)
         }
-        let argArray = [
-            args,
-            args2,
-            args3,
-        ]
+        let argArray = [args, args2, args3]
 
         let videoURL = path.url
-        let proc = try tryProc(FFMPEG.string, args: argArray, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, argArray: argArray, captureOutput: true) { proc in
             mainActor {
                 optimiser.processes = [proc]
                 updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: videoURL, optimiser: optimiser, duration: realDuration)
@@ -460,8 +456,11 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
         }
 
         let lines = string.components(separatedBy: .newlines)
-        for line in lines where line.starts(with: "out_time_us=") {
-            guard let time = Int64(line.suffix(line.count - 12)), time > 0 else {
+        for line in lines where line.trimmed.isNotEmpty {
+            guard line.starts(with: "out_time_us="), let time = Int64(line.suffix(line.count - 12)), time > 0 else {
+                if !FFMPEG_IGNORE_LINES.contains(where: line.starts(with:)) {
+                    log.verbose("FFmpeg: \(line)")
+                }
                 continue
             }
             mainActor {
@@ -471,6 +470,21 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
         }
     }
 }
+
+let FFMPEG_IGNORE_LINES = [
+    "bitrate=",
+    "drop_frames=",
+    "dup_frames=",
+    "fps=",
+    "frame=",
+    "out_time_ms=",
+    "out_time_us=",
+    "out_time=",
+    "progress=",
+    "speed=",
+    "stream_0_0_q=",
+    "total_size=",
+]
 
 extension Int64 {
     var hmsString: String {
@@ -601,7 +615,7 @@ var processTerminated = Set<pid_t>()
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
-                    log.error("Error optimising video \(pathString): \(proc.commandLine)")
+                    log.error("Error optimising video \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                     mainActor { optimiser.finish(error: "Optimisation failed") }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
@@ -733,7 +747,7 @@ var processTerminated = Set<pid_t>()
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
-                log.error("Error downscaling video \(pathString): \(proc.commandLine)")
+                log.error("Error downscaling video \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                 mainActor {
                     optimiser.finish(error: "Downscaling failed")
                 }
@@ -851,7 +865,7 @@ var processTerminated = Set<pid_t>()
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
-                log.error("Error downscaling video \(pathString): \(proc.commandLine)")
+                log.error("Error downscaling video \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                 mainActor {
                     optimiser.finish(error: "Downscaling failed")
                 }

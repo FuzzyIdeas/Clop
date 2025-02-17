@@ -344,7 +344,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
-                    log.error("Error optimising PDF \(pathString): \(proc.commandLine)")
+                    log.error("Error optimising PDF \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                     mainActor { optimiser.finish(error: "Optimisation failed") }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {

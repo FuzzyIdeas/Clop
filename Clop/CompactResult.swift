@@ -483,9 +483,6 @@ struct CompactActionButtons: View {
 }
 
 struct DragHandle: View {
-    @State var hovering = false
-    @State var hoveringDots = false
-
     var body: some View {
         VStack(spacing: -1) {
             Group {
@@ -514,13 +511,13 @@ struct DragHandle: View {
             }
         }
     }
+
+    @State private var hovering = false
+    @State private var hoveringDots = false
+
 }
 
 struct CompactResultList: View {
-    @State var hovering = false
-    @State var showList = false
-    @State var size = NSSize(width: 50, height: 50)
-
     var optimisers: [Optimiser]
     var progress: Progress?
 
@@ -528,18 +525,20 @@ struct CompactResultList: View {
     var failedCount: Int
     var visibleCount: Int
 
-    @Default(.floatingResultsCorner) var floatingResultsCorner
-    @Default(.showCompactImages) var showCompactImages
-    @Default(.keyComboModifiers) var keyComboModifiers
+    @Default(.floatingResultsCorner) private var floatingResultsCorner
+    @Default(.showCompactImages) private var showCompactImages
+    @Default(.keyComboModifiers) private var keyComboModifiers
 
-    @Environment(\.preview) var preview
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.preview) private var preview
+    @Environment(\.colorScheme) private var colorScheme
 
-    @ObservedObject var sm = SM
+    @ObservedObject private var sm = SM
 
-    @State var opts: [CompactOptimiser] = []
-
-    @State var hoveringBatchActions = false
+    @State private var hovering = false
+    @State private var showList = false
+    @State private var size = NSSize(width: 50, height: 50)
+    @State private var opts: [CompactOptimiser] = []
+    @State private var hoveringBatchActions = false
 
     @ViewBuilder var topButtons: some View {
         let hasRunningOptimisers = visibleCount > (doneCount + failedCount)
@@ -575,6 +574,7 @@ struct CompactResultList: View {
         .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
         .font(.medium(11))
         .opacity(hovering && showList ? 1 : 0)
+        .allowsHitTesting(showList)
         .focusable(false)
         .frame(width: size.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
     }

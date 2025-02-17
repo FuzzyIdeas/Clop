@@ -750,7 +750,7 @@ class Image: CustomStringConvertible {
 
         let size = cropSize.computedSize(from: size)
         let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
-        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)", "--linear", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
+        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)[Q=100]", "--linear", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
         let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
             mainActor { optimiser.processes = [proc] }
         }
@@ -940,6 +940,11 @@ class Image: CustomStringConvertible {
 
 @MainActor func optimiseClipboardImage(image: Image? = nil, item: NSPasteboardItem? = nil) {
     guard let img = image ?? (try? Image.fromPasteboard(item: item)) else {
+        return
+    }
+
+    let ignore = Defaults[.imageFormatsToSkip]
+    if !ignore.isEmpty, let itemType = ItemType.from(filePath: img.path).utType, ignore.contains(itemType) {
         return
     }
 
@@ -1158,7 +1163,7 @@ extension FilePath {
                 if proc.terminated {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
-                    log.error("Error optimising image \(pathString): \(proc.commandLine)")
+                    log.error("Error optimising image \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                     mainActor { optimiser.finish(error: "Optimisation failed") }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
@@ -1307,7 +1312,7 @@ extension FilePath {
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
-                log.error("Error downscaling image \(img.path.string): \(proc.commandLine)")
+                log.error("Error downscaling image \(img.path.string): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                 mainActor { optimiser.finish(error: "Downscaling failed") }
             }
         } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {

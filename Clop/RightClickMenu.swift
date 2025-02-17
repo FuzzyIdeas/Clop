@@ -10,12 +10,25 @@ import Foundation
 import Lowtech
 import SwiftUI
 
+extension Bundle {
+    var lowercasedName: String {
+        name.lowercased()
+    }
+}
+
 struct OpenWithMenuView: View {
     let fileURL: URL
 
     var body: some View {
         Menu("Open with...") {
-            let apps = NSWorkspace.shared.urlsForApplications(toOpen: fileURL).compactMap { Bundle(url: $0) }
+            let appsDict: [String: [Bundle]] = NSWorkspace.shared
+                .urlsForApplications(toOpen: fileURL)
+                .compactMap { Bundle(url: $0) }
+                .group(by: \.bundleIdentifier)
+            let apps = appsDict.values
+                .compactMap { $0.min(by: \.bundlePath.count) }
+                .sorted(by: \.lowercasedName)
+
             ForEach(apps, id: \.bundleURL) { app in
                 let icon: NSImage = {
                     let i = NSWorkspace.shared.icon(forFile: app.bundlePath)
@@ -32,7 +45,6 @@ struct OpenWithMenuView: View {
             }
         }
     }
-
 }
 
 struct RightClickMenuView: View {
