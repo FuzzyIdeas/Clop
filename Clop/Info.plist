@@ -33,7 +33,7 @@
 				<key>CFBundleTypeExtensions</key>
 				<array>
 					<string>mp4</string>
-					<string>MP$</string>
+					<string>MP4</string>
 				</array>
 				<key>CFBundleTypeMIMETypes</key>
 				<array>

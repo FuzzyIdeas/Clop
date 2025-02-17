@@ -58,6 +58,32 @@ func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: 
     return task
 }
 
+extension Process {
+    var out: String {
+        let env: [String: String]? = environment
+        if let env, let out = env["__swift_stdout"], let out = fm.contents(atPath: out)?.s {
+            return out
+        } else if let pipe = standardOutput as? Pipe {
+            let handle = pipe.fileHandleForReading
+            try? handle.seek(toOffset: 0)
+            return handle.readDataToEndOfFile().s ?? ""
+        }
+        return ""
+    }
+
+    var err: String {
+        let env: [String: String]? = environment
+        if let env, let err = env["__swift_stderr"], let err = fm.contents(atPath: err)?.s {
+            return err
+        } else if let pipe = standardError as? Pipe {
+            let handle = pipe.fileHandleForReading
+            try? handle.seek(toOffset: 0)
+            return handle.readDataToEndOfFile().s ?? ""
+        }
+        return ""
+    }
+}
+
 // MARK: - ClopError
 
 enum ClopProcError: Error, CustomStringConvertible {
@@ -68,14 +94,9 @@ enum ClopProcError: Error, CustomStringConvertible {
         switch self {
         case let .processError(proc):
             var desc = "Process error: \(([proc.launchPath ?? ""] + (proc.arguments ?? [])).joined(separator: " "))"
+            desc += "\n\t\(proc.out)"
+            desc += "\n\t\(proc.err)"
 
-            var env: [String: String]? = proc.environment
-            if let out = env?.removeValue(forKey: "__swift_stdout"), let outData = fm.contents(atPath: out) {
-                desc += "\n\t" + (outData.s ?? "NON-UTF8 STDOUT")
-            }
-            if let err = env?.removeValue(forKey: "__swift_stderr"), let errData = fm.contents(atPath: err) {
-                desc += "\n\t" + (errData.s ?? "NON-UTF8 STDERR")
-            }
             return desc
         }
     }
@@ -327,12 +348,12 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
 
 }
 
-func tryProc(_ cmd: String, args: [[String]], captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
+func tryProc(_ cmd: String, argArray: [[String]], captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
     var outPipe = Pipe()
     var errPipe = Pipe()
 
     var proc: Process?
-    for (tryNum, args) in args.enumerated() {
+    for (tryNum, args) in argArray.enumerated() {
         let cmdline = "\(cmd.shellString.replacingOccurrences(of: " ", with: "\\ ")) \(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))"
         log.debug("Starting\n\t\(cmdline)")
 

@@ -18,10 +18,11 @@ let TEXT_FIELD_OFFSET: CGFloat = if #available(macOS 15.0, *) {
     0
 }
 let TEXT_FIELD_SCALE: CGFloat = if #available(macOS 15.0, *) {
-    1.2
+    1.1
 } else {
     1.0
 }
+let TEXT_FIELD_WIDTH: CGFloat = 550
 
 extension String: @retroactive Identifiable {
     public var id: String { self }
@@ -251,12 +252,13 @@ struct PDFSettingsView: View {
                     specificFolderNameTemplate: $specificFolderNameTemplatePDF
                 )
                 HStack {
-                    Text("Skip PDFs larger than").regular(13).padding(.trailing, 10)
+                    Text("Skip when PDFs larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxPDFSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
                         .multilineTextAlignment(.center)
                         .frame(width: 70)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
+                    Text("are copied or moved in watched folders").regular(13)
                 }
                 HStack {
                     Text("Skip when more than").regular(13)
@@ -264,7 +266,7 @@ struct PDFSettingsView: View {
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxPDFFileCount == 1 ? "PDF is dropped, copied or moved" : "PDFs are dropped, copied or moved").regular(13)
+                    Text(maxPDFFileCount == 1 ? "PDF is copied or moved in watched folders" : "PDFs are copied or moved in watched folders").regular(13)
                 }
 
                 Toggle(isOn: $useAggressiveOptimisationPDF) {
@@ -312,12 +314,13 @@ struct VideoSettingsView: View {
                     specificFolderNameTemplate: $specificFolderNameTemplateVideo
                 )
                 HStack {
-                    Text("Skip videos larger than").regular(13).padding(.trailing, 10)
+                    Text("Skip when videos larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxVideoSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
                         .multilineTextAlignment(.center)
                         .frame(width: 70)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
+                    Text("are copied or moved in watched folders").regular(13)
                 }
                 HStack {
                     Text("Skip when more than").regular(13)
@@ -325,7 +328,7 @@ struct VideoSettingsView: View {
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxVideoFileCount == 1 ? "video is dropped, copied or moved" : "videos are dropped, copied or moved").regular(13)
+                    Text(maxVideoFileCount == 1 ? "video is copied or moved in watched folders" : "videos are copied or moved in watched folders").regular(13)
                 }
                 HStack {
                     Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
@@ -523,23 +526,26 @@ struct SameFolderNameTemplate: View {
             Text("Name template").medium(12)
                 + Text("\nRename the optimised file using this template").round(11, weight: .regular).foregroundColor(.secondary)
 
-            HStack {
+            VStack(alignment: .leading) {
                 TextField("", text: $template, prompt: Text(DEFAULT_SAME_FOLDER_NAME_TEMPLATE))
-                    .frame(width: 300, height: 18, alignment: .leading)
+                    .frame(width: TEXT_FIELD_WIDTH, height: 18, alignment: .leading)
                     .padding(6)
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                Spacer(minLength: 20)
-                Text("Example on \(type.defaultNameTemplatePath.name.string): ")
-                    .round(12)
-                    .lineLimit(1)
-                    .allowsTightening(false)
-                    .foregroundColor(.secondary.opacity(0.6))
-                Text(generateFileName(template: template ?! DEFAULT_SAME_FOLDER_NAME_TEMPLATE, for: type.defaultNameTemplatePath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
-                    .round(12)
-                    .lineLimit(1)
-                    .allowsTightening(true)
-                    .truncationMode(.middle)
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text("Example on \(type.defaultNameTemplatePath.name.string): ")
+                        .round(12)
+                        .lineLimit(1)
+                        .allowsTightening(false)
+                        .foregroundColor(.secondary.opacity(0.6))
+                        .offset(x: 6)
+                    Spacer()
+                    Text(generateFileName(template: template ?! DEFAULT_SAME_FOLDER_NAME_TEMPLATE, for: type.defaultNameTemplatePath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
+                        .round(12)
+                        .lineLimit(1)
+                        .allowsTightening(true)
+                        .truncationMode(.middle)
+                        .foregroundColor(.secondary)
+                }
             }
             HStack {
                 Text("""
@@ -577,18 +583,19 @@ struct SpecificFolderNameTemplate: View {
             Text("Path template").medium(12)
                 + Text("\nCreate the optimised file into a path generated by this template").round(11, weight: .regular).foregroundColor(.secondary)
 
-            HStack {
+            VStack(alignment: .leading) {
                 TextField("", text: $template, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
-                    .frame(width: 400, height: 18, alignment: .leading)
+                    .frame(width: TEXT_FIELD_WIDTH, height: 18, alignment: .leading)
                     .padding(6)
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                Spacer(minLength: 20)
-                VStack(alignment: .trailing, spacing: 0) {
+                HStack {
                     Text("Example on \(type.defaultNameTemplatePath.shellString): ")
                         .mono(10)
                         .lineLimit(1)
                         .allowsTightening(false)
                         .foregroundColor(.secondary.opacity(0.6))
+                        .offset(x: 6)
+                    Spacer()
                     Text(
                         try! generateFilePath(
                             template: template ?! DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE,
@@ -660,9 +667,9 @@ struct ImagesSettingsView: View {
             Text("Custom name template").regular(13)
                 + Text("\nRename the file using this template before copying the path to the clipboard").round(11, weight: .regular).foregroundColor(.secondary)
 
-            HStack {
+            VStack(alignment: .leading) {
                 TextField("", text: $customNameTemplateForClipboardImages, prompt: Text(DEFAULT_NAME_TEMPLATE))
-                    .frame(width: 400, height: 18, alignment: .leading)
+                    .frame(width: TEXT_FIELD_WIDTH, height: 18, alignment: .leading)
                     .padding(6)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray.opacity(useCustomNameTemplateForClipboardImages ? 1 : 0.35), lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE)
@@ -670,13 +677,13 @@ struct ImagesSettingsView: View {
                     )
                     .disabled(!useCustomNameTemplateForClipboardImages)
                 if useCustomNameTemplateForClipboardImages {
-                    Spacer(minLength: 20)
-                    Text(generateFileName(template: customNameTemplateForClipboardImages ?! DEFAULT_NAME_TEMPLATE, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
+                    Text("Result: " + generateFileName(template: customNameTemplateForClipboardImages ?! DEFAULT_NAME_TEMPLATE, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
                         .round(12)
                         .lineLimit(1)
                         .allowsTightening(true)
                         .truncationMode(.middle)
                         .foregroundColor(.secondary)
+                        .offset(x: 6)
                 }
             }
             if useCustomNameTemplateForClipboardImages {
@@ -722,12 +729,13 @@ struct ImagesSettingsView: View {
                 )
 
                 HStack {
-                    Text("Skip images larger than").regular(13).padding(.trailing, 10)
+                    Text("Skip when images larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxImageSizeMB, formatter: BoundFormatter(min: 1, max: 500))
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
+                    Text("are copied or moved in watched folders").regular(13)
                 }
                 HStack {
                     Text("Skip when more than").regular(13)
@@ -735,7 +743,7 @@ struct ImagesSettingsView: View {
                         .multilineTextAlignment(.center)
                         .frame(width: 50)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxImageFileCount == 1 ? "image is dropped, copied or moved" : "images are dropped, copied or moved").regular(13)
+                    Text(maxImageFileCount == 1 ? "image is copied or moved in watched folders" : "images are copied or moved in watched folders").regular(13)
                 }
 
                 HStack {

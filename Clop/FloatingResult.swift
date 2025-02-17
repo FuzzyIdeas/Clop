@@ -105,12 +105,13 @@ struct FloatingResultContainer: View {
                         doneCount: om.doneCount,
                         failedCount: om.failedCount,
                         visibleCount: om.visibleCount
-                    ).preview(isPreview)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 15)
-                        .onAppear {
-                            om.compactResults = true
-                        }
+                    )
+                    .preview(isPreview)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 15)
+                    .onAppear {
+                        om.compactResults = true
+                    }
                 } else {
                     FloatingResultList(optimisers: optimisers).preview(isPreview)
                     #if !SETAPP
