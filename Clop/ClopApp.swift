@@ -884,6 +884,8 @@ class AppDelegate: AppDelegateParent {
                     return
                 }
 
+                scalingFactor = 1
+
                 if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo, !path.hasOptimisationStatusXattr() {
                     let ignore = Defaults[.videoFormatsToSkip]
                     if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
