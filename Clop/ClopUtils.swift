@@ -182,7 +182,7 @@ extension FilePath {
         let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
         let args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
             + ["-all=", "-tagsFromFile", "@"]
-            + ["-XResolution", "-YResolution", "-Orientation"]
+            + ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags"] : [])
             + ["-o", tempFile.string, string]
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
 

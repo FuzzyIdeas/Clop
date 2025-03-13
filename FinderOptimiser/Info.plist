@@ -22,7 +22,9 @@
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.compuserve.gif" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "com.microsoft.bmp" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.matroska.mkv" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "io.iina.mkv" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.webmproject.webm" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "io.iina.webm" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.avi" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.avif" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.heic" ||

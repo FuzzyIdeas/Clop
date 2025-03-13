@@ -160,10 +160,10 @@ extension UTType: @retroactive Identifiable {
 
 extension UTType {
     static let avif = UTType("public.avif")
-    static let webm = UTType("org.webmproject.webm")
-    static let mkv = UTType("org.matroska.mkv")
+    static let webm = UTType("org.webmproject.webm") ?? UTType("io.iina.webm")
+    static let mkv = UTType("org.matroska.mkv") ?? UTType("io.iina.mkv")
     static let mpeg = UTType("public.mpeg")
-    static let wmv = UTType("com.microsoft.windows-media-wmv")
+    static let wmv = UTType("com.microsoft.windows-media-wmv") ?? UTType("io.iina.wmv")
     static let flv = UTType("com.adobe.flash.video")
     static let m4v = UTType("com.apple.m4v-video")
 }
