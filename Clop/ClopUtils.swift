@@ -534,8 +534,7 @@ func nsalert(error: String) {
             do {
                 try fm.createSymbolicLink(at: cliDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
             } catch {
-                nsalert(error: "Error creating symbolic link \(cliDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
-                exit(1)
+                log.error("Error creating symbolic link \(cliDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
             }
         }
 
@@ -552,8 +551,7 @@ func nsalert(error: String) {
             do {
                 try fm.createSymbolicLink(at: finderOptimiserDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
             } catch {
-                nsalert(error: "Error creating symbolic link \(finderOptimiserDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
-                exit(1)
+                log.error("Error creating symbolic link \(finderOptimiserDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
             }
         }
         mainActor { setBinPaths() }
