@@ -27,18 +27,16 @@ struct RestoreOptimiseButton: View {
     @Environment(\.preview) var preview
 
     var body: some View {
-        if optimiser.url != nil, !optimiser.running {
-            if optimiser.isOriginal {
-                Button(
-                    action: { if !preview { optimiser.optimise(allowLarger: false) } },
-                    label: { SwiftUI.Image(systemName: "goforward.plus").font(.heavy(9)) }
-                )
-            } else {
-                Button(
-                    action: { if !preview { optimiser.restoreOriginal() } },
-                    label: { SwiftUI.Image(systemName: "arrow.uturn.left").font(.semibold(9)) }
-                )
-            }
+        if optimiser.isOriginal {
+            Button(
+                action: { if !preview { optimiser.optimise(allowLarger: false) } },
+                label: { SwiftUI.Image(systemName: "goforward.plus").font(.heavy(9)) }
+            )
+        } else {
+            Button(
+                action: { if !preview { optimiser.restoreOriginal() } },
+                label: { SwiftUI.Image(systemName: "arrow.uturn.left").font(.semibold(9)) }
+            )
         }
     }
 }
@@ -212,6 +210,7 @@ struct SideButtons: View {
                     offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
                     optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)"
                 )
+                .disabled(optimiser.url == nil || optimiser.running)
 
             if !optimiser.aggressive, optimiser.canReoptimise() {
                 AggressiveOptimisationButton(optimiser: optimiser)
@@ -280,6 +279,7 @@ struct ActionButtons: View {
             RestoreOptimiseButton(optimiser: optimiser)
                 .onHover { hoveringRestoreOptimiseButton = $0 }
                 .topHelpTag(isPresented: $hoveringRestoreOptimiseButton, optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)")
+                .disabled(optimiser.url == nil || optimiser.running)
 
             if !optimiser.aggressive, optimiser.canReoptimise() {
                 AggressiveOptimisationButton(optimiser: optimiser)

@@ -61,7 +61,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "2ee87fb99116214311c6d7e645e045a41d452dc4"
+        "revision" : "6c5468970d6dd008f6b60b31eb0fb27555760f3f"
       }
     },
     {
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "56bfb7e723c76614be4c0861ee820ccbaed14c6d",
-        "version" : "8.41.0"
+        "revision" : "4589f82132097558d386710b139bfe9c35c64d4a",
+        "version" : "8.48.0"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "0ef1ee0220239b3776f433314515fd849025673f",
-        "version" : "2.6.4"
+        "revision" : "0ca3004e98712ea2b39dd881d28448630cce1c99",
+        "version" : "2.7.0"
       }
     },
     {
@@ -150,8 +150,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/swift-ignore",
       "state" : {
-        "revision" : "5251460883d087a4145d68a04c6c7d7ac238b03f",
-        "version" : "0.1.2"
+        "revision" : "4fea2479f50c968fad64092b6d2a9b4312f1b353",
+        "version" : "0.1.3"
       }
     },
     {
