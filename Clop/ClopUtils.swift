@@ -48,6 +48,21 @@ func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: 
     task.arguments = args
     task.environment = env
 
+    task.terminationHandler = { process in
+        do {
+            if let stdoutFile = process.standardOutput as? FileHandle {
+                try stdoutFile.synchronize()
+                try stdoutFile.close()
+            }
+            if let stderrFile = process.standardError as? FileHandle {
+                try stderrFile.synchronize()
+                try stderrFile.close()
+            }
+        } catch {
+            log.error("Error handling termination of process \(launchPath) \(args) [PID: \(process.processIdentifier)]: \(error)")
+        }
+    }
+
     do {
         try task.run()
     } catch {
