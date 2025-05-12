@@ -197,7 +197,7 @@ extension FilePath {
         let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
         let args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
             + ["-all=", "-tagsFromFile", "@"]
-            + ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags"] : [])
+            + ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags", "-icc_profile"] : [])
             + ["-o", tempFile.string, string]
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
 
@@ -241,7 +241,7 @@ extension FilePath {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
 
-        let tagsToKeep = (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags"] : []) : (isVideo ? ["-All:All"] : []))
+        let tagsToKeep = (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags", "-icc_profile"] : []) : (isVideo ? ["-All:All"] : []))
         let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
             + additionalArgs
             + ["-extractEmbedded", "-tagsFromFile", source.string]
