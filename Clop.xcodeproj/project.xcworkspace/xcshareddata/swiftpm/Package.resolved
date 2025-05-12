@@ -61,7 +61,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "c9499ee3c35ef7f5246c76e7e427b745f95a0b2f"
+        "revision" : "7464856327447781f61f115dd61584f4e156a1ec"
       }
     },
     {
@@ -96,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "4589f82132097558d386710b139bfe9c35c64d4a",
-        "version" : "8.48.0"
+        "revision" : "2c6c1b81d9f6e6178064b4e9b457abe1c118bcda",
+        "version" : "8.49.0"
       }
     },
     {
@@ -105,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MacPaw/Setapp-framework",
       "state" : {
-        "revision" : "325aba75c006be6726420907eeb242a35f180e91",
-        "version" : "4.2.2"
+        "revision" : "cb31c9ac1f4fa093f8254b5226a0aeb9e47777e0",
+        "version" : "4.2.3"
       }
     },
     {
