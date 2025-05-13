@@ -101,3 +101,7 @@ The app is licensed under [GPLv3](https://github.com/FuzzyIdeas/Clop/blob/main/L
 *Clop* is the Romanian word for a traditional straw hat with a high crown and raised conical brim, worn more as an adorment in days of celebration.
 
 We thought *"**Cl**ipboard **Op**timizer"* sounds a bit too technical and doesn't roll off the tongue as easily. We're <b style="color: red">Rom</b><b style="color: yellow">an</b><b style="color: blue">ian</b> ourselves and we thought it might be a good idea to keep the memory of our traditions from dying completely, with whatever little we can do.
+
+## Contact
+
+For questions you can contact us through the [contact form](https://lowtechguys.com/contact?app=Clop) or we can do troubleshooting on [Discord](https://discord.gg/YeTuy6adXk) if an async discussion would take too much. 
