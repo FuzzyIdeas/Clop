@@ -579,7 +579,6 @@ func nsalert(error: String) {
     CWEBP = BIN_DIR.appendingPathComponent("cwebp").filePath!
     PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").filePath!
     JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
-    JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").filePath!
     GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").filePath!
     VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
     FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").filePath!
