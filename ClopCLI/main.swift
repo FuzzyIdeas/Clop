@@ -889,7 +889,7 @@ struct Clop: ParsableCommand {
         Random characters          %r
         Auto-incrementing number   %i
 
-        For example `--size 128 --output "~/Desktop/%f @ %zpx.%e" image.png` will generate the file `~/Desktop/image @ 128px.png`.
+        For example `--size 128 --output "~/Desktop/%f @ %zpx.png" image.png` will generate the file `~/Desktop/image @ 128px.png`.
 
         """)
         var output: String? = nil
@@ -933,7 +933,11 @@ struct Clop: ParsableCommand {
 
         mutating func run() throws {
             try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "cropping") {
-                OptimisationRequest(
+                var out = normalizeRelativeOutput(output)
+                if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
+                    out = out!.replacingFirstOccurrence(of: ".\(inExt)", with: "")
+                }
+                return OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
                     size: size.withLongEdge(longEdge).withSmartCrop(smartCrop),
@@ -944,7 +948,7 @@ struct Clop: ParsableCommand {
                     aggressiveOptimisation: aggressive,
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
-                    output: normalizeRelativeOutput(output),
+                    output: out,
                     removeAudio: removeAudio
                 )
             }
@@ -1012,7 +1016,7 @@ struct Clop: ParsableCommand {
         Random characters          %r
         Auto-incrementing number   %i
 
-        For example `--factor 0.5 --output "~/Desktop/%f @ %sx.%e" image.png` will generate the file `~/Desktop/image @ 0.5x.png`.
+        For example `--factor 0.5 --output "~/Desktop/%f @ %sx.png" image.png` will generate the file `~/Desktop/image @ 0.5x.png`.
 
         """)
         var output: String? = nil
@@ -1045,7 +1049,11 @@ struct Clop: ParsableCommand {
 
         mutating func run() throws {
             try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "downscaling") {
-                OptimisationRequest(
+                var out = normalizeRelativeOutput(output)
+                if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
+                    out = out!.replacingFirstOccurrence(of: ".\(inExt)", with: "")
+                }
+                return OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
                     size: nil,
@@ -1056,7 +1064,7 @@ struct Clop: ParsableCommand {
                     aggressiveOptimisation: aggressive,
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
-                    output: normalizeRelativeOutput(output),
+                    output: out,
                     removeAudio: removeAudio
                 )
             }
@@ -1135,7 +1143,7 @@ struct Clop: ParsableCommand {
         Random characters          %r
         Auto-incrementing number   %i
 
-        For example `--output "~/Desktop/%f_optimised.%e" image.png` will generate the file `~/Desktop/image_optimised.png`.
+        For example `--output "~/Desktop/%f_optimised.png" image.png` will generate the file `~/Desktop/image_optimised.png`.
 
         """)
         var output: String? = nil
@@ -1168,7 +1176,11 @@ struct Clop: ParsableCommand {
 
         mutating func run() throws {
             try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "optimisation") {
-                OptimisationRequest(
+                var out = normalizeRelativeOutput(output)
+                if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
+                    out = out!.replacingFirstOccurrence(of: ".\(inExt)", with: "")
+                }
+                return OptimisationRequest(
                     id: String(Int.random(in: 1000 ... 100_000)),
                     urls: urls,
                     size: crop?.cropSize(),
@@ -1179,7 +1191,7 @@ struct Clop: ParsableCommand {
                     aggressiveOptimisation: aggressive,
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
-                    output: normalizeRelativeOutput(output),
+                    output: out,
                     removeAudio: removeAudio
                 )
             }

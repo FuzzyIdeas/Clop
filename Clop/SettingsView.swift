@@ -465,8 +465,8 @@ struct SectionHeader: View {
 }
 
 let DEFAULT_NAME_TEMPLATE = "clop_%y-%m-%d_%i"
-let DEFAULT_SAME_FOLDER_NAME_TEMPLATE = "%f-optimised.%e"
-let DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE = "%P/optimised/%f.%e"
+let DEFAULT_SAME_FOLDER_NAME_TEMPLATE = "%f-optimised"
+let DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE = "%P/optimised/%f"
 
 struct OptimisedFileBehaviourView: View {
     let type: ClopFileType

@@ -103,7 +103,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
     %r	Random characters
     %i	Auto-incrementing number
 
-    For example `~/Desktop/%f @ %xx.%e` on a file like `~/Desktop/video.mp4` will generate the file `~/Desktop/video @ 2x.mp4`.
+    For example `~/Desktop/%f @ %xx` on a file like `~/Desktop/video.mp4` will generate the file `~/Desktop/video @ 2x.mp4`.
 
     """)
     var output: String?
@@ -371,7 +371,7 @@ struct CropOptimiseFileIntent: AppIntent {
     %r	Random characters
     %i	Auto-incrementing number
 
-    For example `~/Desktop/%f @ %zpx.%e` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image @ 128px.png`.
+    For example `~/Desktop/%f @ %zpx` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image @ 128px.png`.
 
     """)
     var output: String?
@@ -576,7 +576,7 @@ struct OptimiseFileIntent: AppIntent {
     %r	Random characters
     %i	Auto-incrementing number
 
-    For example `~/Desktop/%f_optimised.%e` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image_optimised.png`.
+    For example `~/Desktop/%f_optimised` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image_optimised.png`.
 
     """)
     var output: String?
@@ -698,7 +698,7 @@ struct DownscaleFileIntent: AppIntent {
     %r	Random characters
     %i	Auto-incrementing number
 
-    For example `~/Desktop/%f_optimised.%e` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image_optimised.png`.
+    For example `~/Desktop/%f_optimised` on a file like `~/Desktop/image.png` will generate the file `~/Desktop/image_optimised.png`.
 
     """)
     var output: String?
@@ -809,7 +809,7 @@ struct OptimiseURLIntent: AppIntent {
     %r	Random characters
     %i	Auto-incrementing number
 
-    For example `~/Desktop/%f_optimised.%e` on an URL like `https://example.com/image.png` will generate the file `~/Desktop/image_optimised.png`.
+    For example `~/Desktop/%f_optimised` on an URL like `https://example.com/image.png` will generate the file `~/Desktop/image_optimised.png`.
 
     """)
     var output: String?

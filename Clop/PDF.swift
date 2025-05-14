@@ -10,8 +10,8 @@ import UniformTypeIdentifiers
 var GS = BIN_DIR.appendingPathComponent("gs").filePath!
 
 let GS_LOSSY_ARGS: [String] = [
-    "-dAutoFilterGrayImages=true",
-    "-dAutoFilterColorImages=true",
+    "-dAutoFilterGrayImages=false",
+    "-dAutoFilterColorImages=false",
     "-dAutoFilterMonoImages=true",
     "-dColorImageFilter=/DCTEncode",
     "-dDownsampleColorImages=true",
@@ -26,11 +26,11 @@ let GS_LOSSLESS_ARGS: [String] = [
     "-dAutoFilterGrayImages=false",
     "-dAutoFilterColorImages=false",
     "-dAutoFilterMonoImages=false",
-    "-dColorImageFilter=/FlateEncode",
+    "-dColorImageFilter=/DCTEncode",
     "-dDownsampleColorImages=false",
     "-dDownsampleGrayImages=false",
     "-dDownsampleMonoImages=false",
-    "-dGrayImageFilter=/FlateEncode",
+    "-dGrayImageFilter=/DCTEncode",
     "-dPassThroughJPEGImages=true",
     "-dPassThroughJPXImages=true",
     "-dShowAcroForm=true",
@@ -50,7 +50,6 @@ let GS_ARGS: [String] = [
     "-dCompressFonts=true",
     "-dCompressPages=true",
     "-dCompressStreams=true",
-    "-dConvertCMYKImagesToRGB=false",
     "-dConvertCMYKImagesToRGB=true",
     "-dConvertImagesToIndexed=false",
     "-dCreateJobTicket=false",
@@ -273,7 +272,7 @@ class PDF: Optimisable {
     return true
 }
 
-let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/9.56.1/Resource/Init").path]
+let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.05.1/Resource/Init").path]
 
 @discardableResult
 @MainActor func optimisePDF(
