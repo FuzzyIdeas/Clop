@@ -82,7 +82,7 @@ struct ResolutionField: View {
                 return
             }
             self.cropSize = cropSize
-            let size = cropSize.computedSize(from: size)
+            let size = cropSize.computedSize(from: optimiser.newSize ?? size)
             tempWidth = size.width.evenInt
             tempHeight = size.height.evenInt
         }
@@ -192,7 +192,7 @@ struct ResolutionField: View {
             }.font(.medium(10))
         }
         .onChange(of: cropSize) { size in
-            guard let newSize = size?.computedSize(from: self.size) else {
+            guard let newSize = size?.computedSize(from: optimiser.newSize ?? self.size) else {
                 return
             }
             tempWidth = newSize.width.evenInt
@@ -391,7 +391,7 @@ struct ResolutionField: View {
             isAspectRatio = true
             cropSize = size.withOrientation(cropOrientation)
 
-            let newSize = (cropSize ?? size).computedSize(from: self.size)
+            let newSize = (cropSize ?? size).computedSize(from: optimiser.newSize ?? self.size)
             tempWidth = newSize.width.evenInt
             tempHeight = newSize.height.evenInt
         }.buttonStyle(.bordered)
