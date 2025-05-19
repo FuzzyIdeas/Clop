@@ -130,6 +130,13 @@ let FONT_PATH: String = [
 
 let GS_PAGE_REGEX = try! Regex(#"^\s*Processing pages \d+ through (\d+)."#, as: (Substring, Substring).self).anchorsMatchLineEndings(true)
 
+func isPDFValid(path: FilePath) -> Bool {
+    guard let document = PDFDocument(url: path.url) else {
+        return false
+    }
+    return document.pageCount > 0
+}
+
 @MainActor func updateProgressGS(pipe: Pipe, url: URL, optimiser: Optimiser, pageCount: Int? = nil) {
     mainActor {
         optimiser.progress = Progress(totalUnitCount: pageCount?.i64 ?? 100)

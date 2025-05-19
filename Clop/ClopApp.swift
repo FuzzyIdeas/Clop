@@ -1183,7 +1183,7 @@ class FileOptimisationWatcher {
                 return
             }
 
-            guard date != lastDate else {
+            if date == lastDate, let path = path.filePath, await (path.isValid()) {
                 log.debug("Modification date of \(path) settled at \(date)")
                 return
             }

@@ -354,6 +354,15 @@ func videoHasAudio(path: FilePath) async throws -> Bool {
     return tracks.contains(where: { $0.mediaType == .audio })
 }
 
+func isVideoValid(path: FilePath) async throws -> Bool {
+    let avAsset = AVURLAsset(url: path.url)
+    let tracks = try await avAsset.load(.tracks)
+    guard let track = try await avAsset.loadTracks(withMediaType: .video).first else {
+        return false
+    }
+    return true
+}
+
 func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
     let avAsset = AVURLAsset(url: path.url)
     let tracks = try await avAsset.load(.tracks)
