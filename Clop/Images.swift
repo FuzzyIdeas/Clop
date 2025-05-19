@@ -19,6 +19,13 @@ var JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
 var GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").filePath!
 var VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
 
+func isImageValid(path: FilePath) -> Bool {
+    guard let image = NSImage(contentsOfFile: path.string) else {
+        return false
+    }
+    return image.size != .zero
+}
+
 extension NSPasteboard.PasteboardType {
     static let jpeg = NSPasteboard.PasteboardType(rawValue: "public.jpeg")
     static let gif = NSPasteboard.PasteboardType(rawValue: "com.compuserve.gif")
