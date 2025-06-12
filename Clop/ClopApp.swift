@@ -685,7 +685,7 @@ class AppDelegate: AppDelegateParent {
             }
 
             for dir in [FilePath.clopBackups, .videos, .images, .pdfs, .conversions, .downloads, .forResize, .forFilters, .finderQuickAction, .processLogs] {
-                let enumerator = fm.enumerator(at: dir.url, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
+                let enumerator = fm.enumerator(at: dir.url, includingPropertiesForKeys: [.attributeModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
                 guard let iterator = enumerator else {
                     return
                 }
@@ -695,7 +695,7 @@ class AppDelegate: AppDelegateParent {
                     if let isdir = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory, isdir {
                         continue
                     }
-                    guard let date = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
+                    guard let date = try? url.resourceValues(forKeys: [.attributeModificationDateKey]).attributeModificationDate else {
                         continue
                     }
 
