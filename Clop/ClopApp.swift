@@ -24,6 +24,7 @@ import UniformTypeIdentifiers
     import LowtechIndie
     import LowtechPro
 #endif
+import Ignore
 
 var pauseForNextClipboardEvent = false
 
@@ -203,6 +204,9 @@ class AppDelegate: AppDelegateParent {
     }
 
     @MainActor lazy var mouseUpMonitor = GlobalEventMonitor(mask: [.leftMouseUp]) { event in
+        guard DM.dragging else {
+            return
+        }
         self.draggingSet.send(false)
         if !DM.dragHovering, DM.itemsToOptimise.isNotEmpty {
             DM.dragging = false
@@ -1260,12 +1264,12 @@ class FileOptimisationWatcher {
             // guard !alreadyOptimisedFiles.contains(event.path) else { return false }
             // guard shouldHandle(event) else { return false }
 
-            #if !DEBUG
-                if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
-                    log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
-                    return false
-                }
-            #endif
+//            #if !DEBUG
+            if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
+                log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
+                return false
+            }
+//            #endif
 
             guard !hasSpuriousEvent(event) else { return false }
 

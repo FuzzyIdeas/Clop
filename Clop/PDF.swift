@@ -391,7 +391,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.0
     pdfOptimiseDebouncers[pathString] = workItem
 
     while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100)
+        try await Task.sleep(nanoseconds: 100_000_000)
     }
     return result
 }
