@@ -665,7 +665,7 @@ var processTerminated = Set<pid_t>()
     videoOptimiseDebouncers[pathString] = workItem
 
     while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100)
+        try await Task.sleep(nanoseconds: 100_000_000)
     }
     return result
 }
@@ -787,7 +787,7 @@ var processTerminated = Set<pid_t>()
     videoOptimiseDebouncers[pathString] = workItem
 
     while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100)
+        try await Task.sleep(nanoseconds: 100_000_000)
     }
 
     return result
@@ -905,7 +905,7 @@ var processTerminated = Set<pid_t>()
     videoOptimiseDebouncers[pathString] = workItem
 
     while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100)
+        try await Task.sleep(nanoseconds: 100_000_000)
     }
 
     return result

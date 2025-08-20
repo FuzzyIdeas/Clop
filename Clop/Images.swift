@@ -1218,7 +1218,7 @@ extension FilePath {
 
     imageOptimiseDebouncers[pathString] = workItem
     while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100)
+        try await Task.sleep(nanoseconds: 100_000_000)
     }
     return result
 }
@@ -1337,7 +1337,7 @@ extension FilePath {
     imageResizeDebouncers[img.path.string] = workItem
 
     while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100)
+        try await Task.sleep(nanoseconds: 100_000_000)
     }
 
     return result
