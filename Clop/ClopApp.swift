@@ -204,9 +204,6 @@ class AppDelegate: AppDelegateParent {
     }
 
     @MainActor lazy var mouseUpMonitor = GlobalEventMonitor(mask: [.leftMouseUp]) { event in
-        guard DM.dragging else {
-            return
-        }
         self.draggingSet.send(false)
         if !DM.dragHovering, DM.itemsToOptimise.isNotEmpty {
             DM.dragging = false

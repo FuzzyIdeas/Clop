@@ -20,8 +20,8 @@ class Dropshare: AppIntegration {
 
 @MainActor
 class Yoink: AppIntegration {
-    override var BUNDLE_ID: String { "at.EternalStorms.Yoink-setapp" }
-    override var SETAPP_BUNDLE_ID: String? { "at.EternalStorms.Yoink-setapp-setapp" }
+    override var BUNDLE_ID: String { "at.EternalStorms.Yoink" }
+    override var SETAPP_BUNDLE_ID: String? { "at.EternalStorms.Yoink-setapp" }
 
     override var appNameQuery: String { "kMDItemFSName == 'Yoink.app'" }
     override var webURL: URL? { "https://eternalstorms.at/yoink/mac/".url! }
