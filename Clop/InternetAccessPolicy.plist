@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>DeveloperName</key>
+	<string>The low-tech guys</string>
+
+	<key>Website</key>
+	<string>https://lowtechguys.com/clop</string>
+
+	<key>ApplicationDescription</key>
+	<string>Image, video, PDF and clipboard optimiser</string>
+
+	<key>Services</key>
+	<array>
+		<dict>
+			<key>Identifier</key>
+			<string>com.apple.NSURLSession</string>
+			<key>Name</key>
+			<string>NSURLSession</string>
+			<key>Purpose</key>
+			<string>Used for downloading files from URLs dragged to the drop zone.</string>
+		</dict>
+
+		<dict>
+			<key>Identifier</key>
+			<string>net.mkswap.Dropshare5</string>
+			<key>Name</key>
+			<string>Dropshare</string>
+			<key>Purpose</key>
+			<string>Used to upload optimised files using Dropshare.</string>
+		</dict>
+
+		<dict>
+			<key>Identifier</key>
+			<string>net.mkswap.Dropshare-setapp</string>
+			<key>Name</key>
+			<string>Dropshare (Setapp)</string>
+			<key>Purpose</key>
+			<string>Used to upload optimised files using Dropshare (Setapp variant).</string>
+		</dict>
+
+		<dict>
+			<key>Identifier</key>
+			<string>at.EternalStorms.Yoink</string>
+			<key>Name</key>
+			<string>Yoink</string>
+			<key>Purpose</key>
+			<string>Used to shelf files with Yoink.</string>
+		</dict>
+
+		<dict>
+			<key>Identifier</key>
+			<string>at.EternalStorms.Yoink-setapp</string>
+			<key>Name</key>
+			<string>Yoink (Setapp)</string>
+			<key>Purpose</key>
+			<string>Used to shelf files with Yoink (Setapp variant).</string>
+		</dict>
+
+		<dict>
+			<key>Identifier</key>
+			<string>com.hachipoo.Dockside</string>
+			<key>Name</key>
+			<string>Dockside</string>
+			<key>Purpose</key>
+			<string>Used to dock and manage files via Dockside.</string>
+		</dict>
+	</array>
+
+	<key>Connections</key>
+	<array>
+		<dict>
+			<key>IsIncoming</key>
+			<false/>
+			<key>Host</key>
+			<string>o84592.ingest.sentry.io, sentry.io</string>
+			<key>NetworkProtocol</key>
+			<string>TCP</string>
+			<key>Port</key>
+			<string>80, 443</string>
+			<key>Relevance</key>
+			<string>Essential</string>
+			<key>Purpose</key>
+			<string>Send crash and usage reports (can be disabled in settings).</string>
+			<key>DenyConsequences</key>
+			<string>If you deny these connections, crash and diagnostics reporting will not be sent to the developer which may hinder issue diagnosis.</string>
+		</dict>
+
+		<dict>
+			<key>IsIncoming</key>
+			<false/>
+			<key>Host</key>
+			<string>paddle.com, checkout.paddle.com, vendors.paddle.com, paddleapi.com, v3.paddleapi.com</string>
+			<key>NetworkProtocol</key>
+			<string>TCP</string>
+			<key>Port</key>
+			<string>80, 443</string>
+			<key>Relevance</key>
+			<string>Essential</string>
+			<key>Purpose</key>
+			<string>Handle licensing, trials, purchase flow, and license validation.</string>
+			<key>DenyConsequences</key>
+			<string>If you deny these connections, in-app purchases, license verification, and trial functionality may not work correctly.</string>
+		</dict>
+	</array>
+</dict>
+</plist>
