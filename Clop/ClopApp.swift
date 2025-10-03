@@ -115,6 +115,11 @@ extension String {
 }
 
 class AppDelegate: AppDelegateParent {
+    @MainActor
+    override public func willShowPaddle(_: PADUIType, product _: PADProduct) -> PADDisplayConfiguration? {
+        PADDisplayConfiguration(.window, hideNavigationButtons: false, parentWindow: nil)
+    }
+
     var videoWatcher: FileOptimisationWatcher?
     var imageWatcher: FileOptimisationWatcher?
     var pdfWatcher: FileOptimisationWatcher?
@@ -718,12 +723,6 @@ class AppDelegate: AppDelegateParent {
         onboardingWindowController?.showWindow(self)
         focus()
     }
-
-    @MainActor
-    override public func willShowPaddle(_: PADUIType, product _: PADProduct) -> PADDisplayConfiguration? {
-        return PADDisplayConfiguration(.window, hideNavigationButtons: false, parentWindow: nil)
-    }
-
 
     @objc func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }

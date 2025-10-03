@@ -603,6 +603,10 @@ var processTerminated = Set<pid_t>()
                     aggressiveOptimisation: aggressiveOptimisation,
                     removeAudio: removeAudio
                 )
+                if optimisedVideo!.path.extension == video.path.extension, optimisedVideo!.path != video.path {
+                    let path = try optimisedVideo!.path.move(to: video.path, force: true)
+                    optimisedVideo = optimisedVideo?.copyWithPath(path)
+                }
                 if optimisedVideo!.convertedFrom == nil, optimisedVideo!.fileSize >= fileSize, !allowLarger {
                     video.path.restore(backupPath: video.path.clopBackupPath, force: true)
                     mainActor {
