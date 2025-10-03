@@ -8,11 +8,7 @@ struct InstallCLIError: Error {
     let info: String
 }
 
-#if !SETAPP
-    let CLOP_CLI_BIN = "\(Bundle.main.sharedSupportPath!)/ClopCLI"
-#else
-    let CLOP_CLI_BIN = "\(Bundle.main.sharedSupportPath!)/ClopCLI-setapp"
-#endif
+let CLOP_CLI_BIN = "\(Bundle.main.sharedSupportPath!)/ClopCLI"
 let CLI_BIN_DIR = "\(HOME)/.local/bin"
 let CLI_BIN_DIR_ENV = "$HOME/.local/bin"
 let CLOP_CLI_BIN_LINK = "\(CLI_BIN_DIR)/clop"

@@ -1918,38 +1918,22 @@ enum ClipboardType: Equatable {
     }
 }
 
-#if !SETAPP
-    import LowtechPro
+import LowtechPro
 
-    @discardableResult @inline(__always)
-    @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
-        guard !BM.decompressingBinaries else { throw ClopError.decompressingBinariesError }
-        guard proactive || count < limit, meetsInternalRequirements() else {
-            if let url {
-                OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.with(url)
-            }
-            proLimitsReached(url: url)
-            throw ClopError.proError("Pro limits reached")
+@discardableResult @inline(__always)
+@MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
+    guard !BM.decompressingBinaries else { throw ClopError.decompressingBinariesError }
+    guard proactive || count < limit, meetsInternalRequirements() else {
+        if let url {
+            OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.with(url)
         }
-        let result = try await action()
-        count += 1
-        return result
+        proLimitsReached(url: url)
+        throw ClopError.proError("Pro limits reached")
     }
-#else
-    import Setapp
-
-    @inline(__always)
-    @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
-        if !meetsInternalRequirements() {
-            throw ClopError.proError("")
-        }
-        SetappManager.shared.reportUsageEvent(.userInteraction)
-
-        let result = try await action()
-        count += 1
-        return result
-    }
-#endif
+    let result = try await action()
+    count += 1
+    return result
+}
 
 var manualOptimisationCount = 0
 

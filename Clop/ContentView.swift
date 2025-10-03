@@ -8,22 +8,16 @@
 import Defaults
 import LaunchAtLogin
 import Lowtech
+import LowtechIndie
+import LowtechPro
 import SwiftUI
 import System
-#if SETAPP
-    import Setapp
-#else
-    import LowtechIndie
-    import LowtechPro
-#endif
 
 // MARK: - MenuView
 
 struct MenuView: View {
-    #if !SETAPP
-        @ObservedObject var um = UM
-        @ObservedObject var pm = PM
-    #endif
+    @ObservedObject var um = UM
+    @ObservedObject var pm = PM
     @ObservedObject var om = OM
     @Environment(\.openWindow) var openWindow
 
@@ -38,26 +32,24 @@ struct MenuView: View {
 
     @State var cliInstallResult: String?
 
-    #if !SETAPP
-        @ViewBuilder var proErrors: some View {
-            Section("Skipped items because of free version limits") {
-                ForEach(om.skippedBecauseNotPro, id: \.self) { url in
-                    let str = url.isFileURL ? url.filePath!.shellString : url.absoluteString
-                    Button("    \(str.count > 50 ? (str.prefix(25) + "..." + str.suffix(15)) : str)") {
-                        QuickLooker.quicklook(url: url)
-                    }
-                }
-                Button("Get Clop Pro") {
-                    settingsViewManager.tab = .about
-                    openWindow(id: "settings")
-
-                    PRO?.manageLicence()
-                    focus()
-                    NSApp.windows.first(where: { $0.title == "Settings" })?.makeKeyAndOrderFront(nil)
+    @ViewBuilder var proErrors: some View {
+        Section("Skipped items because of free version limits") {
+            ForEach(om.skippedBecauseNotPro, id: \.self) { url in
+                let str = url.isFileURL ? url.filePath!.shellString : url.absoluteString
+                Button("    \(str.count > 50 ? (str.prefix(25) + "..." + str.suffix(15)) : str)") {
+                    QuickLooker.quicklook(url: url)
                 }
             }
+            Button("Get Clop Pro") {
+                settingsViewManager.tab = .about
+                openWindow(id: "settings")
+
+                PRO?.manageLicence()
+                focus()
+                NSApp.windows.first(where: { $0.title == "Settings" })?.makeKeyAndOrderFront(nil)
+            }
         }
-    #endif
+    }
 
     var body: some View {
         Button("Settings") {
@@ -155,11 +147,9 @@ struct MenuView: View {
             }
         }
 
-        #if !SETAPP
-            if !proactive, !om.skippedBecauseNotPro.isEmpty {
-                proErrors
-            }
-        #endif
+        if !proactive, !om.skippedBecauseNotPro.isEmpty {
+            proErrors
+        }
 
         Menu("About...") {
             Button("Contact the developer") {
@@ -168,40 +158,31 @@ struct MenuView: View {
             Button("Privacy policy") {
                 NSWorkspace.shared.open("https://lowtechguys.com/clop/privacy".url!)
             }
-            #if !SETAPP
-                Text("License: \(proactive ? "Pro" : "Free")")
-                #if DEBUG
-                    Button("Reset Trial") {
-                        product?.resetTrial()
-                    }
-                    Button("Expire Trial") {
-                        product?.expireTrial()
-                    }
-                #endif
-            #endif
-            Text("Version: v\(Bundle.main.version)")
-            #if SETAPP
-                Button("Show release notes") {
-                    SetappManager.shared.showReleaseNotesWindow()
+            Text("License: \(proactive ? "Pro" : "Free")")
+            #if DEBUG
+                Button("Reset Trial") {
+                    product?.resetTrial()
+                }
+                Button("Expire Trial") {
+                    product?.expireTrial()
                 }
             #endif
+            Text("Version: v\(Bundle.main.version)")
         }
 
-        #if !SETAPP
-            Button("Manage license") {
-                settingsViewManager.tab = .about
-                openWindow(id: "settings")
+        Button("Manage license") {
+            settingsViewManager.tab = .about
+            openWindow(id: "settings")
 
-                PRO?.manageLicence()
-                focus()
-                NSApp.windows.first(where: { $0.title == "Settings" })?.makeKeyAndOrderFront(nil)
-            }
+            PRO?.manageLicence()
+            focus()
+            NSApp.windows.first(where: { $0.title == "Settings" })?.makeKeyAndOrderFront(nil)
+        }
 
-            Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {
-                checkForUpdates()
-                focus()
-            }
-        #endif
+        Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {
+            checkForUpdates()
+            focus()
+        }
 
         Toggle("Show Clop UI in screenshots", isOn: $allowClopToAppearInScreenshots)
         Divider()
@@ -217,15 +198,13 @@ func contactURL() -> URL {
     }
     urlBuilder.queryItems = [URLQueryItem(name: "userid", value: SERIAL_NUMBER_HASH), URLQueryItem(name: "app", value: "Clop")]
 
-    #if !SETAPP
-        if let licenseCode = product?.licenseCode {
-            urlBuilder.queryItems?.append(URLQueryItem(name: "code", value: licenseCode))
-        }
+    if let licenseCode = product?.licenseCode {
+        urlBuilder.queryItems?.append(URLQueryItem(name: "code", value: licenseCode))
+    }
 
-        if let email = product?.activationEmail {
-            urlBuilder.queryItems?.append(URLQueryItem(name: "email", value: email))
-        }
-    #endif
+    if let email = product?.activationEmail {
+        urlBuilder.queryItems?.append(URLQueryItem(name: "email", value: email))
+    }
 
     return urlBuilder.url ?? "https://lowtechguys.com/contact".url!
 }

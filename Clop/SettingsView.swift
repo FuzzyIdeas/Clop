@@ -964,10 +964,8 @@ struct KeysSettingsView: View {
     }
 }
 
-#if !SETAPP
-    import LowtechIndie
-    import LowtechPro
-#endif
+import LowtechIndie
+import LowtechPro
 
 struct MadeBy: View {
     var body: some View {
@@ -989,20 +987,13 @@ struct MadeBy: View {
 }
 
 struct AboutSettingsView: View {
-    #if !SETAPP
-        @ObservedObject var um: UpdateManager = UM
-        @ObservedObject var pm: ProManager = PM
-
-    #endif
+    @ObservedObject var um: UpdateManager = UM
+    @ObservedObject var pm: ProManager = PM
 
     @Default(.enableSentry) var enableSentry
 
     var proText: some View {
-        #if !SETAPP
-            Text(proactive ? "Pro" : "")
-        #else
-            Text("Pro")
-        #endif
+        Text(proactive ? "Pro" : "")
     }
 
     var body: some View {
@@ -1024,16 +1015,14 @@ struct AboutSettingsView: View {
                 .font(.mono(16, weight: .regular))
                 .foregroundColor(.secondary)
 
-            #if !SETAPP
-                if let updater = um.updater {
-                    VersionView(updater: updater)
-                        .frame(width: 340)
-                }
-                if let pro = PM.pro {
-                    LicenseView(pro: pro)
-                        .frame(width: 340)
-                }
-            #endif
+            if let updater = um.updater {
+                VersionView(updater: updater)
+                    .frame(width: 340)
+            }
+            if let pro = PM.pro {
+                LicenseView(pro: pro)
+                    .frame(width: 340)
+            }
             Toggle("Send error reports to developer", isOn: $enableSentry)
                 .frame(width: 340)
             HStack {

@@ -27,11 +27,7 @@ extension URL {
 }
 
 extension UserDefaults {
-    #if SETAPP
-        static let app: UserDefaults? = .init(suiteName: "com.lowtechguys.Clop-setapp")
-    #else
-        static let app: UserDefaults? = .init(suiteName: "com.lowtechguys.Clop")
-    #endif
+    static let app: UserDefaults? = .init(suiteName: "com.lowtechguys.Clop")
 }
 
 var printSemaphore = DispatchSemaphore(value: 1)

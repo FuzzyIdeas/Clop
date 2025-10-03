@@ -14,11 +14,6 @@
 			<key>orderHint</key>
 			<integer>11</integer>
 		</dict>
-		<key>ClopCLI-setapp.xcscheme_^#shared#^_</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>6</integer>
-		</dict>
 		<key>ClopCLI.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
@@ -92,11 +87,6 @@
 			<key>orderHint</key>
 			<integer>10</integer>
 		</dict>
-		<key>FinderOptimiser-setapp.xcscheme_^#shared#^_</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>5</integer>
-		</dict>
 		<key>FinderOptimiser.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
@@ -106,11 +96,6 @@
 		<dict>
 			<key>orderHint</key>
 			<integer>2</integer>
-		</dict>
-		<key>Setapp.xcscheme_^#shared#^_</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>1</integer>
 		</dict>
 		<key>SwiftDate (Playground) 1.xcscheme</key>
 		<dict>
