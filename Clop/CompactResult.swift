@@ -4,9 +4,7 @@ import Lowtech
 import SwiftUI
 import System
 
-#if !SETAPP
-    import LowtechPro
-#endif
+import LowtechPro
 
 struct CompactResult: View {
     static let improvementColor = Color(light: FloatingResult.darkBlue, dark: FloatingResult.yellow)
@@ -141,30 +139,28 @@ struct CompactResult: View {
                         .multilineTextAlignment(.leading)
                 }
 
-                #if !SETAPP
-                    if proError {
-                        HStack {
-                            Button("Get Clop Pro") {
-                                settingsViewManager.tab = .about
-                                openWindow(id: "settings")
+                if proError {
+                    HStack {
+                        Button("Get Clop Pro") {
+                            settingsViewManager.tab = .about
+                            openWindow(id: "settings")
 
-                                PRO?.manageLicence()
-                                focus()
-                            }
-                            .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish, radius: 5, verticalPadding: 2))
-                            .font(.round(10, weight: .heavy))
-                            .colorMultiply(.mauvish.blended(withFraction: 0.8, of: .white))
-                            Spacer()
-                            Button("Never show this again") {
-                                neverShowProError = true
-                                hoveredOptimiserID = nil
-                                optimiser.remove(after: 200, withAnimation: true)
-                            }
-                            .buttonStyle(FlatButton(color: .inverted.opacity(0.8), textColor: .secondary, radius: 5, verticalPadding: 2))
-                            .font(.round(10, weight: .semibold))
+                            PRO?.manageLicence()
+                            focus()
                         }
+                        .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish, radius: 5, verticalPadding: 2))
+                        .font(.round(10, weight: .heavy))
+                        .colorMultiply(.mauvish.blended(withFraction: 0.8, of: .white))
+                        Spacer()
+                        Button("Never show this again") {
+                            neverShowProError = true
+                            hoveredOptimiserID = nil
+                            optimiser.remove(after: 200, withAnimation: true)
+                        }
+                        .buttonStyle(FlatButton(color: .inverted.opacity(0.8), textColor: .secondary, radius: 5, verticalPadding: 2))
+                        .font(.round(10, weight: .semibold))
                     }
-                #endif
+                }
                 pathView
             }
             .allowsTightening(true)
@@ -544,12 +540,10 @@ struct CompactResultList: View {
         let hasRunningOptimisers = visibleCount > (doneCount + failedCount)
 
         HStack {
-            #if !SETAPP
-                if floatingResultsCorner.isTrailing {
-                    UpdateButton(short: !showCompactImages)
-                    Spacer()
-                }
-            #endif
+            if floatingResultsCorner.isTrailing {
+                UpdateButton(short: !showCompactImages)
+                Spacer()
+            }
 
             if hasRunningOptimisers {
                 Button("Stop all") {
@@ -564,12 +558,10 @@ struct CompactResultList: View {
             }
             .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
 
-            #if !SETAPP
-                if !floatingResultsCorner.isTrailing {
-                    Spacer()
-                    UpdateButton(short: !showCompactImages)
-                }
-            #endif
+            if !floatingResultsCorner.isTrailing {
+                Spacer()
+                UpdateButton(short: !showCompactImages)
+            }
         }
         .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
         .font(.medium(11))

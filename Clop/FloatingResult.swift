@@ -7,12 +7,10 @@
 
 import Defaults
 import Lowtech
+import LowtechIndie
+import LowtechPro
 import SwiftUI
 import UniformTypeIdentifiers
-#if !SETAPP
-    import LowtechIndie
-    import LowtechPro
-#endif
 
 let FLOAT_MARGIN: CGFloat = 64
 
@@ -48,27 +46,25 @@ struct FloatingResultList: View {
     }
 }
 
-#if !SETAPP
-    struct UpdateButton: View {
-        var short = false
-        @ObservedObject var um: UpdateManager = UM
-        @State var hovering = false
+struct UpdateButton: View {
+    var short = false
+    @ObservedObject var um: UpdateManager = UM
+    @State var hovering = false
 
-        var body: some View {
-            if let updateVersion = um.newVersion {
-                Button(short ? "v\(updateVersion) available" : "v\(updateVersion) update available") {
-                    checkForUpdates()
-                    focus()
-                }
-                .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
-                .font(.medium(11))
-                .opacity(hovering ? 1 : 0.5)
-                .focusable(false)
-                .onHover { hovering = $0 }
+    var body: some View {
+        if let updateVersion = um.newVersion {
+            Button(short ? "v\(updateVersion) available" : "v\(updateVersion) update available") {
+                checkForUpdates()
+                focus()
             }
+            .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
+            .font(.medium(11))
+            .opacity(hovering ? 1 : 0.5)
+            .focusable(false)
+            .onHover { hovering = $0 }
         }
     }
-#endif
+}
 
 struct FloatingResultContainer: View {
     @ObservedObject var om = OM
@@ -114,9 +110,7 @@ struct FloatingResultContainer: View {
                     }
                 } else {
                     FloatingResultList(optimisers: optimisers).preview(isPreview)
-                    #if !SETAPP
-                        UpdateButton().padding(floatingResultsCorner.isTrailing ? .trailing : .leading, 54)
-                    #endif
+                    UpdateButton().padding(floatingResultsCorner.isTrailing ? .trailing : .leading, 54)
                 }
 
             }
@@ -448,20 +442,18 @@ struct FloatingResult: View {
         let proError = optimiser.id == Optimiser.IDs.pro
         if let error = optimiser.error {
             VStack(alignment: proError ? .center : .leading) {
-                #if !SETAPP
-                    if proError {
-                        Button("Get Clop Pro") {
-                            settingsViewManager.tab = .about
-                            openWindow(id: "settings")
+                if proError {
+                    Button("Get Clop Pro") {
+                        settingsViewManager.tab = .about
+                        openWindow(id: "settings")
 
-                            PRO?.manageLicence()
-                            focus()
-                        }
-                        .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish))
-                        .font(.round(20, weight: .black))
-                        .hfill()
+                        PRO?.manageLicence()
+                        focus()
                     }
-                #endif
+                    .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish))
+                    .font(.round(20, weight: .black))
+                    .hfill()
+                }
                 Text(error)
                     .medium(14)
                     .foregroundColor(.white)

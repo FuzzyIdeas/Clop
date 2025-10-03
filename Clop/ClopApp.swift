@@ -12,19 +12,14 @@ import Combine
 import Defaults
 import EonilFSEvents
 import Foundation
+import Ignore
 import Lowtech
+import LowtechIndie
+import LowtechPro
 import Sentry
 import ServiceManagement
 import System
 import UniformTypeIdentifiers
-#if SETAPP
-    import LowtechSetapp
-    import Setapp
-#else
-    import LowtechIndie
-    import LowtechPro
-#endif
-import Ignore
 
 var pauseForNextClipboardEvent = false
 
@@ -60,14 +55,7 @@ extension NSPasteboard {
     }
 }
 
-#if SETAPP
-    typealias AppDelegateParent = LowtechAppDelegate
-    struct Pro {
-        let active = true
-    }
-#else
-    typealias AppDelegateParent = LowtechProAppDelegate
-#endif
+typealias AppDelegateParent = LowtechProAppDelegate
 
 enum OptimisationSource: Codable, Equatable, Hashable {
     case clipboard
@@ -139,10 +127,6 @@ class AppDelegate: AppDelegateParent {
     }
 
     var lastDragChangeCount = NSPasteboard(name: .drag).changeCount
-
-    #if SETAPP
-        let pro = Pro()
-    #endif
 
     @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
         guard self.finishedOnboarding, NSEvent.pressedMouseButtons > 0, proactive || DM.optimisationCount <= 5 else {
@@ -276,19 +260,15 @@ class AppDelegate: AppDelegateParent {
             createFileCleaner()
         }
 
-        #if SETAPP
-            SetappManager.shared.showReleaseNotesWindowIfNeeded()
-        #else
-            paddleVendorID = "122873"
-            paddleAPIKey = "e1e517a68c1ed1bea2ac968a593ac147"
-            paddleProductID = "841006"
-            trialDays = 14
-            trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
-            price = 15
-            productName = "Clop Pro"
-            vendorName = "THE LOW TECH GUYS SRL"
-            hasFreeFeatures = true
-        #endif
+        paddleVendorID = "122873"
+        paddleAPIKey = "e1e517a68c1ed1bea2ac968a593ac147"
+        paddleProductID = "841006"
+        trialDays = 14
+        trialText = "This is a trial for the Pro features. After the trial, the app will automatically revert to the free version."
+        price = 15
+        productName = "Clop Pro"
+        vendorName = "THE LOW TECH GUYS SRL"
+        hasFreeFeatures = true
 
         if !SWIFTUI_PREVIEW {
             LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
@@ -308,13 +288,11 @@ class AppDelegate: AppDelegateParent {
             }
         }
         super.applicationDidFinishLaunching(_: notification)
-        #if !SETAPP
-            UM.updater = updateController.updater
-            PM.pro = pro
-            if !SWIFTUI_PREVIEW {
-                pro.checkProLicense()
-            }
-        #endif
+        UM.updater = updateController.updater
+        PM.pro = pro
+        if !SWIFTUI_PREVIEW {
+            pro.checkProLicense()
+        }
 
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
 
@@ -900,18 +878,12 @@ class AppDelegate: AppDelegateParent {
                     }
                     Task.init {
                         let _ = try? await optimiseVideo(Video(path: path), source: .clipboard)
-                        #if SETAPP
-                            SetappManager.shared.reportUsageEvent(.userInteraction)
-                        #endif
                     }
                     return
                 }
                 if item.existingFilePath?.isPDF ?? false {
                     return
                 }
-                #if SETAPP
-                    SetappManager.shared.reportUsageEvent(.userInteraction)
-                #endif
                 optimiseClipboardImage(item: item)
             }
         }
@@ -919,28 +891,24 @@ class AppDelegate: AppDelegateParent {
         clipboardWatcher?.tolerance = 100
     }
 
-    #if !SETAPP
-        @objc func statusBarButtonClicked(_ sender: NSClickGestureRecognizer) {
-            mainActor {
-                if OM.skippedBecauseNotPro.isNotEmpty {
-                    OM.ignoreProErrorBadge = true
-                    sender.isEnabled = false
+    @objc func statusBarButtonClicked(_ sender: NSClickGestureRecognizer) {
+        mainActor {
+            if OM.skippedBecauseNotPro.isNotEmpty {
+                OM.ignoreProErrorBadge = true
+                sender.isEnabled = false
 
-                    guard let button = sender.view as? NSStatusBarButton else { return }
-                    button.performClick(self)
-                }
+                guard let button = sender.view as? NSStatusBarButton else { return }
+                button.performClick(self)
             }
         }
-    #endif
+    }
 }
 
-#if !SETAPP
-    var statusItem: NSStatusItem? {
-        NSApp.windows.lazy.compactMap { window in
-            window.perform(Selector(("statusItem")))?.takeUnretainedValue() as? NSStatusItem
-        }.first
-    }
-#endif
+var statusItem: NSStatusItem? {
+    NSApp.windows.lazy.compactMap { window in
+        window.perform(Selector(("statusItem")))?.takeUnretainedValue() as? NSStatusItem
+    }.first
+}
 
 extension NSPasteboardItem {
     var existingFilePath: FilePath? {
@@ -1397,27 +1365,22 @@ class FileOptimisationWatcher {
     private var optimisedCount = 0
 }
 
-#if !SETAPP
-    @MainActor func proLimitsReached(url: URL? = nil) {
-        guard !Defaults[.neverShowProError] else {
-            if let url, !OM.skippedBecauseNotPro.contains(url) {
-                OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.suffix(4).with(url)
-            }
-            if OM.skippedBecauseNotPro.isNotEmpty {
-                let onclick = NSClickGestureRecognizer(target: AppDelegate.instance, action: #selector(AppDelegate.statusBarButtonClicked(_:)))
-                statusItem?.button?.addGestureRecognizer(onclick)
-            }
-
-            return
+@MainActor func proLimitsReached(url: URL? = nil) {
+    guard !Defaults[.neverShowProError] else {
+        if let url, !OM.skippedBecauseNotPro.contains(url) {
+            OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.suffix(4).with(url)
+        }
+        if OM.skippedBecauseNotPro.isNotEmpty {
+            let onclick = NSClickGestureRecognizer(target: AppDelegate.instance, action: #selector(AppDelegate.statusBarButtonClicked(_:)))
+            statusItem?.button?.addGestureRecognizer(onclick)
         }
 
-        let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
-        optimiser.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version", keepFor: 5000)
+        return
     }
-#else
-    @inline(__always) @inlinable
-    @MainActor func proLimitsReached(url: URL? = nil) {}
-#endif
+
+    let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
+    optimiser.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version", keepFor: 5000)
+}
 
 let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
 var clipboardWatcher: Timer?
@@ -1464,9 +1427,7 @@ struct ClopApp: App {
     @ObservedObject var om = OM
     @ObservedObject var wm = WM
 
-    #if !SETAPP
-        @ObservedObject var pm = PM
-    #endif
+    @ObservedObject var pm = PM
 
     var settingsWindow: some Scene {
         let w = Window("Settings", id: "settings") {
@@ -1491,11 +1452,7 @@ struct ClopApp: App {
         MenuBarExtra(isInserted: $showMenubarIcon, content: {
             MenuView()
         }, label: {
-            #if !SETAPP
-                SwiftUI.Image(nsImage: NSImage(resource: !proactive && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? .menubarIconBadge : .menubarIcon))
-            #else
-                SwiftUI.Image(nsImage: NSImage(resource: .menubarIcon))
-            #endif
+            SwiftUI.Image(nsImage: NSImage(resource: !proactive && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? .menubarIconBadge : .menubarIcon))
         })
         .menuBarExtraStyle(.menu)
         .onChange(of: showMenubarIcon) { show in
@@ -1521,11 +1478,7 @@ struct ClopApp: App {
 }
 
 @inline(__always) var proactive: Bool {
-    #if !SETAPP
-        (PRO?.productActivated ?? false) || (PRO?.onTrial ?? false)
-    #else
-        true
-    #endif
+    (PRO?.productActivated ?? false) || (PRO?.onTrial ?? false)
 }
 
 import ObjectiveC.runtime
@@ -1557,20 +1510,14 @@ extension NSFilePromiseReceiver {
     }
 }
 
-#if !SETAPP
-    import Paddle
-#endif
+import Paddle
 
 var PRODUCTS: [Any] {
-    #if SETAPP
+    if let product {
+        [product]
+    } else {
         []
-    #else
-        if let product {
-            [product]
-        } else {
-            []
-        }
-    #endif
+    }
 }
 
 extension NSView {
