@@ -2230,7 +2230,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     throw ClopError.alreadyOptimised(path)
                 }
 
-                if outFilePath == nil, let newPath = try getTemplatedPath(type: .video, path: path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != path {
+                let willConvert = Defaults[.formatsToConvertToMP4].contains(path.url.utType() ?? .mpeg4Movie)
+                if !willConvert, outFilePath == nil, let newPath = try getTemplatedPath(type: .video, path: path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != path {
                     path = try path.copy(to: newPath, force: true)
                 }
 
