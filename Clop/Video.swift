@@ -572,6 +572,9 @@ var processTerminated = Set<pid_t>()
     if optimiser.oldSize == nil {
         optimiser.oldSize = video.size
     }
+    if optimiser.url == nil {
+        optimiser.url = path.url
+    }
 
     var done = false
     var result: Video?
@@ -727,6 +730,9 @@ var processTerminated = Set<pid_t>()
     if optimiser.oldSize == nil {
         optimiser.oldSize = resolution
     }
+    if optimiser.url == nil {
+        optimiser.url = video.path.url
+    }
 
     let changePlaybackSpeedFactor = optimiser.changePlaybackSpeedFactor
 
@@ -847,6 +853,9 @@ var processTerminated = Set<pid_t>()
     }
     if optimiser.oldSize == nil {
         optimiser.oldSize = video.size
+    }
+    if optimiser.url == nil {
+        optimiser.url = video.path.url
     }
 
     var result: Video?

@@ -458,14 +458,15 @@ extension DropZoneView: DropDelegate {
         }
 
         let thumbnails: [NSItemProvider] = info.hasItemsConforming(to: VIDEO_FORMATS) ? info.itemProviders(for: IMAGE_FORMATS) : []
+        let filenames: [NSItemProvider] = info.itemProviders(for: [.url, .fileURL, .aliasFile])
         let itemProviders = if info.hasItemsConforming(to: VIDEO_FORMATS) {
-            info.itemProviders(for: VIDEO_FORMATS)
+            info.itemProviders(for: VIDEO_FORMATS + [.url])
         } else if info.hasItemsConforming(to: IMAGE_FORMATS) {
-            info.itemProviders(for: IMAGE_FORMATS)
+            info.itemProviders(for: IMAGE_FORMATS + [.url])
         } else {
             info.itemProviders(for: [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf])
         }
-        return optimiseDroppedItems(itemProviders, copy: NSEvent.modifierFlags.contains(.option), preset: selectedPreset, thumbnails: thumbnails)
+        return optimiseDroppedItems(itemProviders, copy: NSEvent.modifierFlags.contains(.option), preset: selectedPreset, thumbnails: thumbnails, filenames: filenames)
     }
 }
 
@@ -498,9 +499,10 @@ struct DragPileView: NSViewRepresentable {
 }
 
 @MainActor
-func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset: PresetZone? = nil, thumbnails: [NSItemProvider] = []) -> Bool {
+func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset: PresetZone? = nil, thumbnails: [NSItemProvider] = [], filenames: [NSItemProvider] = []) -> Bool {
     DM.dragging = false
     var thumbnails = thumbnails
+    var filenames = filenames
 
     let aggressive = NSEvent.modifierFlags.contains(.command) ? true : nil
     let hasItemsToOptimise = itemProviders.contains { provider in
@@ -577,6 +579,18 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                             optimiser.thumbnail = nsImage
                         } else if let url = thumbnail as? URL, let nsImage = NSImage(contentsOf: url) {
                             optimiser.thumbnail = nsImage
+                        }
+                    }
+                    if filenames.isNotEmpty {
+                        let filenameProvider = filenames.removeFirst()
+                        var filename = try? await filenameProvider.loadItem(forTypeIdentifier: UTType.fileURL.identifier)
+                        if filename == nil {
+                            filename = try? await filenameProvider.loadItem(forTypeIdentifier: UTType.url.identifier)
+                        }
+                        if let url = filename as? URL {
+                            optimiser.url = url
+                        } else if let str = filename as? String, let url = URL(string: str) {
+                            optimiser.url = url
                         }
                     }
 
