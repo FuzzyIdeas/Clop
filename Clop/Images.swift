@@ -16,6 +16,7 @@ import UniformTypeIdentifiers
 
 var PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").filePath!
 var JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
+var JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").filePath!
 var GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").filePath!
 var VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
 
@@ -563,6 +564,19 @@ class Image: CustomStringConvertible {
 
         guard let proc = procMaps[jpegProc] else {
             throw ClopError.noProcess(jpegProc.cmdline)
+        }
+        if proc.terminationStatus != 0 {
+            let args = [
+                "--keep-all", "--force", "--max", aggressive ? "70" : "90",
+                "--auto-mode", "--overwrite",
+                "--dest", FilePath.images.string, path.string,
+            ]
+            let proc = try tryProc(JPEGOPTIM_OLD.string, args: args, tries: 2) { proc in
+                mainActor { optimiser.processes = [proc] }
+            }
+            guard proc.terminationStatus == 0 else {
+                throw ClopProcError.processError(proc)
+            }
         }
 
         var type = UTType.jpeg
