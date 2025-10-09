@@ -636,6 +636,7 @@ var processTerminated = Set<pid_t>()
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedVideo = video
+                mainActor { optimiser.info = "File already fully compressed" }
             } catch let error as ClopError {
                 log.error("Error optimising video \(pathString): \(error.description)")
                 mainActor { optimiser.finish(error: error.humanDescription) }
@@ -773,6 +774,7 @@ var processTerminated = Set<pid_t>()
             }
         } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
             optimisedVideo = video
+            mainActor { optimiser.info = "File already fully compressed" }
         } catch let error as ClopError {
             log.error("Error downscaling video \(pathString): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }
@@ -894,6 +896,7 @@ var processTerminated = Set<pid_t>()
             }
         } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
             optimisedVideo = video
+            mainActor { optimiser.info = "File already fully compressed" }
         } catch let error as ClopError {
             log.error("Error downscaling video \(pathString): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }

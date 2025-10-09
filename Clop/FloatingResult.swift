@@ -293,7 +293,17 @@ struct OnboardingFloatingPreview: View {
             guard !preview, optimiser.type.utType != format else { return }
             optimiser.convert(to: format, optimise: true)
         }
-        .buttonStyle(PickerButton(color: .bg.warm.opacity(0.7), offColor: .bg.warm.opacity(0.7), offTextColor: .fg.warm, horizontalPadding: 3, verticalPadding: 1, radius: 4, enumValue: optimiser.type, onValue: ItemType.image(format)))
+        .buttonStyle(PickerButton(
+            color: .bg.warm.opacity(0.7),
+            offColor: .bg.warm.opacity(0.9),
+            offTextColor: .fg.primary,
+            horizontalPadding: 3,
+            verticalPadding: 1,
+            radius: 4,
+            hoverColor: .pinkMauve,
+            enumValue: optimiser.type,
+            onValue: ItemType.image(format)
+        ))
 
     }
 }
@@ -611,6 +621,54 @@ struct FloatingResult: View {
 
     }
 
+    func topField(_ url: URL) -> some View {
+        ZStack {
+            if let info = optimiser.info {
+                Text(info)
+                    .hfill(.leading)
+                    .frame(height: 16)
+                    .lineLimit(1)
+                    .font(.medium(9))
+                    .minimumScaleFactor(0.5)
+                    .scaledToFit()
+                    .foregroundColor(.primary)
+                    .padding(.leading, 5)
+                    .background(
+                        VisualEffectBlur(material: .sidebar, blendingMode: .withinWindow, state: .active)
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            )
+                    )
+                    .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
+                    .fixedSize()
+                    .padding(.horizontal, 5)
+                    .offset(y: hovering || SWIFTUI_PREVIEW ? 30 : 0)
+                    .opacity(hovering || SWIFTUI_PREVIEW ? 0 : 1)
+            }
+
+            FileNameField(optimiser: optimiser)
+                .font(.medium(9))
+                .foregroundColor(.primary)
+                .padding(.leading, 5)
+                .background(
+                    VisualEffectBlur(material: .sidebar, blendingMode: .withinWindow, state: .active)
+                        .clipShape(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        )
+                )
+                .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
+                .fixedSize()
+                .padding(.horizontal, 5)
+                .offset(y: hovering || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
+                .opacity(hovering || editingFilename || SWIFTUI_PREVIEW ? 1 : 0)
+                .scaleEffect(
+                    x: optimiser.editingFilename ? 1.2 : 1,
+                    y: optimiser.editingFilename ? 1.2 : 1,
+                    anchor: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading
+                )
+        }
+    }
+
     var body: some View {
         let hasThumbnail = optimiser.thumbnail != nil
         HStack {
@@ -618,26 +676,7 @@ struct FloatingResult: View {
                 if hasThumbnail, showImages {
                     VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 2) {
                         if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
-                            FileNameField(optimiser: optimiser)
-                                .font(.medium(9))
-                                .foregroundColor(.primary)
-                                .padding(.leading, 5)
-                                .background(
-                                    VisualEffectBlur(material: .sidebar, blendingMode: .withinWindow, state: .active)
-                                        .clipShape(
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        )
-                                )
-                                .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
-                                .fixedSize()
-                                .padding(.horizontal, 5)
-                                .offset(y: hovering || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
-                                .opacity(hovering || editingFilename || SWIFTUI_PREVIEW ? 1 : 0)
-                                .scaleEffect(
-                                    x: optimiser.editingFilename ? 1.2 : 1,
-                                    y: optimiser.editingFilename ? 1.2 : 1,
-                                    anchor: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading
-                                )
+                            topField(url)
                         }
                         Group {
                             thumbnailView

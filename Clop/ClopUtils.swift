@@ -189,6 +189,10 @@ extension FilePath {
         return !data.isEmpty
     }
 
+    func removeOptimisationStatusXattr() throws {
+        try Xattr.remove(named: "clop.optimisation.status", atPath: string)
+    }
+
     func fetchFileType() -> String? {
         shell("/usr/bin/file", args: ["-b", "--mime-type", string], timeout: 5).o
     }

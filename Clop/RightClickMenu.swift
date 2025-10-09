@@ -138,6 +138,9 @@ struct RightClickMenuView: View {
             }
 
             if optimiser.canReoptimise() {
+                Button("Re-optimise") {
+                    optimiser.reoptimise()
+                }
                 Button("Aggressive optimisation") {
                     if optimiser.downscaleFactor < 1 {
                         optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
