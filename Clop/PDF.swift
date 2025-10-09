@@ -355,6 +355,7 @@ let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.0
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedPDF = pdf
+                mainActor { optimiser.info = "File already fully compressed" }
             } catch let error as ClopError {
                 log.error("Error optimising PDF \(pathString): \(error.description)")
                 mainActor { optimiser.finish(error: error.humanDescription) }

@@ -475,6 +475,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     @Published var error: String? = nil
     @Published var notice: String? = nil
+    @Published var info: String? = nil
     @Published var thumbnail: NSImage?
     @Published var originalURL: URL?
     @Published var startingURL: URL?
@@ -587,6 +588,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         didSet {
             if running, !oldValue {
                 stopRemover()
+                info = nil
             }
             mainActor { OM.updateProgress() }
             if !running, oldValue {
@@ -675,6 +677,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     self.url = converted.path.url
                     self.error = nil
                     self.notice = nil
+                    self.info = nil
                     self.finish(oldBytes: self.oldBytes, newBytes: converted.data.count, oldSize: self.oldSize, newSize: converted.size, removeAfterMs: self.lastRemoveAfterMs)
                 }
             }
@@ -857,6 +860,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         isOriginal = false
         error = nil
         notice = nil
+        info = nil
         operation = "Removing audio"
         progress.localizedAdditionalDescription = ""
         progress.completedUnitCount = 0
@@ -886,6 +890,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         isOriginal = false
         error = nil
         notice = nil
+        info = nil
 
         var shouldUseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
@@ -927,6 +932,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
         isOriginal = false
         error = nil
         notice = nil
+        info = nil
 
         var shouldUseAggressiveOptimisation = aggressiveOptimisation
         if let aggressiveOptimisation {
@@ -1009,11 +1015,17 @@ final class QuickLooker: QLPreviewPanelDataSource {
         }
     }
 
+    func reoptimise() {
+        try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
+        optimise()
+    }
+
     func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
         guard let url, var path = url.filePath else { return }
         stopRemover()
         error = nil
         notice = nil
+        info = nil
 
         if fromOriginal, !path.exists || path.hasOptimisationStatusXattr() {
             if let backup = path.clopBackupPath, backup.exists {
@@ -1784,6 +1796,7 @@ func optimiseURL(
             return nil
         }
     } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
+        opt(url.absoluteString)?.info = "File already fully compressed"
         return clipResult
     } catch let error as ClopError {
         opt(url.absoluteString)?.finish(error: error.humanDescription)

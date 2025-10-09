@@ -1175,6 +1175,7 @@ extension FilePath {
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedImage = img
+                mainActor { optimiser.info = "File already fully compressed" }
             } catch let error as ClopError {
                 log.error("Error optimising image \(pathString): \(error.description)")
                 mainActor { optimiser.finish(error: error.humanDescription) }
@@ -1324,7 +1325,9 @@ extension FilePath {
             }
         } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
             log.warning("Image size larger than original: \(img.path.string)")
+
             resized = img
+            mainActor { optimiser.info = "File already fully compressed" }
         } catch let error as ClopError {
             log.error("Error downscaling image \(img.path.string): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }
