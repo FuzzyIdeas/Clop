@@ -2494,21 +2494,17 @@ let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPON
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
 
 extension FilePath {
-    func isValid() async -> Bool {
-        do {
-            if isVideo {
-                return try await isVideoValid(path: self)
-            }
-            if isImage {
-                return isImageValid(path: self)
-            }
-            if isPDF {
-                return isPDFValid(path: self)
-            }
-        } catch {
-            log.error("Error checking file validity: \(error)")
-            return false
+    func isValid() async throws -> Bool {
+        if isVideo {
+            return try await isVideoValid(path: self)
         }
+        if isImage {
+            return isImageValid(path: self)
+        }
+        if isPDF {
+            return isPDFValid(path: self)
+        }
+
         return true
     }
 }
