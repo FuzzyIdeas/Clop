@@ -728,6 +728,18 @@ class AppDelegate: AppDelegateParent {
 
     @objc func windowDidBecomeMainNotification(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        
+        if let paddleController = window.windowController as? PADActivateWindowController,
+           let email = paddleController.emailTxt, let licenseCode = paddleController.licenseTxt {
+            email.isBordered = true
+            licenseCode.isBordered = true
+            
+            email.drawsBackground = true
+            licenseCode.drawsBackground = true
+            
+            email.backgroundColor = .black.withAlphaComponent(0.05)
+            licenseCode.backgroundColor = .black.withAlphaComponent(0.05)
+        }
 
         if window.title.contains("Updat") {
             focus()
@@ -1146,6 +1158,7 @@ class FileOptimisationWatcher {
         log.debug("Waiting for modification date of \(path) to settle")
         log.debug("Initial modification date: \(date)")
         var lastDate = date
+        var validCheckCount = 0
         while true {
             do {
                 try await Task.sleep(nanoseconds: 300_000_000) // 300ms
@@ -1159,7 +1172,25 @@ class FileOptimisationWatcher {
                 return
             }
 
-            if date == lastDate, let path = path.filePath, await (path.isValid()) {
+            if date == lastDate, let path = path.filePath {
+                if validCheckCount >= 5 {
+                    log.debug("Modification date of \(path) settled at \(date) but final validity check failed too many times, returning")
+                    return
+                }
+
+                var isValid = false
+                do {
+                    isValid = try await (path.isValid())
+                } catch {
+                    log.debug("File \(path) is still being modified, not valid yet: \(error)")
+                    validCheckCount += 1
+                    continue
+                }
+                if !isValid {
+                    log.debug("File \(path) is still being modified, not valid yet")
+                    validCheckCount += 1
+                    continue
+                }
                 log.debug("Modification date of \(path) settled at \(date)")
                 return
             }
