@@ -295,6 +295,7 @@ struct VideoSettingsView: View {
     @Default(.specificFolderNameTemplateVideo) var specificFolderNameTemplateVideo
     @Default(.maxVideoFileCount) var maxVideoFileCount
     @Default(.removeAudioFromVideos) var removeAudioFromVideos
+    @Default(.convertAudioToAAC) var convertAudioToAAC
 
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
@@ -418,6 +419,7 @@ struct VideoSettingsView: View {
                             .font(.mono(11))
                     }
                 }
+                Toggle("Convert audio to AAC", isOn: $convertAudioToAAC)
                 convertedVideoLocation
             }
         }
