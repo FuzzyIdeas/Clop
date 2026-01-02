@@ -390,6 +390,7 @@ class AppDelegate: AppDelegateParent {
         setupServiceProvider()
         startShortcutWatcher()
         DROPSHARE.fetchAppURL()
+        DROPOVER.fetchAppURL()
         YOINK.fetchAppURL()
         DOCKSIDE.fetchAppURL()
 
@@ -728,15 +729,16 @@ class AppDelegate: AppDelegateParent {
 
     @objc func windowDidBecomeMainNotification(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
-        
+
         if let paddleController = window.windowController as? PADActivateWindowController,
-           let email = paddleController.emailTxt, let licenseCode = paddleController.licenseTxt {
+           let email = paddleController.emailTxt, let licenseCode = paddleController.licenseTxt
+        {
             email.isBordered = true
             licenseCode.isBordered = true
-            
+
             email.drawsBackground = true
             licenseCode.drawsBackground = true
-            
+
             email.backgroundColor = .black.withAlphaComponent(0.05)
             licenseCode.backgroundColor = .black.withAlphaComponent(0.05)
         }
