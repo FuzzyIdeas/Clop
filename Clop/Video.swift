@@ -250,6 +250,7 @@ class Video: Optimisable {
 
         let duration = duration
         let audioRemoved = removeAudio ?? Defaults[.removeAudioFromVideos]
+        let convertAudioToAAC = Defaults[.convertAudioToAAC]
         let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationMP4]
         mainActor { optimiser.aggressive = aggressive }
         #if arch(arm64)
@@ -259,9 +260,16 @@ class Video: Optimisable {
         #else
             let encoderArgs = ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower", "-crf", "26"] : [])
         #endif
+        let audioArgs: [String] = if audioRemoved {
+            ["-an"]
+        } else if convertAudioToAAC {
+            ["-c:a", "aac", "-b:a", "192k", "-map", "0:v", "-map", "0:a?"]
+        } else {
+            ["-c:a", "copy", "-map", "0:v", "-map", "0:a?"]
+        }
         let args = ["-y", "-i", inputPath.string]
             + (["mp4", "mov", "hevc"].contains(outputPath.extension?.lowercased()) ? encoderArgs : [])
-            + (audioRemoved ? ["-an"] : ["-c:a", "copy", "-map", "0:v", "-map", "0:a?"])
+            + audioArgs
             + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         var realDuration: Int64?

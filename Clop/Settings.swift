@@ -89,6 +89,7 @@ extension Defaults.Keys {
     static let targetVideoFPS = Key<Float>("targetVideoFPS", default: 60)
     static let minVideoFPS = Key<Float>("minVideoFPS", default: 30)
     static let removeAudioFromVideos = Key<Bool>("removeAudioFromVideos", default: false)
+    static let convertAudioToAAC = Key<Bool>("convertAudioToAAC", default: false)
 
     #if arch(arm64)
         static let useCPUIntensiveEncoder = Key<Bool>("useCPUIntensiveEncoder", default: false)
@@ -235,6 +236,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .maxVideoSizeMB,
     .minVideoFPS,
     .removeAudioFromVideos,
+    .convertAudioToAAC,
     .optimisedImageBehaviour,
     .optimisedVideoBehaviour,
     .optimisedPDFBehaviour,
