@@ -158,6 +158,9 @@ struct RightClickMenuView: View {
                 DROPSHARE.open(optimiser: optimiser)
             }
             .keyboardShortcut("u")
+            Button("Add to Dropover") {
+                DROPOVER.open(optimiser: optimiser)
+            }
             Button("Add to Yoink") {
                 YOINK.open(optimiser: optimiser)
             }
@@ -257,6 +260,10 @@ struct BatchRightClickMenuView: View {
 
         Button("Upload with Dropshare") {
             DROPSHARE.open(optimisers: sm.optimisers)
+            sm.selection = []
+        }
+        Button("Add to Dropover") {
+            DROPOVER.open(optimisers: sm.optimisers)
             sm.selection = []
         }
         Button("Add to Yoink") {

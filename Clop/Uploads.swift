@@ -8,6 +8,15 @@ extension NSRunningApplication: @retroactive @unchecked Sendable {}
 extension NSWorkspace.OpenConfiguration: @retroactive @unchecked Sendable {}
 
 @MainActor
+class Dropover: AppIntegration {
+    override var BUNDLE_ID: String { "me.damir.dropover-mac" }
+
+    override var appNameQuery: String { "kMDItemFSName == 'Dropover.app'" }
+    override var webURL: URL? { "https://dropoverapp.com/".url! }
+    override var appPath: String { "/Applications/Dropover.app" }
+}
+
+@MainActor
 class Dropshare: AppIntegration {
     override var BUNDLE_ID: String { "net.mkswap.Dropshare5" }
     override var SETAPP_BUNDLE_ID: String? { "net.mkswap.Dropshare-setapp" }
@@ -39,6 +48,7 @@ class Dockside: AppIntegration {
 }
 
 @MainActor let DROPSHARE = Dropshare()
+@MainActor let DROPOVER = Dropover()
 @MainActor let YOINK = Yoink()
 @MainActor let DOCKSIDE = Dockside()
 

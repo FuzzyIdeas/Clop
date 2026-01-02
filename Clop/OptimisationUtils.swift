@@ -1162,20 +1162,6 @@ final class QuickLooker: QLPreviewPanelDataSource {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    func addToYoink() {
-        guard let file = url?.existingFilePath else { return }
-        guard YOINK.appURL != nil else {
-            NSWorkspace.shared.open("https://eternalstorms.at/yoink/mac/".url!)
-            return
-        }
-        tryAsync {
-            try await YOINK.open(file)
-        }
-        if OM.compactResults ? Defaults[.dismissCompactResultOnUpload] : Defaults[.dismissFloatingResultOnUpload] {
-            remove(after: 100, withAnimation: true)
-        }
-    }
-
     func save() {
         guard let url, let path = url.existingFilePath else { return }
 
