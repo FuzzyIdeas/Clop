@@ -533,10 +533,19 @@ class Image: CustomStringConvertible {
         let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
         mainActor { optimiser.aggressive = aggressive }
 
+        #if arch(arm64)
+            let archDependentArgs = ["--auto-mode"]
+        #else
+            let archDependentArgs = []
+        #endif
+
         let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
             "--keep-all", "--force", "--max", aggressive ? "68" : "85",
-            "--auto-mode", "--overwrite",
-            "--dest", FilePath.images.string, path.string,
+        ] + archDependentArgs + [
+            "--overwrite",
+            "--dest",
+            FilePath.images.string,
+            path.string,
         ])
 
         var procs = [jpegProc]
