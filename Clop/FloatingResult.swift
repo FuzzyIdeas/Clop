@@ -34,14 +34,52 @@ extension View {
 struct FloatingResultList: View {
     var optimisers: [Optimiser]
 
+    @State var copiedText = "Copy all"
+    @Default(.floatingResultsCorner) var floatingResultsCorner
+
+    var copyAllButton: some View {
+        Button(copiedText) {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            let urls = optimisers.compactMap(\.url)
+            pasteboard.writeObjects(urls as [NSPasteboardWriting])
+            copiedText = "Copied!"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                copiedText = "Copy all"
+            }
+        }
+        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary, radius: 7, verticalPadding: 2))
+        .font(.medium(11))
+        .focusable(false)
+    }
+
+    var clearAllButton: some View {
+        Button("Clear all") {
+            for optimiser in optimisers {
+                optimiser.remove(after: 100, withAnimation: true)
+            }
+        }
+        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary, radius: 7, verticalPadding: 2))
+        .font(.medium(11))
+        .focusable(false)
+    }
+
     var body: some View {
-        ForEach(optimisers) { optimiser in
-            FloatingResult(optimiser: optimiser, linear: optimisers.count > 1)
-                .gesture(TapGesture(count: 2).onEnded {
-                    if let url = optimiser.url {
-                        NSWorkspace.shared.open(url)
-                    }
-                })
+        VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 10) {
+            ForEach(optimisers) { optimiser in
+                FloatingResult(optimiser: optimiser, linear: optimisers.count > 1)
+                    .gesture(TapGesture(count: 2).onEnded {
+                        if let url = optimiser.url {
+                            NSWorkspace.shared.open(url)
+                        }
+                    })
+            }
+            if optimisers.count > 1 {
+                HStack {
+                    copyAllButton
+                    clearAllButton
+                }.padding(floatingResultsCorner.isTrailing ? .leading : .trailing, 18)
+            }
         }
     }
 }

@@ -52,6 +52,8 @@ enum CleanupInterval: TimeInterval, Codable, Defaults.Serializable {
     }
 }
 
+extension CropOrientation: Defaults.Serializable {}
+
 extension Defaults.Keys {
     static let finishedOnboarding = Key<Bool>("finishedOnboarding", default: false)
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
@@ -119,6 +121,10 @@ extension Defaults.Keys {
     static let adaptiveImageSize = Key<Bool>("adaptiveImageSize", default: false)
     static let downscaleRetinaImages = Key<Bool>("downscaleRetinaImages", default: false)
     static let copyImageFilePath = Key<Bool>("copyImageFilePath", default: true)
+    static let enablePhotosIntegration = Key<Bool>("enablePhotosIntegration", default: true)
+    static let maxCopiedPhotosCount = Key<Int>("maxCopiedPhotosCount", default: 5)
+    static let maxPhotosLength = Key<Int?>("maxPhotosLength", default: nil)
+    static let photoCropOrientation = Key<CropOrientation>("photoCropOrientation", default: CropOrientation.adaptive)
     static let useCustomNameTemplateForClipboardImages = Key<Bool>("useCustomNameTemplateForClipboardImages", default: false)
     static let customNameTemplateForClipboardImages = Key<String>("customNameTemplateForClipboardImages", default: "")
     static let lastAutoIncrementingNumber = Key<Int>("lastAutoIncrementingNumber", default: 0)
@@ -131,7 +137,7 @@ extension Defaults.Keys {
     static let showCompactImages = Key<Bool>("showCompactImages", default: false)
     static let autoHideFloatingResults = Key<Bool>("autoHideFloatingResults", default: true)
     static let autoHideFloatingResultsAfter = Key<Int>("autoHideFloatingResultsAfter", default: 30)
-    static let autoHideClipboardResultAfter = Key<Int>("autoHideClipboardResultAfter", default: 3)
+    static let autoHideClipboardResultAfter = Key<Int>("autoHideClipboardResultAfter", default: 10)
     static let autoClearAllCompactResultsAfter = Key<Int>("autoClearAllCompactResultsAfter", default: 120)
     static let floatingResultsCorner = Key<ScreenCorner>("floatingResultsCorner", default: .bottomRight)
     static let neverShowProError = Key<Bool>("neverShowProError", default: false)
@@ -228,8 +234,11 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .imageDirs,
     .imageFormatsToSkip,
     .keyComboModifiers,
+    .enablePhotosIntegration,
     .maxImageFileCount,
     .maxImageSizeMB,
+    .maxCopiedPhotosCount,
+    .maxPhotosLength,
     .maxPDFFileCount,
     .maxPDFSizeMB,
     .maxVideoFileCount,

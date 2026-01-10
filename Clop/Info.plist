@@ -188,6 +188,8 @@
 		<true/>
 		<key>NSPrincipalClass</key>
 		<string>SentryCrashExceptionApplication</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Clop needs access to your Photos library to retrieve full-resolution images copied from Photos.app</string>
 		<key>SUFeedURL</key>
 		<string>https://files.lowtechguys.com/clop/appcast.xml</string>
 		<key>SUPublicEDKey</key>

@@ -14,17 +14,27 @@
             }
         },
         {
-            "label": "Swift",
+            "label": "Swift: Run File",
             "type": "shell",
             "command": "swift ${file}",
             "group": {
                 "kind": "build",
-                "isDefault": true
+                "isDefault": false
             },
             "presentation": {
                 "reveal": "always"
             },
             "problemMatcher": "$swiftc",
+        },
+        {
+            "label": "Xcode: Build & Run",
+            "type": "shell",
+            "command": "osascript -e 'tell application \"Xcode\" to run the first workspace document'",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            }
         }
     ]
 }

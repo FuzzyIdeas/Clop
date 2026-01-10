@@ -11,6 +11,7 @@ import Defaults
 import EonilFSEvents
 import Foundation
 import Lowtech
+import Photos
 import System
 import UniformTypeIdentifiers
 
@@ -25,6 +26,58 @@ func isImageValid(path: FilePath) -> Bool {
         return false
     }
     return image.size != .zero
+}
+
+func requestPhotosAccess() async -> Bool {
+    let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+
+    if status == .authorized {
+        return true
+    }
+
+    let newStatus = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    return newStatus == .authorized
+}
+
+func getPhotoAssetIdentifiers(from pasteboard: NSPasteboard) -> [String] {
+    pasteboard.pasteboardItems?.compactMap { item in
+        (item.propertyList(forType: .photosReferenceAsset) as? [String: Any])?["localIdentifier"] as? String
+    } ?? []
+}
+
+func getPhotos(for identifiers: [String]) -> [Image] {
+    let fetchOptions = PHFetchOptions()
+    let results = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: fetchOptions)
+
+    guard results.count > 0 else {
+        return []
+    }
+
+    let imageManager = PHImageManager.default()
+    let options = PHImageRequestOptions()
+    options.isSynchronous = true
+    options.deliveryMode = .highQualityFormat
+    options.isNetworkAccessAllowed = true
+    options.version = .current
+
+    var images: [Image] = []
+
+    results.enumerateObjects { asset, _, _ in
+        let id = asset.localIdentifier.safeFilename
+        imageManager.requestImageDataAndOrientation(for: asset, options: options) {
+            data, uti, orientation, info in
+            guard let data, let nsImage = NSImage(data: data) else {
+                return
+            }
+
+            let image = Image(nsImage: nsImage, data: data, type: UTType(uti ?? ""), optimised: false, retinaDownscaled: false, id: id)
+            guard let image else {
+                return
+            }
+            images.append(image)
+        }
+    }
+    return images
 }
 
 extension NSPasteboard.PasteboardType {
@@ -51,6 +104,8 @@ extension NSPasteboard.PasteboardType {
     static let filenames = NSPasteboard.PasteboardType(rawValue: "NSFilenamesPboardType")
     static let finderNode = NSPasteboard.PasteboardType(rawValue: "com.apple.finder.node")
     static let finderNoderef = NSPasteboard.PasteboardType(rawValue: "com.apple.finder.noderef")
+
+    static let photosReferenceAsset = NSPasteboard.PasteboardType(rawValue: "com.apple.photos.object-reference.asset")
 }
 
 extension UTType {
@@ -238,14 +293,14 @@ class Image: CustomStringConvertible {
         self.init(nsImage: nsImage, data: data, retinaDownscaled: retinaDownscaled)
     }
 
-    init?(nsImage: NSImage, data: Data? = nil, type: UTType? = nil, optimised: Bool? = nil, retinaDownscaled: Bool) {
+    init?(nsImage: NSImage, data: Data? = nil, type: UTType? = nil, optimised: Bool? = nil, retinaDownscaled: Bool, id: String? = nil) {
         guard let type = type ?? nsImage.type, let ext = type.preferredFilenameExtension,
               let data = data ?? nsImage.data
         else { return nil }
 
         image = nsImage
         self.data = data
-        let tempPath = FilePath.images / "\(Int.random(in: 100 ... 100_000)).\(ext)"
+        let tempPath = FilePath.images / "\(id ?? Int.random(in: 100 ... 100_000).s).\(ext)"
 //        let tempPath = fm.temporaryDirectory.appendingPathComponent("\(Int.random(in: 100 ... 100_000)).\(ext)").path
         guard fm.createFile(atPath: tempPath.string, contents: data) else { return nil }
 
@@ -766,7 +821,7 @@ class Image: CustomStringConvertible {
 
         let size = cropSize.computedSize(from: size)
         let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
-        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)[Q=100]", "--linear", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
+        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)[Q=100]", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
         let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
             mainActor { optimiser.processes = [proc] }
         }
@@ -954,6 +1009,71 @@ class Image: CustomStringConvertible {
 
 }
 
+@MainActor func optimiseClipboardPhotos() {
+    let pb = NSPasteboard.general
+
+    guard Defaults[.enablePhotosIntegration] else {
+        return
+    }
+
+    let identifiers = getPhotoAssetIdentifiers(from: pb)
+    guard !identifiers.isEmpty else {
+        return
+    }
+
+    if identifiers.count > Defaults[.maxCopiedPhotosCount] {
+        log.debug("Skipping Photos optimisation for \(identifiers.count) items (over limit \(Defaults[.maxCopiedPhotosCount]))")
+        return
+    }
+    Task { await requestPhotosAccess() }
+
+    let maxLongestSide = Defaults[.maxPhotosLength]
+    let cropOrientation: CropOrientation = Defaults[.photoCropOrientation]
+    let cropSize: CropSize? = {
+        guard let maxLongestSide, maxLongestSide > 0 else {
+            return nil
+        }
+        switch cropOrientation {
+        case .adaptive:
+            return CropSize(width: maxLongestSide, height: maxLongestSide, longEdge: true)
+        case .landscape:
+            return CropSize(width: maxLongestSide, height: 0, longEdge: false)
+        case .portrait:
+            return CropSize(width: 0, height: maxLongestSide, longEdge: false)
+        }
+    }()
+
+    Task.init {
+        var optimisedImages: [Image] = []
+
+        let images = getPhotos(for: identifiers)
+        for image in images {
+            let optimisedImage: Image? = if let cropSize {
+                try? await downscaleImage(image, cropTo: cropSize, copyToClipboard: false, id: image.path.string, source: .clipboard)
+            } else {
+                try? await optimiseImage(image, copyToClipboard: false, id: image.path.string, source: .clipboard)
+            }
+
+            if let optimisedImage {
+                optimisedImages.append(optimisedImage)
+            }
+
+            // Copy all optimised images to clipboard at once
+            if optimisedImages.count == identifiers.count {
+                let pbItems: [NSPasteboardItem] = optimisedImages.compactMap { img in
+                    guard let data = img.path.url.absoluteString.data(using: .utf8) else { return nil }
+                    let item = NSPasteboardItem()
+                    item.setData(data, forType: .fileURL)
+                    item.setString("true", forType: .optimisationStatus)
+                    return item
+                }
+                pb.clearContents()
+                pb.writeObjects(pbItems)
+            }
+        }
+    }
+}
+
 @MainActor func optimiseClipboardImage(image: Image? = nil, item: NSPasteboardItem? = nil) {
     guard let img = image ?? (try? Image.fromPasteboard(item: item)) else {
         return
@@ -1121,6 +1241,8 @@ extension FilePath {
     var result: Image?
 
     imageOptimiseDebouncers[pathString]?.cancel()
+    imageResizeDebouncers[pathString]?.cancel()
+
     let workItem = mainAsyncAfter(ms: debounceMS) {
         scalingFactor = 1.0
         optimiser.stop(remove: false)
@@ -1274,13 +1396,42 @@ extension FilePath {
         scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
     }
 
+    var img = img
+    var pathString = img.path.string
+    var originalPath: FilePath?
+    let applyConversionBehaviour: (Image, Image) throws -> Image = { img, converted in
+        guard img.path.dir != FilePath.images else {
+            return converted
+        }
+
+        let behaviour = Defaults[.convertedImageBehaviour]
+        if behaviour == .inPlace, let backupPath = img.path.clopBackupPath {
+            img.path.backup(path: backupPath, force: true, operation: .move)
+        }
+        if behaviour != .temporary {
+            try converted.path.setOptimisationStatusXattr("pending")
+            let path = try converted.path.copy(to: img.path.dir)
+            originalPath = img.path
+            return Image(data: converted.data, path: path, nsImage: converted.image, type: converted.type, optimised: converted.optimised, retinaDownscaled: converted.retinaDownscaled)
+        }
+        return converted
+    }
+
+    let conversionFormat: UTType? = Defaults[.formatsToConvertToJPEG].contains(img.type) ? .jpeg : (Defaults[.formatsToConvertToPNG].contains(img.type) ? .png : nil)
+    if let conversionFormat {
+        let converted = try img.convert(to: conversionFormat, asTempFile: true)
+
+        img = try applyConversionBehaviour(img, converted)
+        pathString = img.path.string
+    }
+
     let scaleString = if let size = cropSize?.computedSize(from: img.size) {
         "\(size.width > 0 ? size.width.i.s : "Auto")×\(size.height > 0 ? size.height.i.s : "Auto")"
     } else {
         "\((scalingFactor * 100).intround)%"
     }
 
-    let optimiser = OM.optimiser(id: id ?? img.path.string, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source, indeterminateProgress: true)
+    let optimiser = OM.optimiser(id: id ?? pathString, type: .image(img.type), operation: "Scaling to \(scaleString)", hidden: hideFloatingResult, source: source, indeterminateProgress: true)
     let aggressive = aggressiveOptimisation ?? optimiser.aggressive
     if aggressive {
         optimiser.operation += " (aggressive)"
@@ -1292,9 +1443,16 @@ extension FilePath {
         optimiser.thumbnail = img.image
     }
     optimiser.downscaleFactor = scalingFactor
+    if let url = originalPath?.url {
+        optimiser.convertedFromURL = url
+    }
+    optimiser.originalURL = img.path.backup(path: img.path.clopBackupPath, force: false, operation: .copy)?.url ?? img.path.url
 
     var result: Image?
     var done = false
+
+    imageOptimiseDebouncers[pathString]?.cancel()
+    imageResizeDebouncers[pathString]?.cancel()
 
     let workItem = optimisationQueue.asyncAfter(ms: 500) {
         var resized: Image?
@@ -1329,19 +1487,19 @@ extension FilePath {
             if proc.terminated {
                 log.debug("Process terminated by us: \(proc.commandLine)")
             } else {
-                log.error("Error downscaling image \(img.path.string): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
+                log.error("Error downscaling image \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                 mainActor { optimiser.finish(error: "Downscaling failed") }
             }
         } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
-            log.warning("Image size larger than original: \(img.path.string)")
+            log.warning("Image size larger than original: \(pathString)")
 
             resized = img
             mainActor { optimiser.info = "File already fully compressed" }
         } catch let error as ClopError {
-            log.error("Error downscaling image \(img.path.string): \(error.description)")
+            log.error("Error downscaling image \(pathString): \(error.description)")
             mainActor { optimiser.finish(error: error.humanDescription) }
         } catch {
-            log.error("Error downscaling image \(img.path.string): \(error)")
+            log.error("Error downscaling image \(pathString): \(error)")
             mainActor { optimiser.finish(error: "Optimisation failed") }
         }
 
@@ -1360,7 +1518,7 @@ extension FilePath {
         }
     }
 
-    imageResizeDebouncers[img.path.string] = workItem
+    imageResizeDebouncers[pathString] = workItem
 
     while !done, !workItem.isCancelled {
         try await Task.sleep(nanoseconds: 100_000_000)
@@ -1368,95 +1526,6 @@ extension FilePath {
 
     return result
 }
-
-// import CoreTransferable
-//
-// struct ConvertedImageWEBP: Transferable {
-//    static var transferRepresentation: some TransferRepresentation {
-//        FileRepresentation(exportedContentType: .webP) { conv in
-//            guard conv.image.type == .png || conv.image.type == .jpeg else {
-//                let png = try conv.image.convert(to: .png, asTempFile: true)
-//                let converted = try await png.convertToWEBPAsync(asTempFile: true)
-//                return SentTransferredFile(converted.path.url)
-//            }
-//
-//            let converted = try await conv.image.convertToWEBPAsync(asTempFile: true)
-//            return SentTransferredFile(converted.path.url)
-//        }
-//    }
-//
-//    let image: Image
-// }
-//
-// struct ConvertedImageAVIF: Transferable {
-//    static var transferRepresentation: some TransferRepresentation {
-//        FileRepresentation(exportedContentType: .avif ?? .png) { conv in
-//            guard conv.image.type == .png || conv.image.type == .jpeg else {
-//                let png = try conv.image.convert(to: .png, asTempFile: true)
-//                let converted = try await png.convertToAVIFAsync(asTempFile: true)
-//                return SentTransferredFile(converted.path.url)
-//            }
-//
-//            let converted = try await conv.image.convertToAVIFAsync(asTempFile: true)
-//            return SentTransferredFile(converted.path.url)
-//        }
-//    }
-//
-//    let image: Image
-// }
-//
-// struct ConvertedImageHEIC: Transferable {
-//    static var transferRepresentation: some TransferRepresentation {
-//        FileRepresentation(exportedContentType: .heic) { conv in
-//            guard conv.image.type == .png || conv.image.type == .jpeg else {
-//                let png = try conv.image.convert(to: .png, asTempFile: true)
-//                let converted = try await png.convertToHEICAsync(asTempFile: true)
-//                return SentTransferredFile(converted.path.url)
-//            }
-//
-//            let converted = try await conv.image.convertToHEICAsync(asTempFile: true)
-//            return SentTransferredFile(converted.path.url)
-//        }
-//    }
-//
-//    let image: Image
-// }
-//
-// struct ConvertedImageJPEG: Transferable {
-//    static var transferRepresentation: some TransferRepresentation {
-//        FileRepresentation(exportedContentType: .jpeg) { conv in
-//            let converted = try await Task { try conv.image.convert(to: .jpeg, asTempFile: true, optimiser: conv.optimiser) }.value
-//            return SentTransferredFile(converted.path.url)
-//        }
-//    }
-//
-//    let image: Image
-//    let optimiser: Optimiser
-// }
-//
-// struct ConvertedImagePNG: Transferable {
-//    static var transferRepresentation: some TransferRepresentation {
-//        FileRepresentation(exportedContentType: .png) { conv in
-//            let converted = try await Task { try conv.image.convert(to: .png, asTempFile: true, optimiser: conv.optimiser) }.value
-//            return SentTransferredFile(converted.path.url)
-//        }
-//    }
-//
-//    let image: Image
-//    let optimiser: Optimiser
-// }
-//
-// struct ConvertedImageGIF: Transferable {
-//    static var transferRepresentation: some TransferRepresentation {
-//        FileRepresentation(exportedContentType: .gif) { conv in
-//            let converted = try await Task { try conv.image.convert(to: .gif, asTempFile: true, optimiser: conv.optimiser) }.value
-//            return SentTransferredFile(converted.path.url)
-//        }
-//    }
-//
-//    let image: Image
-//    let optimiser: Optimiser
-// }
 
 import Accelerate
 import CoreGraphics

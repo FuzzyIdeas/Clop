@@ -900,6 +900,10 @@ class AppDelegate: AppDelegateParent {
                 if item.existingFilePath?.isPDF ?? false {
                     return
                 }
+                if item.types.contains(.photosReferenceAsset) {
+                    optimiseClipboardPhotos()
+                    return
+                }
                 optimiseClipboardImage(item: item)
             }
         }
@@ -1515,8 +1519,6 @@ struct ClopApp: App {
 @inline(__always) var proactive: Bool {
     (PRO?.productActivated ?? false) || (PRO?.onTrial ?? false)
 }
-
-import ObjectiveC.runtime
 
 extension NSFilePromiseReceiver {
     static let swizzleReceivePromisedFiles: String = {

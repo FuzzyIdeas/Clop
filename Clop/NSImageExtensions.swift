@@ -56,7 +56,7 @@ extension NSImage {
     /// A PNG representation of the image.
     var pngData: Data? {
         if let tiff = tiffRepresentation, let tiffData = NSBitmapImageRep(data: tiff) {
-            return tiffData.representation(using: .png, properties: [:])
+            return tiffData.representation(using: .png, properties: [.compressionFactor: 1.0])
         }
 
         return nil
@@ -64,7 +64,7 @@ extension NSImage {
 
     var jpegData: Data? {
         if let tiff = tiffRepresentation, let tiffData = NSBitmapImageRep(data: tiff) {
-            return tiffData.representation(using: .jpeg, properties: [:])
+            return tiffData.representation(using: .jpeg, properties: [.compressionFactor: 1.0])
         }
 
         return nil
@@ -72,7 +72,7 @@ extension NSImage {
 
     var gifData: Data? {
         if let tiff = tiffRepresentation, let tiffData = NSBitmapImageRep(data: tiff) {
-            return tiffData.representation(using: .gif, properties: [:])
+            return tiffData.representation(using: .gif, properties: [.compressionFactor: 1.0])
         }
 
         return nil
