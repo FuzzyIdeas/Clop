@@ -399,6 +399,7 @@ extension URL {
     }
 }
 
+import Defaults
 import PDFKit
 
 extension Double {

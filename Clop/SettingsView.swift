@@ -658,11 +658,29 @@ struct ImagesSettingsView: View {
     @Default(.copyImageFilePath) var copyImageFilePath
     @Default(.customNameTemplateForClipboardImages) var customNameTemplateForClipboardImages
     @Default(.useCustomNameTemplateForClipboardImages) var useCustomNameTemplateForClipboardImages
+    @Default(.enablePhotosIntegration) var enablePhotosIntegration
+    @Default(.maxCopiedPhotosCount) var maxCopiedPhotosCount
+    @Default(.maxPhotosLength) var maxPhotosLength
+    @Default(.photoCropOrientation) var photoCropOrientation
 
     @Default(.useAggressiveOptimisationJPEG) var useAggressiveOptimisationJPEG
     @Default(.useAggressiveOptimisationPNG) var useAggressiveOptimisationPNG
     @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
     @Default(.enableAutomaticImageOptimisations) var enableAutomaticImageOptimisations
+
+    var maxPhotosLengthBinding: Binding<String> {
+        Binding(
+            get: { maxPhotosLength?.description ?? "" },
+            set: { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let val = Int(trimmed) {
+                    maxPhotosLength = val.capped(between: 1, and: 20000)
+                } else {
+                    maxPhotosLength = nil
+                }
+            }
+        )
+    }
 
     var customNameTemplate: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -708,6 +726,22 @@ struct ImagesSettingsView: View {
         }
 
     }
+
+    var cropOrientationPicker: some View {
+        Picker("", selection: $photoCropOrientation) {
+            Label("height", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
+                .help("Resize images until the height is equal or lower than the specified size.")
+            Label("longest edge", systemImage: "sparkles.rectangle.stack").tag(CropOrientation.adaptive)
+                .help("Resize images until the longest edge is equal or lower than the specified size.")
+            Label("width", systemImage: "rectangle").tag(CropOrientation.landscape)
+                .help("Resize images until the width is equal or lower than the specified size.")
+        }
+        .fixedSize()
+        .pickerStyle(.segmented)
+        .labelStyle(.titleAndIcon)
+        .font(.heavy(10))
+    }
+
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
@@ -721,6 +755,36 @@ struct ImagesSettingsView: View {
                 Toggle(isOn: $useCustomNameTemplateForClipboardImages.animation(.default)) {
                     customNameTemplate
                 }.disabled(!copyImageFilePath)
+            }
+
+            Section(header: SectionHeader(title: "Photos integration", subtitle: "Handle images copied from the Photos app")) {
+                Toggle(isOn: $enablePhotosIntegration.animation(.spring())) {
+                    Text("Optimise images copied from Photos.app").regular(13)
+                }
+
+                HStack {
+                    Text("Skip when more than").regular(13)
+                    TextField("", value: $maxCopiedPhotosCount, formatter: BoundFormatter(min: 1, max: 50))
+                        .lineLimit(1)
+                        .frame(width: 50)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text(maxCopiedPhotosCount == 1 ? "photo is copied" : "photos are copied").regular(13)
+                }
+                .disabled(!enablePhotosIntegration)
+
+                HStack(spacing: 6) {
+                    Text("Downscale to").regular(13).lineLimit(1).fixedSize()
+                    TextField("", text: maxPhotosLengthBinding)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(width: 70, alignment: .trailing)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("px").mono(13).opacity(maxPhotosLength != nil ? 1 : 0.3).lineLimit(1).fixedSize()
+                    Text("on").regular(13).lineLimit(1).fixedSize()
+                    Spacer()
+                    cropOrientationPicker
+                }
+                .disabled(!enablePhotosIntegration)
             }
 
             Section(header: SectionHeader(title: "Optimisation rules")) {
