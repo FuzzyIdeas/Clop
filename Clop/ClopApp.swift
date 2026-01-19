@@ -280,13 +280,13 @@ class AppDelegate: AppDelegateParent {
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
             KM.onPrimaryHotkey = { key in
                 self.handleHotkey(key)
-                let _ = checkInternalRequirements(PRODUCTS, nil)
+                let _ = checkInternalRequirements2(PRODUCTS, nil)
             }
 
             KM.secondaryKeyModifiers = [.lcmd]
             KM.onSecondaryHotkey = { key in
                 self.handleCommandHotkey(key)
-                let _ = checkInternalRequirements(PRODUCTS, nil)
+                let _ = checkInternalRequirements3(PRODUCTS, nil)
             }
         }
         super.applicationDidFinishLaunching(_: notification)

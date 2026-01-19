@@ -10,10 +10,6 @@ import Foundation
 import Lowtech
 import System
 
-// MARK: - Process + Sendable
-
-extension Process: @unchecked Sendable {}
-
 func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: String]? = nil, out: Pipe? = nil, err: Pipe? = nil) -> Process? {
     let outputDir = FilePath.processLogs.appending("\(launchPath) \(args)".safeFilename)
 
@@ -233,19 +229,51 @@ extension FilePath {
         }
     }
 
+    func copyExifCGImage(from source: FilePath) {
+        guard let fileType = fetchFileType()?.split(separator: ";").first?.s, let uttype = UTType(mimeType: fileType) else {
+            return
+        }
+
+        let src = CGImageSourceCreateWithURL(source.url as CFURL, nil)!
+        let dst = CGImageDestinationCreateWithURL(url as CFURL, uttype.identifier as CFString, 1, nil)!
+
+        let metadata = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)!
+
+        CGImageDestinationAddImageFromSource(dst, src, 0, metadata)
+        CGImageDestinationFinalize(dst)
+
+    }
+
+    func hasExifHDR() -> Bool {
+        // exiftool -q -q  -if '($NumberOfImages > 1) or $HDRHeadroom or defined $XMP-hdrgm:Version'  -filename file.jpg
+        let args = [EXIFTOOL.string, "-q", "-q", "-if", "($NumberOfImages > 1) or $HDRHeadroom or defined $XMP-hdrgm:Version", "-filename", string]
+        let exifProc = shell("/usr/bin/perl", args: args, wait: true)
+        return exifProc.success
+    }
+
     func copyExif(from source: FilePath, excludeTags: [String]? = nil, stripMetadata: Bool = true) {
         guard source != self else { return }
+
+        if !stripMetadata, isImage {
+            copyExifCGImage(from: source)
+            return
+        }
 
         if stripMetadata {
             _ = shell("/usr/bin/perl", args: [EXIFTOOL.string, "-overwrite_original", "-all=", string], wait: true)
         }
+        let hdr = isImage && source.hasExifHDR()
 
         var additionalArgs: [String] = []
         if let excludeTags, excludeTags.isNotEmpty {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
 
-        let tagsToKeep = (stripMetadata ? ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags", "-icc_profile"] : []) : (isVideo ? ["-All:All"] : []))
+        let tagsToKeep = if stripMetadata {
+            ["-XResolution", "-YResolution", "-Orientation"] + (!hdr && Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags", "-icc_profile"] : [])
+        } else {
+            isVideo ? ["-All:All"] : []
+        }
         let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
             + additionalArgs
             + ["-extractEmbedded", "-tagsFromFile", source.string]

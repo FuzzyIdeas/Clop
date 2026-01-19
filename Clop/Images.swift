@@ -591,7 +591,7 @@ class Image: CustomStringConvertible {
         #if arch(arm64)
             let archDependentArgs = ["--auto-mode"]
         #else
-            let archDependentArgs = []
+            let archDependentArgs: [String] = []
         #endif
 
         let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
