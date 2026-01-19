@@ -4,7 +4,6 @@ import Foundation
 import Lowtech
 import System
 
-extension NSRunningApplication: @retroactive @unchecked Sendable {}
 extension NSWorkspace.OpenConfiguration: @retroactive @unchecked Sendable {}
 
 @MainActor

@@ -193,6 +193,7 @@ var shortcutCacheResetTask: DispatchWorkItem? {
 
 func startShortcutWatcher() {
     guard fm.fileExists(atPath: "\(HOME)/Library/Shortcuts") else {
+        guard hasShortcutsDB() else { return }
         return
     }
 
