@@ -86,6 +86,7 @@ extension Defaults.Keys {
     static let specificFolderNameTemplateImage = Key<String>("specificFolderNameTemplateImage", default: DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE)
     static let specificFolderNameTemplateVideo = Key<String>("specificFolderNameTemplateVideo", default: DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE)
     static let specificFolderNameTemplatePDF = Key<String>("specificFolderNameTemplatePDF", default: DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE)
+    static let optimisedFileProtectionMs = Key<Int>("optimisedFileProtectionMs", default: 3000)
 
     static let capVideoFPS = Key<Bool>("capVideoFPS", default: true)
     static let targetVideoFPS = Key<Float>("targetVideoFPS", default: 60)
@@ -258,6 +259,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .optimiseImagePathClipboard,
     .optimiseTIFF,
     .optimiseVideoClipboard,
+    .optimisedFileProtectionMs,
     .pdfDirs,
     .preserveDates,
     .preserveColorMetadata,

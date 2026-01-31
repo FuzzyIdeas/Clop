@@ -1383,10 +1383,13 @@ class FileOptimisationWatcher {
         guard var path = event.path.existingFilePath, !self.cancelledFiles.contains(path) else { return }
 
         let oldPath = path
+        var resolvedNewPath: FilePath?
         if let newPath = try getTemplatedPath(type: fileType, path: path), newPath != path {
             alreadyOptimisedFiles.insert(newPath.string)
             alreadyOptimisedFiles.insert(path.string)
             path = try path.copy(to: newPath, force: true)
+            try? oldPath.setOptimisationStatusXattr("original-processed")
+            resolvedNewPath = newPath
         }
 
         var count = optimisedCount
@@ -1395,9 +1398,17 @@ class FileOptimisationWatcher {
         }
         optimisedCount = count
         alreadyOptimisedFileRemovers[oldPath.string]?.cancel()
-        alreadyOptimisedFileRemovers[oldPath.string] = mainAsyncAfter(ms: 3000) { [weak self] in
+        let protectionMs = Defaults[.optimisedFileProtectionMs]
+        alreadyOptimisedFileRemovers[oldPath.string] = mainAsyncAfter(ms: protectionMs) { [weak self] in
             self?.alreadyOptimisedFiles.remove(oldPath.string)
             self?.alreadyOptimisedFileRemovers.removeValue(forKey: oldPath.string)
+        }
+        if let newPathStr = resolvedNewPath?.string {
+            alreadyOptimisedFileRemovers[newPathStr]?.cancel()
+            alreadyOptimisedFileRemovers[newPathStr] = mainAsyncAfter(ms: protectionMs) { [weak self] in
+                self?.alreadyOptimisedFiles.remove(newPathStr)
+                self?.alreadyOptimisedFileRemovers.removeValue(forKey: newPathStr)
+            }
         }
     }
 
