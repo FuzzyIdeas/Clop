@@ -2,7 +2,6 @@ import AVFoundation
 import Cocoa
 import CoreTransferable
 import Defaults
-import EonilFSEvents
 import Foundation
 import Lowtech
 import System

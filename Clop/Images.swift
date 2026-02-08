@@ -8,7 +8,6 @@
 import Accelerate
 import Cocoa
 import Defaults
-import EonilFSEvents
 import Foundation
 import Lowtech
 import Photos

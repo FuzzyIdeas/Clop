@@ -10,7 +10,6 @@ import SwiftUI
 import Cocoa
 import Combine
 import Defaults
-import EonilFSEvents
 import Foundation
 import Lowtech
 import LowtechIndie
@@ -274,7 +273,8 @@ class AppDelegate: AppDelegateParent {
 
         if !SWIFTUI_PREVIEW {
             LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
-            LowtechSentry.configureSentry(getUser: LowtechSentry.getSentryUser)
+            LowtechSentry.configureSentry(restartOnHang: false, getUser: LowtechSentry.getSentryUser)
+            configureAppHangDetection()
 
             KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
