@@ -68,6 +68,8 @@
 		C71AAB182D2D8AB200CA86D9 /* bin.tar.lrz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */; };
 		C71AAB1B2D2D8AB200CA86D9 /* FinderOptimiser.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C70B5F172AC014BF00345739 /* FinderOptimiser.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C71AAB1D2D2D8AB200CA86D9 /* ClopCLI in Copy Files (1 item) */ = {isa = PBXBuildFile; fileRef = C7956A3F2AC208DD00C0EDF2 /* ClopCLI */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		C72DECB42F38E34C00523058 /* ErrorReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72DECB32F38E34C00523058 /* ErrorReports.swift */; };
+		C72DECB52F38E34C00523058 /* ErrorReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72DECB32F38E34C00523058 /* ErrorReports.swift */; };
 		C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */; };
 		C7333E472A98C90500B1D5BE /* PDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7333E462A98C90500B1D5BE /* PDF.swift */; };
 		C733B3D22A50789C002A0585 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
@@ -230,6 +232,7 @@
 		C71AAB212D2D8AB200CA86D9 /* Preview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Preview.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
 		C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Clop-Bridging-Header.h"; sourceTree = "<group>"; };
+		C72DECB32F38E34C00523058 /* ErrorReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorReports.swift; sourceTree = "<group>"; };
 		C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload to Backblaze.shortcut"; sourceTree = "<group>"; };
 		C7333E462A98C90500B1D5BE /* PDF.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PDF.swift; sourceTree = "<group>"; };
 		C733B3D12A50789C002A0585 /* Video.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
@@ -384,6 +387,7 @@
 		C7AB6623288301590041BEC8 /* Clop */ = {
 			isa = PBXGroup;
 			children = (
+				C72DECB32F38E34C00523058 /* ErrorReports.swift */,
 				C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */,
 				C71AAAD72D2D500300CA86D9 /* PresetZones.swift */,
 				C73802062BDCD76D001BEE6C /* CompareView.swift */,
@@ -742,6 +746,7 @@
 				C71AAAFF2D2D8AB200CA86D9 /* NSImageExtensions.swift in Sources */,
 				C71AAB002D2D8AB200CA86D9 /* ClopUtils.swift in Sources */,
 				C71AAB012D2D8AB200CA86D9 /* Settings.swift in Sources */,
+				C72DECB42F38E34C00523058 /* ErrorReports.swift in Sources */,
 				C71AAB022D2D8AB200CA86D9 /* Xattr.swift in Sources */,
 				C71AAB032D2D8AB200CA86D9 /* ClopShortcuts.swift in Sources */,
 			);
@@ -791,6 +796,7 @@
 				C7760ABD2A5E026600851F8C /* NSImageExtensions.swift in Sources */,
 				C7760ABF2A5E92B800851F8C /* ClopUtils.swift in Sources */,
 				C7760AC32A5FF89B00851F8C /* Settings.swift in Sources */,
+				C72DECB52F38E34C00523058 /* ErrorReports.swift in Sources */,
 				C78211092A5B21A4008DB106 /* Xattr.swift in Sources */,
 				C7A7DD672A739C7400DA12DF /* ClopShortcuts.swift in Sources */,
 			);

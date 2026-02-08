@@ -38,15 +38,6 @@
       }
     },
     {
-      "identity" : "fsevents",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/eonil/FSEvents",
-      "state" : {
-        "revision" : "e6b7cdfa2754454e194a45ee6c2004d0f630fe88",
-        "version" : "0.1.7"
-      }
-    },
-    {
       "identity" : "launchatlogin-modern",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/LaunchAtLogin-Modern",
@@ -61,7 +52,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "ecfa88575dbb9014c00e000b1eb2647230e63808"
+        "revision" : "7ebb689608d676daaa5dc4d30452944f01ee3179"
       }
     },
     {
@@ -96,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "8627bbc0e663238d516b541d8fc7edd62a627fde",
-        "version" : "8.57.3"
+        "revision" : "f1eefffd88cd6dfe5751159a3b32ff3c8e5b3b32",
+        "version" : "9.4.0"
       }
     },
     {
