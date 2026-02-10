@@ -979,7 +979,7 @@ struct KeysSettingsView: View {
         Form {
             Section(header: SectionHeader(title: "Trigger keys")) {
                 HStack {
-                    DirectionalModifierView(triggerKeys: $keyComboModifiers, showFnCaps: false)
+                    DirectionalModifierView(triggerKeys: $keyComboModifiers, showFnCaps: false, allowShiftAlone: false)
                     Text(" + ")
                 }
             }
@@ -1523,9 +1523,9 @@ struct GeneralSettingsView: View {
 
                 Picker(selection: $optimisedFileProtectionMs) {
                     Text("3 seconds").tag(3000)
-                    Text("10 seconds").tag(10_000)
-                    Text("30 seconds").tag(30_000)
-                    Text("60 seconds").tag(60_000)
+                    Text("10 seconds").tag(10000)
+                    Text("30 seconds").tag(30000)
+                    Text("60 seconds").tag(60000)
                 } label: {
                     Text("Re-optimisation protection window").regular(13)
                         + Text("\nIncrease if files on iCloud Drive get optimised twice").round(11, weight: .regular).foregroundColor(.secondary)
