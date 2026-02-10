@@ -979,7 +979,7 @@ struct KeysSettingsView: View {
         Form {
             Section(header: SectionHeader(title: "Trigger keys")) {
                 HStack {
-                    DirectionalModifierView(triggerKeys: $keyComboModifiers)
+                    DirectionalModifierView(triggerKeys: $keyComboModifiers, showFnCaps: false)
                     Text(" + ")
                 }
             }
