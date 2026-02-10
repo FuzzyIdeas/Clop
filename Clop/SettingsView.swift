@@ -1441,6 +1441,7 @@ struct GeneralSettingsView: View {
     @Default(.preserveColorMetadata) var preserveColorMetadata
     @Default(.preserveDates) var preserveDates
     @Default(.syncSettingsCloud) var syncSettingsCloud
+    @Default(.optimisedFileProtectionMs) var optimisedFileProtectionMs
 
     @Default(.workdir) var workdir
     @Default(.workdirCleanupInterval) var workdirCleanupInterval
@@ -1518,6 +1519,16 @@ struct GeneralSettingsView: View {
                 Toggle(isOn: $preserveDates) {
                     Text("Preserve file creation and modification dates").regular(13)
                         + Text("\nThe optimised file will have the same creation and modification dates as the original file").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+
+                Picker(selection: $optimisedFileProtectionMs) {
+                    Text("3 seconds").tag(3000)
+                    Text("10 seconds").tag(10_000)
+                    Text("30 seconds").tag(30_000)
+                    Text("60 seconds").tag(60_000)
+                } label: {
+                    Text("Re-optimisation protection window").regular(13)
+                        + Text("\nIncrease if files on iCloud Drive get optimised twice").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
         }
