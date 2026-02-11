@@ -1,3 +1,4 @@
+import Cocoa
 import Combine
 import Defaults
 import Lowtech
@@ -91,6 +92,7 @@ private let appHangStateQueue = DispatchQueue(label: "com.lowtechguys.Clop.appHa
 @MainActor private var appHangTimer: DispatchSourceTimer?
 private var lastMainThreadCheckin: TimeInterval = 0
 private var appHangTriggered = false
+private var sleeping = false
 
 @MainActor func configureAppHangDetection() {
     guard appHangTimer == nil else {
@@ -102,7 +104,7 @@ private var appHangTriggered = false
         appHangTriggered = false
     }
 
-    let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .background))
+    let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInteractive))
     timer.schedule(
         deadline: .now() + APP_HANG_CHECK_INTERVAL,
         repeating: APP_HANG_CHECK_INTERVAL,
@@ -113,7 +115,7 @@ private var appHangTriggered = false
         var shouldTrigger = false
 
         appHangStateQueue.sync {
-            if !appHangTriggered, now - lastMainThreadCheckin > APP_HANG_DETECTION_INTERVAL {
+            if !appHangTriggered, !sleeping, now - lastMainThreadCheckin > APP_HANG_DETECTION_INTERVAL {
                 appHangTriggered = true
                 shouldTrigger = true
             }
@@ -131,6 +133,23 @@ private var appHangTriggered = false
     }
     appHangTimer = timer
     timer.resume()
+
+    let nc = NSWorkspace.shared.notificationCenter
+    nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: nil) { _ in
+        appHangStateQueue.sync {
+            lastMainThreadCheckin = Date().timeIntervalSince1970
+            sleeping = true
+            appHangTriggered = false
+        }
+    }
+    nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: nil) { _ in
+        let now = Date().timeIntervalSince1970
+        appHangStateQueue.sync {
+            lastMainThreadCheckin = now
+            sleeping = false
+            appHangTriggered = false
+        }
+    }
 }
 
 private func mainThreadStack(from sampleOutput: String) -> String {
