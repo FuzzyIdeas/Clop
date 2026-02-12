@@ -2,6 +2,17 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <item>
+            <title>2.11.3</title>
+            <pubDate>Thu, 12 Feb 2026 10:57:26 +0200</pubDate>
+            <link>https://lowtechguys.com/clop</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>2.11.3</sparkle:version>
+            <sparkle:shortVersionString>2.11.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.11.3.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.11.3.dmg" length="93192681" type="application/octet-stream" sparkle:edSignature="fvPV6kZmKlHLfKKxPWpb86kC+3SK5Iz2xGx79yMzYMPM9hYSKASTqUAx5mqSOxD7G/SeBoZoSdayIhAst0+9BA=="/>
+        </item>
+        <item>
             <title>2.11.2</title>
             <pubDate>Sun, 25 Jan 2026 23:58:36 +0200</pubDate>
             <link>https://lowtechguys.com/clop</link>
@@ -112,20 +123,6 @@
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.10.2.html</sparkle:releaseNotesLink>
             <enclosure url="https://files.lowtechguys.com/releases/Clop-2.10.2.dmg" length="99518359" type="application/octet-stream" sparkle:edSignature="WE902yWQUCUKBz6Ps5VVjukxMU/Z4CrRkygHN8JkhvVJx7g40xZC5pGvUCT695LieviNRl77VvOTxn5KvIYQAg=="/>
-        </item>
-        <item>
-            <title>2.10.1</title>
-            <pubDate>Thu, 12 Jun 2025 15:25:24 +0300</pubDate>
-            <link>https://lowtechguys.com/clop</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Clop/releases</sparkle:fullReleaseNotesLink>
-            <sparkle:version>2.10.1</sparkle:version>
-            <sparkle:shortVersionString>2.10.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-2.10.1.html</sparkle:releaseNotesLink>
-            <enclosure url="https://files.lowtechguys.com/releases/Clop-2.10.1.dmg" length="99736417" type="application/octet-stream" sparkle:edSignature="JIBNtrlBY10c9iQXqroDt2M48S/dFTogol4hOHVekMmnkwcmXzx903E3VNe0AbFhxrblWuzzpTVS6IhRZalwCw=="/>
-            <sparkle:deltas>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop2.10.1-2.10.0.delta" sparkle:deltaFrom="2.10.0" length="70465646" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864864" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="FXLZiNzxDebA06uoHA1Xw9xbGrGO8ofjwP1/yKb+qlLLowIvferIe8rFIKJDMoVSOpztbsGHv/Gl+an9pLTXBw=="/>
-            </sparkle:deltas>
         </item>
     </channel>
 </rss>
