@@ -45,16 +45,16 @@ class LocalMachPort {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), portRunLoop, .defaultMode)
     }
 
-    func sendAndWait(data: Data? = nil, sendTimeout: TimeInterval = 5, recvTimeout: TimeInterval = 600) throws -> Data? {
+    func sendAndWait(data: Data? = nil, sendTimeout: TimeInterval = 5, recvTimeout: TimeInterval = 259_200) throws -> Data? {
         try send(data: data, sendTimeout: sendTimeout, recvTimeout: recvTimeout, wait: true)
     }
 
-    func sendAndForget(data: Data? = nil, sendTimeout: TimeInterval = 5, recvTimeout: TimeInterval = 600) throws {
+    func sendAndForget(data: Data? = nil, sendTimeout: TimeInterval = 5, recvTimeout: TimeInterval = 259_200) throws {
         try send(data: data, sendTimeout: sendTimeout, recvTimeout: recvTimeout, wait: false)
     }
 
     @discardableResult
-    private func send(data: Data? = nil, sendTimeout: TimeInterval = 5, recvTimeout: TimeInterval = 600, wait: Bool = true) throws -> Data? {
+    private func send(data: Data? = nil, sendTimeout: TimeInterval = 5, recvTimeout: TimeInterval = 259_200, wait: Bool = true) throws -> Data? {
         semaphore.wait()
 
         guard let port = CFMessagePortCreateRemote(nil, portLocation) else {
