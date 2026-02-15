@@ -557,10 +557,17 @@ func nsalert(error: String) {
         if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
             mainActor { BM.decompressingBinaries = true }
             let proc = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
-            guard proc.success else {
-                nsalert(error: "Error unarchiving binaries \(BIN_ARCHIVE.path) into \(GLOBAL_BIN_DIR.path): \(proc.e ?? "") \(proc.o ?? "")")
-                mainActor { BM.decompressingBinaries = false }
-                exit(1)
+            print("Running: /usr/bin/tar -xvf \(BIN_ARCHIVE.path) -C \(GLOBAL_BIN_DIR.path)")
+            if !proc.success {
+                // try again by deleting the bin dir
+                try? fm.removeItem(at: GLOBAL_BIN_DIR)
+                try? fm.createDirectory(at: GLOBAL_BIN_DIR, withIntermediateDirectories: true, attributes: nil)
+                let proc = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
+                guard proc.success else {
+                    nsalert(error: "Error unarchiving binaries \(BIN_ARCHIVE.path) into \(GLOBAL_BIN_DIR.path): \((proc.e ?? "").prefix(100)) \((proc.o ?? "").prefix(100))")
+                    mainActor { BM.decompressingBinaries = false }
+                    exit(1)
+                }
             }
             fm.createFile(atPath: BIN_HASH_FILE.path, contents: BIN_ARCHIVE_HASH, attributes: nil)
         }
