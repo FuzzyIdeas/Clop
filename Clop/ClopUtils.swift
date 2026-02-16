@@ -556,6 +556,16 @@ func nsalert(error: String) {
 
         if fm.contents(atPath: BIN_HASH_FILE.path) != BIN_ARCHIVE_HASH {
             mainActor { BM.decompressingBinaries = true }
+            do {
+                if fm.fileExists(atPath: GLOBAL_BIN_DIR.path) {
+                    try fm.removeItem(at: GLOBAL_BIN_DIR)
+                }
+                try fm.createDirectory(at: GLOBAL_BIN_DIR, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                nsalert(error: "Error resetting directory \(GLOBAL_BIN_DIR.path): \(error)")
+                mainActor { BM.decompressingBinaries = false }
+                exit(1)
+            }
             let proc = shell("/usr/bin/tar", args: ["-xvf", BIN_ARCHIVE.path, "-C", GLOBAL_BIN_DIR.path], env: ["PATH": "\(LRZIP.deletingLastPathComponent().path):/usr/bin:/bin"], wait: true)
             print("Running: /usr/bin/tar -xvf \(BIN_ARCHIVE.path) -C \(GLOBAL_BIN_DIR.path)")
             if !proc.success {
