@@ -906,7 +906,11 @@ class Image: CustomStringConvertible {
         try outputJPG.move(to: convPath, force: true)
 
         try? convPath.setOptimisationStatusXattr("true")
-        let finalPath = asTempFile ? convPath : try convPath.move(to: path.withExtension("jpeg"), force: true)
+        let finalPath = if asTempFile || path.withExtension("jpeg") == convPath {
+            convPath
+         } else {
+            try convPath.move(to: path.withExtension("jpeg"), force: true)
+         }
         guard let data = fm.contents(atPath: finalPath.string), let img = NSImage(data: data) else {
             throw ClopError.conversionFailed(path)
         }
@@ -1231,7 +1235,7 @@ extension FilePath {
         }
         if behaviour != .temporary {
             try converted.path.setOptimisationStatusXattr("pending")
-            let path = try converted.path.copy(to: img.path.dir)
+            let path = try converted.path.copy(to: img.path.dir, force: true)
             originalPath = img.path
             return Image(data: converted.data, path: path, nsImage: converted.image, type: converted.type, optimised: converted.optimised, retinaDownscaled: converted.retinaDownscaled)
         }
