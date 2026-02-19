@@ -123,9 +123,9 @@ struct FloatingResultContainer: View {
         VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: 10) {
             if shouldShowDropZone, floatingResultsCorner.isTop {
                 DropZoneView()
-                    .transition(
-                        .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
-                    )
+                    // .transition(
+                    //     .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
+                    // )
                     .padding(.bottom, 10)
             }
 
@@ -155,9 +155,9 @@ struct FloatingResultContainer: View {
 
             if shouldShowDropZone, !floatingResultsCorner.isTop {
                 DropZoneView()
-                    .transition(
-                        .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
-                    )
+                    // .transition(
+                    //     .asymmetric(insertion: .scale.animation(.fastSpring), removal: .identity)
+                    // )
                     .padding(.bottom, 10)
             }
         }

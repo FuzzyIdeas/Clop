@@ -245,8 +245,7 @@ extension FilePath {
     }
 
     func hasExifHDR() -> Bool {
-        // exiftool -q -q  -if '($NumberOfImages > 1) or $HDRHeadroom or defined $XMP-hdrgm:Version'  -filename file.jpg
-        let args = [EXIFTOOL.string, "-q", "-q", "-if", "($NumberOfImages > 1) or $HDRHeadroom or defined $XMP-hdrgm:Version", "-filename", string]
+        let args = [EXIFTOOL.string, "-q", "-if", "$HDRHeadroom or $HDRGainMapHeadroom or defined $XMP-hdrgm:Version", "-filename", string]
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
         return exifProc.success
     }
@@ -632,4 +631,5 @@ func nsalert(error: String) {
     VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
     FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").filePath!
     GIFSKI = BIN_DIR.appendingPathComponent("gifski").filePath!
+    TO_GAIN_MAP_HDR = BIN_DIR.appendingPathComponent("toGainMapHDR").filePath!
 }

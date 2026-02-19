@@ -19,6 +19,7 @@ var JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
 var JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").filePath!
 var GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").filePath!
 var VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
+var TO_GAIN_MAP_HDR = BIN_DIR.appendingPathComponent("toGainMapHDR").filePath!
 
 func isImageValid(path: FilePath) -> Bool {
     guard let image = NSImage(contentsOfFile: path.string) else {
@@ -889,6 +890,33 @@ class Image: CustomStringConvertible {
         try await convertWithProcAsync(to: "webp", asTempFile: asTempFile)
     }
 
+    func convertHDRHEICToJPEG(asTempFile: Bool, optimiser: Optimiser? = nil) throws -> Image {
+        let tempDir = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString).filePath!
+        tempDir.mkdir(withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: tempDir.string) }
+
+        let proc = try tryProc(TO_GAIN_MAP_HDR.string, args: [path.string, tempDir.string, "-q", "1.0", "-j"], tries: 2)
+        guard proc.terminationStatus == 0 else {
+            throw ClopProcError.processError(proc)
+        }
+
+        // toGainMapHDR outputs <stem>.jpg (not .jpeg) into the output folder
+        let outputJPG = tempDir / "\(path.stem ?? "output").jpg"
+        let convPath = path.tempFile(ext: "jpeg")
+        try outputJPG.move(to: convPath, force: true)
+
+        try? convPath.setOptimisationStatusXattr("true")
+        let finalPath = asTempFile ? convPath : try convPath.move(to: path.withExtension("jpeg"), force: true)
+        guard let data = fm.contents(atPath: finalPath.string), let img = NSImage(data: data) else {
+            throw ClopError.conversionFailed(path)
+        }
+        let converted = Image(data: data, path: finalPath, nsImage: img, type: .jpeg, retinaDownscaled: retinaDownscaled)
+        if let optimiser {
+            return try converted.optimise(optimiser: optimiser, allowLarger: true, adaptiveSize: false)
+        }
+        return converted
+    }
+
     func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil) throws -> Image {
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
@@ -917,6 +945,9 @@ class Image: CustomStringConvertible {
             }
             return try convertToHEIC(asTempFile: asTempFile)
         default:
+            if self.type == .heic, type == .jpeg, path.hasExifHDR() {
+                return try convertHDRHEICToJPEG(asTempFile: asTempFile, optimiser: optimiser)
+            }
             let convPath = path.tempFile(ext: ext)
             guard let data = image.data(using: type.imgType) else {
                 throw ClopError.unknownImageType(path)
@@ -1277,7 +1308,7 @@ extension FilePath {
 //                    optimisedImage = try img.resize(toFraction: (1.0 / img.pixelScale).d, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
 //                    mainActor { optimiser.downscaleFactor = (1.0 / img.pixelScale).d }
 //                } else {
-                    optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
+                optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
 //                }
                 if optimisedImage!.type == img.type {
                     optimisedImage = try optimisedImage?.copyWithPath(optimisedImage!.path.copy(to: img.path, force: true))

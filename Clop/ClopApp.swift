@@ -299,7 +299,7 @@ class AppDelegate: AppDelegateParent {
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
 
         guard !SWIFTUI_PREVIEW else { return }
-        floatingResultsWindow.animateOnResize = true
+        floatingResultsWindow.animateOnResize = false
         pub(.allowClopToAppearInScreenshots)
             .sink {
                 floatingResultsWindow.sharingType = $0.newValue ? .readOnly : .none
