@@ -1207,7 +1207,7 @@ extension FilePath {
         return converted
     }
 
-    let shouldDownscale = Defaults[.downscaleRetinaImages] && img.pixelScale > 1
+    // let shouldDownscale = Defaults[.downscaleRetinaImages] && img.pixelScale > 1
 
     let conversionFormat: UTType? = Defaults[.formatsToConvertToJPEG].contains(img.type) ? .jpeg : (Defaults[.formatsToConvertToPNG].contains(img.type) ? .png : nil)
     if let conversionFormat {
@@ -1216,7 +1216,7 @@ extension FilePath {
         img = try applyConversionBehaviour(img, converted)
         pathString = img.path.string
         allowLarger = true
-    } else if let optImg = try getCachedOptimisedImage(img: img, id: id, retinaDownscaled: shouldDownscale) {
+    } else if let optImg = try getCachedOptimisedImage(img: img, id: id, retinaDownscaled: false) {
         log.debug("Using cached optimised image \(optImg.path)")
         return optImg
     }
@@ -1271,14 +1271,14 @@ extension FilePath {
             var optimisedImage: Image?
             do {
                 log.debug("Optimising image \(pathString)")
-                if shouldDownscale {
-                    img.retinaDownscaled = true
-                    mainActor { optimiser.retinaDownscaled = true }
-                    optimisedImage = try img.resize(toFraction: (1.0 / img.pixelScale).d, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
-                    mainActor { optimiser.downscaleFactor = (1.0 / img.pixelScale).d }
-                } else {
+//                if shouldDownscale {
+//                    img.retinaDownscaled = true
+//                    mainActor { optimiser.retinaDownscaled = true }
+//                    optimisedImage = try img.resize(toFraction: (1.0 / img.pixelScale).d, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
+//                    mainActor { optimiser.downscaleFactor = (1.0 / img.pixelScale).d }
+//                } else {
                     optimisedImage = try img.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize])
-                }
+//                }
                 if optimisedImage!.type == img.type {
                     optimisedImage = try optimisedImage?.copyWithPath(optimisedImage!.path.copy(to: img.path, force: true))
                 } else {

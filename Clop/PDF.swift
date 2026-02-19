@@ -278,7 +278,7 @@ class PDF: Optimisable {
     return true
 }
 
-let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.05.1/Resource/Init").path]
+let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.06.0/Resource/Init").path]
 
 @discardableResult
 @MainActor func optimisePDF(

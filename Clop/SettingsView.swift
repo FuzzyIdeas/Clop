@@ -649,7 +649,7 @@ struct ImagesSettingsView: View {
     @Default(.maxImageSizeMB) var maxImageSizeMB
     @Default(.imageFormatsToSkip) var imageFormatsToSkip
     @Default(.adaptiveImageSize) var adaptiveImageSize
-    @Default(.downscaleRetinaImages) var downscaleRetinaImages
+    // @Default(.downscaleRetinaImages) var downscaleRetinaImages
     @Default(.convertedImageBehaviour) var convertedImageBehaviour
     @Default(.optimisedImageBehaviour) var optimisedImageBehaviour
     @Default(.sameFolderNameTemplateImage) var sameFolderNameTemplateImage
@@ -844,10 +844,10 @@ struct ImagesSettingsView: View {
                     Text("Adaptive optimisation").regular(13)
                         + Text("\nConvert detail heavy images to JPEG and low-detail ones to PNG").round(11, weight: .regular).foregroundColor(.secondary)
                 }
-                Toggle(isOn: $downscaleRetinaImages) {
-                    Text("Downscale HiDPI images to 72 DPI").regular(13)
-                        + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular).foregroundColor(.secondary)
-                }
+                // Toggle(isOn: $downscaleRetinaImages) {
+                //     Text("Downscale HiDPI images to 72 DPI").regular(13)
+                //         + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular).foregroundColor(.secondary)
+                // }
 
             }
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
