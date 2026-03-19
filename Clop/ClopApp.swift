@@ -820,7 +820,7 @@ class AppDelegate: AppDelegateParent {
             }
             Task.init {
                 let video = Video(path: path)
-                let _ = try? await optimiseVideo(video, debounceMS: debounceMS, source: Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+                let _ = try? await runVideoPipeline(video, actions: [.optimise], debounceMS: debounceMS, source: Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
         }
         imageWatcher = FileOptimisationWatcher(
@@ -836,7 +836,7 @@ class AppDelegate: AppDelegateParent {
             }
             Task.init {
                 guard let img = Image(path: path, retinaDownscaled: false) else { return }
-                let _ = try? await optimiseImage(img, debounceMS: debounceMS, source: Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+                let _ = try? await runImagePipeline(img, actions: [.optimise], debounceMS: debounceMS, source: Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
         }
         pdfWatcher = FileOptimisationWatcher(
@@ -851,7 +851,7 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task.init {
-                let _ = try? await optimisePDF(PDF(path), debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+                let _ = try? await runPDFPipeline(PDF(path), actions: [.optimise], debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
         }
 
@@ -893,7 +893,7 @@ class AppDelegate: AppDelegateParent {
                         return
                     }
                     Task.init {
-                        let _ = try? await optimiseVideo(Video(path: path), source: .clipboard)
+                        let _ = try? await runVideoPipeline(Video(path: path), actions: [.optimise], source: .clipboard)
                     }
                     return
                 }
