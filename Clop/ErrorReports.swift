@@ -1,7 +1,11 @@
+import Atomics
 import Cocoa
 import Combine
 import Defaults
 import Lowtech
+import os
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ErrorReports")
 
 private let APP_HANG_DETECTION_INTERVAL: TimeInterval = 40.0
 private let APP_HANG_CHECK_INTERVAL: TimeInterval = 1.0
@@ -18,7 +22,7 @@ private final class RepeatingHang {
     lazy var exceedsThreshold: Bool = {
         let exceeds = appHangStateQueue.sync {
             if count >= RepeatingHangState.threshold {
-                log.warning("Detected repeating hangs due to \(cause) (\(count) in last \(RepeatingHangState.window) seconds)")
+                log.warning("Detected repeating hangs due to \(self.cause) (\(self.count) in last \(RepeatingHangState.window) seconds)")
                 return true
             }
             return false
@@ -36,7 +40,7 @@ private final class RepeatingHang {
         guard sampleOutput.contains(expectedStackFrame) else {
             return false
         }
-        log.warning("Hang detected with expected stack frame '\(expectedStackFrame)' in sample output")
+        log.warning("Hang detected with expected stack frame '\(self.expectedStackFrame)' in sample output")
         return true
     }
 
@@ -93,6 +97,8 @@ private let appHangStateQueue = DispatchQueue(label: "com.lowtechguys.Clop.appHa
 private var lastMainThreadCheckin: TimeInterval = 0
 private var appHangTriggered = false
 private var sleeping = false
+
+let activeCLIRequests = ManagedAtomic<Int>(0)
 
 @MainActor func configureAppHangDetection() {
     #if DEBUG
@@ -184,6 +190,12 @@ func onAppHangDetected() {
     log.warning("Main thread sample:\n\(mainThread)")
 
     if Defaults[.autoRestartOnHang] {
+        if activeCLIRequests.load(ordering: .relaxed) > 0 {
+            log.warning("Skipping auto-restart because a CLI request is being processed.")
+            appHangStateQueue.sync { appHangTriggered = false }
+            return
+        }
+
         let now = Date().timeIntervalSince1970
         appHangStateQueue.async {
             if let hang = RepeatingHangState.hangs.values.first(where: { $0.isCulprit(sampleOutput: mainThread) }) {

@@ -27,6 +27,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case imageSizeLarger(FilePath)
     case videoSizeLarger(FilePath)
     case pdfSizeLarger(FilePath)
+    case audioSizeLarger(FilePath)
     case videoError(String)
     case pdfError(String)
     case downloadError(String)
@@ -64,6 +65,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             return "Optimised video size is larger: \(p)"
         case let .pdfSizeLarger(p):
             return "Optimised PDF size is larger: \(p)"
+        case let .audioSizeLarger(p):
+            return "Optimised audio size is larger: \(p)"
         case let .unknownImageType(p):
             return "Unknown image type: \(p)"
         case let .videoError(string):
@@ -118,6 +121,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Already optimised"
         case .pdfSizeLarger:
             "Already optimised"
+        case .audioSizeLarger:
+            "Already optimised"
         case .unknownImageType:
             "Unknown image type"
         case .videoError:
@@ -166,12 +171,18 @@ extension UTType {
     static let wmv = UTType("com.microsoft.windows-media-wmv") ?? UTType("io.iina.wmv")
     static let flv = UTType("com.adobe.flash.video")
     static let m4v = UTType("com.apple.m4v-video")
+
+    static let flac = UTType("org.xiph.flac") ?? UTType("public.flac")
+    static let oggAudio = UTType("org.xiph.ogg-audio") ?? UTType("public.ogg-audio")
+    static let opusAudio = UTType("org.xiph.opus")
+    static let m4a = UTType("com.apple.m4a-audio") ?? UTType("public.mpeg-4-audio")
 }
 
 let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg].compactMap { $0 }
 let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
+let AUDIO_FORMATS: [UTType] = [.wav, .aiff, .mp3, .flac, .m4a, .oggAudio].compactMap { $0 }
 let IMAGE_VIDEO_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS
-let ALL_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS + [.pdf]
+let ALL_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.pdf]
 
 func printerr(_ msg: String, terminator: String = "\n") {
     fputs("\(msg)\(terminator)", stderr)
@@ -270,57 +281,9 @@ func isClopRunning() -> Bool {
 
 import os
 
-final class SharedLogger {
-    @usableFromInline static let oslog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.lowtechguys.Logger", category: "default")
-    @usableFromInline static let traceLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.lowtechguys.Logger", category: "trace")
+let LOG_SUBSYSTEM = Bundle.main.bundleIdentifier ?? "com.lowtechguys.Clop"
 
-    @inline(__always) @inlinable class func verbose(_ message: String, context: Any? = "") {
-        #if DEBUG
-            oslog.trace("🫥 \(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #else
-            oslog.trace("\(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #endif
-    }
-
-    @inline(__always) @inlinable class func debug(_ message: String, context: Any? = "") {
-        #if DEBUG
-            oslog.debug("🌲 \(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #else
-            oslog.debug("\(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #endif
-    }
-
-    @inline(__always) @inlinable class func info(_ message: String, context: Any? = "") {
-        #if DEBUG
-            oslog.info("💠 \(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #else
-            oslog.info("\(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #endif
-    }
-
-    @inline(__always) @inlinable class func warning(_ message: String, context: Any? = "") {
-        #if DEBUG
-            oslog.warning("🦧 \(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #else
-            oslog.warning("\(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #endif
-    }
-
-    @inline(__always) @inlinable class func error(_ message: String, context: Any? = "") {
-        #if DEBUG
-            oslog.fault("👹 \(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #else
-            oslog.fault("\(message, privacy: .public) \(String(describing: context ?? ""), privacy: .public)")
-        #endif
-    }
-
-    @inline(__always) @inlinable class func traceCalls() {
-        traceLog.trace("\(Thread.callStackSymbols.joined(separator: "\n"), privacy: .public)")
-    }
-
-}
-
-let log = SharedLogger.self
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Shared")
 
 extension DispatchWorkItem {
     func wait(for timeout: TimeInterval) -> DispatchTimeoutResult {
@@ -352,7 +315,7 @@ func shell(_ command: String, args: [String] = [], timeout: TimeInterval? = nil)
     do {
         try task.run()
     } catch {
-        log.error(error.localizedDescription)
+        log.error("\(error.localizedDescription)")
         return nil
     }
 
@@ -393,7 +356,7 @@ extension URL {
         do {
             try (self as NSURL).getResourceValue(&type, forKey: .contentTypeKey)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
         }
         return type as? UTType
     }
@@ -714,6 +677,89 @@ enum CropOrientation: String, CaseIterable, Codable {
     case landscape
     case portrait
     case adaptive
+}
+
+enum VideoEncoder: String, CaseIterable, Codable {
+    case fast
+    case slowHighQuality
+    case visuallyLossless
+
+    var name: String {
+        switch self {
+        case .fast: "Fast, battery efficient, larger file"
+        case .slowHighQuality: "Slow, high quality, smaller file"
+        case .visuallyLossless: "Visually lossless"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .fast:
+            #if arch(arm64)
+                "Uses the hardware encoder for quick, low-power optimisation"
+            #else
+                "Uses the default encoder preset for a good balance of speed and quality"
+            #endif
+        case .slowHighQuality:
+            "Uses a slow software encoder preset for smaller files with better quality"
+        case .visuallyLossless:
+            "Produces files with no perceptible quality loss (CRF 17)"
+        }
+    }
+}
+
+enum AudioFormat: String, CaseIterable, Codable {
+    case aac
+    case mp3
+    case opus
+
+    var name: String {
+        switch self {
+        case .aac: "AAC (M4A)"
+        case .mp3: "MP3"
+        case .opus: "Opus (OGG)"
+        }
+    }
+
+    var fileExtension: String {
+        switch self {
+        case .aac: "m4a"
+        case .mp3: "mp3"
+        case .opus: "ogg"
+        }
+    }
+
+    var ffmpegCodec: String {
+        switch self {
+        case .aac: "aac"
+        case .mp3: "libmp3lame"
+        case .opus: "libopus"
+        }
+    }
+
+    var allowedBitrates: [Int] {
+        switch self {
+        case .aac: [96, 128, 192, 256]
+        case .mp3: [128, 192, 256, 320]
+        case .opus: [48, 64, 96, 128]
+        }
+    }
+
+    var defaultBitrate: Int {
+        switch self {
+        case .aac: 192
+        case .mp3: 192
+        case .opus: 128
+        }
+    }
+
+    var utType: UTType? {
+        switch self {
+        case .aac: .m4a
+        case .mp3: .mp3
+        case .opus: .oggAudio
+        }
+    }
 }
 
 struct CropSize: Codable, Hashable, Identifiable {
@@ -1188,7 +1234,8 @@ enum FileNameToken: String {
 }
 
 func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath {
-    log.verbose("Generating file path from '\(template.string)' for '\(path?.string ?? "NOPATH")' [num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
+    let num_ = autoIncrementingNumber
+    log.trace("Generating file path from '\(template.string)' for '\(path?.string ?? "NOPATH")' [num: \(num_), mkdir: \(mkdir)]")
     let num = autoIncrementingNumber + 1
     var placeholderNum = 0
 
@@ -1221,12 +1268,16 @@ func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncreme
     if !SWIFTUI_PREVIEW, template.string.contains(FileNameToken.autoIncrementingNumber.rawValue) {
         autoIncrementingNumber = num
     }
-    log.verbose("Generated file path \(newpath.string) [template: '\(template)', path: '\(path?.string ?? "NOPATH")', num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
+    do {
+        let num2_ = autoIncrementingNumber
+        log.trace("Generated file path \(newpath.string) [template: '\(template)', path: '\(path?.string ?? "NOPATH")', num: \(num2_), mkdir: \(mkdir)]")
+    }
     return newpath
 }
 
 func generateFilePath(template: String, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath? {
-    log.verbose("Generating file path from '\(template)' for '\(path?.string ?? "NOPATH")' [num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
+    let num_ = autoIncrementingNumber
+    log.trace("Generating file path from '\(template)' for '\(path?.string ?? "NOPATH")' [num: \(num_), mkdir: \(mkdir)]")
     let pathString = generateFileName(template: template, for: path, autoIncrementingNumber: &autoIncrementingNumber, safe: false)
     guard var newpath = pathString.filePath?.lexicallyNormalized() else {
         return nil
@@ -1247,7 +1298,10 @@ func generateFilePath(template: String, for path: FilePath? = nil, autoIncrement
             throw ClopError.couldNotCreateOutputDirectory(dir.string)
         }
     }
-    log.verbose("Generated file path \(newpath.string) [template: '\(template)', path: '\(path?.string ?? "NOPATH")', num: \(autoIncrementingNumber), mkdir: \(mkdir)]")
+    do {
+        let num2_ = autoIncrementingNumber
+        log.trace("Generated file path \(newpath.string) [template: '\(template)', path: '\(path?.string ?? "NOPATH")', num: \(num2_), mkdir: \(mkdir)]")
+    }
     return newpath
 }
 

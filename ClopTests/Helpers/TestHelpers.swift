@@ -1,5 +1,6 @@
 @testable import Clop
 import Cocoa
+import Defaults
 import Foundation
 import System
 import UniformTypeIdentifiers
@@ -43,6 +44,9 @@ let sharedTestWorkdir: URL = {
     ud.set("sameFolder", forKey: "convertedImageBehaviour")
     ud.set(false, forKey: "autoHideFloatingResults")
     ud.set(0, forKey: "lastAutoIncrementingNumber")
+    // Note: audioFormat and audioBitrate are NOT reset here to avoid
+    // interfering with serialised audio pipeline tests running in parallel
+    // with other suites. Set them explicitly in each test that needs them.
 }
 
 /// Point workdir at the shared test directory.
@@ -52,6 +56,13 @@ let sharedTestWorkdir: URL = {
     UserDefaults.standard.set(tmp.path, forKey: "workdir")
     FilePath.workdir = FilePath.dir(tmp.path, permissions: 0o755)
     return tmp
+}
+
+/// Restore workdir to the user-configured value (or the default).
+@MainActor func restoreWorkdir() {
+    let configured = UserDefaults.standard.string(forKey: "workdir")
+        ?? URL.cachesDirectory.appendingPathComponent("Clop", conformingTo: .directory).path
+    FilePath.workdir = FilePath.dir(configured, permissions: 0o755)
 }
 
 /// Set showImages default for tests that need to toggle it.
@@ -68,8 +79,10 @@ func setShowImages(_ value: Bool) {
     imageResizeDebouncers.removeAll()
     videoOptimiseDebouncers.removeAll()
     pdfOptimiseDebouncers.removeAll()
+    audioOptimiseDebouncers.removeAll()
     OM.optimisers.removeAll()
     OM.optimisedFilesByHash.removeAll()
+    restoreWorkdir()
 }
 
 // MARK: - Binary Availability

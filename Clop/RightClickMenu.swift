@@ -8,7 +8,11 @@
 import Defaults
 import Foundation
 import Lowtech
+import os
 import SwiftUI
+import System
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "RightClickMenu")
 
 extension Bundle {
     var lowercasedName: String {
@@ -138,18 +142,24 @@ struct RightClickMenuView: View {
             }
 
             if optimiser.canReoptimise() {
-                Button("Re-optimise") {
-                    optimiser.reoptimise()
-                }
-                Button("Aggressive optimisation") {
-                    if optimiser.downscaleFactor < 1 {
-                        optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
-                    } else {
-                        optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+                if optimiser.type.isVideo {
+                    Menu("Re-optimise with encoder") {
+                        ReoptimiseWithEncoderMenu(optimiser: optimiser)
                     }
+                } else {
+                    Button("Re-optimise") {
+                        optimiser.reoptimise()
+                    }
+                    Button("Aggressive optimisation") {
+                        if optimiser.downscaleFactor < 1 {
+                            optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
+                        } else {
+                            optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+                        }
+                    }
+                    .keyboardShortcut("a")
+                    .disabled(optimiser.aggressive)
                 }
-                .keyboardShortcut("a")
-                .disabled(optimiser.aggressive)
             }
 
             Divider()
@@ -175,6 +185,28 @@ struct RightClickMenuView: View {
                 Button("Strip EXIF metadata") {
                     optimiser.path?.stripExif()
                     optimiser.overlayMessage = "Stripped"
+                }
+            }
+
+            if optimiser.type.isPDF, let pdf = optimiser.pdf, pdf.pageCount > 0 {
+                if pdf.pageCount == 1 {
+                    Menu("Convert to image") {
+                        Section("Best for photos and illustrations") {
+                            Button("JPEG") { convertSinglePagePDFToImage(optimiser: optimiser, pdf: pdf, format: .jpeg) }
+                        }
+                        Section("Best for text and low-detail images") {
+                            Button("PNG") { convertSinglePagePDFToImage(optimiser: optimiser, pdf: pdf, format: .png) }
+                        }
+                    }
+                } else {
+                    Menu("Extract pages as images") {
+                        Section("Best for photos and illustrations") {
+                            Button("JPEG") { extractPDFPagesAsImages(optimiser: optimiser, pdf: pdf, format: .jpeg) }
+                        }
+                        Section("Best for text and low-detail images") {
+                            Button("PNG") { extractPDFPagesAsImages(optimiser: optimiser, pdf: pdf, format: .png) }
+                        }
+                    }
                 }
             }
 
@@ -390,7 +422,7 @@ struct WorkflowMenu: View {
             guard let video = optimiser.video else {
                 return
             }
-            if let newVideo = try? video.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: false, aggressiveOptimisation: Defaults[.useAggressiveOptimisationMP4], source: optimiser.source) {
+            if let newVideo = try? video.runThroughShortcut(shortcut: shortcut, optimiser: optimiser, allowLarger: false, aggressiveOptimisation: Defaults[.videoEncoder] == .slowHighQuality, source: optimiser.source) {
                 mainActor {
                     optimiser.url = newVideo.path.url
                     optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: newVideo.path.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize, newSize: newVideo.size)
@@ -515,6 +547,124 @@ struct ConvertToGIFMenu: View {
         }
     }
 
+}
+
+@MainActor func convertSinglePagePDFToImage(optimiser: Optimiser, pdf: PDF, format: NSBitmapImageRep.FileType) {
+    let ext = format == .png ? "png" : "jpg"
+    guard let imageData = pdf.renderPage(pageIndex: 0, format: format) else {
+        optimiser.overlayMessage = "Render failed"
+        return
+    }
+
+    let stem = pdf.path.lastComponent?.stem ?? "page"
+    let outputPath = FilePath.images.appending("\(stem).\(ext)")
+    let fm = FileManager.default
+    try? fm.createDirectory(atPath: FilePath.images.string, withIntermediateDirectories: true)
+
+    guard fm.createFile(atPath: outputPath.string, contents: imageData) else {
+        optimiser.overlayMessage = "Save failed"
+        return
+    }
+
+    let id = "pdf-to-image-\(Int(Date().timeIntervalSince1970))"
+    guard let img = Image(path: outputPath, retinaDownscaled: false) else {
+        optimiser.overlayMessage = "Convert failed"
+        return
+    }
+    Task {
+        try? await runImagePipeline(img, actions: [.optimise], id: id, allowLarger: true, hideFloatingResult: false, source: optimiser.source)
+    }
+}
+
+@MainActor func extractPDFPagesAsImages(optimiser: Optimiser, pdf: PDF, format: NSBitmapImageRep.FileType) {
+    let ext = format == .png ? "png" : "jpg"
+    let formatName = format == .png ? "PNGs" : "JPEGs"
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.canCreateDirectories = true
+    panel.allowsMultipleSelection = false
+    panel.prompt = "Save Pages"
+    panel.message = "Choose a folder to save \(pdf.pageCount) pages as optimised \(formatName)"
+    panel.level = .modalPanel
+    NSApp.activate(ignoringOtherApps: true)
+
+    panel.begin { response in
+        guard response == .OK, let folderURL = panel.url else { return }
+
+        let stem = pdf.path.lastComponent?.stem ?? "page"
+        let pageCount = pdf.pageCount
+        let fm = FileManager.default
+        let originalOldBytes = optimiser.oldBytes
+
+        mainActor {
+            optimiser.running = true
+            optimiser.progress = Progress(totalUnitCount: Int64(pageCount))
+            optimiser.progress.completedUnitCount = 0
+            optimiser.operation = "Saving pages"
+        }
+
+        let batchSize = ProcessInfo.processInfo.activeProcessorCount
+
+        DispatchQueue.global().async {
+            var totalSavedBytes = 0
+            let lock = NSLock()
+
+            for batchStart in stride(from: 0, to: pageCount, by: batchSize) {
+                let batchEnd = min(batchStart + batchSize, pageCount)
+                let group = DispatchGroup()
+                for i in batchStart ..< batchEnd {
+                    group.enter()
+                    DispatchQueue.global().async {
+                        defer {
+                            mainActor { optimiser.progress.completedUnitCount += 1 }
+                            group.leave()
+                        }
+
+                        guard let imageData = pdf.renderPage(pageIndex: i, format: format) else { return }
+
+                        let filename = "\(stem)-page\(i + 1).\(ext)"
+                        let outputURL = folderURL.appendingPathComponent(filename)
+                        fm.createFile(atPath: outputURL.path, contents: imageData)
+
+                        let outputPath = FilePath(outputURL.path)
+                        var bytes = imageData.count
+                        if let img = Image(path: outputPath, retinaDownscaled: false) {
+                            let optimised = try? img.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: img.type.aggressiveOptimisation, adaptiveSize: false)
+                            if let optimised, let newPath = try? optimised.path.copy(to: outputPath, force: true) {
+                                bytes = newPath.fileSize() ?? bytes
+                            } else {
+                                bytes = outputPath.fileSize() ?? bytes
+                            }
+                        }
+
+                        lock.lock()
+                        totalSavedBytes += bytes
+                        lock.unlock()
+                    }
+                }
+                group.wait()
+            }
+
+            mainActor {
+                optimiser.finish(oldBytes: originalOldBytes, newBytes: totalSavedBytes)
+                optimiser.overlayMessage = "Saved \(pageCount) pages"
+                NSWorkspace.shared.open(folderURL)
+            }
+        }
+    }
+}
+
+struct ReoptimiseWithEncoderMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        ForEach(VideoEncoder.allCases, id: \.self) { encoder in
+            Button("\(encoder.name)") {
+                optimiser.reoptimiseWithEncoder(encoder)
+            }
+        }
+    }
 }
 
 struct ChangePlaybackSpeedMenu: View {

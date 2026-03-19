@@ -9,8 +9,11 @@ import Defaults
 import Foundation
 import LaunchAtLogin
 import Lowtech
+import os
 import SwiftUI
 import System
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "SettingsView")
 
 let TEXT_FIELD_OFFSET: CGFloat = if #available(macOS 15.0, *) {
     4
@@ -156,7 +159,7 @@ struct DirListView: View {
             }.frame(height: 150)
 
             HStack(spacing: 2) {
-                Button(action: { chooseFile = true }, label: { SwiftUI.Image(systemName: "plus").font(.bold(12)) })
+                Button(action: { chooseFile = true }, label: { SwiftUI.Image(systemName: "plus").font(.bold(12)).frame(width: 16, height: 16) })
                     .fileImporter(
                         isPresented: $chooseFile,
                         allowedContentTypes: [.directory],
@@ -166,7 +169,7 @@ struct DirListView: View {
                             case let .success(success):
                                 dirs = (dirs + success.map(\.path)).uniqued.without(NOT_ALLOWED_TO_WATCH)
                             case let .failure(failure):
-                                log.error(failure.localizedDescription)
+                                log.error("\(failure.localizedDescription)")
                             }
                         }
                     )
@@ -177,7 +180,7 @@ struct DirListView: View {
                         dirs = Set(dirs).without(selectedDirs)
                         selectedDirs = []
                     },
-                    label: { SwiftUI.Image(systemName: "minus").font(.bold(12)) }
+                    label: { SwiftUI.Image(systemName: "minus").font(.bold(12)).frame(width: 16, height: 16) }
                 )
                 .disabled(selectedDirs.isEmpty || !enabled)
                 Spacer()
@@ -225,7 +228,7 @@ struct DirListView: View {
             log.debug("Saving \(clopIgnore)")
             try text.write(toFile: clopIgnore, atomically: false, encoding: .utf8)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
         }
     }
 }
@@ -297,6 +300,7 @@ struct VideoSettingsView: View {
     @Default(.removeAudioFromVideos) var removeAudioFromVideos
     @Default(.convertAudioToAAC) var convertAudioToAAC
 
+    @Default(.videoEncoder) var videoEncoder
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
     #endif
@@ -342,27 +346,22 @@ struct VideoSettingsView: View {
                             .font(.mono(11))
                     }
                 }
+                Picker(selection: $videoEncoder) {
+                    ForEach(VideoEncoder.allCases, id: \.self) { encoder in
+                        Text(encoder.name).tag(encoder)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Video encoder").regular(13)
+                        Text(videoEncoder.description).round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                }
                 #if arch(arm64)
-                    Toggle(isOn: $adaptiveVideoSize) {
-                        Text("Adaptive optimisation").regular(13)
-                            + Text("\nUses the CPU intensive encoder for short workloads, and the battery efficient one for larger files").round(11, weight: .regular).foregroundColor(.secondary)
-                    }
-                    Toggle(isOn: $useCPUIntensiveEncoder.animation(.spring())) {
-                        Text("Use CPU intensive encoder").regular(13)
-                            + Text("\nGenerates smaller files with better visual quality but takes longer and uses more CPU").round(11, weight: .regular).foregroundColor(.secondary)
-                    }
-                    if useCPUIntensiveEncoder {
-                        Toggle(isOn: $useAggressiveOptimisationMP4) {
-                            Text("Aggressive optimisation").regular(13)
-                                + Text("\nDecrease visual quality and increase processing time for even smaller files").round(11, weight: .regular).foregroundColor(.secondary)
+                    if videoEncoder != .fast {
+                        Toggle(isOn: $adaptiveVideoSize) {
+                            Text("Adaptive optimisation").regular(13)
+                                + Text("\nFalls back to the fast encoder for large files to save time and battery").round(11, weight: .regular).foregroundColor(.secondary)
                         }
-                        .disabled(!useCPUIntensiveEncoder)
-                        .padding(.leading)
-                    }
-                #else
-                    Toggle(isOn: $useAggressiveOptimisationMP4) {
-                        Text("Use more aggressive optimisation").regular(13)
-                            + Text("\nGenerates smaller files with slightly worse visual quality but takes longer and uses more CPU").round(11, weight: .regular).foregroundColor(.secondary)
                     }
                 #endif
                 Toggle("Remove audio on optimised videos", isOn: $removeAudioFromVideos)
@@ -639,6 +638,90 @@ struct SpecificFolderNameTemplate: View {
             .foregroundColor(.secondary)
             .padding(6)
         }
+    }
+}
+
+struct AudioSettingsView: View {
+    @Default(.audioDirs) var audioDirs
+    @Default(.audioFormat) var audioFormat
+    @Default(.audioBitrate) var audioBitrate
+    @Default(.audioFormatsToSkip) var audioFormatsToSkip
+    @Default(.formatsToConvertToOutputAudio) var formatsToConvertToOutputAudio
+    @Default(.maxAudioSizeMB) var maxAudioSizeMB
+    @Default(.maxAudioFileCount) var maxAudioFileCount
+    @Default(.optimisedAudioBehaviour) var optimisedAudioBehaviour
+    @Default(.sameFolderNameTemplateAudio) var sameFolderNameTemplateAudio
+    @Default(.specificFolderNameTemplateAudio) var specificFolderNameTemplateAudio
+    @Default(.enableAutomaticAudioOptimisations) var enableAutomaticAudioOptimisations
+
+    var body: some View {
+        Form {
+            Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise audio files as they appear in these folders")) {
+                DirListView(fileType: .audio, dirs: $audioDirs, enabled: $enableAutomaticAudioOptimisations)
+            }
+            Section(header: SectionHeader(title: "Optimisation rules")) {
+                OptimisedFileBehaviourView(
+                    type: .audio, optimisedBehaviour: $optimisedAudioBehaviour,
+                    sameFolderNameTemplate: $sameFolderNameTemplateAudio,
+                    specificFolderNameTemplate: $specificFolderNameTemplateAudio
+                )
+                HStack {
+                    Text("Skip when audio files larger than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $maxAudioSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("MB").mono(13)
+                    Text("are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Skip when more than").regular(13)
+                    TextField("", value: $maxAudioFileCount, formatter: BoundFormatter(min: 1, max: 100))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 50)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text(maxAudioFileCount == 1 ? "audio file is copied or moved in watched folders" : "audio files are copied or moved in watched folders").regular(13)
+                }
+                Picker(selection: $audioFormat) {
+                    ForEach(AudioFormat.allCases, id: \.self) { format in
+                        Text(format.name).tag(format)
+                    }
+                } label: {
+                    Text("Output format").regular(13)
+                }
+                Picker(selection: $audioBitrate) {
+                    ForEach(audioFormat.allowedBitrates, id: \.self) { bitrate in
+                        Text("\(bitrate) kbps").tag(bitrate)
+                    }
+                } label: {
+                    Text("Bitrate").regular(13)
+                }
+                .onChange(of: audioFormat) { newFormat in
+                    if !newFormat.allowedBitrates.contains(audioBitrate) {
+                        audioBitrate = newFormat.defaultBitrate
+                    }
+                    // Remove the output format from the conversion set
+                    if let ut = newFormat.utType {
+                        formatsToConvertToOutputAudio.remove(ut)
+                    }
+                }
+            }
+            Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts selected formats to \(audioFormat.fileExtension) before optimisation")) {
+                HStack {
+                    (Text("Convert to ").regular(13) + Text(audioFormat.fileExtension).mono(13)).padding(.trailing, 10)
+                    Spacer()
+
+                    ForEach(ALL_AUDIO_CONVERTIBLE_FORMATS.filter { $0 != audioFormat.utType }, id: \.identifier) { format in
+                        Button(format.preferredFilenameExtension ?? format.identifier) {
+                            formatsToConvertToOutputAudio.toggle(format)
+                        }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToOutputAudio.contains(format) }))
+                            .font(.mono(11))
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
     }
 }
 
@@ -1437,6 +1520,9 @@ struct GeneralSettingsView: View {
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
+    @Default(.appendClipboardResults) var appendClipboardResults
+    @Default(.copyConsecutiveClipboardImages) var copyConsecutiveClipboardImages
+    @Default(.clipboardAccumulationTimeout) var clipboardAccumulationTimeout
     @Default(.stripMetadata) var stripMetadata
     @Default(.preserveColorMetadata) var preserveColorMetadata
     @Default(.preserveDates) var preserveDates
@@ -1481,6 +1567,34 @@ struct GeneralSettingsView: View {
                     Text("Optimise copied image files").regular(13)
                         + Text("\nCopying images from Finder results in file paths instead of image data.\nThis option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
+                Toggle(isOn: $appendClipboardResults) {
+                    Text("Keep all clipboard results").regular(13)
+                        + Text("\nShow each clipboard optimisation as a separate result instead of replacing the previous one").round(11, weight: .regular).foregroundColor(.secondary)
+                }.disabled(!enableClipboardOptimiser)
+                if appendClipboardResults {
+                    Toggle(isOn: $copyConsecutiveClipboardImages) {
+                        Text("Accumulate optimised images in clipboard").regular(13)
+                            + Text("\nEach new optimised image is added to a file list in the clipboard, so you can paste them all at once into image editor apps like Pixelmator or Affinity, or into notes").round(11, weight: .regular)
+                            .foregroundColor(.secondary)
+                    }
+                    .disabled(!enableClipboardOptimiser)
+                    .padding(.leading, 20)
+
+                    HStack {
+                        Text("Reset after").regular(13)
+                        Picker("", selection: $clipboardAccumulationTimeout) {
+                            Text("10 seconds").tag(10)
+                            Text("30 seconds").tag(30)
+                            Text("1 minute").tag(60)
+                            Text("2 minutes").tag(120)
+                            Text("5 minutes").tag(300)
+                            Text("Never").tag(0)
+                        }
+                        .frame(width: 140)
+                        Text("of inactivity").regular(13)
+                    }
+                    .padding(.leading, 20)
+                }
             }
 
             Section(header: SectionHeader(title: "Working directory", subtitle: "Where temporary files and backups are stored and where the optimised files are saved")) {
@@ -1490,6 +1604,11 @@ struct GeneralSettingsView: View {
                         .multilineTextAlignment(.center)
                         .font(.mono(12))
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Button("Reset") {
+                        workdir = Defaults.Keys.workdir.defaultValue
+                    }
+                    .buttonStyle(.bordered)
+                    .font(.regular(11))
                 }
 
                 Picker("Periodically cleanup files older than", selection: $workdirCleanupInterval) {
@@ -1527,7 +1646,7 @@ struct GeneralSettingsView: View {
                     Text("30 seconds").tag(30000)
                     Text("60 seconds").tag(60000)
                 } label: {
-                    Text("Re-optimisation protection window").regular(13)
+                    Text("Re-optimisation loop detection window").regular(13)
                         + Text("\nIncrease if files on iCloud Drive get optimised twice").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
@@ -1547,7 +1666,7 @@ let settingsViewManager = SettingsViewManager()
 
 struct SettingsView: View {
     enum Tabs: Int, Hashable {
-        case general, video, images, pdf, dropzone, floating, keys, automation, about
+        case general, video, audio, images, pdf, dropzone, floating, keys, automation, about
 
         var next: Tabs {
             Tabs(rawValue: rawValue + 1) ?? .general
@@ -1580,6 +1699,12 @@ struct SettingsView: View {
                     Label("Video", systemImage: "video")
                 }
                 .tag(Tabs.video)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            AudioSettingsView()
+                .tabItem {
+                    Label("Audio", systemImage: "waveform")
+                }
+                .tag(Tabs.audio)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             ImagesSettingsView()
                 .tabItem {

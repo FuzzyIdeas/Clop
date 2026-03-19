@@ -1,10 +1,12 @@
 import Defaults
 import Foundation
 import Lowtech
+import LowtechPro
+import os
 import SwiftUI
 import System
 
-import LowtechPro
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "CompactResult")
 
 struct CompactResult: View {
     static let improvementColor = Color(light: FloatingResult.darkBlue, dark: FloatingResult.yellow)

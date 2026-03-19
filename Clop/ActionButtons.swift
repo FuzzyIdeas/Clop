@@ -169,6 +169,21 @@ struct AggressiveOptimisationButton: View {
     }
 }
 
+struct VideoEncoderButton: View {
+    @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        Button(
+            action: {
+                guard !preview else { return }
+                optimiser.reoptimiseWithEncoder(.slowHighQuality)
+            },
+            label: { SwiftUI.Image(systemName: "bolt").font(.heavy(9)) }
+        )
+    }
+}
+
 struct SideButtons: View {
     @ObservedObject var optimiser: Optimiser
     var size: CGFloat
@@ -212,15 +227,26 @@ struct SideButtons: View {
                 )
                 .disabled(optimiser.url == nil || optimiser.running)
 
-            if !optimiser.aggressive, optimiser.canReoptimise() {
-                AggressiveOptimisationButton(optimiser: optimiser)
-                    .onHover { hoveringAggressiveOptimisationButton = $0 }
-                    .helpTag(
-                        isPresented: $hoveringAggressiveOptimisationButton,
-                        alignment: isTrailing ? .trailing : .leading,
-                        offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                        "Aggressive optimisation (⌘A)"
-                    )
+            if optimiser.canReoptimise() {
+                if optimiser.type.isVideo {
+                    VideoEncoderButton(optimiser: optimiser)
+                        .onHover { hoveringAggressiveOptimisationButton = $0 }
+                        .helpTag(
+                            isPresented: $hoveringAggressiveOptimisationButton,
+                            alignment: isTrailing ? .trailing : .leading,
+                            offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
+                            "Aggressive optimisation (⌘A)"
+                        )
+                } else if !optimiser.aggressive {
+                    AggressiveOptimisationButton(optimiser: optimiser)
+                        .onHover { hoveringAggressiveOptimisationButton = $0 }
+                        .helpTag(
+                            isPresented: $hoveringAggressiveOptimisationButton,
+                            alignment: isTrailing ? .trailing : .leading,
+                            offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
+                            "Aggressive optimisation (⌘A)"
+                        )
+                }
             }
         }
         .buttonStyle(FlatButton(color: .white.opacity(0.9), textColor: .black.opacity(0.7), width: size, height: size, circle: true))
@@ -281,11 +307,16 @@ struct ActionButtons: View {
                 .topHelpTag(isPresented: $hoveringRestoreOptimiseButton, optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)")
                 .disabled(optimiser.url == nil || optimiser.running)
 
-            if !optimiser.aggressive, optimiser.canReoptimise() {
-                AggressiveOptimisationButton(optimiser: optimiser)
-                    .onHover { hoveringAggressiveOptimisationButton = $0 }
-                    .topHelpTag(isPresented: $hoveringAggressiveOptimisationButton, "Aggressive optimisation (⌘A)")
-
+            if optimiser.canReoptimise() {
+                if optimiser.type.isVideo {
+                    VideoEncoderButton(optimiser: optimiser)
+                        .onHover { hoveringAggressiveOptimisationButton = $0 }
+                        .topHelpTag(isPresented: $hoveringAggressiveOptimisationButton, "Re-optimise for smallest size")
+                } else if !optimiser.aggressive {
+                    AggressiveOptimisationButton(optimiser: optimiser)
+                        .onHover { hoveringAggressiveOptimisationButton = $0 }
+                        .topHelpTag(isPresented: $hoveringAggressiveOptimisationButton, "Aggressive optimisation (⌘A)")
+                }
             }
 
             Divider().background(.secondary).frame(width: 10)

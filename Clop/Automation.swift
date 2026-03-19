@@ -1,8 +1,11 @@
 import Defaults
 import Foundation
 import Lowtech
+import os
 import SwiftUI
 import System
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Automation")
 
 extension Defaults.Keys {
     static let shortcutToRunOnImage = Key<[String: Shortcut]>("shortcutToRunOnImage", default: [:])

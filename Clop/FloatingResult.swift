@@ -9,8 +9,11 @@ import Defaults
 import Lowtech
 import LowtechIndie
 import LowtechPro
+import os
 import SwiftUI
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "FloatingResult")
 
 let FLOAT_MARGIN: CGFloat = 64
 
@@ -115,7 +118,7 @@ struct FloatingResultContainer: View {
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
 
     var shouldShowDropZone: Bool {
-        !isPreview && dragManager.showDropZone
+        !isPreview && dragManager.showDropZone && !dragManager.dropZoneAtCursor
     }
 
     var body: some View {
@@ -327,7 +330,11 @@ struct OnboardingFloatingPreview: View {
     }
 
     func button(format: UTType, ext: String) -> some View {
-        Button(ext.uppercased()) {
+        let onValue: ItemType = switch optimiser.type {
+        case .audio: .audio(format)
+        default: .image(format)
+        }
+        return Button(ext.uppercased()) {
             guard !preview, optimiser.type.utType != format else { return }
             optimiser.convert(to: format, optimise: true)
         }
@@ -340,7 +347,7 @@ struct OnboardingFloatingPreview: View {
             radius: 4,
             hoverColor: .pinkMauve,
             enumValue: optimiser.type,
-            onValue: ItemType.image(format)
+            onValue: onValue
         ))
 
     }
@@ -730,14 +737,18 @@ struct FloatingResult: View {
                         .onHover(perform: updateHover(_:))
                     }
                 } else {
-                    noThumbnailView
-                        .contentShape(Rectangle())
-                        .onHover(perform: updateHover(_:))
-                        .if(!optimiser.inRemoval) { view in
-                            view.contextMenu {
-                                RightClickMenuView(optimiser: optimiser)
+                    VStack(spacing: 4) {
+                        noThumbnailView
+                            .contentShape(Rectangle())
+                            .onHover(perform: updateHover(_:))
+                            .if(!optimiser.inRemoval) { view in
+                                view.contextMenu {
+                                    RightClickMenuView(optimiser: optimiser)
+                                }
                             }
-                        }
+                        FormatSelectorView(optimiser: optimiser)
+                            .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
+                    }
                 }
 
                 if hasThumbnail, hovering || optimiser.sharing {

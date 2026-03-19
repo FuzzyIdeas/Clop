@@ -17,13 +17,16 @@ extension UTType: Defaults.Serializable {}
 let FORMATS_CONVERTIBLE_TO_MP4: [UTType] = VIDEO_FORMATS.without([.mpeg4Movie])
 let FORMATS_CONVERTIBLE_TO_JPEG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let FORMATS_CONVERTIBLE_TO_PNG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
+let ALL_AUDIO_CONVERTIBLE_FORMATS: [UTType] = AUDIO_FORMATS
 
 let VIDEO_EXTENSIONS = VIDEO_FORMATS.compactMap(\.preferredFilenameExtension)
 let IMAGE_EXTENSIONS = IMAGE_FORMATS.compactMap(\.preferredFilenameExtension) + ["jpg"]
+let AUDIO_EXTENSIONS = AUDIO_FORMATS.compactMap(\.preferredFilenameExtension) + ["ogg", "opus"]
 
 let VIDEO_PASTEBOARD_TYPES = VIDEO_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
 let IMAGE_PASTEBOARD_TYPES = IMAGE_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
-let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PASTEBOARD_TYPES + VIDEO_PASTEBOARD_TYPES + [.fileContents]).set
+let AUDIO_PASTEBOARD_TYPES = AUDIO_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
+let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PASTEBOARD_TYPES + VIDEO_PASTEBOARD_TYPES + AUDIO_PASTEBOARD_TYPES + [.fileContents]).set
 
 let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x, .r, .f, .o, .comma, .u, .d]
 let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x, .r, .escape]
@@ -53,6 +56,8 @@ enum CleanupInterval: TimeInterval, Codable, Defaults.Serializable {
 }
 
 extension CropOrientation: Defaults.Serializable {}
+extension VideoEncoder: Defaults.Serializable {}
+extension AudioFormat: Defaults.Serializable {}
 
 extension Defaults.Keys {
     static let finishedOnboarding = Key<Bool>("finishedOnboarding", default: false)
@@ -74,6 +79,7 @@ extension Defaults.Keys {
     static let formatsToConvertToJPEG = Key<Set<UTType>>("formatsToConvertToJPEG", default: [UTType.webP, UTType.avif, UTType.heic, UTType.bmp].compactMap { $0 }.set)
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
     static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
+    static let formatsToConvertToOutputAudio = Key<Set<UTType>>("formatsToConvertToOutputAudio", default: [.wav, .aiff, .flac].compactMap { $0 }.set)
     static let convertedImageBehaviour = Key<ConvertedFileBehaviour>("convertedImageBehaviour", default: .sameFolder)
     static let convertedVideoBehaviour = Key<ConvertedFileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
 
@@ -94,6 +100,7 @@ extension Defaults.Keys {
     static let removeAudioFromVideos = Key<Bool>("removeAudioFromVideos", default: false)
     static let convertAudioToAAC = Key<Bool>("convertAudioToAAC", default: false)
 
+    static let videoEncoder = Key<VideoEncoder>("videoEncoder", default: .fast)
     #if arch(arm64)
         static let useCPUIntensiveEncoder = Key<Bool>("useCPUIntensiveEncoder", default: false)
     #endif
@@ -106,21 +113,35 @@ extension Defaults.Keys {
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
     static let pdfDirs = Key<[String]>("pdfDirs", default: [])
+    static let audioDirs = Key<[String]>("audioDirs", default: [])
     static let enableAutomaticImageOptimisations = Key<Bool>("enableAutomaticImageOptimisations", default: true)
     static let enableAutomaticVideoOptimisations = Key<Bool>("enableAutomaticVideoOptimisations", default: true)
     static let enableAutomaticPDFOptimisations = Key<Bool>("enableAutomaticPDFOptimisations", default: true)
+    static let enableAutomaticAudioOptimisations = Key<Bool>("enableAutomaticAudioOptimisations", default: false)
+
+    static let audioFormat = Key<AudioFormat>("audioFormat", default: .aac)
+    static let audioBitrate = Key<Int>("audioBitrate", default: 192)
+    static let optimisedAudioBehaviour = Key<OptimisedFileBehaviour>("optimisedAudioBehaviour", default: .inPlace)
+    static let sameFolderNameTemplateAudio = Key<String>("sameFolderNameTemplateAudio", default: "")
+    static let specificFolderNameTemplateAudio = Key<String>("specificFolderNameTemplateAudio", default: "")
 
     static let maxVideoSizeMB = Key<Int>("maxVideoSizeMB", default: 500)
     static let maxImageSizeMB = Key<Int>("maxImageSizeMB", default: 50)
     static let maxPDFSizeMB = Key<Int>("maxPDFSizeMB", default: 100)
+    static let maxAudioSizeMB = Key<Int>("maxAudioSizeMB", default: 100)
     static let maxVideoFileCount = Key<Int>("maxVideoFileCount", default: 1)
     static let maxImageFileCount = Key<Int>("maxImageFileCount", default: 4)
     static let maxPDFFileCount = Key<Int>("maxPDFFileCount", default: 2)
+    static let maxAudioFileCount = Key<Int>("maxAudioFileCount", default: 2)
     static let imageFormatsToSkip = Key<Set<UTType>>("imageFormatsToSkip", default: [.tiff])
     static let videoFormatsToSkip = Key<Set<UTType>>("videoFormatsToSkip", default: [UTType.mkv, UTType.m4v].compactMap { $0 }.set)
+    static let audioFormatsToSkip = Key<Set<UTType>>("audioFormatsToSkip", default: [])
     static let adaptiveVideoSize = Key<Bool>("adaptiveVideoSize", default: true)
     static let adaptiveImageSize = Key<Bool>("adaptiveImageSize", default: false)
     // static let downscaleRetinaImages = Key<Bool>("downscaleRetinaImages", default: false)
+    static let appendClipboardResults = Key<Bool>("appendClipboardResults", default: false)
+    static let copyConsecutiveClipboardImages = Key<Bool>("copyConsecutiveClipboardImages", default: true)
+    static let clipboardAccumulationTimeout = Key<Int>("clipboardAccumulationTimeout", default: 30)
     static let copyImageFilePath = Key<Bool>("copyImageFilePath", default: true)
     static let enablePhotosIntegration = Key<Bool>("enablePhotosIntegration", default: true)
     static let maxCopiedPhotosCount = Key<Int>("maxCopiedPhotosCount", default: 5)
@@ -232,8 +253,18 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .formatsToConvertToJPEG,
     .formatsToConvertToMP4,
     .formatsToConvertToPNG,
+    .formatsToConvertToOutputAudio,
     .imageDirs,
     .imageFormatsToSkip,
+    .appendClipboardResults,
+    .audioBitrate,
+    .audioDirs,
+    .audioFormat,
+    .audioFormatsToSkip,
+    .enableAutomaticAudioOptimisations,
+    .maxAudioFileCount,
+    .maxAudioSizeMB,
+    .optimisedAudioBehaviour,
     .keyComboModifiers,
     .enablePhotosIntegration,
     .maxImageFileCount,
@@ -279,6 +310,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .useAggressiveOptimisationMP4,
     .useAggressiveOptimisationPDF,
     .useAggressiveOptimisationPNG,
+    .videoEncoder,
     .useCustomNameTemplateForClipboardImages,
     .videoDirs,
     .videoFormatsToSkip,

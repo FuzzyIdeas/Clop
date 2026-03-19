@@ -124,8 +124,50 @@ if [ -n "$FFMPEG" ]; then
             sample.gif 2>/dev/null
         echo "Created sample.gif"
     fi
+    # WAV: 2s 440Hz sine, 16-bit PCM
+    if [ ! -f sample.wav ]; then
+        "$FFMPEG" -y -f lavfi -i "sine=frequency=440:duration=2" \
+            -c:a pcm_s16le sample.wav 2>/dev/null
+        echo "Created sample.wav"
+    fi
+
+    # FLAC: 2s 440Hz sine
+    if [ ! -f sample.flac ]; then
+        "$FFMPEG" -y -f lavfi -i "sine=frequency=440:duration=2" \
+            -c:a flac sample.flac 2>/dev/null
+        echo "Created sample.flac"
+    fi
+
+    # AIFF: 2s 440Hz sine
+    if [ ! -f sample.aiff ]; then
+        "$FFMPEG" -y -f lavfi -i "sine=frequency=440:duration=2" \
+            -c:a pcm_s16be sample.aiff 2>/dev/null
+        echo "Created sample.aiff"
+    fi
+
+    # MP3: 2s 440Hz sine at 320kbps (high bitrate for optimisation testing)
+    if [ ! -f sample.mp3 ]; then
+        "$FFMPEG" -y -f lavfi -i "sine=frequency=440:duration=2" \
+            -c:a libmp3lame -b:a 320k sample.mp3 2>/dev/null
+        echo "Created sample.mp3"
+    fi
+
+    # M4A (AAC): 2s 440Hz sine at 256kbps
+    if [ ! -f sample.m4a ]; then
+        "$FFMPEG" -y -f lavfi -i "sine=frequency=440:duration=2" \
+            -c:a aac -b:a 256k sample.m4a 2>/dev/null
+        echo "Created sample.m4a"
+    fi
+
+    # OGG (Opus): 2s 440Hz sine at 128kbps
+    if [ ! -f sample.ogg ]; then
+        "$FFMPEG" -y -f lavfi -i "sine=frequency=440:duration=2" \
+            -c:a libopus -b:a 128k sample.ogg 2>/dev/null
+        echo "Created sample.ogg"
+    fi
 else
     echo "SKIP: video fixtures (no ffmpeg found)"
+    echo "SKIP: audio fixtures (no ffmpeg found)"
 fi
 
 # --- PDF: 3 pages with colored rectangles ---

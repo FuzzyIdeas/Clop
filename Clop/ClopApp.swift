@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+import Atomics
 import Cocoa
 import Combine
 import Defaults
@@ -14,6 +15,7 @@ import Foundation
 import Lowtech
 import LowtechIndie
 import LowtechPro
+import os
 import Sentry
 import ServiceManagement
 import System
@@ -21,6 +23,8 @@ import UniformTypeIdentifiers
 #if !PREVIEW
     import Ignore
 #endif
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ClopApp")
 
 var pauseForNextClipboardEvent = false
 
@@ -112,6 +116,7 @@ class AppDelegate: AppDelegateParent {
     var videoWatcher: FileOptimisationWatcher?
     var imageWatcher: FileOptimisationWatcher?
     var pdfWatcher: FileOptimisationWatcher?
+    var audioWatcher: FileOptimisationWatcher?
 
     @MainActor var swipeEnded = true
 
@@ -160,12 +165,12 @@ class AppDelegate: AppDelegateParent {
             }
 
             if types.contains(.fileURL), let url = item.string(forType: .fileURL)?.url,
-               let path = url.existingFilePath, path.isImage || path.isVideo || path.isPDF
+               let path = url.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF
             {
                 return .file(path)
             }
 
-            if let str = item.string(forType: .string), let path = str.existingFilePath, path.isImage || path.isVideo || path.isPDF {
+            if let str = item.string(forType: .string), let path = str.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF {
                 return .file(path)
             }
 
@@ -419,6 +424,9 @@ class AppDelegate: AppDelegateParent {
 
     static func handleOptimisationRequest(_ req: OptimisationRequest) -> Data? {
         log.debug("Handling optimisation request: \(req.jsonString)")
+
+        activeCLIRequests.wrappingIncrement(ordering: .relaxed)
+        defer { activeCLIRequests.wrappingDecrement(ordering: .relaxed) }
 
         let sem = DispatchSemaphore(value: 0)
         var resp: [OptimisationResponse] = []
@@ -854,6 +862,21 @@ class AppDelegate: AppDelegateParent {
                 let _ = try? await runPDFPipeline(PDF(path), actions: [.optimise], debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
             }
         }
+        audioWatcher = FileOptimisationWatcher(
+            pathsKey: .audioDirs,
+            enabledKey: .enableAutomaticAudioOptimisations,
+            maxFilesToHandleKey: .maxAudioFileCount,
+            fileType: .audio,
+            shouldHandle: shouldHandleAudio(event:),
+            cancel: cancelAudioOptimisation(path:)
+        ) { path in
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+                return
+            }
+            Task.init {
+                let _ = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], debounceMS: debounceMS, source: Defaults[.audioDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+            }
+        }
 
         if Defaults[.enableClipboardOptimiser], !Defaults[.pauseAutomaticOptimisations] {
             initClipboardOptimiser()
@@ -898,6 +921,16 @@ class AppDelegate: AppDelegateParent {
                     return
                 }
                 if item.existingFilePath?.isPDF ?? false {
+                    return
+                }
+                if let path = item.existingFilePath, path.isAudio, !path.hasOptimisationStatusXattr() {
+                    let ignore = Defaults[.audioFormatsToSkip]
+                    if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
+                        return
+                    }
+                    Task.init {
+                        let _ = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], source: .clipboard)
+                    }
                     return
                 }
                 if item.types.contains(.photosReferenceAsset) {
@@ -945,6 +978,7 @@ extension NSPasteboardItem {
 enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
     case image
     case video
+    case audio
     case pdf
 
     var defaultNameTemplatePath: FilePath {
@@ -953,6 +987,8 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             "~/Desktop/shot.png".filePath!
         case .video:
             "~/Desktop/rec.mp4".filePath!
+        case .audio:
+            "~/Desktop/rec.m4a".filePath!
         case .pdf:
             "~/Desktop/doc.pdf".filePath!
         }
@@ -964,6 +1000,8 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             .optimisedImageBehaviour
         case .video:
             .optimisedVideoBehaviour
+        case .audio:
+            .optimisedAudioBehaviour
         case .pdf:
             .optimisedPDFBehaviour
         }
@@ -975,6 +1013,8 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             .sameFolderNameTemplateImage
         case .video:
             .sameFolderNameTemplateVideo
+        case .audio:
+            .sameFolderNameTemplateAudio
         case .pdf:
             .sameFolderNameTemplatePDF
         }
@@ -986,6 +1026,8 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             .specificFolderNameTemplateImage
         case .video:
             .specificFolderNameTemplateVideo
+        case .audio:
+            .specificFolderNameTemplateAudio
         case .pdf:
             .specificFolderNameTemplatePDF
         }
@@ -1001,6 +1043,8 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             "image"
         case .video:
             "video"
+        case .audio:
+            "audio"
         case .pdf:
             "PDF"
         }
@@ -1015,6 +1059,8 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             .images
         case .video:
             .video
+        case .audio:
+            .audio
         case .pdf:
             .pdf
         }
@@ -1026,6 +1072,8 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             "photo"
         case .video:
             "film"
+        case .audio:
+            "waveform"
         case .pdf:
             "doc"
         }
@@ -1261,7 +1309,7 @@ class FileOptimisationWatcher {
             }
             watching = true
         } catch {
-            log.error("Failed to start watching \(fileType.rawValue) folders: \(error)")
+            log.error("Failed to start watching \(self.fileType.rawValue) folders: \(error)")
             return
         }
     }
@@ -1284,7 +1332,7 @@ class FileOptimisationWatcher {
 
             guard justAddedFiles.count <= maxFilesToHandle else {
                 let notice = "More than \(maxFilesToHandle) \(fileType.rawValue)s appeared in the\n`\(justAddedFiles.first!.path.filePath?.dir.shellString ?? "folder")`, ignoring…"
-                log.debug(notice)
+                log.debug("\(notice)")
                 showNotice(notice)
                 for path in justAddedFiles.compactMap(\.path.existingFilePath).set.subtracting(cancelledFiles) {
                     log.debug("Cancelling optimisation on \(path)")
@@ -1307,7 +1355,7 @@ class FileOptimisationWatcher {
         await Self.waitForModificationDateToSettle(event.path)
 
         if pauseForNextClipboardEvent {
-            log.debug("Skipping \(fileType.description) \(event.path) because Clop was paused")
+            log.debug("Skipping \(self.fileType.description) \(event.path) because Clop was paused")
             pauseForNextClipboardEvent = false
             return
         }
@@ -1315,7 +1363,7 @@ class FileOptimisationWatcher {
         do {
             try await process(event: event)
         } catch {
-            log.error("Failed to process \(fileType.rawValue) \(event.path) file event: \(error)")
+            log.error("Failed to process \(self.fileType.rawValue) \(event.path) file event: \(error)")
         }
     }
 
@@ -1325,7 +1373,7 @@ class FileOptimisationWatcher {
         }
 
         guard justAddedFiles.count <= 5 else {
-            log.warning("More than 5 file events on first launch (\(justAddedFiles.count))")
+            log.warning("More than 5 file events on first launch (\(self.justAddedFiles.count))")
 
             addedFilesProcessor = nil
             enabled = false
@@ -1433,6 +1481,7 @@ class FileOptimisationWatcher {
 }
 
 let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
+let cursorDropZoneWindow = OSDWindow(swiftuiView: DropZoneView().any, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
 var clipboardWatcher: Timer?
 var pbChangeCount = NSPasteboard.general.changeCount
 let THUMB_SIZE = CGSize(width: 300, height: 220)
@@ -1554,7 +1603,7 @@ extension NSFilePromiseReceiver {
         guard let exc else {
             return
         }
-        log.error(exc.description)
+        log.error("\(exc.description)")
     }
 }
 

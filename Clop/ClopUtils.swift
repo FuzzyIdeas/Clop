@@ -8,7 +8,10 @@
 import Defaults
 import Foundation
 import Lowtech
+import os
 import System
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ClopUtils")
 
 func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: String]? = nil, out: Pipe? = nil, err: Pipe? = nil) -> Process? {
     let outputDir = FilePath.processLogs.appending("\(launchPath) \(args)".safeFilename)
@@ -136,6 +139,7 @@ extension URL {
     var isImage: Bool { hasExtension(from: IMAGE_EXTENSIONS) }
     var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
     var isPDF: Bool { hasExtension(from: ["pdf"]) }
+    var isAudio: Bool { hasExtension(from: AUDIO_EXTENSIONS) }
 
     func hasExtension(from exts: [String]) -> Bool {
         exts.contains((pathExtension.split(separator: "@").last?.s ?? pathExtension).lowercased())
@@ -147,6 +151,7 @@ extension FilePath {
     var isImage: Bool { hasExtension(from: IMAGE_EXTENSIONS) }
     var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
     var isPDF: Bool { hasExtension(from: ["pdf"]) }
+    var isAudio: Bool { hasExtension(from: AUDIO_EXTENSIONS) }
 
     static var workdir = FilePath.dir(Defaults[.workdir], permissions: 0o755) {
         didSet {
@@ -167,6 +172,7 @@ extension FilePath {
     static var videos: FilePath { FilePath.dir(workdir / "videos", permissions: 0o755) }
     static var images: FilePath { FilePath.dir(workdir / "images", permissions: 0o755) }
     static var pdfs: FilePath { FilePath.dir(workdir / "pdfs", permissions: 0o755) }
+    static var audios: FilePath { FilePath.dir(workdir / "audios", permissions: 0o755) }
     static var conversions: FilePath { FilePath.dir(workdir / "conversions", permissions: 0o755) }
     static var downloads: FilePath { FilePath.dir(workdir / "downloads", permissions: 0o755) }
     static var forResize: FilePath { FilePath.dir(workdir / "for-resize", permissions: 0o755) }
@@ -212,7 +218,7 @@ extension FilePath {
         _ = try? tempFile.move(to: self, force: true)
 
         #if DEBUG
-            log.debug(args.joined(separator: " "))
+            log.debug("\(args.joined(separator: " "))")
             log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
         #endif
     }
@@ -279,7 +285,7 @@ extension FilePath {
             + tagsToKeep
             + [string]
 
-        log.debug(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))
+        log.debug("\(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))")
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
         log.debug("\tout: \"\(exifProc.o ?? "")\" err: \"\(exifProc.e ?? "")\"")
     }

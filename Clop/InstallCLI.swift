@@ -1,7 +1,10 @@
 import Defaults
 import Foundation
 import Lowtech
+import os
 import System
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "InstallCLI")
 
 struct InstallCLIError: Error {
     let message: String

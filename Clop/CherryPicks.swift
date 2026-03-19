@@ -7,7 +7,10 @@
 
 import Cocoa
 import Foundation
+import os
 import System
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "CherryPicks")
 
 class LocalMachPort {
     init(portLocation: String) {
@@ -60,12 +63,12 @@ class LocalMachPort {
         guard let port = CFMessagePortCreateRemote(nil, portLocation) else {
             semaphore.signal()
             let err = "Could not create port \(portLocation!)"
-            log.error(err)
+            log.error("\(err)")
             throw err.err
         }
         semaphore.signal()
 
-        log.debug("Sending \(data?.s ?? String(describing: data)) to port \(portLocation!)")
+        log.debug("Sending \(data?.s ?? String(describing: data)) to port \(self.portLocation!)")
         var returnData: Unmanaged<CFData>?
         let err = CFMessagePortSendRequest(
             port, Int32.random(in: 1 ... 100_000),
@@ -74,7 +77,7 @@ class LocalMachPort {
         )
         guard err == KERN_SUCCESS else {
             let err = "Could not send data to port \(portLocation!) (error: \(err))"
-            log.error(err)
+            log.error("\(err)")
             throw err.err
         }
 
