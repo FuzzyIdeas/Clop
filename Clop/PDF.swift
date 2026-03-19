@@ -2,9 +2,12 @@ import Cocoa
 import Defaults
 import Foundation
 import Lowtech
+import os
 import PDFKit
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDF")
 
 var GS = BIN_DIR.appendingPathComponent("gs").filePath!
 
@@ -184,6 +187,8 @@ class PDF: Optimisable {
     lazy var size: NSSize? = document?.page(at: 1)?.bounds(for: .cropBox).size
     lazy var originalSize: NSSize? = document?.page(at: 1)?.bounds(for: .mediaBox).size
 
+    var pageCount: Int { document?.pageCount ?? 0 }
+
     @discardableResult
     func uncrop(saveTo newPath: FilePath? = nil) -> Bool {
         guard let document, !document.isEncrypted else {
@@ -240,6 +245,33 @@ class PDF: Optimisable {
         }
 
         return PDF(path)
+    }
+
+    func renderPage(pageIndex: Int, format: NSBitmapImageRep.FileType = .jpeg, scale: CGFloat = 2.0) -> Data? {
+        guard let page = document?.page(at: pageIndex) else { return nil }
+        let bounds = page.bounds(for: .cropBox)
+        let scaledSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+
+        let image = NSImage(size: scaledSize)
+        image.lockFocus()
+        guard let ctx = NSGraphicsContext.current?.cgContext else {
+            image.unlockFocus()
+            return nil
+        }
+        if format == .jpeg {
+            ctx.setFillColor(NSColor.white.cgColor)
+            ctx.fill(CGRect(origin: .zero, size: scaledSize))
+        }
+        ctx.scaleBy(x: scale, y: scale)
+        page.draw(with: .cropBox, to: ctx)
+        image.unlockFocus()
+
+        guard let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff)
+        else { return nil }
+
+        let properties: [NSBitmapImageRep.PropertyKey: Any] = format == .jpeg ? [.compressionFactor: 0.9] : [:]
+        return bitmap.representation(using: format, properties: properties)
     }
 }
 

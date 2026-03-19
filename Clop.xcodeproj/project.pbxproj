@@ -82,6 +82,8 @@
 		C72DECB52F38E34C00523058 /* ErrorReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72DECB32F38E34C00523058 /* ErrorReports.swift */; };
 		C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */; };
 		C7333E472A98C90500B1D5BE /* PDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7333E462A98C90500B1D5BE /* PDF.swift */; };
+				2C5A7A735E2586ECE5A24B90 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5276E40C1D01E9E4A8E4C786 /* Audio.swift */; };
+				BFE2FE699D01576B12A4CA0A /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5276E40C1D01E9E4A8E4C786 /* Audio.swift */; };
 		C733B3D22A50789C002A0585 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
 		C735DA022B021D6E001DCAA8 /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C735DA012B021D6E001DCAA8 /* Migrations.swift */; };
 		C736FAA52CFFA5710024EF71 /* Crop PDF for reading on iPad Air.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C736FAA32CFFA5710024EF71 /* Crop PDF for reading on iPad Air.shortcut */; };
@@ -144,6 +146,7 @@
 		DE7E3604A6513C84E7CB65AE /* FileNameTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BC883625FF464EA5E098363 /* FileNameTemplateTests.swift */; };
 		EA5F1F5E385A1423C141117E /* PipelineActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECFA84501B2CC8E38AACDCC7 /* PipelineActionTests.swift */; };
 		EBCDE68B70923D7BBF1C9859 /* VideoPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5372943A3A178D4868755497 /* VideoPipelineTests.swift */; };
+		A1B2C3D4E5F60718A9B0C1D2 /* AudioPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -249,6 +252,7 @@
 		4C553E14C861CB9B4B10A541 /* TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHelpers.swift; sourceTree = "<group>"; };
 		4DAB239A4DEAF258BBC22B78 /* GSArgsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GSArgsTests.swift; sourceTree = "<group>"; };
 		5372943A3A178D4868755497 /* VideoPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPipelineTests.swift; sourceTree = "<group>"; };
+		F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPipelineTests.swift; sourceTree = "<group>"; };
 		72793A44E4B08A45C10BA81A /* ImagePipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePipelineTests.swift; sourceTree = "<group>"; };
 		7BC883625FF464EA5E098363 /* FileNameTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNameTemplateTests.swift; sourceTree = "<group>"; };
 		9166F77AD002469161ACA9FC /* TestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFixtures.swift; sourceTree = "<group>"; };
@@ -271,6 +275,7 @@
 		C72DECB32F38E34C00523058 /* ErrorReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorReports.swift; sourceTree = "<group>"; };
 		C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload to Backblaze.shortcut"; sourceTree = "<group>"; };
 		C7333E462A98C90500B1D5BE /* PDF.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PDF.swift; sourceTree = "<group>"; };
+				5276E40C1D01E9E4A8E4C786 /* Audio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
 		C733B3D12A50789C002A0585 /* Video.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
 		C735DA012B021D6E001DCAA8 /* Migrations.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
 		C736FAA12CFFA5710024EF71 /* Convert to WEBP.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Convert to WEBP.shortcut"; sourceTree = "<group>"; };
@@ -406,6 +411,7 @@
 				D8BC38B4958FBA426FB43BA5 /* BackupTests.swift */,
 				72793A44E4B08A45C10BA81A /* ImagePipelineTests.swift */,
 				5372943A3A178D4868755497 /* VideoPipelineTests.swift */,
+				F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */,
 				2FFE276D9767458155E70560 /* PDFPipelineTests.swift */,
 				08425CBD34F73EE63CCA9300 /* CombinationTests.swift */,
 			);
@@ -510,6 +516,7 @@
 				C7760AC22A5FF89B00851F8C /* Settings.swift */,
 				C7760AB72A5C854600851F8C /* SettingsView.swift */,
 				C78C62602ADEB3E7000519D0 /* Uploads.swift */,
+				5276E40C1D01E9E4A8E4C786 /* Audio.swift */,
 				C733B3D12A50789C002A0585 /* Video.swift */,
 				C78211082A5B21A4008DB106 /* Xattr.swift */,
 				C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */,
@@ -825,6 +832,7 @@
 				CBDC8ACBAB1062E5183F9E57 /* BackupTests.swift in Sources */,
 				C3CF8A4CC74724DB2B381FD4 /* ImagePipelineTests.swift in Sources */,
 				EBCDE68B70923D7BBF1C9859 /* VideoPipelineTests.swift in Sources */,
+				A1B2C3D4E5F60718A9B0C1D2 /* AudioPipelineTests.swift in Sources */,
 				4A7EE0E66872DBF4C030C09F /* PDFPipelineTests.swift in Sources */,
 				C2D5084A7DFF66C39557C9ED /* CombinationTests.swift in Sources */,
 			);
@@ -865,6 +873,7 @@
 				C71AAAF72D2D8AB200CA86D9 /* SettingsView.swift in Sources */,
 				C71AAAF82D2D8AB200CA86D9 /* CompareView.swift in Sources */,
 				C71AAAF92D2D8AB200CA86D9 /* Video.swift in Sources */,
+				BFE2FE699D01576B12A4CA0A /* Audio.swift in Sources */,
 				C71AAAFA2D2D8AB200CA86D9 /* ActionButtons.swift in Sources */,
 				C71AAAFB2D2D8AB200CA86D9 /* ResolutionField.swift in Sources */,
 				C71AAAFC2D2D8AB200CA86D9 /* InstallCLI.swift in Sources */,
@@ -916,6 +925,7 @@
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
 				C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */,
 				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
+				2C5A7A735E2586ECE5A24B90 /* Audio.swift in Sources */,
 				C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */,
 				C78B2A022AD1F02E00B6A19B /* ResolutionField.swift in Sources */,
 				C78B29FF2AD0826F00B6A19B /* InstallCLI.swift in Sources */,

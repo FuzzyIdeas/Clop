@@ -8,8 +8,11 @@
 import Cocoa
 import Combine
 import Foundation
+import os
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ActionRequestHandler")
 
 extension NSExtensionContext: @retroactive @unchecked Sendable {}
 extension NSItemProvider: @retroactive @unchecked Sendable {}
@@ -46,7 +49,7 @@ class ActionRequestHandler: NSObject, NSExtensionRequestHandling {
         requestSender = RequestSender(context: context, attachmentsToProcess: attachments.count)
 
         for attachment in attachments {
-            guard let type = attachment.registeredContentTypes.first, type.isSubtype(of: .image) || type.isSubtype(of: .movie) || type.isSubtype(of: .video) || type == .pdf else {
+            guard let type = attachment.registeredContentTypes.first, type.isSubtype(of: .image) || type.isSubtype(of: .movie) || type.isSubtype(of: .video) || type.isSubtype(of: .audio) || type == .pdf else {
                 Task.init { await self.requestSender.skipAttachment(attachment) }
                 continue
             }
@@ -119,7 +122,7 @@ actor RequestSender {
     private var observers: [AnyCancellable] = []
 
     func complete() {
-        log.debug("Completing request with \(outputAttachments.count) attachments")
+        log.debug("Completing request with \(self.outputAttachments.count) attachments")
 
         let outputItem = NSExtensionItem()
         outputItem.attachments = outputAttachments
@@ -242,7 +245,7 @@ actor RequestSender {
         guard !sent else { return }
         sent = true
 
-        log.debug("Sending optimisation request with \(urls.count) urls")
+        log.debug("Sending optimisation request with \(self.urls.count) urls")
         let req = OptimisationRequest(
             id: String(Int.random(in: 1000 ... 100_000)),
             urls: urls.compactMap { $0 },
@@ -259,7 +262,7 @@ actor RequestSender {
         do {
             try OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
             context.cancelRequest(withError: error)
             return
         }

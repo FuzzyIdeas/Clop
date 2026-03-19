@@ -52,7 +52,7 @@ struct DropZoneDemoAnimationView: View {
                     image.offset(Self.INITIAL_OFFSET)
                     imageFileWithCursor.offset(draggedFileOffset)
                 }
-                DropZoneView(blurredBackground: false).padding(.horizontal, -20)
+                DropZoneView().padding(.horizontal, -20)
             }
             Text("Drag files into the **drop zone** at\nthe **bottom right** corner of your screen")
                 .multilineTextAlignment(.center)

@@ -7,8 +7,11 @@
 
 import Cocoa
 import Foundation
+import os
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Optimisable")
 
 class Optimisable {
     required init(_ path: FilePath, thumb: Bool = true, id: String? = nil) {
@@ -43,7 +46,7 @@ class Optimisable {
     @MainActor func fetchThumbnail() {
         var url = path.url
         if let thumbURL = THUMBNAIL_URLS[url] {
-            log.debug("Using cached thumbnail from \(thumbURL.path) for \(path.string)")
+            log.debug("Using cached thumbnail from \(thumbURL.path) for \(self.path.string)")
             url = thumbURL
         }
         generateThumbnail(for: url, size: THUMB_SIZE) { [url, id, path] thumb in

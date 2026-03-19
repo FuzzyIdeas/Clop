@@ -4,8 +4,11 @@ import CoreTransferable
 import Defaults
 import Foundation
 import Lowtech
+import os
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Video")
 
 var FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").filePath!
 var GIFSKI = BIN_DIR.appendingPathComponent("gifski").filePath!
@@ -88,7 +91,7 @@ class Video: Optimisable {
     #endif
 
     func convertToGIF(optimiser: Optimiser, maxWidth: Int, fps: Int) throws -> Image {
-        log.debug("Converting video \(path.string) to GIF")
+        log.debug("Converting video \(self.path.string) to GIF")
         let tempDir = URL.temporaryDirectory.appendingPathComponent("\(path.stem!)_gif_pngs").filePath!
         tempDir.mkdir(withIntermediateDirectories: true)
 
@@ -208,9 +211,9 @@ class Video: Optimisable {
         aggressiveOptimisation: Bool? = nil,
         removeAudio: Bool? = nil
     ) throws -> Video {
-        log.debug("Optimising video \(path.string)")
+        log.debug("Optimising video \(self.path.string)")
         guard let name = path.lastComponent else {
-            log.error("No file name for path: \(path)")
+            log.error("No file name for path: \(self.path)")
             throw ClopError.fileNotFound(path)
         }
 
@@ -250,15 +253,26 @@ class Video: Optimisable {
         let duration = duration
         let audioRemoved = removeAudio ?? Defaults[.removeAudioFromVideos]
         let convertAudioToAAC = Defaults[.convertAudioToAAC]
-        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationMP4]
+        let encoder = Defaults[.videoEncoder]
+        let aggressive = aggressiveOptimisation ?? (encoder == .slowHighQuality)
         mainActor { optimiser.aggressive = aggressive }
-        #if arch(arm64)
-            let encoderArgs = useAggressiveOptimisation(aggressiveSetting: aggressiveOptimisation ?? false)
-                ? ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower"] : [])
-                : ["-vcodec", "h264_videotoolbox", "-q:v", "45", "-tag:v", "avc1"]
-        #else
-            let encoderArgs = ["-vcodec", "h264", "-tag:v", "avc1"] + (aggressive ? ["-preset", "slower"] : [])
-        #endif
+        let encoderArgs: [String] = {
+            #if arch(arm64)
+                let useFastEncoder = encoder == .fast && aggressiveOptimisation != true
+                let useAdaptiveFast = encoder != .fast && Defaults[.adaptiveVideoSize] && !useAggressiveOptimisation(aggressiveSetting: aggressiveOptimisation ?? false)
+                if useFastEncoder || useAdaptiveFast {
+                    return ["-vcodec", "h264_videotoolbox", "-q:v", "45", "-tag:v", "avc1"]
+                }
+            #endif
+            switch (aggressiveOptimisation == true) ? .slowHighQuality : encoder {
+            case .fast:
+                return ["-vcodec", "h264", "-tag:v", "avc1"]
+            case .slowHighQuality:
+                return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "slower"]
+            case .visuallyLossless:
+                return ["-vcodec", "h264", "-tag:v", "avc1", "-crf", "17"]
+            }
+        }()
         let audioArgs: [String] = if audioRemoved {
             ["-an"]
         } else if convertAudioToAAC {
@@ -475,7 +489,7 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
         for line in lines where line.trimmed.isNotEmpty {
             guard line.starts(with: "out_time_us="), let time = Int64(line.suffix(line.count - 12)), time > 0 else {
                 if !FFMPEG_IGNORE_LINES.contains(where: line.starts(with:)) {
-                    log.verbose("FFmpeg: \(line)")
+                    log.trace("FFmpeg: \(line)")
                 }
                 continue
             }

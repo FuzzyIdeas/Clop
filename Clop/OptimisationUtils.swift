@@ -8,13 +8,17 @@
 import Defaults
 import Foundation
 import Lowtech
+import os
 import QuickLookUI
 import SwiftUI
 import System
 
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "OptimisationUtils")
+
 enum ItemType: Equatable, Identifiable {
     case image(UTType)
     case video(UTType)
+    case audio(UTType)
     case pdf
     case url
     case unknown
@@ -24,6 +28,8 @@ enum ItemType: Equatable, Identifiable {
         case let .image(utType):
             utType.identifier
         case let .video(utType):
+            utType.identifier
+        case let .audio(utType):
             utType.identifier
         case .pdf:
             "pdf"
@@ -38,6 +44,8 @@ enum ItemType: Equatable, Identifiable {
         switch self {
         case .image:
             [.jpeg, .webP, .avif, .heic, .png, .gif].compactMap { $0 }
+        case .audio:
+            [.m4a, .mp3, .oggAudio].compactMap { $0 }
         default:
             []
         }
@@ -49,6 +57,8 @@ enum ItemType: Equatable, Identifiable {
             "image"
         case .video:
             "video"
+        case .audio:
+            "audio"
         case .pdf:
             "PDF"
         case .url:
@@ -64,6 +74,8 @@ enum ItemType: Equatable, Identifiable {
             "photo"
         case .video:
             "film"
+        case .audio:
+            "waveform"
         case .pdf:
             "doc.text"
         case .url:
@@ -78,6 +90,8 @@ enum ItemType: Equatable, Identifiable {
         case let .image(uTType):
             uTType.preferredFilenameExtension
         case let .video(uTType):
+            uTType.preferredFilenameExtension
+        case let .audio(uTType):
             uTType.preferredFilenameExtension
         case .pdf:
             "pdf"
@@ -100,6 +114,15 @@ enum ItemType: Equatable, Identifiable {
     var isVideo: Bool {
         switch self {
         case .video:
+            true
+        default:
+            false
+        }
+    }
+
+    var isAudio: Bool {
+        switch self {
+        case .audio:
             true
         default:
             false
@@ -130,6 +153,8 @@ enum ItemType: Equatable, Identifiable {
             utType
         case let .video(utType):
             utType
+        case let .audio(utType):
+            utType
         case .pdf:
             .pdf
         case .url:
@@ -147,9 +172,7 @@ enum ItemType: Equatable, Identifiable {
             .shortcutToRunOnVideo
         case .pdf:
             .shortcutToRunOnPdf
-        case .url:
-            nil
-        case .unknown:
+        default:
             nil
         }
     }
@@ -159,6 +182,8 @@ enum ItemType: Equatable, Identifiable {
         case let .image(utType):
             utType.pasteboardType
         case let .video(utType):
+            utType.pasteboardType
+        case let .audio(utType):
             utType.pasteboardType
         case .pdf:
             .pdf
@@ -175,6 +200,8 @@ enum ItemType: Equatable, Identifiable {
             .image(UTType(mimeType: mimeType)!)
         case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg":
             .video(UTType(mimeType: mimeType)!)
+        case "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/x-wav", "audio/aiff", "audio/x-aiff", "audio/flac", "audio/ogg", "audio/opus":
+            .audio(UTType(mimeType: mimeType) ?? .mp3)
         case "application/pdf":
             .pdf
         case "text/html":
@@ -193,6 +220,8 @@ enum ItemType: Equatable, Identifiable {
             return .image(UTType(mimeType: fileType)!)
         case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg", "video/webm":
             return .video(UTType(mimeType: fileType)!)
+        case "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/x-wav", "audio/aiff", "audio/x-aiff", "audio/flac", "audio/ogg", "audio/opus":
+            return .audio(UTType(mimeType: fileType) ?? .mp3)
         case "application/pdf":
             return .pdf
         case "text/html":
@@ -287,6 +316,22 @@ var hoveredOptimiserID: String? {
 @MainActor var lastDropzoneModifierFlags: NSEvent.ModifierFlags = []
 @MainActor var possibleOptionDropzone = true
 
+@MainActor func handleOptionToggleDropZone() {
+    if DM.dropZoneAtCursor {
+        // Cursor drop zone is visible: hide it
+        DM.showDropZone = false
+    } else if DM.showDropZone {
+        // Corner drop zone is visible: hide it and show at cursor instead
+        DM.showDropZone = false
+        DM.dropZoneAtCursor = true
+        DM.showDropZone = true
+    } else {
+        // Not visible: show at cursor
+        DM.dropZoneAtCursor = true
+        DM.showDropZone = true
+    }
+}
+
 @MainActor var dropZoneKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
     let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
     defer {
@@ -301,7 +346,7 @@ var hoveredOptimiserID: String? {
     }
 
     if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
-        DM.showDropZone.toggle()
+        handleOptionToggleDropZone()
     }
 }
 @MainActor var dropZoneKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
@@ -318,7 +363,7 @@ var hoveredOptimiserID: String? {
     }
 
     if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
-        DM.showDropZone.toggle()
+        handleOptionToggleDropZone()
         return nil
     }
     return event
@@ -505,6 +550,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
     lazy var image: Image? = fetchImage()
     lazy var video: Video? = fetchVideo()
     lazy var pdf: PDF? = fetchPDF()
+    lazy var audio: Audio? = fetchAudio()
 
     var comparisonWindowController: NSWindowController?
 
@@ -516,6 +562,8 @@ final class QuickLooker: QLPreviewPanelDataSource {
             .image
         case .video:
             .video
+        case .audio:
+            .audio
         case .pdf:
             .pdf
         default:
@@ -609,7 +657,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     @Published var url: URL? {
         didSet {
-            log.debug("URL set to \(url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
+            log.debug("URL set to \(self.url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
             if startingURL == nil {
                 startingURL = url
             }
@@ -681,6 +729,31 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     self.finish(oldBytes: self.oldBytes, newBytes: converted.data.count, oldSize: self.oldSize, newSize: converted.size, removeAfterMs: self.lastRemoveAfterMs)
                 }
             }
+        case .audio:
+            guard let audio = self.audio else { return }
+            guard let format = AudioFormat.allCases.first(where: { $0.utType == type }) else { return }
+            DispatchQueue.global().async { [weak self] in
+                guard let converted = try? audio.convert(to: format, optimiser: self!) else {
+                    mainActor {
+                        guard let self else { return }
+                        self.finish(error: "\(typeStr) conversion failed")
+                    }
+                    return
+                }
+                mainActor {
+                    guard let self else { return }
+                    if self.convertedFromURL == nil {
+                        self.convertedFromURL = self.url
+                    }
+                    self.audio = converted
+                    self.type = .audio(type)
+                    self.url = converted.path.url
+                    self.error = nil
+                    self.notice = nil
+                    self.info = nil
+                    self.finish(oldBytes: self.oldBytes, newBytes: converted.fileSize, removeAfterMs: self.lastRemoveAfterMs)
+                }
+            }
         default:
             break
         }
@@ -745,6 +818,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
         return PDF(path, thumb: !hidden, id: id)
     }
 
+    func fetchAudio() -> Audio? {
+        guard type.isAudio, let path = url?.existingFilePath else { return nil }
+        return Audio(path: path, thumb: false, id: id)
+    }
+
     func refetch() {
         if let image, image.path != self.url?.filePath {
             self.image = fetchImage()
@@ -758,6 +836,10 @@ final class QuickLooker: QLPreviewPanelDataSource {
             self.pdf = fetchPDF()
             return
         }
+        if let audio, audio.path != self.url?.filePath {
+            self.audio = fetchAudio()
+            return
+        }
         if let image = fetchImage() {
             self.image = image
             return
@@ -768,6 +850,10 @@ final class QuickLooker: QLPreviewPanelDataSource {
         }
         if let pdf = fetchPDF() {
             self.pdf = pdf
+            return
+        }
+        if let audio = fetchAudio() {
+            self.audio = audio
             return
         }
     }
@@ -1029,6 +1115,12 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func reoptimise() {
         try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
         optimise()
+    }
+
+    func reoptimiseWithEncoder(_ encoder: VideoEncoder) {
+        Defaults[.videoEncoder] = encoder
+        try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
+        optimise(fromOriginal: true)
     }
 
     func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
@@ -1439,7 +1531,28 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         SM.selecting ? SM.optimisers.filter { $0.url != nil } : optimisers.filter { $0.url != nil }
     }
 
-    var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id == Optimiser.IDs.clipboardImage }) }
+    var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id.hasPrefix(Optimiser.IDs.clipboardImage) }) }
+
+    var clipboardImageOptimisers: [Optimiser] {
+        optimisers.filter { $0.id.hasPrefix(Optimiser.IDs.clipboardImage) && $0.url != nil && !$0.running }
+    }
+
+    func copyAllClipboardImagesToClipboard() {
+        let optimisers = clipboardImageOptimisers
+        guard optimisers.isNotEmpty else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+
+        let items: [NSPasteboardItem] = optimisers.compactMap { opt in
+            guard let url = opt.url else { return nil }
+            let item = NSPasteboardItem()
+            item.setString(url.absoluteString, forType: .fileURL)
+            item.setString(url.path, forType: .string)
+            item.setString("true", forType: .optimisationStatus)
+            return item
+        }
+        pb.writeObjects(items)
+    }
 
     func updateProgress() {
         visibleCount = visibleOptimisers.count
@@ -1528,7 +1641,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         if !OM.optimisers.contains(optimiser) {
             OM.optimisers = OM.optimisers.with(optimiser)
         }
-        if id == Optimiser.IDs.clipboardImage || id == Optimiser.IDs.clipboard {
+        if id.hasPrefix(Optimiser.IDs.clipboardImage) || id == Optimiser.IDs.clipboard {
             OM.current = optimiser
         }
 
@@ -1569,7 +1682,7 @@ func tryAsync(_ action: @escaping () async throws -> Void, onError: (() async th
         do {
             try await action()
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
         }
     }
 }
@@ -1578,7 +1691,7 @@ func justTry(_ action: () throws -> Void) {
     do {
         try action()
     } catch {
-        log.error(error.localizedDescription)
+        log.error("\(error.localizedDescription)")
     }
 }
 
@@ -1626,7 +1739,14 @@ let pdfOptimisationQueue: OperationQueue = {
     q.underlyingQueue = DispatchQueue.global()
     return q
 }()
+let audioOptimisationQueue: OperationQueue = {
+    let q = OperationQueue()
+    q.maxConcurrentOperationCount = MediaEngineCores.current.rawValue
+    q.underlyingQueue = DispatchQueue.global()
+    return q
+}()
 @MainActor var pdfOptimiseDebouncers: [String: DispatchWorkItem] = [:]
+@MainActor var audioOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 @MainActor var videoOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 @MainActor var imageOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 @MainActor var imageResizeDebouncers: [String: DispatchWorkItem] = [:]
@@ -1835,6 +1955,14 @@ enum ClipboardType: Equatable {
         switch self {
         case let .file(path): path.isPDF
         case let .url(url): url.isPDF
+        default: false
+        }
+    }
+
+    var isAudio: Bool {
+        switch self {
+        case let .file(path): path.isAudio
+        case let .url(url): url.isAudio
         default: false
         }
     }
@@ -2253,6 +2381,30 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 }
                 guard let result else { return nil }
                 return .file(result.path)
+            } else if path.isAudio {
+                guard !path.hasOptimisationStatusXattr() else {
+                    let audioType = path.url.utType() ?? .mp3
+                    let optimiser = OM.optimiser(id: id, type: .audio(audioType), operation: "", hidden: hideFloatingResult, source: source)
+                    optimiser.url = path.url
+                    let audio = Audio(path: path, thumb: !hideFloatingResult)
+                    optimiser.audio = audio
+                    optimiser.finish(oldBytes: audio.fileSize, newBytes: audio.fileSize)
+                    throw ClopError.alreadyOptimised(path)
+                }
+
+                let result: Audio? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
+                    let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hideFloatingResult)) ?? Audio(path: path, thumb: !hideFloatingResult)
+                    return try await runAudioPipeline(
+                        audio,
+                        actions: [.optimise],
+                        id: id,
+                        copyToClipboard: copyToClipboard,
+                        hideFloatingResult: hideFloatingResult,
+                        source: source
+                    )
+                }
+                guard let result else { return nil }
+                return .file(result.path)
             } else {
                 nope(notice: "Clipboard contents can't be optimised")
                 throw ClopError.unknownType
@@ -2293,6 +2445,25 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
     }
 
     floatingResultsWindow.show(closeAfter: 0, fadeAfter: 0, fadeDuration: 0.2, corner: Defaults[.floatingResultsCorner], margin: FLOAT_MARGIN, marginHorizontal: 0)
+}
+
+@MainActor func showFloatingThumbnailsAtCursor() {
+    let mouseLocation = NSEvent.mouseLocation
+
+    // Pre-position the window at the cursor before showing to avoid flicker.
+    // Use the content fitting size if available, otherwise fall back to a reasonable default.
+    let size = cursorDropZoneWindow.contentView?.fittingSize ?? CGSize(width: 180, height: 120)
+    let origin = NSPoint(
+        x: mouseLocation.x - size.width / 2,
+        y: mouseLocation.y - size.height
+    )
+    cursorDropZoneWindow.setFrame(NSRect(origin: origin, size: size), display: false)
+    cursorDropZoneWindow.show(at: origin, closeAfter: 0, fadeAfter: 0, fadeDuration: 0.2, centerWindow: false)
+}
+
+@MainActor func hideCursorDropZone() {
+    guard cursorDropZoneWindow.isVisible else { return }
+    cursorDropZoneWindow.close()
 }
 
 var cliOptimisationCount = 0

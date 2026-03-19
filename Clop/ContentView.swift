@@ -25,7 +25,7 @@ struct MenuView: View {
     @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
     @Default(.useAggressiveOptimisationJPEG) var useAggressiveOptimisationJPEG
     @Default(.useAggressiveOptimisationPNG) var useAggressiveOptimisationPNG
-    @Default(.useAggressiveOptimisationMP4) var useAggressiveOptimisationMP4
+    @Default(.videoEncoder) var videoEncoder
     @Default(.cliInstalled) var cliInstalled
     @Default(.pauseAutomaticOptimisations) var pauseAutomaticOptimisations
     @Default(.allowClopToAppearInScreenshots) var allowClopToAppearInScreenshots
@@ -68,7 +68,7 @@ struct MenuView: View {
             if !useAggressiveOptimisationGIF ||
                 !useAggressiveOptimisationJPEG ||
                 !useAggressiveOptimisationPNG ||
-                !useAggressiveOptimisationMP4
+                videoEncoder != .slowHighQuality
             {
                 Button("Optimise (aggressive)") {
                     Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }

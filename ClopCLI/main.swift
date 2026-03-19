@@ -8,9 +8,12 @@
 import ArgumentParser
 import Cocoa
 import Foundation
+import os
 import PDFKit
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "main")
 
 let HOME_DIR_REGEX = (try? Regex("^/*?\(NSHomeDirectory())(/)?", as: (Substring, Substring?).self))?.ignoresCase()
 

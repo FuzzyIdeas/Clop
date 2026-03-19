@@ -10,9 +10,12 @@ import Cocoa
 import Defaults
 import Foundation
 import Lowtech
+import os
 import Photos
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Images")
 
 var PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").filePath!
 var JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
@@ -114,6 +117,8 @@ extension UTType {
             .image
         } else if conforms(to: UTType.movie) || conforms(to: UTType.video) {
             .video
+        } else if conforms(to: UTType.audio) {
+            .audio
         } else if conforms(to: UTType.pdf) {
             .pdf
         } else {
@@ -663,7 +668,7 @@ class Image: CustomStringConvertible {
                 tempFile = pngOutFile
                 type = .png
             } catch {
-                log.error(error.localizedDescription)
+                log.error("\(error.localizedDescription)")
             }
         }
 
@@ -779,7 +784,7 @@ class Image: CustomStringConvertible {
                 tempFile = newOutFile
                 type = .jpeg
             } catch {
-                log.error(error.localizedDescription)
+                log.error("\(error.localizedDescription)")
             }
         }
 
@@ -1108,17 +1113,52 @@ class Image: CustomStringConvertible {
     }
 }
 
+@MainActor var lastClipboardImageHash: String?
+
 @MainActor func optimiseClipboardImage(image: Image? = nil, item: NSPasteboardItem? = nil) {
     guard let img = image ?? (try? Image.fromPasteboard(item: item)) else {
         return
     }
+
+    if img.optimised {
+        return
+    }
+
+    let imgHash = img.hash
+    if !imgHash.isEmpty, imgHash == lastClipboardImageHash {
+        return
+    }
+    lastClipboardImageHash = imgHash
 
     let ignore = Defaults[.imageFormatsToSkip]
     if !ignore.isEmpty, let itemType = ItemType.from(filePath: img.path).utType, ignore.contains(itemType) {
         return
     }
 
-    Task.init { try? await runImagePipeline(img, actions: [.optimise], id: Optimiser.IDs.clipboardImage, copyToClipboard: true, source: .clipboard) }
+    let appendResults = Defaults[.appendClipboardResults]
+
+    if appendResults {
+        let timeout = Defaults[.clipboardAccumulationTimeout]
+        if timeout > 0 {
+            let now = Date().timeIntervalSince1970
+            let lastTimestamp = OM.optimisers
+                .filter { $0.id.hasPrefix(Optimiser.IDs.clipboardImage) }
+                .compactMap { opt -> TimeInterval? in
+                    guard let ts = opt.id.split(separator: " ").last, let t = TimeInterval(ts) else { return nil }
+                    return t
+                }
+                .max()
+            if let last = lastTimestamp, now - last > TimeInterval(timeout) {
+                OM.optimisers = OM.optimisers.filter { !$0.id.hasPrefix(Optimiser.IDs.clipboardImage) }
+            }
+        }
+    }
+
+    let clipboardID = appendResults
+        ? "\(Optimiser.IDs.clipboardImage) \(Int(Date().timeIntervalSince1970))"
+        : Optimiser.IDs.clipboardImage
+    let copyToClipboard = !appendResults || Defaults[.copyConsecutiveClipboardImages]
+    Task.init { try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) }
 }
 
 @MainActor func cancelImageOptimisation(path: FilePath) {

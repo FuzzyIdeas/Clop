@@ -1,21 +1,28 @@
 import Defaults
 import Foundation
 import Lowtech
+import os
 import SwiftUI
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "DropZone")
 
 class DragManager: ObservableObject {
     @MainActor @Published var dragHovering = false
     @MainActor @Published var itemsToOptimise: [ClipboardType] = []
     @Atomic var optimisationCount = 0
 
+    @MainActor @Published var dropZoneAtCursor = false
+
     @MainActor var fileType: ClopFileType? {
         itemsToOptimise.allSatisfy(\.isImage)
             ? .image
             : itemsToOptimise.allSatisfy(\.isVideo)
                 ? .video
-                : itemsToOptimise.allSatisfy(\.isPDF) ? .pdf : nil
+                : itemsToOptimise.allSatisfy(\.isAudio)
+                    ? .audio
+                    : itemsToOptimise.allSatisfy(\.isPDF) ? .pdf : nil
     }
 
     @MainActor @Published var dropped = true {
@@ -41,6 +48,7 @@ class DragManager: ObservableObject {
             }
         }
     }
+
     @MainActor @Published var showDropZone = false {
         didSet {
             guard showDropZone != oldValue else {
@@ -48,9 +56,15 @@ class DragManager: ObservableObject {
             }
             if showDropZone {
                 log.debug("Option pressed, showing drop zone")
-                showFloatingThumbnails()
+                if dropZoneAtCursor {
+                    showFloatingThumbnailsAtCursor()
+                } else {
+                    showFloatingThumbnails()
+                }
             } else {
                 log.debug("Option pressed, hiding drop zone")
+                hideCursorDropZone()
+                dropZoneAtCursor = false
             }
         }
     }
@@ -237,7 +251,7 @@ struct DropZonePresetsView: View {
         .shadow(color: Color.black.opacity(hovered ? 0.5 : 0.0), radius: 5, x: 0, y: top ? 3 : -3)
         .if(enableDragAndDrop && !preview) {
             $0.onDrop(
-                of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf],
+                of: IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf],
                 delegate: DropZonePresetsViewDelegate(preset: zone, isNextPreset: nextPreset) { h in
                     selectedPresetIndex = h && !disabled ? index : nil
                     selectedPreset = h && !disabled ? zone : nil
@@ -285,6 +299,8 @@ struct DropZonePresetsView: View {
                 imagePresetZones.append(presetZone)
             case .video:
                 videoPresetZones.append(presetZone)
+            case .audio:
+                anyFilePresetZones.append(presetZone)
             case .pdf:
                 pdfPresetZones.append(presetZone)
             case nil:
@@ -298,15 +314,14 @@ struct DropZonePresetsView: View {
 }
 
 struct DropZoneView: View {
-    var blurredBackground = true
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.enableDragAndDrop) var enableDragAndDrop
 
     @ObservedObject var dragManager = DM
     @ObservedObject var keysManager = KM
-    @Namespace var namespace
     @Environment(\.preview) var preview
+    @Environment(\.colorScheme) var colorScheme
 
     @State var rotation: Angle = .degrees(0)
     @State var hovering = false
@@ -329,79 +344,77 @@ struct DropZoneView: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
-                if hoverState {
-                    SwiftUI.Image(systemName: "livephoto")
-                        .font(.bold(hoverState ? 50 : 0))
-                        .padding(hoverState ? 3 : 0)
-                        .rotationEffect(rotation)
-                        .onAppear {
-                            guard !SWIFTUI_PREVIEW else { return }
+                Text("Drop to optimise")
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .padding(.top, 10)
+
+                SwiftUI.Image(systemName: "livephoto")
+                    .font(.bold(36))
+                    .foregroundStyle(colorScheme == .dark ? Color.orange : Color.hotRed)
+                    .padding(1)
+                    .rotationEffect(rotation)
+                    .onChange(of: hoverState) { hovering in
+                        if hovering {
                             withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
                                 rotation = .degrees(359)
                             }
+                        } else {
+                            withAnimation(.spring) {
+                                rotation = .degrees(0)
+                            }
                         }
-                        .onDisappear {
-                            rotation = .degrees(0)
-                        }
-                }
+                    }
 
                 VStack(spacing: -1) {
-                    Text(hoverState ? "Drop to optimise" : "Drop here to optimise")
-                        .font(.system(size: hoverState ? 16 : 14, weight: hoverState ? .heavy : .semibold, design: .rounded))
-                        .padding(.bottom, 6)
-
                     Text("^: show preset zones")
                         .medium(10)
                         .foregroundColor(.primary)
                         .opacity(0.8)
-                    if !hoverState {
-                        Text("⌥: dismiss this drop zone")
-                            .medium(10)
-                            .foregroundColor(.primary)
-                            .opacity(0.8)
-                    }
+                    Text(dragManager.dropZoneAtCursor ? "⌥: hide drop zone" : "⌥: show drop zone at cursor")
+                        .medium(10)
+                        .foregroundColor(.primary)
+                        .opacity(0.8)
                     Text("⌘: use aggressive optimisation")
                         .medium(10)
-                        .foregroundColor(keysManager.flags.sideIndependentModifiers.contains(.command) ? .mauvish : .primary)
+                        .foregroundColor(keysManager.flags.sideIndependentModifiers.contains(.command) ? .red : .primary)
                         .opacity(0.8)
                         .padding(.bottom, 6)
                 }
                 .lineLimit(1)
                 .multilineTextAlignment(.center)
                 .fixedSize()
-                .matchedGeometryEffect(id: "text", in: namespace)
             }
         }
         .frame(
-            width: hoverState ? DROPZONE_SIZE.width : nil,
-            height: hoverState ? DROPZONE_SIZE.height : nil,
+            width: DROPZONE_SIZE.width,
+            height: DROPZONE_SIZE.height,
             alignment: .center
         )
+        .opacity(hoverState ? 1.0 : 0.85)
         .padding(.horizontal, DROPZONE_PADDING.width)
         .padding(.vertical, DROPZONE_PADDING.height)
-        .background(
-            blurredBackground
-                ? VisualEffectBlur(material: .hudWindow, blendingMode: preview ? .withinWindow : .behindWindow, state: .active)
-                    .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 3).any
-                    .overlay(Color.calmGreen.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .any
-                : Color.calmGreen.opacity(0.25)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .any
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.bg.primary.opacity(0.1), lineWidth: 4)
+                .shadow(color: colorScheme == .dark ? Color.orange : Color.hotRed, radius: 3)
         )
+        .scaleEffect(hoverState ? 1.02 : 1.0)
         .onHover { hovering in
-            withAnimation(.fastSpring) {
-                self.hovering = hovering
-            }
+            self.hovering = hovering
         }
     }
 
     var body: some View {
         HStack {
             FlipGroup(if: !floatingResultsCorner.isTrailing) {
-                draggingOutsideView
-                    .contentShape(Rectangle())
+                if #available(macOS 26.0, *) {
+                    draggingOutsideView
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .contentShape(Rectangle())
+                } else {
+                    draggingOutsideView
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .contentShape(Rectangle())
+                }
 
                 SwiftUI.Image("clop")
                     .resizable()
@@ -419,7 +432,7 @@ struct DropZoneView: View {
             }
         }
         .if(enableDragAndDrop && !preview && !dragManager.showPresetZones) {
-            $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], delegate: self)
+            $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], delegate: self)
                 .background(DragPileView().fill(.center))
         }
     }
@@ -693,7 +706,7 @@ func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: Optimisati
 
 @MainActor
 func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, shortcut: Shortcut? = nil) async throws {
-    guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isPDF || path.isDir else {
+    guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF || path.isDir else {
         return
     }
 
@@ -721,7 +734,13 @@ struct DropZoneView_Previews: PreviewProvider {
     static var previews: some View {
         DropZoneView()
             .padding()
-            .background(LinearGradient(colors: [Color.red, Color.orange, Color.blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .background(LinearGradient(
+                colors: [Color.windowBackground, Color.textBackground, Color.tertiaryLabel],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ))
+//            .background(LinearGradient(colors: [Color.red, Color.orange, Color.blue],
+//                                       startPoint: .topLeading, endPoint: .bottomTrailing))
 
     }
 }

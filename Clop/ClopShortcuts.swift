@@ -9,9 +9,12 @@ import AppIntents
 import Defaults
 import Foundation
 import Lowtech
+import os
 import PDFKit
 import System
 import UniformTypeIdentifiers
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ClopShortcuts")
 
 extension IntentFile {
     var url: URL {
@@ -134,7 +137,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
         } catch let error as ClopError {
             throw IntentError.message(error.description)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
             throw IntentError.message(error.localizedDescription)
         }
 
@@ -409,7 +412,7 @@ struct CropOptimiseFileIntent: AppIntent {
         } catch let error as ClopError {
             throw IntentError.message(error.description)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
             throw IntentError.message(error.localizedDescription)
         }
 
@@ -608,7 +611,7 @@ struct OptimiseFileIntent: AppIntent {
         } catch let error as ClopError {
             throw IntentError.message(error.description)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
             throw IntentError.message(error.localizedDescription)
         }
 
@@ -730,7 +733,7 @@ struct DownscaleFileIntent: AppIntent {
         } catch let error as ClopError {
             throw IntentError.message(error.description)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
             throw IntentError.message(error.localizedDescription)
         }
 
@@ -841,7 +844,7 @@ struct OptimiseURLIntent: AppIntent {
         } catch let error as ClopError {
             throw IntentError.message(error.description)
         } catch {
-            log.error(error.localizedDescription)
+            log.error("\(error.localizedDescription)")
             throw IntentError.message(error.localizedDescription)
         }
 

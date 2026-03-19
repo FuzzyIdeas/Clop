@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Xattr")
 
 enum Xattr {
     /** Error type */
