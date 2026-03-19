@@ -95,6 +95,9 @@ private var appHangTriggered = false
 private var sleeping = false
 
 @MainActor func configureAppHangDetection() {
+    #if DEBUG
+        return
+    #endif
     guard appHangTimer == nil else {
         return
     }

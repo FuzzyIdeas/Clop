@@ -252,7 +252,7 @@ struct ConvertImageIntent: AppIntent {
         }
         var convertedImage = try img.convert(to: type, asTempFile: true)
         if type == .png || type == .jpeg {
-            convertedImage = await (try? optimiseImage(convertedImage, copyToClipboard: false, debounceMS: 0, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: .shortcuts)) ?? convertedImage
+            convertedImage = await (try? runImagePipeline(convertedImage, actions: [.optimise], hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: .shortcuts)) ?? convertedImage
         }
 
         var outFilePath: FilePath =

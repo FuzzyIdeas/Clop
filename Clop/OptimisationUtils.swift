@@ -908,7 +908,10 @@ final class QuickLooker: QLPreviewPanelDataSource {
         }
 
         Task.init {
-            guard let video = try await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: self.id) else {
+            // Use current path (may have been renamed) for the output destination,
+            // pass the backup/original as originalPath so ffmpeg reads from it
+            let videoPath = self.path ?? path
+            guard let video = try await Video.byFetchingMetadata(path: videoPath, fileSize: oldBytes, id: self.id) else {
                 return
             }
 
@@ -916,10 +919,12 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 changePlaybackSpeedFactor = factor
             }
 
-            let _ = try? await changePlaybackSpeedVideo(
+            let _ = try? await runVideoPipeline(
                 video,
-                originalPath: originalPath,
-                id: self.id, byFactor: factor, hideFloatingResult: hideFloatingResult,
+                actions: [.changePlaybackSpeed(factor: factor ?? changePlaybackSpeedFactor)],
+                id: self.id,
+                originalPath: path != videoPath ? path : originalPath,
+                hideFloatingResult: hideFloatingResult,
                 aggressiveOptimisation: shouldUseAggressiveOptimisation
             )
         }
@@ -961,18 +966,22 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 if let factor {
                     downscaleFactor = factor
                 }
-                let _ = try? await downscaleImage(
-                    image, toFactor: factor, saveTo: self.path,
-                    copyToClipboard: id == IDs.clipboardImage, id: self.id,
+                let _ = try? await runImagePipeline(
+                    image, actions: [.downscale(factor: factor, cropSize: nil)],
+                    id: self.id, saveTo: self.path,
+                    copyToClipboard: id == IDs.clipboardImage,
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
             }
             if type.isVideo {
+                // Use current path (may have been renamed) for the output destination,
+                // pass the backup/original as originalPath so ffmpeg reads from it
+                let videoPath = self.path ?? path
                 let video = if let oldSize {
-                    Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0, hasAudio: isVideoWithAudio), fileSize: oldBytes, thumb: false)
+                    Video(path: videoPath, metadata: VideoMetadata(resolution: oldSize, fps: 0, hasAudio: isVideoWithAudio), fileSize: oldBytes, thumb: false)
                 } else {
-                    try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, thumb: !hidden, id: self.id)
+                    try? await Video.byFetchingMetadata(path: videoPath, fileSize: oldBytes, thumb: !hidden, id: self.id)
                 }
                 guard let video else { return }
 
@@ -980,10 +989,12 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     downscaleFactor = factor
                 }
 
-                let _ = try? await downscaleVideo(
+                let _ = try? await runVideoPipeline(
                     video,
-                    originalPath: (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath,
-                    id: self.id, toFactor: factor, hideFloatingResult: hideFloatingResult,
+                    actions: [.downscale(factor: factor, cropSize: nil)],
+                    id: self.id,
+                    originalPath: path != videoPath ? path : ((path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath),
+                    hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: shouldUseAggressiveOptimisation
                 )
             }
@@ -1046,7 +1057,7 @@ final class QuickLooker: QLPreviewPanelDataSource {
             shouldUseAggressiveOptimisation = true
         }
         if type.isImage, let img = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
-            Task.init { try? await optimiseImage(img, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+            Task.init { try? await runImagePipeline(img, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
             return
         }
         if type.isVideo, path.exists {
@@ -1057,11 +1068,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)
                 }
                 guard let video else { return }
-                let _ = try? await optimiseVideo(video, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
+                let _ = try? await runVideoPipeline(video, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
             }
         }
         if type.isPDF, path.exists, let pdf {
-            Task.init { try? await optimisePDF(pdf, id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+            Task.init { try? await runPDFPipeline(pdf, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
         }
     }
 
@@ -1701,24 +1712,23 @@ func optimiseURL(
             }
             clipResult = .image(img)
 
-            let result: Image? = if let cropSize, cropSize.cg < img.size {
-                try await downscaleImage(img, cropTo: cropSize, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, adaptiveOptimisation: adaptiveOptimisation, source: source)
+            let imgActions: [PipelineAction] = if let cropSize, cropSize.cg < img.size {
+                [.downscale(factor: nil, cropSize: cropSize)]
             } else if let scalingFactor, scalingFactor < 1 {
-                try await downscaleImage(img, toFactor: scalingFactor, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, adaptiveOptimisation: adaptiveOptimisation, source: source)
+                [.downscale(factor: scalingFactor, cropSize: nil)]
             } else {
-                try await optimiseImage(
-                    img,
-                    copyToClipboard: copyToClipboard,
-                    id: optimiser.id,
-                    allowTiff: true,
-                    allowLarger: false,
-                    hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimisation: aggressiveOptimisation,
-                    adaptiveOptimisation: adaptiveOptimisation,
-                    source: source,
-                    shortcut: shortcut
-                )
+                [.optimise] + (shortcut.map { [.runShortcut($0)] } ?? [])
             }
+            let result: Image? = try await runImagePipeline(
+                img, actions: imgActions,
+                id: optimiser.id,
+                copyToClipboard: copyToClipboard,
+                allowTiff: true,
+                hideFloatingResult: hideFloatingResult,
+                aggressiveOptimisation: aggressiveOptimisation,
+                adaptiveOptimisation: adaptiveOptimisation,
+                source: source
+            )
 
             if let result {
                 clipResult = .image(result)
@@ -1726,35 +1736,31 @@ func optimiseURL(
         case .video:
             clipResult = .file(downloadPath)
 
+            let vidActions: [PipelineAction] = buildPipeline(
+                scalingFactor: scalingFactor,
+                cropSize: cropSize,
+                changePlaybackSpeedFactor: changePlaybackSpeedFactor,
+                removeAudio: removeAudio,
+                shortcut: shortcut
+            )
             let result: Video? = if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, thumb: !hideFloatingResult, id: optimiser.id), let size = video.size {
                 if cropSize < size {
-                    try await downscaleVideo(video, id: optimiser.id, cropTo: cropSize, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source, removeAudio: removeAudio)
+                    try await runVideoPipeline(video, actions: vidActions, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
                 } else {
                     throw ClopError.alreadyResized(downloadPath)
                 }
             } else if let scalingFactor, scalingFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, thumb: !hideFloatingResult, id: optimiser.id) {
-                try await downscaleVideo(video, id: optimiser.id, toFactor: scalingFactor, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source, removeAudio: removeAudio)
+                try await runVideoPipeline(video, actions: vidActions, id: optimiser.id, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor < 1, let video = try await Video.byFetchingMetadata(path: downloadPath, thumb: !hideFloatingResult, id: optimiser.id) {
-                try await changePlaybackSpeedVideo(
-                    video,
-                    copyToClipboard: copyToClipboard,
-                    id: optimiser.id,
-                    byFactor: changePlaybackSpeedFactor,
-                    hideFloatingResult: hideFloatingResult,
-                    aggressiveOptimisation: aggressiveOptimisation,
-                    source: source,
-                    removeAudio: removeAudio
-                )
+                try await runVideoPipeline(video, actions: vidActions, id: optimiser.id, copyToClipboard: copyToClipboard, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: source)
             } else {
-                try await optimiseVideo(
+                try await runVideoPipeline(
                     Video(path: downloadPath, thumb: !hideFloatingResult, id: optimiser.id),
+                    actions: vidActions,
                     id: optimiser.id,
-                    allowLarger: false,
                     hideFloatingResult: hideFloatingResult,
                     aggressiveOptimisation: aggressiveOptimisation,
-                    source: source,
-                    removeAudio: removeAudio,
-                    shortcut: shortcut
+                    source: source
                 )
             }
 
@@ -1764,15 +1770,16 @@ func optimiseURL(
         case .pdf:
             clipResult = .file(downloadPath)
 
-            let result: PDF? = try await optimisePDF(
+            var pdfActions: [PipelineAction] = [.optimise]
+            if let cropSize { pdfActions.append(.downscale(factor: nil, cropSize: cropSize)) }
+            if let shortcut { pdfActions.append(.runShortcut(shortcut)) }
+            let result: PDF? = try await runPDFPipeline(
                 PDF(downloadPath, thumb: !hideFloatingResult, id: optimiser.id),
+                actions: pdfActions,
                 id: optimiser.id,
-                allowLarger: false,
                 hideFloatingResult: hideFloatingResult,
-                cropTo: cropSize,
                 aggressiveOptimisation: aggressiveOptimisation,
-                source: source,
-                shortcut: shortcut
+                source: source
             )
 
             if let result {
@@ -2099,44 +2106,28 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 img = try img.copyWithPath(img.path.copy(to: newPath, force: true))
             }
 
+            let imgActions: [PipelineAction] = if let cropSize {
+                [.downscale(factor: nil, cropSize: cropSize)]
+            } else if let scalingFactor, scalingFactor < 1 {
+                [.downscale(factor: scalingFactor, cropSize: nil)]
+            } else {
+                [.optimise] + (shortcut.map { [.runShortcut($0)] } ?? [])
+            }
+
             let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: img.path.url) {
                 if let cropSize {
                     guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
-                    return try await downscaleImage(
-                        img,
-                        cropTo: cropSize,
-                        copyToClipboard: copyToClipboard,
-                        id: id,
-                        hideFloatingResult: hideFloatingResult,
-                        aggressiveOptimisation: aggressiveOptimisation,
-                        adaptiveOptimisation: adaptiveOptimisation,
-                        source: source
-                    )
-                } else if let scalingFactor, scalingFactor < 1 {
-                    return try await downscaleImage(
-                        img,
-                        toFactor: scalingFactor,
-                        copyToClipboard: copyToClipboard,
-                        id: id,
-                        hideFloatingResult: hideFloatingResult,
-                        aggressiveOptimisation: aggressiveOptimisation,
-                        adaptiveOptimisation: adaptiveOptimisation,
-                        source: source
-                    )
-                } else {
-                    return try await optimiseImage(
-                        img,
-                        copyToClipboard: copyToClipboard,
-                        id: id,
-                        allowTiff: true,
-                        allowLarger: false,
-                        hideFloatingResult: hideFloatingResult,
-                        aggressiveOptimisation: aggressiveOptimisation,
-                        adaptiveOptimisation: adaptiveOptimisation,
-                        source: source,
-                        shortcut: shortcut
-                    )
                 }
+                return try await runImagePipeline(
+                    img, actions: imgActions,
+                    id: id,
+                    copyToClipboard: copyToClipboard,
+                    allowTiff: true,
+                    hideFloatingResult: hideFloatingResult,
+                    aggressiveOptimisation: aggressiveOptimisation,
+                    adaptiveOptimisation: adaptiveOptimisation,
+                    source: source
+                )
             }
             guard let result else { return nil }
             return .image(result)
@@ -2156,45 +2147,28 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     img = img.copyWithPath(path)
                 }
 
+                let fileImgActions: [PipelineAction] = if let cropSize {
+                    [.downscale(factor: nil, cropSize: cropSize)]
+                } else if let scalingFactor, scalingFactor < 1 {
+                    [.downscale(factor: scalingFactor, cropSize: nil)]
+                } else {
+                    [.optimise] + (shortcut.map { [.runShortcut($0)] } ?? [])
+                }
+
                 let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                     if let cropSize {
                         guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
-
-                        return try await downscaleImage(
-                            img,
-                            cropTo: cropSize,
-                            copyToClipboard: copyToClipboard,
-                            id: id,
-                            hideFloatingResult: hideFloatingResult,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            adaptiveOptimisation: adaptiveOptimisation,
-                            source: source
-                        )
-                    } else if let scalingFactor, scalingFactor < 1 {
-                        return try await downscaleImage(
-                            img,
-                            toFactor: scalingFactor,
-                            copyToClipboard: copyToClipboard,
-                            id: id,
-                            hideFloatingResult: hideFloatingResult,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            adaptiveOptimisation: adaptiveOptimisation,
-                            source: source
-                        )
-                    } else {
-                        return try await optimiseImage(
-                            img,
-                            copyToClipboard: copyToClipboard,
-                            id: id,
-                            allowTiff: true,
-                            allowLarger: false,
-                            hideFloatingResult: hideFloatingResult,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            adaptiveOptimisation: adaptiveOptimisation,
-                            source: source,
-                            shortcut: shortcut
-                        )
                     }
+                    return try await runImagePipeline(
+                        img, actions: fileImgActions,
+                        id: id,
+                        copyToClipboard: copyToClipboard,
+                        allowTiff: true,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        adaptiveOptimisation: adaptiveOptimisation,
+                        source: source
+                    )
                 }
                 guard let result else { return nil }
                 return .image(result)
@@ -2218,56 +2192,29 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     path = try path.copy(to: newPath, force: true)
                 }
 
+                let fileVidActions = buildPipeline(
+                    scalingFactor: scalingFactor,
+                    cropSize: cropSize,
+                    changePlaybackSpeedFactor: changePlaybackSpeedFactor,
+                    removeAudio: removeAudio,
+                    shortcut: shortcut
+                )
+
                 let result: Video? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                     let video = await (try? Video.byFetchingMetadata(path: path, thumb: !hideFloatingResult)) ?? Video(path: path, thumb: !hideFloatingResult)
 
                     if let cropSize, let size = video.size {
                         guard cropSize < size else { throw ClopError.alreadyResized(path) }
-                        return try await downscaleVideo(
-                            video,
-                            copyToClipboard: copyToClipboard,
-                            id: id,
-                            cropTo: cropSize,
-                            hideFloatingResult: hideFloatingResult,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            source: source,
-                            removeAudio: removeAudio
-                        )
-                    } else if let scalingFactor, scalingFactor < 1 {
-                        return try await downscaleVideo(
-                            video,
-                            copyToClipboard: copyToClipboard,
-                            id: id,
-                            toFactor: scalingFactor,
-                            hideFloatingResult: hideFloatingResult,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            source: source,
-                            removeAudio: removeAudio
-                        )
-                    } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor != 0 {
-                        return try await changePlaybackSpeedVideo(
-                            video,
-                            copyToClipboard: copyToClipboard,
-                            id: id,
-                            byFactor: changePlaybackSpeedFactor,
-                            hideFloatingResult: hideFloatingResult,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            source: source,
-                            removeAudio: removeAudio
-                        )
-                    } else {
-                        return try await optimiseVideo(
-                            video,
-                            copyToClipboard: copyToClipboard,
-                            id: id,
-                            allowLarger: false,
-                            hideFloatingResult: hideFloatingResult,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            source: source,
-                            removeAudio: removeAudio,
-                            shortcut: shortcut
-                        )
                     }
+
+                    return try await runVideoPipeline(
+                        video, actions: fileVidActions,
+                        id: id,
+                        copyToClipboard: copyToClipboard,
+                        hideFloatingResult: hideFloatingResult,
+                        aggressiveOptimisation: aggressiveOptimisation,
+                        source: source
+                    )
                 }
                 guard let result else { return nil }
                 return .file(result.path)
@@ -2286,21 +2233,22 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     path = try path.copy(to: newPath, force: true)
                 }
 
+                var filePdfActions: [PipelineAction] = [.optimise]
+                if let cropSize { filePdfActions.append(.downscale(factor: nil, cropSize: cropSize)) }
+                if let shortcut { filePdfActions.append(.runShortcut(shortcut)) }
+
                 let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                     let pdf = PDF(path, thumb: !hideFloatingResult)
                     guard let doc = pdf.document else { throw ClopError.invalidPDF(path) }
                     guard !doc.isEncrypted else { throw ClopError.encryptedPDF(path) }
 
-                    return try await optimisePDF(
-                        pdf,
-                        copyToClipboard: copyToClipboard,
+                    return try await runPDFPipeline(
+                        pdf, actions: filePdfActions,
                         id: id,
-                        allowLarger: false,
+                        copyToClipboard: copyToClipboard,
                         hideFloatingResult: hideFloatingResult,
-                        cropTo: cropSize,
                         aggressiveOptimisation: aggressiveOptimisation,
-                        source: source,
-                        shortcut: shortcut
+                        source: source
                     )
                 }
                 guard let result else { return nil }
