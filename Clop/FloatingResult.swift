@@ -32,16 +32,51 @@ extension View {
     func preview(_ preview: Bool) -> some View {
         environment(\.preview, preview)
     }
+
+    @ViewBuilder func sideButtonBackground() -> some View {
+        let shape = Capsule()
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        } else {
+            background(.ultraThickMaterial, in: shape)
+                .overlay(shape.strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        }
+    }
+
+    @ViewBuilder func noThumbBackground(isError: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        if isError {
+            if #available(macOS 26.0, *) {
+                self.background(.red.opacity(0.5), in: shape)
+                    .glassEffect(.regular, in: shape)
+            } else {
+                background(.red.opacity(0.5), in: shape)
+                    .background(.thinMaterial, in: shape)
+            }
+        } else {
+            if #available(macOS 26.0, *) {
+                self.glassEffect(.regular, in: shape)
+            } else {
+                background(.thinMaterial, in: shape)
+            }
+        }
+    }
 }
 
 struct FloatingResultList: View {
     var optimisers: [Optimiser]
 
     @State var copiedText = "Copy all"
+    @State var hoveringList = false
     @Default(.floatingResultsCorner) var floatingResultsCorner
+    @Default(.showCopyClearButtons) var showCopyClearButtons
+    @Environment(\.preview) var preview
 
     var copyAllButton: some View {
         Button(copiedText) {
+            guard !preview else { return }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             let urls = optimisers.compactMap(\.url)
@@ -58,6 +93,7 @@ struct FloatingResultList: View {
 
     var clearAllButton: some View {
         Button("Clear all") {
+            guard !preview else { return }
             for optimiser in optimisers {
                 optimiser.remove(after: 100, withAnimation: true)
             }
@@ -68,20 +104,28 @@ struct FloatingResultList: View {
     }
 
     var body: some View {
-        VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 10) {
-            ForEach(optimisers) { optimiser in
+        VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: hoveringList ? 10 : 4) {
+            ForEach(Array(optimisers.enumerated()), id: \.element.id) { index, optimiser in
                 FloatingResult(optimiser: optimiser, linear: optimisers.count > 1)
+                    .zIndex(Double(optimisers.count - index))
                     .gesture(TapGesture(count: 2).onEnded {
                         if let url = optimiser.url {
                             NSWorkspace.shared.open(url)
                         }
                     })
             }
-            if optimisers.count > 1 {
+            if optimisers.count > 1, showCopyClearButtons {
                 HStack {
                     copyAllButton
                     clearAllButton
-                }.padding(floatingResultsCorner.isTrailing ? .leading : .trailing, 18)
+                }
+                .padding(floatingResultsCorner.isTrailing ? .trailing : .leading, HAT_ICON_SIZE + 24)
+                .padding(.bottom, 30)
+            }
+        }
+        .onHover { h in
+            withAnimation(.easeOut(duration: 0.2)) {
+                hoveringList = h
             }
         }
     }
@@ -320,7 +364,8 @@ struct OnboardingFloatingPreview: View {
         if !optimiser.running, optimiser.canChangeFormat() {
             HStack(spacing: 1) {
                 ForEach(optimiser.type.convertibleTypes) { format in
-                    if let ext = format.preferredFilenameExtension {
+                    let ext = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
+                    if !ext.isEmpty {
                         button(format: format, ext: ext)
                     }
                 }
@@ -330,11 +375,19 @@ struct OnboardingFloatingPreview: View {
     }
 
     func button(format: UTType, ext: String) -> some View {
+        let label: String = if format == .hevcVideo {
+            "HEVC"
+        } else if format == .av1Video {
+            "AV1"
+        } else {
+            ext.uppercased()
+        }
         let onValue: ItemType = switch optimiser.type {
         case .audio: .audio(format)
+        case .video: .video(format)
         default: .image(format)
         }
-        return Button(ext.uppercased()) {
+        return Button(label) {
             guard !preview, optimiser.type.utType != format else { return }
             optimiser.convert(to: format, optimise: true)
         }
@@ -349,7 +402,6 @@ struct OnboardingFloatingPreview: View {
             enumValue: optimiser.type,
             onValue: onValue
         ))
-
     }
 }
 
@@ -448,11 +500,16 @@ struct FloatingResult: View {
 
     var closeStopButton: some View {
         CloseStopButton(optimiser: optimiser)
-            .buttonStyle(showsThumbnail ? FlatButton(color: .clear, textColor: .black, circle: true) : FlatButton(color: .inverted, textColor: .primary, circle: true))
+            .buttonStyle(FlatButton(color: .clear, textColor: .primary, circle: true))
+            .frame(width: 22, height: 22)
             .background(
-                VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active, appearance: .vibrantLight)
-                    .clipShape(Circle())
-                    .shadow(radius: 2)
+                Circle()
+                    .fill(.ultraThickMaterial)
+                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+            )
+            .overlay(
+                Circle()
+                    .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
             )
     }
 
@@ -483,66 +540,76 @@ struct FloatingResult: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(
-            VisualEffectBlur(material: optimiser.error == nil ? .sidebar : .hudWindow, blendingMode: .behindWindow, state: .active)
-                .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 3).any
-                .overlay(optimiser.error == nil ? .clear : .red.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        )
-        .padding(.top, 10)
+        .noThumbBackground(isError: optimiser.error != nil)
+        .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 3)
+        .padding(.top, 4)
+        .padding(.bottom, 4)
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
     }
     @ViewBuilder var errorView: some View {
-        let thumb = showsThumbnail
         let proError = optimiser.id == Optimiser.IDs.pro
         if let error = optimiser.error {
-            VStack(alignment: proError ? .center : .leading) {
-                if proError {
-                    Button("Get Clop Pro") {
-                        settingsViewManager.tab = .about
-                        openWindow(id: "settings")
-
-                        PRO?.manageLicence()
-                        focus()
+            if proError {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(error)
+                        .medium(13)
+                        .foregroundColor(.white)
+                    if let notice = optimiser.notice {
+                        Text(notice)
+                            .round(10)
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(3)
                     }
-                    .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish))
-                    .font(.round(20, weight: .black))
-                    .hfill()
+                    HStack(spacing: 8) {
+                        Button("Get Clop Pro") {
+                            settingsViewManager.tab = .about
+                            openWindow(id: "settings")
+                            PRO?.manageLicence()
+                            focus()
+                        }
+                        .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish, radius: 6, verticalPadding: 3))
+                        .font(.round(11, weight: .semibold))
+
+                        Button("Never show this again") {
+                            neverShowProError = true
+                            hoveredOptimiserID = nil
+                            optimiser.remove(after: 200, withAnimation: true)
+                        }
+                        .buttonStyle(FlatButton(color: .white.opacity(0.15), textColor: .white.opacity(0.7), radius: 6, verticalPadding: 3))
+                        .font(.round(11, weight: .regular))
+                    }
                 }
-                Text(error)
-                    .medium(14)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .scaledToFit()
-                    .minimumScaleFactor(0.75)
-                if let notice = optimiser.notice {
-                    Text(notice)
-                        .round(10)
-                        .foregroundColor(.white.opacity(0.7))
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .scaledToFit()
+                .padding(.leading, 8)
+                .padding(.vertical, 4)
+                .allowsTightening(true)
+                .frame(maxWidth: 250, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let url = optimiser.url, url.isFileURL {
+                        Text("~/" + url.path.replacingOccurrences(of: HOME.string + "/", with: ""))
+                            .round(10)
+                            .foregroundColor(.white.opacity(0.6))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Text(error)
+                        .medium(13)
+                        .foregroundColor(.white)
+                        .lineLimit(3)
                         .minimumScaleFactor(0.75)
-                        .multilineTextAlignment(proError ? .center : .leading)
-                }
-
-                if proError {
-                    Button("Never show this again") {
-                        neverShowProError = true
-                        hoveredOptimiserID = nil
-                        optimiser.remove(after: 200, withAnimation: true)
+                    if let notice = optimiser.notice {
+                        Text(notice)
+                            .round(10)
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.75)
                     }
-                    .buttonStyle(FlatButton(color: .dynamicGray, textColor: .invertedGray))
-                    .font(.round(12, weight: .regular))
-                    .hfill()
                 }
+                .padding(.leading, 8)
+                .padding(.vertical, 4)
+                .allowsTightening(true)
+                .frame(maxWidth: 250, alignment: .leading)
             }
-            .padding(4)
-            .padding(.bottom, thumb ? 4 : 0)
-            .allowsTightening(true)
-            .frame(maxWidth: thumb ? THUMB_SIZE.width : 250, alignment: .leading)
-            .fixedSize(horizontal: !thumb, vertical: false)
         }
     }
     @ViewBuilder var noticeView: some View {
@@ -718,9 +785,9 @@ struct FloatingResult: View {
         let hasThumbnail = optimiser.thumbnail != nil
         HStack {
             FlipGroup(if: !floatingResultsCorner.isTrailing) {
-                if hasThumbnail, showImages {
+                if hasThumbnail, showImages, optimiser.error == nil {
                     VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 2) {
-                        if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
+                        if hovering, let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                             topField(url)
                         }
                         Group {
@@ -733,6 +800,8 @@ struct FloatingResult: View {
                                 }
                             FormatSelectorView(optimiser: optimiser)
                                 .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
+                                .opacity(hovering ? 1 : 0.1)
+                                .animation(.easeOut(duration: 0.15), value: hovering)
                         }
                         .onHover(perform: updateHover(_:))
                     }
@@ -746,8 +815,12 @@ struct FloatingResult: View {
                                     RightClickMenuView(optimiser: optimiser)
                                 }
                             }
-                        FormatSelectorView(optimiser: optimiser)
-                            .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
+                        if optimiser.error == nil {
+                            FormatSelectorView(optimiser: optimiser)
+                                .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
+                                .opacity(hovering ? 1 : 0.1)
+                                .animation(.easeOut(duration: 0.15), value: hovering)
+                        }
                     }
                 }
 
@@ -837,10 +910,67 @@ func FlipGroup(
 struct FloatingResultContainer_Previews: PreviewProvider {
     static var previews: some View {
         FloatingPreview()
-//                        .background(.white)
-//            .background(SwiftUI.Image("sonoma-video"))
             .background(LinearGradient(colors: [Color.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+}
 
+@MainActor
+struct FloatingPreviewAllStates: View {
+    static var om: OptimisationManager = {
+        let o = OptimisationManager()
+        let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
+
+        let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
+        clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
+        clipEnd.thumbnail = NSImage(resource: .sonomaShot)
+        clipEnd.image = Image(nsImage: clipEnd.thumbnail!, data: Data(), type: .png, retinaDownscaled: false)
+        clipEnd.isPreview = true
+        clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
+
+        let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie))
+        videoOpt.url = "\(HOME)/Movies/meeting-recording-video.mov".fileURL
+        videoOpt.thumbnail = NSImage(resource: .sonomaVideo)
+        videoOpt.isPreview = true
+        videoOpt.finish(oldBytes: 52_400_000, newBytes: 31_200_000)
+
+        let cropped = Optimiser(id: "cropped-image", type: .image(.png))
+        cropped.url = "\(HOME)/Desktop/menubar/icon@2x.png".fileURL
+        cropped.thumbnail = NSImage(resource: .sonomaShot)
+        cropped.isPreview = true
+        cropped.finish(oldBytes: 16220, newBytes: 1077, oldSize: CGSize(width: 570, height: 320), newSize: CGSize(width: 44, height: 44))
+
+        let pipelineRunning = Optimiser(id: "pipeline-running", type: .image(.png), running: true)
+        pipelineRunning.url = "\(HOME)/Desktop/menubar/icon.png".fileURL
+        pipelineRunning.operation = "Running pipeline"
+        pipelineRunning.progress = Progress()
+
+        let errorOpt = Optimiser(id: "error-file", type: .image(.jpeg))
+        errorOpt.url = "\(HOME)/Desktop/broken.jpg".fileURL
+        errorOpt.isPreview = true
+        errorOpt.finish(error: "A server with the specified hostname could not be found.")
+
+        let proError = Optimiser(id: Optimiser.IDs.pro, type: .image(.png))
+        proError.isPreview = true
+        proError.finish(error: "You've optimised 5 files this session", notice: "Get Clop Pro to remove the limit and unlock all features. Relaunch the app to reset the counter.")
+
+        o.optimisers = [clipEnd, videoOpt, cropped, errorOpt, proError]
+        for opt in o.optimisers {
+            opt.isPreview = true
+        }
+        return o
+    }()
+
+    var body: some View {
+        FloatingResultContainer(om: Self.om, isPreview: true)
+    }
+}
+
+struct FloatingResultAllStates_Previews: PreviewProvider {
+    static var previews: some View {
+        FloatingPreviewAllStates()
+            .frame(width: 450, height: 1100)
+            .background(LinearGradient(colors: [Color.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .previewDisplayName("All States")
     }
 }
 

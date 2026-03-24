@@ -68,6 +68,8 @@ extension Defaults.Keys {
     static let optimiseTIFF = Key<Bool>("optimiseTIFF", default: true)
     static let enableClipboardOptimiser = Key<Bool>("enableClipboardOptimiser", default: true)
     static let optimiseVideoClipboard = Key<Bool>("optimiseVideoClipboard", default: false)
+    static let optimiseAudioClipboard = Key<Bool>("optimiseAudioClipboard", default: false)
+    static let optimisePDFClipboard = Key<Bool>("optimisePDFClipboard", default: false)
     static let optimiseImagePathClipboard = Key<Bool>("optimiseImagePathClipboard", default: false)
     static let stripMetadata = Key<Bool>("stripMetadata", default: true)
     static let preserveDates = Key<Bool>("preserveDates", default: true)
@@ -152,6 +154,9 @@ extension Defaults.Keys {
     static let lastAutoIncrementingNumber = Key<Int>("lastAutoIncrementingNumber", default: 0)
 
     static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
+    static let floatingResultActions = Key<[FloatingAction]>("floatingResultActions", default: FloatingAction.defaultFloating)
+    static let compactResultActions = Key<[FloatingAction]>("compactResultActions", default: FloatingAction.defaultCompact)
+    static let showCopyClearButtons = Key<Bool>("showCopyClearButtons", default: true)
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
     static let onlyShowDropZoneOnOption = Key<Bool>("onlyShowDropZoneOnOption", default: false)
     static let onlyShowPresetZonesOnControlTapped = Key<Bool>("onlyShowPresetZonesOnControlTapped", default: false)
@@ -173,7 +178,7 @@ extension Defaults.Keys {
     static let cliInstalled = Key<Bool>("cliInstalled", default: true)
 
     static let keyComboModifiers = Key<[TriggerKey]>("keyComboModifiers", default: [.lctrl, .lshift])
-    static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [.five, .three])
+    static let quickResizeKeys = Key<[SauceKey]>("quickResizeKeys", default: [])
     static let enabledKeys = Key<[SauceKey]>("enabledKeys", default: DEFAULT_GLOBAL_KEYS)
 
     static let savedCropSizes = Key<[CropSize]>("savedCropSizes", default: DEFAULT_CROP_SIZES)
@@ -290,6 +295,8 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .optimiseImagePathClipboard,
     .optimiseTIFF,
     .optimiseVideoClipboard,
+    .optimiseAudioClipboard,
+    .optimisePDFClipboard,
     .optimisedFileProtectionMs,
     .pdfDirs,
     .preserveDates,
@@ -297,9 +304,11 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .presetZones,
     .quickResizeKeys,
     .savedCropSizes,
-    .shortcutToRunOnImage,
-    .shortcutToRunOnVideo,
-    .shortcutToRunOnPdf,
+    .pipelinesToRunOnImage,
+    .pipelinesToRunOnVideo,
+    .pipelinesToRunOnPdf,
+    .pipelinesToRunOnAudio,
+    .savedPipelines,
     .showCompactImages,
     .showFloatingHatIcon,
     .showImages,

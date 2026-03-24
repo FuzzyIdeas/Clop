@@ -164,13 +164,16 @@ extension UTType: @retroactive Identifiable {
 }
 
 extension UTType {
-    static let avif = UTType("public.avif")
-    static let webm = UTType("org.webmproject.webm") ?? UTType("io.iina.webm")
-    static let mkv = UTType("org.matroska.mkv") ?? UTType("io.iina.mkv")
-    static let mpeg = UTType("public.mpeg")
-    static let wmv = UTType("com.microsoft.windows-media-wmv") ?? UTType("io.iina.wmv")
-    static let flv = UTType("com.adobe.flash.video")
-    static let m4v = UTType("com.apple.m4v-video")
+    static let avif = UTType("public.avif") ?? UTType(tag: "avif", tagClass: .filenameExtension, conformingTo: .image)
+    static let webm = UTType("org.webmproject.webm") ?? UTType("io.iina.webm") ?? UTType(tag: "webm", tagClass: .filenameExtension, conformingTo: .movie)
+    static let mkv = UTType("org.matroska.mkv") ?? UTType("io.iina.mkv") ?? UTType(tag: "mkv", tagClass: .filenameExtension, conformingTo: .movie)
+    static let mpeg = UTType("public.mpeg") ?? UTType(tag: "mpeg", tagClass: .filenameExtension, conformingTo: .movie)
+    static let wmv = UTType("com.microsoft.windows-media-wmv") ?? UTType("io.iina.wmv") ?? UTType(tag: "wmv", tagClass: .filenameExtension, conformingTo: .movie)
+    static let flv = UTType("com.adobe.flash.video") ?? UTType(tag: "flv", tagClass: .filenameExtension, conformingTo: .movie)
+    static let m4v = UTType("com.apple.m4v-video") ?? UTType(tag: "m4v", tagClass: .filenameExtension, conformingTo: .movie)
+    // Codec targets for video conversion (output is .mp4 with a specific encoder)
+    static let hevcVideo = UTType(tag: "hevc", tagClass: .filenameExtension, conformingTo: .movie)
+    static let av1Video = UTType(tag: "av1", tagClass: .filenameExtension, conformingTo: .movie)
 
     static let flac = UTType("org.xiph.flac") ?? UTType("public.flac")
     static let oggAudio = UTType("org.xiph.ogg-audio") ?? UTType("public.ogg-audio")

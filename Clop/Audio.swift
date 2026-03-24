@@ -129,6 +129,75 @@ class Audio: Optimisable {
         return newAudio
     }
 
+    func changeSpeed(factor: Double, optimiser: Optimiser) throws -> Audio {
+        log.debug("Changing audio speed to \(factor)x for \(self.path.string)")
+        guard let name = path.lastComponent else {
+            throw ClopError.fileNotFound(path)
+        }
+
+        let ext = path.extension ?? "m4a"
+        let outputPath = FilePath.audios.appending("\(name.stem)-speed\(factor)x.\(ext)")
+        let inputPath = path
+
+        // atempo filter accepts values between 0.5 and 100.0
+        // For values < 0.5, chain multiple atempo filters
+        var atempoFilters: [String] = []
+        var remaining = factor
+        while remaining < 0.5 {
+            atempoFilters.append("atempo=0.5")
+            remaining /= 0.5
+        }
+        while remaining > 100.0 {
+            atempoFilters.append("atempo=100.0")
+            remaining /= 100.0
+        }
+        atempoFilters.append("atempo=\(remaining)")
+
+        let filterStr = atempoFilters.joined(separator: ",")
+
+        let args = [
+            "-y", "-i", inputPath.string,
+            "-vn",
+            "-filter:a", filterStr,
+            "-progress", "pipe:2",
+            "-nostats", "-hide_banner", "-stats_period", "0.1",
+            outputPath.string,
+        ]
+
+        var realDuration: Int64?
+        if let duration {
+            realDuration = (duration / factor * 1_000_000).intround.i64
+            mainActor {
+                optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(realDuration!.hmsString)"
+            }
+        }
+
+        let audioURL = path.url
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 1, captureOutput: true) { proc in
+            mainActor {
+                optimiser.processes = [proc]
+                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: audioURL, optimiser: optimiser, duration: realDuration)
+            }
+        }
+        guard proc.terminationStatus == 0 else {
+            throw ClopProcError.processError(proc)
+        }
+
+        outputPath.waitForFile(for: 2)
+        if Defaults[.preserveDates] {
+            outputPath.copyCreationModificationDates(from: inputPath)
+        }
+        try? outputPath.setOptimisationStatusXattr("true")
+
+        let newDuration = duration.map { $0 / factor }
+        return Audio(path: outputPath, metadata: AudioMetadata(
+            duration: newDuration,
+            bitrate: bitrate,
+            sampleRate: sampleRate,
+            codec: codec
+        ), fileSize: outputPath.fileSize(), thumb: false)
+    }
+
     func convert(to format: AudioFormat, optimiser: Optimiser) throws -> Audio {
         log.debug("Converting audio \(self.path.string) to \(format.name)")
         guard let name = path.lastComponent else {

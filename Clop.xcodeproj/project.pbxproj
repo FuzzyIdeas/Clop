@@ -8,13 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		16DE4E6B1D0DF6F5058007C0 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 2DBC9C4B38AD45AFF174B53A /* Fixtures */; };
+		2C5A7A735E2586ECE5A24B90 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5276E40C1D01E9E4A8E4C786 /* Audio.swift */; };
 		4A7EE0E66872DBF4C030C09F /* PDFPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFE276D9767458155E70560 /* PDFPipelineTests.swift */; };
 		51466B4D7D62AC28EB417394 /* TestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9166F77AD002469161ACA9FC /* TestFixtures.swift */; };
 		680170F4FCC4E01D550D9261 /* VideoFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBE63FD654CDEA0178D612A5 /* VideoFilterTests.swift */; };
 		6DFC6D7DE9D3F6B03A514C05 /* GSArgsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DAB239A4DEAF258BBC22B78 /* GSArgsTests.swift */; };
 		7C1A0215680CCDA826E07124 /* OperationLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AF05F1832BCC4633DFC0DC /* OperationLabelTests.swift */; };
+		A1B2C3D4E5F60718A9B0C1D2 /* AudioPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */; };
 		AB00A16C4C4400525057C162 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C553E14C861CB9B4B10A541 /* TestHelpers.swift */; };
 		B9BC0381740E85D25FC534E8 /* BuildPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9207039D8E8E40793A6016 /* BuildPipelineTests.swift */; };
+		BFE2FE699D01576B12A4CA0A /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5276E40C1D01E9E4A8E4C786 /* Audio.swift */; };
 		C2D5084A7DFF66C39557C9ED /* CombinationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08425CBD34F73EE63CCA9300 /* CombinationTests.swift */; };
 		C3CF8A4CC74724DB2B381FD4 /* ImagePipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72793A44E4B08A45C10BA81A /* ImagePipelineTests.swift */; };
 		C70A48EE2B1A06AD00C266DE /* Colorize.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70A48ED2B1A06AD00C266DE /* Colorize.swift */; };
@@ -82,8 +85,6 @@
 		C72DECB52F38E34C00523058 /* ErrorReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72DECB32F38E34C00523058 /* ErrorReports.swift */; };
 		C7319E892AD488CB0085B707 /* Upload to Backblaze.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */; };
 		C7333E472A98C90500B1D5BE /* PDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7333E462A98C90500B1D5BE /* PDF.swift */; };
-				2C5A7A735E2586ECE5A24B90 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5276E40C1D01E9E4A8E4C786 /* Audio.swift */; };
-				BFE2FE699D01576B12A4CA0A /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5276E40C1D01E9E4A8E4C786 /* Audio.swift */; };
 		C733B3D22A50789C002A0585 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
 		C735DA022B021D6E001DCAA8 /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C735DA012B021D6E001DCAA8 /* Migrations.swift */; };
 		C736FAA52CFFA5710024EF71 /* Crop PDF for reading on iPad Air.shortcut in Resources */ = {isa = PBXBuildFile; fileRef = C736FAA32CFFA5710024EF71 /* Crop PDF for reading on iPad Air.shortcut */; };
@@ -146,7 +147,6 @@
 		DE7E3604A6513C84E7CB65AE /* FileNameTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BC883625FF464EA5E098363 /* FileNameTemplateTests.swift */; };
 		EA5F1F5E385A1423C141117E /* PipelineActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECFA84501B2CC8E38AACDCC7 /* PipelineActionTests.swift */; };
 		EBCDE68B70923D7BBF1C9859 /* VideoPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5372943A3A178D4868755497 /* VideoPipelineTests.swift */; };
-		A1B2C3D4E5F60718A9B0C1D2 /* AudioPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -251,8 +251,8 @@
 		2FFE276D9767458155E70560 /* PDFPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFPipelineTests.swift; sourceTree = "<group>"; };
 		4C553E14C861CB9B4B10A541 /* TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHelpers.swift; sourceTree = "<group>"; };
 		4DAB239A4DEAF258BBC22B78 /* GSArgsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GSArgsTests.swift; sourceTree = "<group>"; };
+		5276E40C1D01E9E4A8E4C786 /* Audio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
 		5372943A3A178D4868755497 /* VideoPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPipelineTests.swift; sourceTree = "<group>"; };
-		F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPipelineTests.swift; sourceTree = "<group>"; };
 		72793A44E4B08A45C10BA81A /* ImagePipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePipelineTests.swift; sourceTree = "<group>"; };
 		7BC883625FF464EA5E098363 /* FileNameTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNameTemplateTests.swift; sourceTree = "<group>"; };
 		9166F77AD002469161ACA9FC /* TestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFixtures.swift; sourceTree = "<group>"; };
@@ -275,7 +275,6 @@
 		C72DECB32F38E34C00523058 /* ErrorReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorReports.swift; sourceTree = "<group>"; };
 		C7319E882AD488CB0085B707 /* Upload to Backblaze.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Upload to Backblaze.shortcut"; sourceTree = "<group>"; };
 		C7333E462A98C90500B1D5BE /* PDF.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PDF.swift; sourceTree = "<group>"; };
-				5276E40C1D01E9E4A8E4C786 /* Audio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
 		C733B3D12A50789C002A0585 /* Video.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
 		C735DA012B021D6E001DCAA8 /* Migrations.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
 		C736FAA12CFFA5710024EF71 /* Convert to WEBP.shortcut */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Convert to WEBP.shortcut"; sourceTree = "<group>"; };
@@ -286,6 +285,7 @@
 		C73802012BD1B804001BEE6C /* bin.tar.lrz */ = {isa = PBXFileReference; lastKnownFileType = file; path = bin.tar.lrz; sourceTree = "<group>"; };
 		C73802042BD1B81A001BEE6C /* lrzip */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = lrzip; sourceTree = SOURCE_ROOT; };
 		C73802062BDCD76D001BEE6C /* CompareView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompareView.swift; sourceTree = "<group>"; };
+		C73E36CB2F7067A800CA282E /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = SOURCE_ROOT; };
 		C7760AB52A5C4EE500851F8C /* Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		C7760AB72A5C854600851F8C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSImageExtensions.swift; sourceTree = "<group>"; };
@@ -329,6 +329,7 @@
 		C7EFD28B2B22577100A6D843 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		D8BC38B4958FBA426FB43BA5 /* BackupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupTests.swift; sourceTree = "<group>"; };
 		ECFA84501B2CC8E38AACDCC7 /* PipelineActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineActionTests.swift; sourceTree = "<group>"; };
+		F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPipelineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -461,6 +462,7 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
+				C73E36CB2F7067A800CA282E /* Lowtech */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				C7AB6623288301590041BEC8 /* Clop */,
 				C70B5F1B2AC014BF00345739 /* FinderOptimiser */,
@@ -682,7 +684,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					3710D43B3D2FEDDC366889D5 = {
 						CreatedOnToolsVersion = 15.0;
@@ -980,7 +982,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2.11.6;
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -1015,7 +1017,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2.11.6;
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -1043,7 +1045,6 @@
 		C71AAB1F2D2D8AB200CA86D9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
@@ -1053,7 +1054,7 @@
 				CURRENT_PROJECT_VERSION = 2.11.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1085,7 +1086,6 @@
 		C71AAB202D2D8AB200CA86D9 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
@@ -1095,7 +1095,7 @@
 				CURRENT_PROJECT_VERSION = 2.11.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1128,10 +1128,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ENTITLEMENTS = ClopCLI/ClopCLI.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -1154,10 +1155,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ENTITLEMENTS = ClopCLI/ClopCLI.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -1211,6 +1213,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -1231,7 +1234,9 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_SWIFT_FLAGS = "-Xfrontend -warn-long-expression-type-checking=100 -Xfrontend -warn-long-function-bodies=100";
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OBJC_BRIDGING_HEADER = "Clop/Clop-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1274,6 +1279,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -1288,6 +1294,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OBJC_BRIDGING_HEADER = "Clop/Clop-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -1297,10 +1304,9 @@
 		C7AB66312883015A0041BEC8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = NO;
+				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -1308,15 +1314,10 @@
 				CURRENT_PROJECT_VERSION = 2.11.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Clop/Info.plist;
@@ -1354,10 +1355,9 @@
 		C7AB66322883015A0041BEC8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = NO;
+				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ENTITLEMENTS = Clop/Clop.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -1365,14 +1365,9 @@
 				CURRENT_PROJECT_VERSION = 2.11.6;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Clop/Preview Content\"";
-				DEVELOPMENT_TEAM = RDDXV84A73;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Clop/Info.plist;
@@ -1414,7 +1409,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = RDDXV84A73;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
@@ -1433,7 +1427,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = RDDXV84A73;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;

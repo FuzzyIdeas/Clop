@@ -302,8 +302,18 @@ class AppDelegate: AppDelegateParent {
         }
 
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
+        migrateShortcutsToPipelines()
 
         guard !SWIFTUI_PREVIEW else { return }
+
+        #if DEBUG
+            settingsViewManager.tab = .automation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                WM.open("settings")
+                focus()
+            }
+        #endif
+
         floatingResultsWindow.animateOnResize = false
         pub(.allowClopToAppearInScreenshots)
             .sink {
@@ -474,9 +484,9 @@ class AppDelegate: AppDelegateParent {
             }
         } catch {
             log.error("Error optimising files from 'Open with': \(error.localizedDescription)")
-            await application.reply(toOpenOrPrint: .failure)
+            application.reply(toOpenOrPrint: .failure)
         }
-        await application.reply(toOpenOrPrint: .success)
+        application.reply(toOpenOrPrint: .success)
     }
 
     func setupServiceProvider() {
@@ -797,6 +807,18 @@ class AppDelegate: AppDelegateParent {
                     }
                 }
             }.store(in: &observers)
+
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard let hov = hoveredOptimiserID,
+                  let optimiser = OM.optimisers.first(where: { $0.id == hov }),
+                  event.modifierFlags.contains(.command),
+                  event.charactersIgnoringModifiers == "e",
+                  let shelfApp = runningShelfApp()
+            else { return event }
+
+            shelfApp.open(optimiser: optimiser)
+            return nil
+        }
     }
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
@@ -823,12 +845,33 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandleVideo(event:),
             cancel: cancelVideoOptimisation(path:)
         ) { path in
-            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil,
+                  !OM.optimisers.contains(where: { $0.url?.path == path.string })
+            else {
                 return
             }
             Task.init {
-                let video = Video(path: path)
-                let _ = try? await runVideoPipeline(video, actions: [.optimise], debounceMS: debounceMS, source: Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+                let source = Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
+                let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
+                let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+
+                var resultPath = path
+                if allSkip {
+                    let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: source)
+                    optimiser.url = path.url
+                    if let source {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                } else {
+                    let video = Video(path: path)
+                    if let result = try? await runVideoPipeline(video, actions: [.optimise], debounceMS: debounceMS, source: source) {
+                        resultPath = result.path
+                    }
+                    if let source, let optimiser = opt(path.string) {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                }
             }
         }
         imageWatcher = FileOptimisationWatcher(
@@ -839,12 +882,33 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandleImage(event:),
             cancel: cancelImageOptimisation(path:)
         ) { path in
-            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil,
+                  !OM.optimisers.contains(where: { $0.url?.path == path.string })
+            else {
                 return
             }
             Task.init {
+                let source = Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
                 guard let img = Image(path: path, retinaDownscaled: false) else { return }
-                let _ = try? await runImagePipeline(img, actions: [.optimise], debounceMS: debounceMS, source: Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+                let type: ItemType = .image(img.type)
+                let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+
+                var resultPath = path
+                if allSkip {
+                    let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: source)
+                    optimiser.url = path.url
+                    if let source {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                } else {
+                    if let result = try? await runImagePipeline(img, actions: [.optimise], debounceMS: debounceMS, source: source) {
+                        resultPath = result.path
+                    }
+                    if let source, let optimiser = opt(path.string) {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                }
             }
         }
         pdfWatcher = FileOptimisationWatcher(
@@ -855,11 +919,32 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandlePDF(event:),
             cancel: cancelPDFOptimisation(path:)
         ) { path in
-            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil,
+                  !OM.optimisers.contains(where: { $0.url?.path == path.string })
+            else {
                 return
             }
             Task.init {
-                let _ = try? await runPDFPipeline(PDF(path), actions: [.optimise], debounceMS: debounceMS, source: Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+                let source = Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
+                let type: ItemType = .pdf
+                let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+
+                var resultPath = path
+                if allSkip {
+                    let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: source)
+                    optimiser.url = path.url
+                    if let source {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                } else {
+                    if let result = try? await runPDFPipeline(PDF(path), actions: [.optimise], debounceMS: debounceMS, source: source) {
+                        resultPath = result.path
+                    }
+                    if let source, let optimiser = opt(path.string) {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                }
             }
         }
         audioWatcher = FileOptimisationWatcher(
@@ -870,11 +955,32 @@ class AppDelegate: AppDelegateParent {
             shouldHandle: shouldHandleAudio(event:),
             cancel: cancelAudioOptimisation(path:)
         ) { path in
-            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil else {
+            guard OM.visibleOptimisers.first(where: { $0.running && $0.id == path.string }) == nil,
+                  !OM.optimisers.contains(where: { $0.url?.path == path.string })
+            else {
                 return
             }
             Task.init {
-                let _ = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], debounceMS: debounceMS, source: Defaults[.audioDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource)
+                let source = Defaults[.audioDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
+                let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
+                let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+
+                var resultPath = path
+                if allSkip {
+                    let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: source)
+                    optimiser.url = path.url
+                    if let source {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                } else {
+                    if let result = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], debounceMS: debounceMS, source: source) {
+                        resultPath = result.path
+                    }
+                    if let source, let optimiser = opt(path.string) {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+                    }
+                }
             }
         }
 
@@ -920,10 +1026,16 @@ class AppDelegate: AppDelegateParent {
                     }
                     return
                 }
+                if Defaults[.optimisePDFClipboard], let path = item.existingFilePath, path.isPDF, !path.hasOptimisationStatusXattr() {
+                    Task.init {
+                        let _ = try? await runPDFPipeline(PDF(path), actions: [.optimise], source: .clipboard)
+                    }
+                    return
+                }
                 if item.existingFilePath?.isPDF ?? false {
                     return
                 }
-                if let path = item.existingFilePath, path.isAudio, !path.hasOptimisationStatusXattr() {
+                if Defaults[.optimiseAudioClipboard], let path = item.existingFilePath, path.isAudio, !path.hasOptimisationStatusXattr() {
                     let ignore = Defaults[.audioFormatsToSkip]
                     if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
                         return
@@ -931,6 +1043,9 @@ class AppDelegate: AppDelegateParent {
                     Task.init {
                         let _ = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], source: .clipboard)
                     }
+                    return
+                }
+                if item.existingFilePath?.isAudio ?? false {
                     return
                 }
                 if item.types.contains(.photosReferenceAsset) {
@@ -1076,6 +1191,33 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             "waveform"
         case .pdf:
             "doc"
+        }
+    }
+
+    var pipelineKey: Defaults.Key<[String: [Pipeline]]> {
+        switch self {
+        case .image: .pipelinesToRunOnImage
+        case .video: .pipelinesToRunOnVideo
+        case .pdf: .pipelinesToRunOnPdf
+        case .audio: .pipelinesToRunOnAudio
+        }
+    }
+
+    var dirsKey: Defaults.Key<[String]> {
+        switch self {
+        case .image: .imageDirs
+        case .video: .videoDirs
+        case .pdf: .pdfDirs
+        case .audio: .audioDirs
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .image: .blue
+        case .video: .red
+        case .audio: .purple
+        case .pdf: .orange
         }
     }
 }
@@ -1477,7 +1619,7 @@ class FileOptimisationWatcher {
     }
 
     let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
-    optimiser.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version", keepFor: 5000)
+    optimiser.finish(error: "You've optimised 5 files this session", notice: "Get Clop Pro to remove the limit and unlock all features.\nRelaunch the app to reset the counter.", keepFor: 5000)
 }
 
 let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
@@ -1687,9 +1829,9 @@ func setDefaultAppForUTI(_ uti: String, _ bundleID: String) -> OSStatus {
 }
 func resetDefaultPlayer() {
     if let mp4Player = defaultAppForUTI("public.mpeg-4"), mp4Player.starts(with: "com.lowtechguys.Clop") {
-        setDefaultAppForUTI("public.mpeg-4", "com.apple.QuickTimePlayerX")
+        _ = setDefaultAppForUTI("public.mpeg-4", "com.apple.QuickTimePlayerX")
     }
     if let movPlayer = defaultAppForUTI("com.apple.quicktime-movie"), movPlayer.starts(with: "com.lowtechguys.Clop") {
-        setDefaultAppForUTI("com.apple.quicktime-movie", "com.apple.QuickTimePlayerX")
+        _ = setDefaultAppForUTI("com.apple.quicktime-movie", "com.apple.QuickTimePlayerX")
     }
 }

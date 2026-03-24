@@ -1308,7 +1308,7 @@ actor ProgressPrinter {
             if itemStr.count > 50 {
                 itemStr = "..." + itemStr.suffix(40)
             }
-            if let desc = mainThread { progress.localizedAdditionalDescription } {
+            if let desc = mainThread({ progress.localizedAdditionalDescription }) {
                 printerr("\(itemStr): \(desc) \(progressBarStr) (\(progressInt)%)")
             } else {
                 printerr("\(itemStr): \(progressBarStr) \(progressInt)%")
