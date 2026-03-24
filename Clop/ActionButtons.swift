@@ -3,6 +3,54 @@ import Foundation
 import Lowtech
 import SwiftUI
 
+enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Identifiable {
+    case downscale
+    case share
+    case restoreOptimise
+    case aggressiveOptimisation
+    case copyToClipboard
+    case showInFinder
+    case quickLook
+    case saveAs
+    case addToShelf
+
+    static let maxFloatingButtons = 5
+    static let maxCompactButtons = 9
+    static let defaultFloating: [FloatingAction] = [.downscale, .share, .restoreOptimise, .aggressiveOptimisation]
+    static let defaultCompact: [FloatingAction] = [.downscale, .quickLook, .restoreOptimise, .aggressiveOptimisation, .showInFinder, .saveAs, .copyToClipboard, .share]
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .downscale: "Downscale"
+        case .share: "Share"
+        case .restoreOptimise: "Restore / Optimise"
+        case .aggressiveOptimisation: "Aggressive optimisation"
+        case .copyToClipboard: "Copy to clipboard"
+        case .showInFinder: "Show in Finder"
+        case .quickLook: "QuickLook"
+        case .saveAs: "Save as..."
+        case .addToShelf: "Add to shelf"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .downscale: "minus"
+        case .share: "square.and.arrow.up"
+        case .restoreOptimise: "arrow.uturn.backward"
+        case .aggressiveOptimisation: "bolt.horizontal"
+        case .copyToClipboard: "doc.on.doc"
+        case .showInFinder: "folder"
+        case .quickLook: "eye"
+        case .saveAs: "square.and.arrow.down"
+        case .addToShelf: "tray.and.arrow.down"
+        }
+    }
+
+}
+
 struct CloseStopButton: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
@@ -184,79 +232,163 @@ struct VideoEncoderButton: View {
     }
 }
 
+struct ActionButton: View {
+    let action: FloatingAction
+    @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        switch action {
+        case .downscale:
+            DownscaleButton(optimiser: optimiser)
+        case .share:
+            ShareButton(optimiser: optimiser)
+        case .restoreOptimise:
+            RestoreOptimiseButton(optimiser: optimiser)
+                .disabled(optimiser.url == nil || optimiser.running)
+        case .aggressiveOptimisation:
+            if optimiser.type.isVideo {
+                VideoEncoderButton(optimiser: optimiser)
+            } else {
+                AggressiveOptimisationButton(optimiser: optimiser)
+            }
+        case .copyToClipboard:
+            Button(action: { if !preview { optimiser.copyToClipboard(); optimiser.overlayMessage = "Copied" } }) {
+                SwiftUI.Image(systemName: "doc.on.doc").font(.heavy(9))
+            }
+        case .showInFinder:
+            ShowInFinderButton(optimiser: optimiser)
+        case .quickLook:
+            QuickLookButton(optimiser: optimiser)
+        case .saveAs:
+            Button(action: { if !preview { optimiser.save() } }) {
+                SwiftUI.Image(systemName: "square.and.arrow.down").font(.heavy(9))
+            }
+        case .addToShelf:
+            Button(action: { if !preview, let app = runningShelfApp() { app.open(optimiser: optimiser) } }) {
+                SwiftUI.Image(systemName: "tray.and.arrow.down").font(.heavy(9))
+            }
+        }
+    }
+
+    func isAvailable() -> Bool {
+        switch action {
+        case .downscale: optimiser.canDownscale()
+        case .aggressiveOptimisation: optimiser.canReoptimise() && (optimiser.type.isVideo || !optimiser.aggressive)
+        case .addToShelf: runningShelfApp() != nil
+        default: true
+        }
+    }
+}
+
 struct SideButtons: View {
     @ObservedObject var optimiser: Optimiser
     var size: CGFloat
+    var actions: [FloatingAction]? = nil
 
     @Environment(\.preview) var preview
     @Default(.floatingResultsCorner) var floatingResultsCorner
+    @Default(.floatingResultActions) var floatingResultActions
 
-    @State var hoveringDownscaleButton = false
-    @State var hoveringShareButton = false
-    @State var hoveringRestoreOptimiseButton = false
-    @State var hoveringAggressiveOptimisationButton = false
+    @State var hoveringAction: FloatingAction?
+
+    var effectiveActions: [FloatingAction] {
+        actions ?? floatingResultActions
+    }
 
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
-        VStack {
-            if optimiser.canDownscale() {
-                DownscaleButton(optimiser: optimiser)
-                    .onHover { hoveringDownscaleButton = $0 }
-                    .helpTag(
-                        isPresented: $hoveringDownscaleButton,
-                        alignment: isTrailing ? .trailing : .leading,
-                        offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                        "Downscale (⌘-)"
-                    )
-            }
-            ShareButton(optimiser: optimiser)
-                .onHover { hoveringShareButton = $0 }
-                .helpTag(
-                    isPresented: $hoveringShareButton,
-                    alignment: isTrailing ? .trailing : .leading,
-                    offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                    "Share"
-                )
-            RestoreOptimiseButton(optimiser: optimiser)
-                .onHover { hoveringRestoreOptimiseButton = $0 }
-                .helpTag(
-                    isPresented: $hoveringRestoreOptimiseButton,
-                    alignment: isTrailing ? .trailing : .leading,
-                    offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                    optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)"
-                )
-                .disabled(optimiser.url == nil || optimiser.running)
-
-            if optimiser.canReoptimise() {
-                if optimiser.type.isVideo {
-                    VideoEncoderButton(optimiser: optimiser)
-                        .onHover { hoveringAggressiveOptimisationButton = $0 }
+        VStack(spacing: 2) {
+            ForEach(effectiveActions) { action in
+                let btn = ActionButton(action: action, optimiser: optimiser)
+                if btn.isAvailable() {
+                    btn
+                        .onHover { h in hoveringAction = h ? action : nil }
                         .helpTag(
-                            isPresented: $hoveringAggressiveOptimisationButton,
+                            isPresented: .init(get: { hoveringAction == action }, set: { if !$0 { hoveringAction = nil } }),
                             alignment: isTrailing ? .trailing : .leading,
                             offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                            "Aggressive optimisation (⌘A)"
-                        )
-                } else if !optimiser.aggressive {
-                    AggressiveOptimisationButton(optimiser: optimiser)
-                        .onHover { hoveringAggressiveOptimisationButton = $0 }
-                        .helpTag(
-                            isPresented: $hoveringAggressiveOptimisationButton,
-                            alignment: isTrailing ? .trailing : .leading,
-                            offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
-                            "Aggressive optimisation (⌘A)"
+                            action.label
                         )
                 }
             }
         }
-        .buttonStyle(FlatButton(color: .white.opacity(0.9), textColor: .black.opacity(0.7), width: size, height: size, circle: true))
+        .buttonStyle(FlatButton(color: .clear, textColor: .primary.opacity(0.7), width: size, height: size, circle: true))
+        .sideButtonBackground()
         .animation(.fastSpring, value: optimiser.aggressive)
-        .onHover { hovering in
-            if !hovering {
-                hoveringDownscaleButton = false
-                hoveringShareButton = false
-                hoveringRestoreOptimiseButton = false
-                hoveringAggressiveOptimisationButton = false
+        .onHover { if !$0 { hoveringAction = nil } }
+    }
+}
+
+struct ActionPickerButton: View {
+    let action: FloatingAction
+    let size: CGFloat
+    let onRemove: () -> Void
+
+    @State var hovering = false
+
+    var body: some View {
+        Button(action: onRemove) {
+            SwiftUI.Image(systemName: action.icon)
+                .font(.heavy(9))
+        }
+        .buttonStyle(FlatButton(color: .clear, textColor: .black.opacity(0.7), width: size, height: size, circle: true))
+        .onHover { hovering = $0 }
+        .topHelpTag(isPresented: $hovering, action.label)
+    }
+}
+
+struct ActionListPicker: View {
+    let label: String
+    let vertical: Bool
+    @Binding var actions: [FloatingAction]
+
+    var available: [FloatingAction] {
+        FloatingAction.allCases.filter { !actions.contains($0) }
+    }
+
+    var buttonSize: CGFloat { vertical ? 22 : 18 }
+
+    var addMenu: some View {
+        Menu {
+            ForEach(available) { action in
+                Button(action: { actions.append(action) }) {
+                    Label(action.label, systemImage: action.icon)
+                }
+            }
+        } label: {
+            SwiftUI.Image(systemName: "plus.circle.fill")
+                .font(.regular(14))
+                .foregroundColor(.secondary.opacity(0.5))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            VStack(spacing: 1) {
+                Text(label).medium(12)
+                    .foregroundColor(.secondary)
+                Text("To remove an icon, click on it").regular(8)
+                    .foregroundColor(.secondary.opacity(0.5))
+            }
+
+            HStack(spacing: 6) {
+                let layout = vertical ? AnyLayout(VStackLayout(spacing: 2)) : AnyLayout(HStackLayout(spacing: 2))
+                layout {
+                    ForEach(actions) { action in
+                        ActionPickerButton(action: action, size: buttonSize) {
+                            actions.removeAll { $0 == action }
+                        }
+                    }
+                }
+                .sideButtonBackground()
+
+                let maxButtons = vertical ? FloatingAction.maxFloatingButtons : FloatingAction.maxCompactButtons
+                if actions.count < maxButtons, !available.isEmpty {
+                    addMenu
+                }
             }
         }
     }
@@ -277,82 +409,29 @@ struct ActionButtons: View {
     var size: CGFloat
 
     @Environment(\.preview) var preview
-    @Environment(\.colorScheme) var colorScheme
+    @Default(.compactResultActions) var compactResultActions
 
-    @State var hovering = false
-
-    @State var hoveringDownscaleButton = false
-    @State var hoveringQuickLookButton = false
-    @State var hoveringRestoreOptimiseButton = false
-    @State var hoveringAggressiveOptimisationButton = false
-    @State var hoveringShowInFinderButton = false
-    @State var hoveringSaveAsButton = false
-    @State var hoveringCopyToClipboardButton = false
-    @State var hoveringShareButton = false
+    @State var hoveringAction: FloatingAction?
 
     var body: some View {
-        HStack {
-            if optimiser.canDownscale() {
-                DownscaleButton(optimiser: optimiser)
-                    .onHover { hoveringDownscaleButton = $0 }
-                    .topHelpTag(isPresented: $hoveringDownscaleButton, "Downscale (⌘-)")
-            }
-
-            QuickLookButton(optimiser: optimiser)
-                .onHover { hoveringQuickLookButton = $0 }
-                .topHelpTag(isPresented: $hoveringQuickLookButton, "QuickLook (⌘space)")
-
-            RestoreOptimiseButton(optimiser: optimiser)
-                .onHover { hoveringRestoreOptimiseButton = $0 }
-                .topHelpTag(isPresented: $hoveringRestoreOptimiseButton, optimiser.isOriginal ? "Optimise" : "Restore original (⌘Z)")
-                .disabled(optimiser.url == nil || optimiser.running)
-
-            if optimiser.canReoptimise() {
-                if optimiser.type.isVideo {
-                    VideoEncoderButton(optimiser: optimiser)
-                        .onHover { hoveringAggressiveOptimisationButton = $0 }
-                        .topHelpTag(isPresented: $hoveringAggressiveOptimisationButton, "Re-optimise for smallest size")
-                } else if !optimiser.aggressive {
-                    AggressiveOptimisationButton(optimiser: optimiser)
-                        .onHover { hoveringAggressiveOptimisationButton = $0 }
-                        .topHelpTag(isPresented: $hoveringAggressiveOptimisationButton, "Aggressive optimisation (⌘A)")
+        HStack(spacing: 0) {
+            ForEach(compactResultActions) { action in
+                let btn = ActionButton(action: action, optimiser: optimiser)
+                if btn.isAvailable() {
+                    btn
+                        .hfill()
+                        .onHover { h in hoveringAction = h ? action : nil }
+                        .topHelpTag(
+                            isPresented: .init(get: { hoveringAction == action }, set: { if !$0 { hoveringAction = nil } }),
+                            action.label
+                        )
                 }
             }
-
-            Divider().background(.secondary).frame(width: 10)
-
-            ShowInFinderButton(optimiser: optimiser)
-                .onHover { hoveringShowInFinderButton = $0 }
-                .topHelpTag(isPresented: $hoveringShowInFinderButton, "Show in Finder (⌘F)")
-
-            SaveAsButton(optimiser: optimiser)
-                .onHover { hoveringSaveAsButton = $0 }
-                .topHelpTag(isPresented: $hoveringSaveAsButton, "Save as (⌘S)")
-
-            CopyToClipboardButton(optimiser: optimiser)
-                .onHover { hoveringCopyToClipboardButton = $0 }
-                .topHelpTag(isPresented: $hoveringCopyToClipboardButton, "Copy to clipboard (⌘C)")
-
-            ShareButton(optimiser: optimiser)
-                .onHover { hoveringShareButton = $0 }
-                .topHelpTag(isPresented: $hoveringShareButton, "Share")
-
         }
+        .buttonStyle(FlatButton(color: .clear, textColor: .primary.opacity(0.7), width: size, height: size, circle: true))
+        .sideButtonBackground()
         .hfill()
-        .buttonStyle(FlatButton(color: .bg.warm, textColor: .primary.opacity(0.7), width: size, height: size, circle: true, shadowSize: 1))
         .animation(.fastSpring, value: optimiser.aggressive)
-        .onHover { hovering in
-            self.hovering = hovering
-            if !hovering {
-                hoveringDownscaleButton = false
-                hoveringQuickLookButton = false
-                hoveringRestoreOptimiseButton = false
-                hoveringAggressiveOptimisationButton = false
-                hoveringShowInFinderButton = false
-                hoveringSaveAsButton = false
-                hoveringCopyToClipboardButton = false
-                hoveringShareButton = false
-            }
-        }
+        .onHover { if !$0 { hoveringAction = nil } }
     }
 }

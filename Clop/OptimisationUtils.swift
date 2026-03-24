@@ -44,6 +44,8 @@ enum ItemType: Equatable, Identifiable {
         switch self {
         case .image:
             [.jpeg, .webP, .avif, .heic, .png, .gif].compactMap { $0 }
+        case .video:
+            [.mpeg4Movie, .quickTimeMovie, .gif, .webm, .hevcVideo, .av1Video].compactMap { $0 }
         case .audio:
             [.m4a, .mp3, .oggAudio].compactMap { $0 }
         default:
@@ -164,14 +166,16 @@ enum ItemType: Equatable, Identifiable {
         }
     }
 
-    var shortcutKey: Defaults.Key<[String: Shortcut]>? {
+    var pipelineKey: Defaults.Key<[String: [Pipeline]]>? {
         switch self {
         case .image:
-            .shortcutToRunOnImage
+            .pipelinesToRunOnImage
         case .video:
-            .shortcutToRunOnVideo
+            .pipelinesToRunOnVideo
         case .pdf:
-            .shortcutToRunOnPdf
+            .pipelinesToRunOnPdf
+        case .audio:
+            .pipelinesToRunOnAudio
         default:
             nil
         }
@@ -752,6 +756,56 @@ final class QuickLooker: QLPreviewPanelDataSource {
                     self.notice = nil
                     self.info = nil
                     self.finish(oldBytes: self.oldBytes, newBytes: converted.fileSize, removeAfterMs: self.lastRemoveAfterMs)
+                }
+            }
+        case .video:
+            guard let url else { return }
+            let path = FilePath(url.path)
+            let video = Video(path: path)
+            let isCodecConversion = type == .hevcVideo || type == .av1Video
+
+            let encoderOverride: [String]? = if type == .hevcVideo {
+                ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]
+            } else if type == .av1Video {
+                ["-vcodec", "libsvtav1"]
+            } else {
+                nil
+            }
+
+            DispatchQueue.global().async { [weak self] in
+                guard let self else { return }
+                if type == .gif {
+                    guard let result = try? video.convertToGIF(optimiser: self, maxWidth: 960, fps: 15) else {
+                        mainActor { self.finish(error: "GIF conversion failed") }
+                        return
+                    }
+                    mainActor {
+                        if self.convertedFromURL == nil { self.convertedFromURL = self.url }
+                        self.type = .image(.gif)
+                        self.url = result.path.url
+                        self.error = nil
+                        self.notice = nil
+                        self.finish(oldBytes: self.oldBytes, newBytes: result.data.count, removeAfterMs: self.lastRemoveAfterMs)
+                    }
+                } else {
+                    let forceMP4 = type == .hevcVideo || type == .mpeg4Movie
+                    let outputExt: String? = type == .av1Video ? "mkv" : nil
+                    guard let result = try? video.optimise(
+                        optimiser: self, forceMP4: forceMP4, outputExtension: outputExt, backup: false,
+                        encoderOverride: encoderOverride
+                    ) else {
+                        let label = type.preferredFilenameExtension ?? "video"
+                        mainActor { self.finish(error: "\(label) conversion failed") }
+                        return
+                    }
+                    mainActor {
+                        if self.convertedFromURL == nil { self.convertedFromURL = self.url }
+                        self.type = isCodecConversion ? .video(type) : .video(UTType(filenameExtension: result.path.extension ?? "mp4") ?? .mpeg4Movie)
+                        self.url = result.path.url
+                        self.error = nil
+                        self.notice = nil
+                        self.finish(oldBytes: self.oldBytes, newBytes: result.fileSize, removeAfterMs: self.lastRemoveAfterMs)
+                    }
                 }
             }
         default:
@@ -1908,6 +1962,12 @@ func optimiseURL(
         default:
             return nil
         }
+
+        // Run user-configured pipelines after optimisation
+        if let source, let optimiser = opt(url.absoluteString) {
+            let resultPath = clipResult?.path ?? downloadPath
+            await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
+        }
     } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
         opt(url.absoluteString)?.info = "File already fully compressed"
         return clipResult
@@ -2024,7 +2084,7 @@ enum ClipboardType: Equatable {
 
     static func fromPasteboardItem(_ item: NSPasteboardItem) -> ClipboardType {
         if let path = item.string(forType: .fileURL)?.trimmedPath.url?.filePath ?? item.string(forType: .string)?.trimmedPath.existingFilePath {
-            if path.isPDF || path.isVideo {
+            if path.isPDF || path.isVideo || path.isAudio {
                 return .file(path)
             }
             if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
@@ -2258,6 +2318,9 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 )
             }
             guard let result else { return nil }
+            if let source, let optimiser = opt(id) {
+                await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser)
+            }
             return .image(result)
         case var .file(path):
             if path.isImage, var img = Image(path: path, retinaDownscaled: false) {
@@ -2299,6 +2362,9 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
+                if let source, let optimiser = opt(id) {
+                    await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser)
+                }
                 return .image(result)
             } else if path.isVideo {
                 guard aggressiveOptimisation == true || changePlaybackSpeedFactor != nil || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
@@ -2345,6 +2411,9 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
+                if let source, let optimiser = opt(id) {
+                    await runPipelinesAfterOptimisation(file: result.path, type: .video(UTType.from(filePath: result.path) ?? .mpeg4Movie), source: source, optimiser: optimiser)
+                }
                 return .file(result.path)
             } else if path.isPDF {
                 guard aggressiveOptimisation == true || cropSize != nil || !path.hasOptimisationStatusXattr() else {
@@ -2380,6 +2449,9 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
+                if let source, let optimiser = opt(id) {
+                    await runPipelinesAfterOptimisation(file: result.path, type: .pdf, source: source, optimiser: optimiser)
+                }
                 return .file(result.path)
             } else if path.isAudio {
                 guard !path.hasOptimisationStatusXattr() else {
@@ -2404,6 +2476,9 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
+                if let source, let optimiser = opt(id) {
+                    await runPipelinesAfterOptimisation(file: result.path, type: .audio(path.url.utType() ?? .mp3), source: source, optimiser: optimiser)
+                }
                 return .file(result.path)
             } else {
                 nope(notice: "Clipboard contents can't be optimised")

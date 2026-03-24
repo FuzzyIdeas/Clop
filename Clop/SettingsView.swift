@@ -1158,10 +1158,10 @@ struct AboutSettingsView: View {
                     .offset(x: 5, y: 14)
             }
             Text("Clop")
-                .font(.round(64, weight: .black))
+                .round(64, weight: .black)
                 .padding(.top, -30)
             Text((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "v2")
-                .font(.mono(16, weight: .regular))
+                .mono(16, weight: .regular)
                 .foregroundColor(.secondary)
 
             if let updater = um.updater {
@@ -1217,89 +1217,93 @@ struct DropZoneSettingsView: View {
     @ObservedObject var shortcutsManager = SHM
 
     var zones: some View {
-        Section(header: SectionHeader(title: "Preset zones", subtitle: "Optimise and pass files through Shortcuts by dragging them to these zones")) {
+        Section(header: SectionHeader(title: "Preset zones", subtitle: "Drag files to these zones to run actions like crop, convert, copy and more")) {
             Toggle(isOn: $onlyShowPresetZonesOnControlTapped) {
                 Text("Tap ^ Control to show preset zones").regular(13)
                     + Text("\nToggle preset zones by tapping ^ Control instead of by holding it").round(11, weight: .regular).foregroundColor(.secondary)
             }
 
-            HStack(spacing: 6) {
-                Text("Icon").bold(13).frame(width: 30, alignment: .leading)
-                Divider().foregroundColor(.secondary)
-                Text("Name").bold(13).frame(width: 100, alignment: .leading)
-                Divider().foregroundColor(.secondary)
-                Text("Appears for").bold(13).frame(width: 100, alignment: .leading)
-                Divider().foregroundColor(.secondary)
-                Text("Shortcut").bold(13).frame(width: 150, alignment: .leading)
-                Divider().foregroundColor(.secondary)
-            }
-            .padding(4)
-
-            VStack {
-                ForEach(presetZones) { zone in
-                    if let editingZone, editingZone.id == zone.id {
-                        PresetZoneEditor(zone: $editingZone)
-                    } else {
-                        zoneItem(zone: zone)
+            VStack(spacing: 6) {
+                let types: [ClopFileType?] = [.image, .video, .audio, .pdf, nil]
+                ForEach(types.indices, id: \.self) { i in
+                    let t = types[i]
+                    let matching = presetZones.filter { $0.type == t }
+                    if !matching.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(t.map { $0 == .pdf ? "PDF" : $0.description.capitalized } ?? "Any type")
+                                .semibold(10)
+                                .foregroundColor(t?.color ?? .secondary)
+                                .padding(.top, i > 0 ? 4 : 0)
+                            ForEach(matching) { zone in
+                                if let editingZone, editingZone.id == zone.id {
+                                    PresetZoneEditor(zone: $editingZone)
+                                } else {
+                                    zoneItem(zone: zone)
+                                }
+                            }
+                        }
                     }
                 }
-                PresetZoneEditor(zone: .constant(nil)).opacity(editingZone == nil ? 1 : 0.3)
+                if editingZone == nil {
+                    Divider().padding(.vertical, 8)
+                    Text("Create a new preset for a specific file type")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .hfill(.leading)
+                    PresetZoneEditor(zone: .constant(nil))
+                }
             }
         }
     }
 
     func zoneItem(zone: PresetZone) -> some View {
-        HStack(spacing: 6) {
-            SwiftUI.Image(systemName: zone.icon).frame(width: 30, alignment: .center)
-            Divider().foregroundColor(.secondary)
-            Text(zone.name)
-                .minimumScaleFactor(0.5)
-                .frame(width: 100, alignment: .leading)
-            Divider().foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                SwiftUI.Image(systemName: zone.icon)
+                    .font(.regular(13))
+                    .frame(width: 20, alignment: .center)
+                    .foregroundColor(.secondary)
+                Text(zone.name)
+                    .medium(12)
+                SwiftUI.Image(systemName: zone.pipeline.skipOptimisation ? "bolt.slash" : "bolt.fill")
+                    .font(.regular(8))
+                    .foregroundColor(zone.pipeline.skipOptimisation ? .secondary.opacity(0.3) : .orange.opacity(0.5))
 
-            Label(zone.type != nil ? "\(zone.type!.description)s" : "Any file", systemImage: zone.type?.symbolName ?? "inset.filled.square.dashed")
-                .frame(width: 100, alignment: .leading)
-            Divider().foregroundColor(.secondary)
+                Spacer()
 
-            HStack {
-                Link(destination: zone.shortcut.url) {
-                    HStack {
-                        Text(zone.shortcut.name)
-                        Spacer()
-                        SwiftUI.Image(systemName: "arrow.up.right.square")
-                    }
-                }
-            }
-            .frame(width: 150, alignment: .leading)
-            Divider().foregroundColor(.secondary)
-            Spacer()
-
-            Button(
-                action: { editingZone = zone },
-                label: {
+                Button(action: { editingZone = zone }) {
                     SwiftUI.Image(systemName: "pencil")
-                        .fontWeight(.bold)
+                        .font(.regular(10))
                 }
-            )
-            .frame(width: 30)
-            .help("Edit this preset zone")
-            Button(
-                role: .destructive,
-                action: {
+                .buttonStyle(.plain)
+                Button(role: .destructive, action: {
                     presetZones = presetZones.filter { $0.id != zone.id }
-                },
-                label: {
+                }) {
                     SwiftUI.Image(systemName: "trash")
-                        .foregroundColor(Color.systemRed.opacity(0.8))
-                        .fontWeight(.bold)
+                        .foregroundColor(Color.systemRed.opacity(0.6))
+                        .font(.regular(10))
                 }
-            )
-            .frame(width: 30)
-            .help("Delete this preset zone")
-        }
-        .padding(4)
-        .tag(zone.id)
+                .buttonStyle(.plain)
+            }
 
+            let resolved = zone.resolvedPipeline
+            Text(resolved.displayText.isEmpty ? "no steps configured" : resolved.displayText)
+                .mono(10.5)
+                .foregroundColor(.secondary.opacity(0.7))
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .padding(.leading, 26)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.025))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+        )
     }
     var settings: some View {
         Form {
@@ -1387,6 +1391,9 @@ struct FloatingSettingsView: View {
     @Default(.autoClearAllCompactResultsAfter) var autoClearAllCompactResultsAfter
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
+    @Default(.floatingResultActions) var floatingResultActions
+    @Default(.compactResultActions) var compactResultActions
+    @Default(.showCopyClearButtons) var showCopyClearButtons
 
     @Default(.dismissFloatingResultOnDrop) var dismissFloatingResultOnDrop
     @Default(.dismissFloatingResultOnUpload) var dismissFloatingResultOnUpload
@@ -1421,6 +1428,7 @@ struct FloatingSettingsView: View {
             Section(header: SectionHeader(title: "Full layout")) {
                 Toggle("Show hat icon", isOn: $showFloatingHatIcon)
                 Toggle("Show images", isOn: $showImages)
+                Toggle("Show Copy all / Clear all buttons", isOn: $showCopyClearButtons)
                 Text("Dismiss result after")
                 Toggle("drag and drop outside", isOn: $dismissFloatingResultOnDrop).padding(.leading, 20)
                 Toggle("upload to Dropshare", isOn: $dismissFloatingResultOnUpload).padding(.leading, 20)
@@ -1502,6 +1510,14 @@ struct FloatingSettingsView: View {
                 Text("only for preview")
                     .round(10)
                     .foregroundColor(.secondary)
+
+                Divider().frame(width: 100).padding(.vertical, 4)
+
+                if compact {
+                    ActionListPicker(label: "Side actions", vertical: false, actions: $compactResultActions)
+                } else {
+                    ActionListPicker(label: "Side actions", vertical: true, actions: $floatingResultActions)
+                }
             }
         }
         .hfill()
@@ -1518,6 +1534,8 @@ struct GeneralSettingsView: View {
     @Default(.showMenubarIcon) var showMenubarIcon
     @Default(.optimiseTIFF) var optimiseTIFF
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
+    @Default(.optimiseAudioClipboard) var optimiseAudioClipboard
+    @Default(.optimisePDFClipboard) var optimisePDFClipboard
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
     @Default(.appendClipboardResults) var appendClipboardResults
@@ -1553,20 +1571,36 @@ struct GeneralSettingsView: View {
             Section(header: SectionHeader(title: "Clipboard")) {
                 Toggle(isOn: $enableClipboardOptimiser) {
                     Text("Enable clipboard optimiser").regular(13)
-                        + Text("\nWatch for copied images and optimise them automatically").round(11, weight: .regular).foregroundColor(.secondary)
+                        + Text("\nWatch for copied data and optimise it automatically").round(11, weight: .regular).foregroundColor(.secondary)
                 }
-                Toggle(isOn: $optimiseTIFF) {
-                    Text("Optimise copied TIFF data").regular(13)
-                        + Text("\nUsually coming from graphical design apps, it's sometimes better to not optimise it").round(11, weight: .regular).foregroundColor(.secondary)
-                }.disabled(!enableClipboardOptimiser)
-                Toggle(isOn: $optimiseVideoClipboard) {
-                    Text("Optimise copied video files").regular(13)
-                        + Text("\nSystem pasteboard can't hold video data, only video file paths.\nThis option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
-                }.disabled(!enableClipboardOptimiser)
-                Toggle(isOn: $optimiseImagePathClipboard) {
-                    Text("Optimise copied image files").regular(13)
-                        + Text("\nCopying images from Finder results in file paths instead of image data.\nThis option automatically optimises copied paths").round(11, weight: .regular).foregroundColor(.secondary)
-                }.disabled(!enableClipboardOptimiser)
+                Group {
+                    Toggle(isOn: .constant(true)) {
+                        Text("Image data").regular(13)
+                            + Text("\nCopied image data (e.g. screenshots)").round(11, weight: .regular).foregroundColor(.secondary)
+                    }.disabled(true)
+                    Toggle(isOn: $optimiseTIFF) {
+                        Text("TIFF data").regular(13)
+                            + Text("\nUsually from graphical design apps, sometimes better left alone").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    Toggle(isOn: $optimiseImagePathClipboard) {
+                        Text("Image files").regular(13)
+                            + Text("\nCopying images from Finder results in file paths instead of image data").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    Toggle(isOn: $optimiseVideoClipboard) {
+                        Text("Video files").regular(13)
+                            + Text("\nOptimise copied video file paths").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    Toggle(isOn: $optimiseAudioClipboard) {
+                        Text("Audio files").regular(13)
+                            + Text("\nOptimise copied audio file paths").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    Toggle(isOn: $optimisePDFClipboard) {
+                        Text("PDF files").regular(13)
+                            + Text("\nOptimise copied PDF file paths").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                }
+                .disabled(!enableClipboardOptimiser)
+                .padding(.leading, 20)
                 Toggle(isOn: $appendClipboardResults) {
                     Text("Keep all clipboard results").regular(13)
                         + Text("\nShow each clipboard optimisation as a separate result instead of replacing the previous one").round(11, weight: .regular).foregroundColor(.secondary)
@@ -1693,61 +1727,61 @@ struct SettingsView: View {
                     Label("General", systemImage: "gear")
                 }
                 .tag(Tabs.general)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             VideoSettingsView()
                 .tabItem {
                     Label("Video", systemImage: "video")
                 }
                 .tag(Tabs.video)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             AudioSettingsView()
                 .tabItem {
                     Label("Audio", systemImage: "waveform")
                 }
                 .tag(Tabs.audio)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             ImagesSettingsView()
                 .tabItem {
                     Label("Images", systemImage: "photo")
                 }
                 .tag(Tabs.images)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             PDFSettingsView()
                 .tabItem {
                     Label("PDF", systemImage: "doc")
                 }
                 .tag(Tabs.pdf)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             DropZoneSettingsView()
                 .tabItem {
                     Label("Drop zone", systemImage: "square.stack")
                 }
                 .tag(Tabs.dropzone)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             FloatingSettingsView()
                 .tabItem {
                     Label("Floating results", systemImage: "square.stack")
                 }
                 .tag(Tabs.floating)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             KeysSettingsView()
                 .tabItem {
                     Label("Keyboard shortcuts", systemImage: "command.square")
                 }
                 .tag(Tabs.keys)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             AutomationSettingsView()
                 .tabItem {
                     Label("Automation", systemImage: "hammer")
                 }
                 .tag(Tabs.automation)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
             AboutSettingsView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
                 .tag(Tabs.about)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .fill(.topLeading)
         }
 
         if #available(macOS 15.0, *) {
@@ -1810,6 +1844,14 @@ struct SettingsView: View {
         return nil
     }
     return event
+}
+
+struct FloatingSettingsView_Previews: PreviewProvider {
+    static var previews: some View {
+        FloatingSettingsView()
+            .formStyle(.grouped)
+            .frame(width: WINDOW_MIN_SIZE.width, height: WINDOW_MIN_SIZE.height, alignment: .topLeading)
+    }
 }
 
 struct SettingsView_Previews: PreviewProvider {

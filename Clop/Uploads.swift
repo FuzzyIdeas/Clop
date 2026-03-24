@@ -51,6 +51,14 @@ class Dockside: AppIntegration {
 @MainActor let YOINK = Yoink()
 @MainActor let DOCKSIDE = Dockside()
 
+/// Shelf apps in priority order (highest priority first)
+@MainActor let SHELF_APPS: [AppIntegration] = [YOINK, DOCKSIDE, DROPOVER]
+
+/// Returns the highest-priority shelf app that is currently running, or nil.
+@MainActor func runningShelfApp() -> AppIntegration? {
+    SHELF_APPS.first { $0.isRunning() }
+}
+
 @MainActor
 class AppIntegration {
     required init() {}
@@ -64,6 +72,7 @@ class AppIntegration {
     var webURL: URL? { nil }
     var appNameQuery: String { "" }
     var appPath: String { "" }
+    var appName: String { FilePath(appPath).stem ?? "shelf app" }
     var setappAppPath: String? { nil }
 
     func open(optimisers: [Optimiser]? = nil) {

@@ -7,6 +7,11 @@ import System
 import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "DropZone")
+let MAC26 = if #available(macOS 26.0, *) {
+    true
+} else {
+    false
+}
 
 class DragManager: ObservableObject {
     @MainActor @Published var dragHovering = false
@@ -82,6 +87,62 @@ class DragManager: ObservableObject {
 
 @MainActor
 let DM = DragManager()
+
+private struct ZonePreviewHoverModifier: ViewModifier {
+    let preview: Bool
+    let disabled: Bool
+    let index: Int
+    let zone: PresetZone?
+    @Binding var selectedPresetIndex: Int?
+    @Binding var selectedPreset: PresetZone?
+
+    func body(content: Content) -> some View {
+        if preview {
+            content
+                .onHover { h in
+                    if h {
+                        withAnimation(.bouncy) {
+                            selectedPresetIndex = index
+                            selectedPreset = zone
+                        }
+                    }
+                }
+                .disabled(disabled)
+                .onHover { h in
+                    if h, disabled {
+                        withAnimation(.bouncy) {
+                            selectedPresetIndex = nil
+                            selectedPreset = nil
+                        }
+                    }
+                }
+        } else {
+            content
+        }
+    }
+}
+
+private struct GlassBackground<S: Shape>: ViewModifier {
+    let shape: S
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.thinMaterial, in: shape)
+        }
+    }
+}
+
+extension View {
+    func glassBackground(in shape: some Shape) -> some View {
+        modifier(GlassBackground(shape: shape))
+    }
+
+    func dropZoneGlassBackground() -> some View {
+        glassBackground(in: DROPZONE_SHAPE)
+    }
+}
 
 struct DropZonePresetsViewDelegate: DropDelegate {
     let preset: PresetZone?
@@ -170,10 +231,52 @@ struct DropZonePresetsView: View {
             .scaledToFit()
             .frame(width: 21, height: 21)
             .padding(6)
-            .background(
-                roundRect(5, fill: .bg.warm.opacity(colorScheme == .dark ? 0.6 : 0.4))
-                    .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 4)
-            )
+//            .background(
+//                roundRect(5, fill: .bg.warm.opacity(colorScheme == .dark ? 0.6 : 0.4))
+//                    .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 4)
+//            )
+    }
+
+    func zoneAction(zone: PresetZone?) {
+        guard let w = NSApp.keyWindow, w.title == "Settings" else {
+            settingsViewManager.tab = .dropzone
+            WM.open("settings")
+            focus()
+            return
+        }
+        editingZone = zone
+        showPresetEditor = true
+    }
+
+    @ViewBuilder
+    func zoneLabel(zone: PresetZone?, nextPreset: Bool, hovered: Bool, index: Int) -> some View {
+        let isLeft = index % 2 == 0
+
+        VStack(spacing: 2) {
+            zoneIcon(systemName: zone.map(\.icon) ?? (nextPreset ? "plus.square.dashed" : "square.dashed"))
+                .rotation3DEffect(.degrees(hovered ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.2)
+
+            Text(zone.map(\.name) ?? (nextPreset ? "Add preset" : "No preset"))
+                .round(10)
+                .foregroundColor(nextPreset ? .fg.warm.opacity(0.7) : .secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.5)
+                .frame(width: DROPZONE_SIZE.width / 2, height: 14)
+        }
+        .frame(width: DROPZONE_SIZE.width / 2 - 2, height: DROPZONE_SIZE.height / 2)
+        .padding(.vertical, 4)
+        .padding(isLeft ? .trailing : .leading, 4)
+    }
+
+    @ViewBuilder
+    func zonePresetEditorSheet(zone: PresetZone?) -> some View {
+        Form {
+            PresetZoneEditor(zone: zone != nil ? $editingZone : .constant(nil), type: type) {
+                showPresetEditor = false
+            }
+            .frame(width: 560)
+        }.formStyle(.grouped)
     }
 
     @ViewBuilder
@@ -184,87 +287,39 @@ struct DropZonePresetsView: View {
         let hovered = selectedPresetIndex == index
         let top = index < 2
 
-        Button(action: {
-            guard let w = NSApp.keyWindow, w.title == "Settings" else {
-                settingsViewManager.tab = .dropzone
-                WM.open("settings")
-                focus()
-                return
-            }
-            editingZone = zone
-            showPresetEditor = true
-        }) {
-            VStack(spacing: hovered ? 2 : 5) {
-                zoneIcon(systemName: zone.map(\.icon) ?? (nextPreset ? "plus.square.dashed" : "square.dashed"))
-                    .rotation3DEffect(.degrees(hovered ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.2)
-
-                Text(zone.map(\.name) ?? (nextPreset ? "Add preset" : "No preset"))
-                    .round(10)
-                    .foregroundColor(nextPreset ? .fg.warm.opacity(0.7) : .secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.5)
-                    .frame(width: DROPZONE_SIZE.width / 2, height: 14)
-            }
-            .frame(width: DROPZONE_SIZE.width / 2 - 2, height: DROPZONE_SIZE.height / 2)
-            .padding(top ? .top : .bottom, 4)
+        Button(action: { zoneAction(zone: zone) }) {
+            zoneLabel(zone: zone, nextPreset: nextPreset, hovered: hovered, index: index)
         }
-        .buttonStyle(
-            FlatButton(
-                color: .primary.opacity(0.05), textColor: nextPreset ? .fg.warm.opacity(0.5) : .primary.opacity(0.8),
-                radius: 0, shadowSize: 0, hoverColorEffects: false, hoverScaleEffects: false
-            )
-        )
+        .buttonStyle(.plain)
         .sheet(isPresented: $showPresetEditor) {
-            Form {
-                PresetZoneEditor(zone: zone != nil ? $editingZone : .constant(nil), type: type) {
-                    showPresetEditor = false
-                }
-                .fixedSize()
-            }.formStyle(.grouped)
+            zonePresetEditorSheet(zone: zone)
         }
-        .if(preview) {
-            $0.onHover { h in
-                if h {
-                    withAnimation(.bouncy) {
-                        selectedPresetIndex = index
-                        selectedPreset = zone
-                    }
-                }
-            }
-            .disabled(disabled)
-            .onHover { h in
-                if h, disabled {
-                    withAnimation(.bouncy) {
-                        selectedPresetIndex = nil
-                        selectedPreset = nil
-                    }
-                }
-            }
-        }
+        .modifier(ZonePreviewHoverModifier(
+            preview: preview, disabled: disabled, index: index, zone: zone,
+            selectedPresetIndex: $selectedPresetIndex, selectedPreset: $selectedPreset
+        ))
         .background {
             (cmdPressed ? Color.red : Color.peach).opacity(hovered ? 0.3 : 0.0)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .scaleEffect(0.90)
-                .padding(top ? .top : .bottom, 2)
+                .clipShape(DROPZONE_SHAPE)
         }
-        .shadow(color: Color.black.opacity(hovered ? 0.5 : 0.0), radius: 5, x: 0, y: top ? 3 : -3)
+
         .if(enableDragAndDrop && !preview) {
-            $0.onDrop(
-                of: IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf],
-                delegate: DropZonePresetsViewDelegate(preset: zone, isNextPreset: nextPreset) { h in
-                    selectedPresetIndex = h && !disabled ? index : nil
-                    selectedPreset = h && !disabled ? zone : nil
-                }
-            )
-            .background(DragPileView().fill(.center))
+            $0.dropZoneGlassBackground()
+                .onDrop(
+                    of: IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf],
+                    delegate: DropZonePresetsViewDelegate(preset: zone, isNextPreset: nextPreset) { h in
+                        selectedPresetIndex = h && !disabled ? index : nil
+                        selectedPreset = h && !disabled ? zone : nil
+                    }
+                )
+                .background(DragPileView().fill(.center))
         }
     }
 
     var cmdPressed: Bool { keysManager.lcmd || keysManager.rcmd }
 
     var body: some View {
-        Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+        Grid(horizontalSpacing: 2, verticalSpacing: 2) {
             GridRow {
                 zoneView(index: 0)
                 zoneView(index: 1)
@@ -338,14 +393,9 @@ struct DropZoneView: View {
         VStack {
             if dragManager.showPresetZones || presetFileType != nil {
                 DropZonePresetsView(type: presetFileType ?? dragManager.fileType, selectedPreset: $selectedPreset)
-                    .background(
-                        roundRect(14, fill: .sunYellow.opacity(cmdPressed ? 0.5 : 0.0))
-                            .overlay(roundRect(14, stroke: .black.opacity(cmdPressed ? 0.7 : 0.0), lineWidth: 3))
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 Text("Drop to optimise")
-                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .round(14, weight: .heavy)
                     .padding(.top, 10)
 
                 SwiftUI.Image(systemName: "livephoto")
@@ -391,12 +441,16 @@ struct DropZoneView: View {
             alignment: .center
         )
         .opacity(hoverState ? 1.0 : 0.85)
+        .animation(.easeOut, value: hoverState)
         .padding(.horizontal, DROPZONE_PADDING.width)
         .padding(.vertical, DROPZONE_PADDING.height)
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.bg.primary.opacity(0.1), lineWidth: 4)
-                .shadow(color: colorScheme == .dark ? Color.orange : Color.hotRed, radius: 3)
-        )
+        .overlay {
+            if !dragManager.showPresetZones {
+                DROPZONE_SHAPE.stroke(Color.bg.primary.opacity(0.1), lineWidth: 4)
+                    .shadow(color: colorScheme == .dark ? Color.orange : Color.hotRed, radius: 3)
+                    .allowsHitTesting(false)
+            }
+        }
         .scaleEffect(hoverState ? 1.02 : 1.0)
         .onHover { hovering in
             self.hovering = hovering
@@ -406,15 +460,11 @@ struct DropZoneView: View {
     var body: some View {
         HStack {
             FlipGroup(if: !floatingResultsCorner.isTrailing) {
-                if #available(macOS 26.0, *) {
-                    draggingOutsideView
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .contentShape(Rectangle())
-                } else {
-                    draggingOutsideView
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .contentShape(Rectangle())
-                }
+                draggingOutsideView
+                    .if(!dragManager.showPresetZones) {
+                        $0.dropZoneGlassBackground()
+                    }
+                    .contentShape(Rectangle())
 
                 SwiftUI.Image("clop")
                     .resizable()
@@ -441,6 +491,7 @@ struct DropZoneView: View {
 let HAT_ICON_SIZE: CGFloat = 30
 let DROPZONE_SIZE: CGSize = THUMB_SIZE.scaled(by: 0.5)
 let DROPZONE_PADDING = CGSize(width: 14, height: 10)
+let DROPZONE_SHAPE = RoundedRectangle(cornerRadius: 22, style: .continuous)
 
 extension DropZoneView: DropDelegate {
     func dropEntered(info: DropInfo) {
@@ -542,14 +593,14 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output, shortcut: preset?.shortcut)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output, pipeline: preset?.resolvedPipeline)
                 }
             case UTType.pdf.identifier:
                 tryAsync {
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         return
                     }
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output, shortcut: preset?.shortcut)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output, pipeline: preset?.resolvedPipeline)
                 }
             case IMAGE_FORMATS.map(\.identifier):
                 tryAsync {
@@ -624,7 +675,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                         return
                     }
                     optimiser.remove(after: 0)
-                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output, shortcut: preset?.shortcut)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output, pipeline: preset?.resolvedPipeline)
                 }
             case [UTType.plainText.identifier, UTType.utf8PlainText.identifier]:
                 tryAsync {
@@ -705,7 +756,7 @@ func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: Optimisati
 }
 
 @MainActor
-func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, shortcut: Shortcut? = nil) async throws {
+func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, shortcut: Shortcut? = nil, pipeline: Pipeline? = nil) async throws {
     guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF || path.isDir else {
         return
     }
@@ -715,16 +766,29 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
         return
     }
     _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
-        try await optimiseItem(
+        let skipOpt = pipeline?.skipOptimisation ?? false
+        let result = try await optimiseItem(
             .file(path),
             id: path.string,
-            aggressiveOptimisation: aggressive,
+            aggressiveOptimisation: skipOpt ? false : aggressive,
             optimisationCount: &manualOptimisationCount,
             copyToClipboard: Defaults[.autoCopyToClipboard],
             source: source,
             output: output,
-            shortcut: shortcut
+            shortcut: pipeline == nil ? shortcut : nil
         )
+
+        // Run preset pipeline if configured
+        if let pipeline, !pipeline.isEmpty, let source, let optimiser = opt(path.string) {
+            let resultPath = result?.path ?? path
+            let fileType: ClopFileType = path.isImage ? .image : path.isVideo ? .video : path.isPDF ? .pdf : .audio
+            do {
+                _ = try await executePipeline(pipeline, file: resultPath, source: source, optimiser: optimiser, fileType: fileType)
+            } catch {
+                log.error("Pipeline: preset pipeline failed: \(error)")
+            }
+        }
+        return result
     }
 }
 

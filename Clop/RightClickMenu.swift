@@ -168,15 +168,16 @@ struct RightClickMenuView: View {
                 DROPSHARE.open(optimiser: optimiser)
             }
             .keyboardShortcut("u")
-            Button("Add to Dropover") {
-                DROPOVER.open(optimiser: optimiser)
-            }
-            Button("Add to Yoink") {
-                YOINK.open(optimiser: optimiser)
-            }
-            .keyboardShortcut("y")
-            Button("Add to Dockside") {
-                DOCKSIDE.open(optimiser: optimiser)
+            Menu("Add to shelf\u{2026}") {
+                Button("Add to Yoink") {
+                    YOINK.open(optimiser: optimiser)
+                }
+                Button("Add to Dockside") {
+                    DOCKSIDE.open(optimiser: optimiser)
+                }
+                Button("Add to Dropover") {
+                    DROPOVER.open(optimiser: optimiser)
+                }
             }
 
             Divider()
@@ -216,7 +217,10 @@ struct RightClickMenuView: View {
                 }
             }
 
-            Menu("Run workflow") {
+            Menu("Run pipeline") {
+                RunPipelineMenu(optimiser: optimiser)
+            }
+            Menu("Run Shortcut") {
                 WorkflowMenu(optimiser: optimiser)
             }
         }
@@ -294,17 +298,19 @@ struct BatchRightClickMenuView: View {
             DROPSHARE.open(optimisers: sm.optimisers)
             sm.selection = []
         }
-        Button("Add to Dropover") {
-            DROPOVER.open(optimisers: sm.optimisers)
-            sm.selection = []
-        }
-        Button("Add to Yoink") {
-            YOINK.open(optimisers: sm.optimisers)
-            sm.selection = []
-        }
-        Button("Add to Dockside") {
-            DOCKSIDE.open(optimisers: sm.optimisers)
-            sm.selection = []
+        Menu("Add to shelf\u{2026}") {
+            Button("Add to Yoink") {
+                YOINK.open(optimisers: sm.optimisers)
+                sm.selection = []
+            }
+            Button("Add to Dockside") {
+                DOCKSIDE.open(optimisers: sm.optimisers)
+                sm.selection = []
+            }
+            Button("Add to Dropover") {
+                DROPOVER.open(optimisers: sm.optimisers)
+                sm.selection = []
+            }
         }
 
         Divider()
@@ -366,6 +372,63 @@ struct ShortcutChoiceMenu: View {
         }
     }
 
+}
+
+struct RunPipelineMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    @Default(.savedPipelines) var savedPipelines
+
+    var fileType: ClopFileType? {
+        switch optimiser.type {
+        case .image: .image
+        case .video: .video
+        case .audio: .audio
+        case .pdf: .pdf
+        default: nil
+        }
+    }
+
+    var applicablePipelines: [Pipeline] {
+        savedPipelines.filter { pipeline in
+            guard let name = pipeline.name, !name.isEmpty else { return false }
+            return pipeline.fileType == nil || pipeline.fileType == fileType
+        }
+    }
+
+    var body: some View {
+        if applicablePipelines.isEmpty {
+            Text("No saved pipelines")
+            Text("Save a pipeline in Settings > Automation")
+        } else {
+            ForEach(applicablePipelines) { pipeline in
+                Button(pipeline.name ?? pipeline.id) {
+                    runPipeline(pipeline)
+                }
+            }
+        }
+    }
+
+    func runPipeline(_ pipeline: Pipeline) {
+        guard let url = optimiser.url, let path = url.existingFilePath, let fileType else { return }
+
+        Task { @MainActor in
+            optimiser.running = true
+            optimiser.operation = "Pipeline: \(pipeline.name ?? "unnamed")"
+            do {
+                let (resultFile, _) = try await executePipeline(
+                    pipeline, file: path,
+                    source: optimiser.source ?? .cli,
+                    optimiser: optimiser,
+                    fileType: fileType
+                )
+                optimiser.url = resultFile.url
+                optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: resultFile.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize)
+            } catch {
+                optimiser.finish(error: "Pipeline failed: \(error.localizedDescription)")
+            }
+        }
+    }
 }
 
 struct WorkflowMenu: View {

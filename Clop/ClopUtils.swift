@@ -201,10 +201,9 @@ extension FilePath {
 
     func stripExif() {
         let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
-        let args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
-            + ["-all=", "-tagsFromFile", "@"]
-            + ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags", "-icc_profile"] : [])
-            + ["-o", tempFile.string, string]
+        var args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72", "-all=", "-tagsFromFile", "@", "-XResolution", "-YResolution", "-Orientation"]
+        if Defaults[.preserveColorMetadata] { args += ["-ColorSpaceTags", "-icc_profile"] }
+        args += ["-o", tempFile.string, string]
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
 
         guard tempFile.exists else {
@@ -274,16 +273,18 @@ extension FilePath {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
 
-        let tagsToKeep = if stripMetadata {
-            ["-XResolution", "-YResolution", "-Orientation"] + (!hdr && Defaults[.preserveColorMetadata] ? ["-ColorSpaceTags", "-icc_profile"] : [])
-        } else {
-            isVideo ? ["-All:All"] : []
+        var tagsToKeep: [String] = []
+        if stripMetadata {
+            tagsToKeep = ["-XResolution", "-YResolution", "-Orientation"]
+            if !hdr, Defaults[.preserveColorMetadata] { tagsToKeep += ["-ColorSpaceTags", "-icc_profile"] }
+        } else if isVideo {
+            tagsToKeep = ["-All:All"]
         }
-        let args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
-            + additionalArgs
-            + ["-extractEmbedded", "-tagsFromFile", source.string]
-            + tagsToKeep
-            + [string]
+        var args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
+        args += additionalArgs
+        args += ["-extractEmbedded", "-tagsFromFile", source.string]
+        args += tagsToKeep
+        args += [string]
 
         log.debug("\(args.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " "))")
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)

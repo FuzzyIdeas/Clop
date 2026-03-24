@@ -203,13 +203,15 @@ class Video: Optimisable {
     func optimise(
         optimiser: Optimiser,
         forceMP4: Bool = false,
+        outputExtension: String? = nil,
         backup: Bool = true,
         resizeTo newSize: CGSize? = nil,
         cropTo cropSize: CropSize? = nil,
         changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
         originalPath: FilePath? = nil,
         aggressiveOptimisation: Bool? = nil,
-        removeAudio: Bool? = nil
+        removeAudio: Bool? = nil,
+        encoderOverride: [String]? = nil
     ) throws -> Video {
         log.debug("Optimising video \(self.path.string)")
         guard let name = path.lastComponent else {
@@ -220,7 +222,13 @@ class Video: Optimisable {
         path.waitForFile(for: 3)
         try? path.setOptimisationStatusXattr("pending")
 
-        let outputPath = forceMP4 ? FilePath.videos.appending("\(name.stem).mp4") : path
+        let outputPath: FilePath = if let outputExtension {
+            FilePath.videos.appending("\(name.stem).\(outputExtension)")
+        } else if forceMP4 {
+            FilePath.videos.appending("\(name.stem).mp4")
+        } else {
+            path
+        }
         var inputPath = originalPath ?? ((path == outputPath || backup) ? (path.backup(path: path.clopBackupPath, operation: .copy) ?? path) : path)
         var additionalArgs = [String]()
 
@@ -256,7 +264,7 @@ class Video: Optimisable {
         let encoder = Defaults[.videoEncoder]
         let aggressive = aggressiveOptimisation ?? (encoder == .slowHighQuality)
         mainActor { optimiser.aggressive = aggressive }
-        let encoderArgs: [String] = {
+        let encoderArgs: [String] = encoderOverride ?? {
             #if arch(arm64)
                 let useFastEncoder = encoder == .fast && aggressiveOptimisation != true
                 let useAdaptiveFast = encoder != .fast && Defaults[.adaptiveVideoSize] && !useAggressiveOptimisation(aggressiveSetting: aggressiveOptimisation ?? false)
@@ -280,10 +288,11 @@ class Video: Optimisable {
         } else {
             ["-c:a", "copy", "-map", "0:v", "-map", "0:a?"]
         }
-        let args = ["-y", "-i", inputPath.string]
-            + (["mp4", "mov", "hevc"].contains(outputPath.extension?.lowercased()) ? encoderArgs : [])
-            + audioArgs
-            + additionalArgs + ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
+        let useEncoder = encoderOverride != nil || ["mp4", "mov", "hevc"].contains(outputPath.extension?.lowercased() ?? "")
+        var args = ["-y", "-i", inputPath.string]
+        if useEncoder { args += encoderArgs }
+        args += audioArgs + additionalArgs
+        args += ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         var realDuration: Int64?
         if let duration {
@@ -377,11 +386,8 @@ func videoHasAudio(path: FilePath) async throws -> Bool {
 
 func isVideoValid(path: FilePath) async throws -> Bool {
     let avAsset = AVURLAsset(url: path.url)
-    let tracks = try await avAsset.load(.tracks)
-    guard let track = try await avAsset.loadTracks(withMediaType: .video).first else {
-        return false
-    }
-    return true
+    _ = try await avAsset.load(.tracks)
+    return try await avAsset.loadTracks(withMediaType: .video).first != nil
 }
 
 func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {

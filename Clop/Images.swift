@@ -447,11 +447,8 @@ class Image: CustomStringConvertible {
     func runThroughShortcut(shortcut: Shortcut? = nil, optimiser: Optimiser, allowLarger: Bool, aggressiveOptimisation: Bool, source: OptimisationSource?) throws -> Image? {
         let shortcutOutFile = FilePath.images.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(path.stem!)")
 
-        let proc: Process? = if let shortcut {
-            optimiser.runShortcut(shortcut, outFile: shortcutOutFile, url: path.url)
-        } else {
-            optimiser.runAutomation(outFile: shortcutOutFile, source: source, url: path.url, type: .image(type))
-        }
+        guard let shortcut else { return nil }
+        let proc: Process? = optimiser.runShortcut(shortcut, outFile: shortcutOutFile, url: path.url)
         guard let proc else {
             return nil
         }

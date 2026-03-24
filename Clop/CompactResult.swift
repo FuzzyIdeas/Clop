@@ -228,13 +228,7 @@ struct CompactResult: View {
                     if !sm.selecting {
                         ActionButtons(optimiser: optimiser, size: 18)
                             .padding(.top, 2)
-                            .hfill(.leading)
-                            .roundbg(
-                                radius: 10, verticalPadding: 3, horizontalPadding: 2,
-                                color: .primary.opacity(colorScheme == .dark ? 0.1 : 0.04)
-                            )
                             .focusable(false)
-                            .frame(height: 26)
                     }
                 }
             }
@@ -305,7 +299,7 @@ struct CompactCloseStopButton: View {
             label: {
                 HStack(spacing: 2) {
                     SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(8))
-                    Text(optimiser.running ? "Stop" : "Close").font(.medium(9))
+                    Text(optimiser.running ? "Stop" : "Close").medium(9)
                 }
             }
         )
@@ -827,7 +821,7 @@ struct ToggleCompactResultListButton: View {
                 .buttonStyle(FlatButton(color: .clear, textColor: .primary, radius: 7, verticalPadding: 2))
 
                 Text(showList ? "Hide" : "Show")
-                    .font(.medium(10))
+                    .medium(10)
                     .roundbg(radius: 5, padding: 2, color: .inverted.opacity(0.9), noFG: true)
                     .foregroundColor(.primary)
                     .opacity(hovering ? 1 : 0)
@@ -892,7 +886,8 @@ struct CompactPreview: View {
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: NSSize(width: 1880, height: 1000), newSize: NSSize(width: 1200, height: 600))
 
         let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)
-        proErrorOpt.finish(error: "Free version limits reached", notice: "Only 5 file optimisations per session\nare included in the free version")
+        proErrorOpt.isPreview = true
+        proErrorOpt.finish(error: "You've optimised 5 files this session", notice: "Get Clop Pro to remove the limit and unlock all features.\nRelaunch the app to reset the counter.")
 
         let noticeOpt = Optimiser(id: "notice", type: .unknown, operation: "")
         noticeOpt.finish(notice: "**Paused**\nNext clipboard event will be ignored")
@@ -964,5 +959,33 @@ struct CompactResult_Previews: PreviewProvider {
     static var previews: some View {
         CompactPreview()
             .background(LinearGradient(colors: [Color.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+}
+
+@MainActor
+struct CompactPreviewAllStates: View {
+    static var om: OptimisationManager = {
+        let o = CompactPreview.om
+        let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)
+        proErrorOpt.isPreview = true
+        proErrorOpt.finish(error: "You've optimised 5 files this session", notice: "Get Clop Pro to remove the limit and unlock all features.\nRelaunch the app to reset the counter.")
+        o.optimisers.insert(proErrorOpt)
+        mainActor {
+            o.failedCount += 1
+            o.visibleCount += 1
+        }
+        return o
+    }()
+
+    var body: some View {
+        FloatingResultContainer(om: Self.om, isPreview: true)
+    }
+}
+
+struct CompactResultAllStates_Previews: PreviewProvider {
+    static var previews: some View {
+        CompactPreviewAllStates()
+            .background(LinearGradient(colors: [Color.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .previewDisplayName("All States")
     }
 }
