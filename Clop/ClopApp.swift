@@ -12,6 +12,7 @@ import Cocoa
 import Combine
 import Defaults
 import Foundation
+import Ignore
 import Lowtech
 import LowtechIndie
 import LowtechPro
@@ -20,9 +21,6 @@ import Sentry
 import ServiceManagement
 import System
 import UniformTypeIdentifiers
-#if !PREVIEW
-    import Ignore
-#endif
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ClopApp")
 
@@ -529,6 +527,13 @@ class AppDelegate: AppDelegateParent {
             opt.showInFinder()
         case .u:
             DROPSHARE.open(optimiser: opt)
+        case .w:
+            if let session = WDM.session(forOptimiser: opt) {
+                session.copyLink()
+                opt.overlayMessage = "Copied link"
+            } else {
+                warpDropSend(optimiser: opt)
+            }
         case .o:
             guard let url = opt.url ?? opt.originalURL else { return }
             NSWorkspace.shared.open(url)
@@ -1463,12 +1468,10 @@ class FileOptimisationWatcher {
             // guard !alreadyOptimisedFiles.contains(event.path) else { return false }
             // guard shouldHandle(event) else { return false }
 
-            #if !PREVIEW
-                if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
-                    log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
-                    return false
-                }
-            #endif
+            if let root = paths.first(where: { event.path.hasPrefix($0) }), let ignorePath = "\(root)/\(clopIgnoreFileName)".existingFilePath, event.path.isIgnored(in: ignorePath.string) {
+                log.debug("Ignoring \(event.path) because it's in \(ignorePath.string)")
+                return false
+            }
 
             guard !hasSpuriousEvent(event) else { return false }
 

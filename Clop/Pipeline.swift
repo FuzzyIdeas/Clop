@@ -210,7 +210,7 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
     case changeSpeed(factor: Double)
 
     // Generic actions
-    case runScript(name: String, path: String)
+    case runScript(path: String)
     case runShortcut(Shortcut)
     case copyToClipboard(format: ClipboardCopyFormat = .path, relativeTo: String? = nil)
 
@@ -228,7 +228,7 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
         case .filterIfNot: "filterIfNot"
         case .removeAudio: "removeAudio"
         case let .changeSpeed(factor): "changeSpeed-\(factor)"
-        case let .runScript(name, _): "runScript-\(name)"
+        case let .runScript(path): "runScript-\(path)"
         case let .runShortcut(shortcut): "runShortcut-\(shortcut.name)"
         case let .copyToClipboard(format, relativeTo): "copyToClipboard-\(format.rawValue)-\(relativeTo ?? "")"
         }
@@ -284,7 +284,7 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
         case let .filterIfNot(condition): return "ifNot(\(condition.displayString))"
         case .removeAudio: return "removeAudio"
         case let .changeSpeed(factor): return "changeSpeed(factor: \(factor))"
-        case let .runScript(name, _): return "runScript(name: \(name))"
+        case let .runScript(path): return "runScript(path: \(path))"
         case let .runShortcut(shortcut): return "runShortcut(name: \(shortcut.name))"
         case let .copyToClipboard(format, relativeTo):
             var params = ["format: \(format.rawValue)"]
@@ -501,8 +501,7 @@ struct TemplateContext {
     scalingFactor: Double? = nil,
     cropSize: CropSize? = nil,
     changePlaybackSpeedFactor: Double? = nil,
-    removeAudio: Bool? = nil,
-    shortcut: Shortcut? = nil
+    removeAudio: Bool? = nil
 ) -> [PipelineAction] {
     var actions: [PipelineAction] = []
 
@@ -516,10 +515,6 @@ struct TemplateContext {
 
     if removeAudio == true {
         actions.append(.removeAudio)
-    }
-
-    if let shortcut {
-        actions.append(.runShortcut(shortcut))
     }
 
     return actions
@@ -1521,13 +1516,30 @@ func cleanupTempFile(_ tempFile: FilePath, original: FilePath) {
 func applyLocation(_ location: String, to resultFile: FilePath, original: FilePath, context: TemplateContext) -> FilePath {
     switch location {
     case "inPlace":
+        // If the result ended up in a different directory (e.g. format conversion
+        // changed the extension so the tool wrote to a temp path), move it next
+        // to the original with the correct filename.
+        if resultFile.dir != original.dir, let filename = resultFile.lastComponent?.string {
+            let dest = original.dir.appending(filename)
+            if let moved = try? resultFile.move(to: dest, force: true) {
+                // Conversion produced a valid file with a different extension;
+                // trash the original input file since the caller asked for inPlace.
+                if moved.extension != original.extension, original.exists, (moved.fileSize() ?? 0) > 0 {
+                    try? fm.trashItem(at: original.url, resultingItemURL: nil)
+                }
+                return moved
+            }
+        }
         return resultFile
     case "sameFolder":
-        if resultFile.dir != original.dir {
-            let dest = original.dir.appending(resultFile.lastComponent?.string ?? resultFile.name.string)
-            if let copied = try? resultFile.copy(to: dest, force: true) {
-                return copied
-            }
+        var filename = resultFile.lastComponent?.string ?? resultFile.name.string
+        // Strip the pipeline-<UUID>- prefix added by tempCopyIfNeeded
+        if let range = filename.range(of: #"^pipeline-[A-F0-9]{8}-"#, options: .regularExpression) {
+            filename = String(filename[range.upperBound...])
+        }
+        let dest = original.dir.appending(filename)
+        if dest != resultFile, let copied = try? resultFile.copy(to: dest, force: true) {
+            return copied
         }
         return resultFile
     case "temporaryFolder":
@@ -1805,8 +1817,23 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
         case let .delete(path):
             let resolved = context.resolve(path)
-            if let filePath = resolved.filePath {
-                try? fm.removeItem(atPath: filePath.string)
+            if let filePath = resolved.filePath, fm.fileExists(atPath: filePath.string) {
+                var isDir: ObjCBool = false
+                fm.fileExists(atPath: filePath.string, isDirectory: &isDir)
+                if isDir.boolValue {
+                    let shouldDelete = await MainActor.run {
+                        NSApp.activate(ignoringOtherApps: true)
+                        let alert = NSAlert()
+                        alert.messageText = "Move folder to Trash?"
+                        alert.informativeText = "The pipeline wants to delete the folder:\n\(filePath.string)"
+                        alert.alertStyle = .warning
+                        alert.addButton(withTitle: "Move to Trash")
+                        alert.addButton(withTitle: "Cancel")
+                        return alert.runModal() == .alertFirstButtonReturn
+                    }
+                    guard shouldDelete else { break }
+                }
+                try? fm.trashItem(at: filePath.url, resultingItemURL: nil)
             }
 
         // MARK: Filter steps
@@ -1857,80 +1884,141 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
         // MARK: Generic action steps
 
-        case let .runScript(name, scriptPath):
+        case let .runScript(scriptPath):
             let resolvedPath = context.resolve(scriptPath)
             let inputPath = currentFile.string
-            log.info("Running script '\(name)' at \(resolvedPath) with input \(inputPath)")
+            let scriptName = FilePath(resolvedPath).stem ?? resolvedPath
+            log.info("Pipeline: running script '\(scriptName)' at \(resolvedPath) with input \(inputPath)")
 
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            task.arguments = ["-c", "\(resolvedPath) '\(inputPath.replacingOccurrences(of: "'", with: "\\'"))'"]
+            let scriptResult: (newPath: FilePath?, error: String?) = await Task.detached {
+                let task = Process()
+                let resolvedFilePath = FilePath(resolvedPath)
+                if fm.isExecutableFile(atPath: resolvedPath) {
+                    task.executableURL = URL(fileURLWithPath: resolvedPath)
+                    task.arguments = [inputPath]
+                } else {
+                    task.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                    task.arguments = [resolvedPath, inputPath]
+                }
+                task.environment = ProcessInfo.processInfo.environment.merging([
+                    "CLOP_INPUT_FILE": inputPath,
+                ]) { _, new in new }
 
-            let outPipe = Pipe()
-            let errPipe = Pipe()
-            task.standardOutput = outPipe
-            task.standardError = errPipe
+                let outPipe = Pipe()
+                let errPipe = Pipe()
+                task.standardOutput = outPipe
+                task.standardError = errPipe
 
-            try task.run()
-            task.waitUntilExit()
+                do {
+                    try task.run()
+                } catch {
+                    return (nil, "Script '\(scriptName)' failed to start: \(error.localizedDescription)")
+                }
+                task.waitUntilExit()
 
-            let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let stdout = String(data: outData, encoding: .utf8) ?? ""
-            let stderr = String(data: errData, encoding: .utf8) ?? ""
+                let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                let stdout = String(data: outData, encoding: .utf8) ?? ""
+                let stderr = String(data: errData, encoding: .utf8) ?? ""
 
-            if task.terminationStatus != 0 {
-                let logContent = """
-                Script: \(name) (\(resolvedPath))
-                Input: \(inputPath)
-                Exit code: \(task.terminationStatus)
-                stdout: \(stdout)
-                stderr: \(stderr)
-                """
-                let logFile = FilePath.forResize.appending("script-error-\(Date.now.timeIntervalSinceReferenceDate.i).log")
-                try? logContent.write(toFile: logFile.string, atomically: true, encoding: .utf8)
+                if task.terminationStatus != 0 {
+                    let logContent = """
+                    Script: \(scriptName) (\(resolvedPath))
+                    Input: \(inputPath)
+                    Exit code: \(task.terminationStatus)
+                    stdout: \(stdout)
+                    stderr: \(stderr)
+                    """
+                    let logFile = FilePath.forResize.appending("script-error-\(Date.now.timeIntervalSinceReferenceDate.i).log")
+                    try? logContent.write(toFile: logFile.string, atomically: true, encoding: .utf8)
+                    return (nil, "Script '\(scriptName)' failed (exit \(task.terminationStatus))|\(logFile.string)")
+                }
 
-                optimiser.finish(error: "Script '\(name)' failed (exit \(task.terminationStatus))")
-                log.error("Script '\(name)' failed with exit code \(task.terminationStatus). Log: \(logFile.string)")
-                NSWorkspace.shared.open(logFile.url)
+                let trimmedOutput = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedOutput.isEmpty, let outputPath = trimmedOutput.existingFilePath {
+                    return (outputPath, nil)
+                }
+                return (currentFile, nil)
+            }.value
+
+            if let error = scriptResult.error {
+                let parts = error.split(separator: "|", maxSplits: 1)
+                let errorMessage = String(parts[0])
+                log.error("Pipeline: \(errorMessage)")
+                optimiser.finish(error: errorMessage)
+                if parts.count > 1, let logFile = String(parts[1]).existingFilePath {
+                    NSWorkspace.shared.open(logFile.url)
+                }
                 return (currentFile, shownVisibleResult)
             }
-
-            let trimmedOutput = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedOutput.isEmpty, let outputPath = trimmedOutput.filePath, fm.fileExists(atPath: outputPath.string) {
-                currentFile = outputPath
+            if let newPath = scriptResult.newPath, newPath != currentFile {
+                currentFile = newPath
             }
 
         case let .runShortcut(shortcut):
-            switch fileType {
-            case .image:
-                if let data = try? Data(contentsOf: currentFile.url) {
-                    let img = Image(data: data, path: currentFile, retinaDownscaled: false)
-                    if let result = try? img.runThroughShortcut(
-                        shortcut: shortcut, optimiser: optimiser,
-                        allowLarger: true, aggressiveOptimisation: false, source: source
-                    ) {
-                        currentFile = result.path
+            let tempDir: FilePath = switch fileType {
+            case .image: .images
+            case .video: .videos
+            case .pdf: .pdfs
+            case .audio: .audios
+            }
+            let shortcutOutFile = tempDir.appending("\(Date.now.timeIntervalSinceReferenceDate.i)-shortcut-output-for-\(currentFile.stem ?? "file")")
+
+            guard let proc = optimiser.runShortcut(shortcut, outFile: shortcutOutFile, url: currentFile.url) else {
+                break
+            }
+
+            let shortcutResult: (newPath: FilePath?, error: String?) = await Task.detached {
+                proc.waitUntilExit()
+                shortcutOutFile.waitForFile(for: 2)
+
+                guard shortcutOutFile.exists, let size = shortcutOutFile.fileSize(), size > 0 else {
+                    if !currentFile.exists {
+                        return (nil, "Shortcut '\(shortcut.name)' removed the file without providing output")
+                    }
+                    return (currentFile, nil)
+                }
+
+                defer { try? FileManager.default.removeItem(atPath: shortcutOutFile.string) }
+
+                if size < 4096,
+                   let text = try? String(contentsOfFile: shortcutOutFile.string),
+                   let outputPath = text.trimmingCharacters(in: .whitespacesAndNewlines).existingFilePath
+                {
+                    // Shortcut returned a file path (e.g. renamed/moved the file)
+                    if outputPath != currentFile {
+                        let outputType = UTType.from(filePath: outputPath)?.fileType
+                        if outputType == nil || outputType == fileType {
+                            return (outputPath, nil)
+                        } else {
+                            log.warning("Pipeline: shortcut '\(shortcut.name)' output path is \(outputType!) but expected \(fileType), ignoring")
+                        }
+                    }
+                } else {
+                    // Shortcut returned actual file data
+                    let outputType = UTType.from(filePath: shortcutOutFile)?.fileType
+                    if outputType == nil || outputType == fileType {
+                        try? shortcutOutFile.copy(to: currentFile, force: true)
+                    } else {
+                        log.warning("Pipeline: shortcut '\(shortcut.name)' output data is \(outputType!) but expected \(fileType), ignoring")
                     }
                 }
-            case .video:
-                let vid = Video(currentFile)
-                if let result = try? vid.runThroughShortcut(
-                    shortcut: shortcut, optimiser: optimiser,
-                    allowLarger: true, aggressiveOptimisation: false, source: source
-                ) {
-                    currentFile = result.path
-                }
-            case .pdf:
-                let pdf = PDF(currentFile)
-                if let result = try? pdf.runThroughShortcut(
-                    shortcut: shortcut, optimiser: optimiser,
-                    allowLarger: true, aggressiveOptimisation: false, source: source
-                ) {
-                    currentFile = result.path
-                }
-            case .audio:
-                break
+                return (currentFile, nil)
+            }.value
+
+            optimiser.running = false
+            optimiser.processes = []
+
+            if let error = shortcutResult.error {
+                log.error("Pipeline: \(error)")
+                optimiser.finish(error: error)
+                return (currentFile, shownVisibleResult)
+            }
+            if let newPath = shortcutResult.newPath {
+                let oldBytes = currentFile.fileSize() ?? 0
+                currentFile = newPath
+                optimiser.url = currentFile.url
+                optimiser.finish(oldBytes: oldBytes, newBytes: currentFile.fileSize() ?? 0)
             }
 
         case let .copyToClipboard(format, relativeTo):

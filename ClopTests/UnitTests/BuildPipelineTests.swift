@@ -113,29 +113,12 @@ struct BuildPipelineTests {
         #expect(actions[0].isOptimise)
     }
 
-    @Test("shortcut appended to pipeline")
-    func shortcutAppended() {
-        let shortcut = Shortcut(name: "Test", identifier: "test-id")
-        let actions = buildPipeline(shortcut: shortcut)
-        #expect(actions.count == 2)
-        #expect(actions[0].isOptimise)
-        if case let .runShortcut(s) = actions[1] {
-            #expect(s.name == "Test")
-        } else {
-            Issue.record("Expected .runShortcut")
-        }
-    }
-
     @Test("All appendable options combined")
     func allCombined() {
         let crop = CropSize(width: 800, height: 600)
-        let shortcut = Shortcut(name: "Test", identifier: "test-id")
-        let actions = buildPipeline(cropSize: crop, removeAudio: true, shortcut: shortcut)
-        #expect(actions.count == 3)
+        let actions = buildPipeline(cropSize: crop, removeAudio: true)
+        #expect(actions.count == 2)
         #expect(actions[0].isDownscale)
         #expect(actions[1].isRemoveAudio)
-        if case .runShortcut = actions[2] {} else {
-            Issue.record("Expected .runShortcut at index 2")
-        }
     }
 }

@@ -74,6 +74,17 @@ struct FloatingResultList: View {
     @Default(.showCopyClearButtons) var showCopyClearButtons
     @Environment(\.preview) var preview
 
+    var dragAllButton: some View {
+        SwiftUI.Image(systemName: "line.3.horizontal")
+            .font(.medium(11))
+            .frame(height: 18)
+            .padding(.horizontal, 8)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color.inverted.opacity(0.9)))
+            .foregroundColor(.primary)
+            .help("Drag all")
+            .onDragRealPath(optimisers.compactMap(\.url), disabled: preview)
+    }
+
     var copyAllButton: some View {
         Button(copiedText) {
             guard !preview else { return }
@@ -116,6 +127,7 @@ struct FloatingResultList: View {
             }
             if optimisers.count > 1, showCopyClearButtons {
                 HStack {
+                    dragAllButton
                     copyAllButton
                     clearAllButton
                 }
@@ -714,20 +726,13 @@ struct FloatingResult: View {
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
-        .ifLet(optimiser.url, transform: { view, url in
-            view
-                .onDrag {
-                    guard !preview else {
-                        return NSItemProvider()
-                    }
-
-                    log.debug("Dragging \(url)")
-                    if Defaults[.dismissFloatingResultOnDrop] {
-                        optimiser.remove(after: 100, withAnimation: true)
-                    }
-                    return NSItemProvider(object: url as NSURL)
-                }
-        })
+        .onDragRealPath(optimiser.url, disabled: preview) {
+            guard let url = optimiser.url else { return }
+            log.debug("Dragging \(url)")
+            if Defaults[.dismissFloatingResultOnDrop] {
+                optimiser.remove(after: 100, withAnimation: true)
+            }
+        }
         .foregroundColor(.white)
         .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 8)
 

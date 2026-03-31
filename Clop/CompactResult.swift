@@ -251,23 +251,13 @@ struct CompactResult: View {
                 }
         }
         .onHover(perform: updateHover(_:))
-        .ifLet(optimiser.url, transform: { view, url in
-            view
-                .onDrag {
-                    guard !preview else {
-                        return NSItemProvider()
-                    }
-
-                    log.debug("Dragging \(url)")
-                    if Defaults[.dismissCompactResultOnDrop] {
-                        optimiser.remove(after: 100, withAnimation: true)
-                    }
-                    return NSItemProvider(object: url as NSURL)
-                } preview: {
-                    DragPreview(optimiser: optimiser)
-                }
-
-        })
+        .onDragRealPath(optimiser.url, disabled: preview) {
+            guard let url = optimiser.url else { return }
+            log.debug("Dragging \(url)")
+            if Defaults[.dismissCompactResultOnDrop] {
+                optimiser.remove(after: 100, withAnimation: true)
+            }
+        }
     }
 
     func updateHover(_ hovering: Bool) {
@@ -553,6 +543,15 @@ struct CompactResultList: View {
                 OM.clearVisibleOptimisers(stop: true)
             }
             .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
+
+            SwiftUI.Image(systemName: "line.3.horizontal")
+                .font(.medium(11))
+                .frame(height: 18)
+                .padding(.horizontal, 8)
+                .background(RoundedRectangle(cornerRadius: 7).fill(Color.inverted.opacity(0.9)))
+                .foregroundColor(.mauvish)
+                .help("Drag all")
+                .onDragRealPath(optimisers.compactMap(\.url))
 
             if !floatingResultsCorner.isTrailing {
                 Spacer()

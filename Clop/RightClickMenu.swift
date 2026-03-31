@@ -53,6 +53,7 @@ struct OpenWithMenuView: View {
 
 struct RightClickMenuView: View {
     @ObservedObject var optimiser: Optimiser
+    @ObservedObject var wdm = WDM
 
     var body: some View {
         Button(optimiser.running ? "Stop" : "Dismiss") {
@@ -164,6 +165,18 @@ struct RightClickMenuView: View {
 
             Divider()
 
+            if let session = wdm.session(forOptimiser: optimiser) {
+                Button("Copy send link") {
+                    session.copyLink()
+                    optimiser.overlayMessage = "Copied link"
+                }
+                .keyboardShortcut("w")
+            } else {
+                Button("Send file securely") {
+                    warpDropSend(optimiser: optimiser)
+                }
+                .keyboardShortcut("w")
+            }
             Button("Upload with Dropshare") {
                 DROPSHARE.open(optimiser: optimiser)
             }
@@ -241,6 +254,7 @@ struct ConvertMenu: View {
 
 struct BatchRightClickMenuView: View {
     @ObservedObject var sm = SM
+    @ObservedObject var wdm = WDM
 
     var body: some View {
         let optimisers = sm.optimisers
@@ -294,6 +308,20 @@ struct BatchRightClickMenuView: View {
 
         Divider()
 
+        if sm.optimisers.allSatisfy({ wdm.session(forOptimiser: $0) != nil }) {
+            Button("Copy all send links") {
+                let links = sm.optimisers.compactMap { wdm.session(forOptimiser: $0)?.shareURL }
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(links.joined(separator: "\n"), forType: .string)
+                sm.selection = []
+            }
+        } else {
+            Button("Send files securely") {
+                warpDropSend(optimisers: sm.optimisers)
+                sm.selection = []
+            }
+        }
         Button("Upload with Dropshare") {
             DROPSHARE.open(optimisers: sm.optimisers)
             sm.selection = []
