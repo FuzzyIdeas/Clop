@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -95,6 +95,7 @@
 		C73802032BD1B804001BEE6C /* bin.tar.lrz in Resources */ = {isa = PBXBuildFile; fileRef = C73802012BD1B804001BEE6C /* bin.tar.lrz */; };
 		C73802052BD1B81A001BEE6C /* lrzip in Resources */ = {isa = PBXBuildFile; fileRef = C73802042BD1B81A001BEE6C /* lrzip */; };
 		C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73802062BDCD76D001BEE6C /* CompareView.swift */; };
+		C7605FC32F78194D0087B195 /* WarpDrop in Frameworks */ = {isa = PBXBuildFile; productRef = C7605FC22F78194D0087B195 /* WarpDrop */; };
 		C7760AB62A5C4EE500851F8C /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB52A5C4EE500851F8C /* Images.swift */; };
 		C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB72A5C854600851F8C /* SettingsView.swift */; };
 		C7760ABD2A5E026600851F8C /* NSImageExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */; };
@@ -112,7 +113,7 @@
 		C7956A422AC208DD00C0EDF2 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7956A412AC208DD00C0EDF2 /* main.swift */; };
 		C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C7956A4A2AC209F200C0EDF2 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = C7956A492AC209F200C0EDF2 /* ArgumentParser */; };
-		C7956A4C2AC317D200C0EDF2 /* ClopCLI in Copy Files (1 item) */ = {isa = PBXBuildFile; fileRef = C7956A3F2AC208DD00C0EDF2 /* ClopCLI */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		C7956A4C2AC317D200C0EDF2 /* ClopCLI in Copy Files */ = {isa = PBXBuildFile; fileRef = C7956A3F2AC208DD00C0EDF2 /* ClopCLI */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		C7976AC82B07B87D00C4246A /* BatchCropButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7976AC72B07B87D00C4246A /* BatchCropButton.swift */; };
 		C7A7DD672A739C7400DA12DF /* ClopShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */; };
 		C7AB38CB2AC5B10300F299CE /* RightClickMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */; };
@@ -144,6 +145,7 @@
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
 		C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EFD28B2B22577100A6D843 /* Onboarding.swift */; };
 		CBDC8ACBAB1062E5183F9E57 /* BackupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BC38B4958FBA426FB43BA5 /* BackupTests.swift */; };
+		DD17718179BD01F73E35E0F8 /* WarpDropManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */; };
 		DE7E3604A6513C84E7CB65AE /* FileNameTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BC883625FF464EA5E098363 /* FileNameTemplateTests.swift */; };
 		EA5F1F5E385A1423C141117E /* PipelineActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECFA84501B2CC8E38AACDCC7 /* PipelineActionTests.swift */; };
 		EBCDE68B70923D7BBF1C9859 /* VideoPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5372943A3A178D4868755497 /* VideoPipelineTests.swift */; };
@@ -230,15 +232,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
-		C7956A4B2AC317C100C0EDF2 /* Copy Files (1 item) */ = {
+		C7956A4B2AC317C100C0EDF2 /* Copy Files */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 12;
 			files = (
-				C7956A4C2AC317D200C0EDF2 /* ClopCLI in Copy Files (1 item) */,
+				C7956A4C2AC317D200C0EDF2 /* ClopCLI in Copy Files */,
 			);
-			name = "Copy Files (1 item)";
+			name = "Copy Files";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -328,6 +330,7 @@
 		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
 		C7EFD28B2B22577100A6D843 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		D8BC38B4958FBA426FB43BA5 /* BackupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupTests.swift; sourceTree = "<group>"; };
+		E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarpDropManager.swift; sourceTree = "<group>"; };
 		ECFA84501B2CC8E38AACDCC7 /* PipelineActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineActionTests.swift; sourceTree = "<group>"; };
 		F1E2D3C4B5A60798E9D0F1A2 /* AudioPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPipelineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -374,6 +377,7 @@
 				C78211022A59E371008DB106 /* Lowtech in Frameworks */,
 				C78211042A59E371008DB106 /* LowtechIndie in Frameworks */,
 				C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */,
+				C7605FC32F78194D0087B195 /* WarpDrop in Frameworks */,
 				C78211062A59E371008DB106 /* LowtechPro in Frameworks */,
 				C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */,
 			);
@@ -532,6 +536,7 @@
 				C73802042BD1B81A001BEE6C /* lrzip */,
 				C73802012BD1B804001BEE6C /* bin.tar.lrz */,
 				C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */,
+				E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */,
 			);
 			path = Clop;
 			sourceTree = "<group>";
@@ -656,7 +661,7 @@
 				C7AB661E288301590041BEC8 /* Frameworks */,
 				C7AB661F288301590041BEC8 /* Resources */,
 				C70B5F2A2AC014BF00345739 /* Embed Foundation Extensions */,
-				C7956A4B2AC317C100C0EDF2 /* Copy Files (1 item) */,
+				C7956A4B2AC317C100C0EDF2 /* Copy Files */,
 			);
 			buildRules = (
 			);
@@ -671,6 +676,7 @@
 				C78211052A59E371008DB106 /* LowtechPro */,
 				C7DF1A272AB8885600AF8EDC /* Ignore */,
 				C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */,
+				C7605FC22F78194D0087B195 /* WarpDrop */,
 			);
 			productName = Clop;
 			productReference = C7AB6621288301590041BEC8 /* Clop.app */;
@@ -715,6 +721,7 @@
 				C7DF1A262AB8885500AF8EDC /* XCRemoteSwiftPackageReference "swift-ignore" */,
 				C7956A482AC209F200C0EDF2 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
 				C73987702D32ECE200CCC939 /* XCRemoteSwiftPackageReference "SymbolPicker" */,
+				C7605FC12F78194D0087B195 /* XCLocalSwiftPackageReference "swift" */,
 			);
 			productRefGroup = C7AB6622288301590041BEC8 /* Products */;
 			projectDirPath = "";
@@ -939,6 +946,7 @@
 				C72DECB52F38E34C00523058 /* ErrorReports.swift in Sources */,
 				C78211092A5B21A4008DB106 /* Xattr.swift in Sources */,
 				C7A7DD672A739C7400DA12DF /* ClopShortcuts.swift in Sources */,
+				DD17718179BD01F73E35E0F8 /* WarpDropManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1077,7 +1085,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG PREVIEW";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -1497,6 +1505,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		C7605FC12F78194D0087B195 /* XCLocalSwiftPackageReference "swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../../Github/alin23/warpdrop/swift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		C71AAAE02D2D8AB200CA86D9 /* XCRemoteSwiftPackageReference "Lowtech" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1555,6 +1570,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C71AAAE02D2D8AB200CA86D9 /* XCRemoteSwiftPackageReference "Lowtech" */;
 			productName = LowtechPro;
+		};
+		C7605FC22F78194D0087B195 /* WarpDrop */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = WarpDrop;
 		};
 		C78211012A59E371008DB106 /* Lowtech */ = {
 			isa = XCSwiftPackageProductDependency;

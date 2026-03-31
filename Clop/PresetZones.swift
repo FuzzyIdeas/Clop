@@ -45,14 +45,6 @@ struct PresetZone: Codable, Hashable, Identifiable, Defaults.Serializable {
     /// The effective pipeline, resolving library references.
     var resolvedPipeline: Pipeline { pipeline.resolved }
 
-    /// Backward-compatible shortcut accessor for existing call sites.
-    var shortcut: Shortcut? {
-        pipeline.steps.compactMap { step in
-            if case let .runShortcut(s) = step { return s }
-            return nil
-        }.first
-    }
-
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)

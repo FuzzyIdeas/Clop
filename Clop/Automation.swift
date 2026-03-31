@@ -512,12 +512,12 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
     ),
     StepTemplate(
         name: "delete", description: "Delete a file",
-        mandatoryParams: [],
-        optionalParams: [
-            ParamTemplate(name: "path", description: "sourceFile (default) or a template path", suggestions: ["sourceFile"], freeText: true, needsQuotes: true),
+        mandatoryParams: [
+            ParamTemplate(name: "path", description: "path to delete, supports %P, %f, %e and other template tokens", suggestions: [], freeText: true, needsQuotes: true),
         ],
+        optionalParams: [],
         applicableTypes: [.image, .video, .audio, .pdf],
-        create: { .delete() }
+        create: { .delete(path: "") }
     ),
     StepTemplate(
         name: "if", description: "Continue pipeline only if condition matches",
@@ -566,15 +566,13 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         create: { .changeSpeed(factor: 1.5) }
     ),
     StepTemplate(
-        name: "runScript", description: "Run a zsh script, file path passed as $1",
+        name: "runScript", description: "Run a script or executable, input file passed as $1 and CLOP_INPUT_FILE",
         mandatoryParams: [
-            ParamTemplate(name: "name", description: "script display name", suggestions: [], freeText: true, needsQuotes: true),
+            ParamTemplate(name: "path", description: "path to script or executable", suggestions: [], freeText: true, needsQuotes: true),
         ],
-        optionalParams: [
-            ParamTemplate(name: "path", description: "path to the .sh file", suggestions: [], freeText: true, needsQuotes: true),
-        ],
+        optionalParams: [],
         applicableTypes: [.image, .video, .audio, .pdf],
-        create: { .runScript(name: "", path: "") }
+        create: { .runScript(path: "") }
     ),
     StepTemplate(
         name: "runShortcut", description: "Run a macOS Shortcut",
@@ -668,7 +666,8 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         return .rename(to: to)
 
     case "delete":
-        return .delete(path: params["path"] ?? "sourceFile")
+        guard let path = params["path"], !path.isEmpty else { return nil }
+        return .delete(path: path)
 
     case "if":
         let condition = parseFilterCondition(params)
@@ -685,9 +684,8 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         return .changeSpeed(factor: factor)
 
     case "runScript":
-        guard let scriptName = params["name"], !scriptName.isEmpty else { return nil }
-        let scriptPath = params["path"] ?? Defaults[.savedScriptPaths][scriptName] ?? ""
-        return .runScript(name: scriptName, path: scriptPath)
+        guard let scriptPath = params["path"], !scriptPath.isEmpty else { return nil }
+        return .runScript(path: scriptPath)
 
     case "runShortcut":
         guard let shortcutName = params["name"], !shortcutName.isEmpty else { return nil }
@@ -755,7 +753,8 @@ struct TemplateVariable {
 let TEMPLATE_VARIABLES: [TemplateVariable] = [
     TemplateVariable(token: "%f", name: "filename", description: "source file name without extension"),
     TemplateVariable(token: "%e", name: "extension", description: "source file extension without dot (note: output extension is always added automatically)"),
-    TemplateVariable(token: "%P", name: "path", description: "full source file path"),
+    TemplateVariable(token: "%P", name: "path", description: "source file directory path"),
+    TemplateVariable(token: "%F", name: "fullPath", description: "full source file path including filename"),
     TemplateVariable(token: "%y", name: "year", description: "current year (e.g. 2026)"),
     TemplateVariable(token: "%m", name: "month", description: "month number (01-12)"),
     TemplateVariable(token: "%n", name: "monthName", description: "month name (e.g. March)"),
@@ -2152,6 +2151,38 @@ struct SavedPipelineRow: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                Menu {
+                    let currentType = pipeline.fileType
+                    let types: [(String, ClopFileType?)] = [
+                        ("Image", .image),
+                        ("Video", .video),
+                        ("Audio", .audio),
+                        ("PDF", .pdf),
+                        ("Any type", nil),
+                    ]
+                    ForEach(types, id: \.0) { label, type in
+                        Button {
+                            var updated = pipeline
+                            updated.fileType = type
+                            onUpdate(updated)
+                        } label: {
+                            HStack {
+                                Text(label)
+                                if currentType == type {
+                                    SwiftUI.Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    SwiftUI.Image(systemName: "arrow.right.arrow.left")
+                        .font(.regular(10))
+                        .foregroundColor(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Move to another file type")
 
                 Button(action: onDelete) {
                     SwiftUI.Image(systemName: "trash")

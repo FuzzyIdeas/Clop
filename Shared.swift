@@ -1234,6 +1234,7 @@ enum FileNameToken: String {
     case filename = "%f"
     case ext = "%e"
     case path = "%P"
+    case fullPath = "%F"
 }
 
 func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath {
@@ -1249,13 +1250,14 @@ func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncreme
                 generateFileName(
                     template: component.string, for: path,
                     autoIncrementingNumber: &placeholderNum,
-                    safe: !component.string.contains(FileNameToken.path.rawValue)
+                    safe: !component.string.contains(FileNameToken.path.rawValue) && !component.string.contains(FileNameToken.fullPath.rawValue)
                 )
             ).components.map { $0 }
         }.joined()
     )
     if newpath.isRelative, let path {
-        newpath = (template.components.first?.string == FileNameToken.path.rawValue ? FilePath("/") : path.dir).appending(newpath.components)
+        let startsWithAbsolute = template.components.first?.string == FileNameToken.path.rawValue || template.components.first?.string == FileNameToken.fullPath.rawValue
+        newpath = (startsWithAbsolute ? FilePath("/") : path.dir).appending(newpath.components)
     }
 
     newpath = newpath.lexicallyNormalized()
@@ -1326,6 +1328,7 @@ func generateFileName(template: String, for path: FilePath? = nil, autoIncrement
         .replacingOccurrences(of: FileNameToken.amPm.rawValue, with: components.hour! > 12 ? "PM" : "AM")
         .replacingOccurrences(of: FileNameToken.randomCharacters.rawValue, with: NanoID.new(alphabet: .lowercasedLatinLetters, size: 5))
         .replacingOccurrences(of: FileNameToken.autoIncrementingNumber.rawValue, with: num.s)
+        .replacingOccurrences(of: FileNameToken.fullPath.rawValue, with: path?.string ?? "")
         .replacingOccurrences(of: FileNameToken.path.rawValue, with: path?.dir.string ?? "")
         .replacingOccurrences(of: FileNameToken.filename.rawValue, with: path?.stem ?? "")
         .replacingOccurrences(of: FileNameToken.ext.rawValue, with: path?.extension ?? "")

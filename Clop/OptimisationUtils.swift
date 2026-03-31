@@ -1859,8 +1859,7 @@ func optimiseURL(
     adaptiveOptimisation: Bool? = nil,
     source: OptimisationSource? = nil,
     output: String? = nil,
-    removeAudio: Bool? = nil,
-    shortcut: Shortcut? = nil
+    removeAudio: Bool? = nil
 ) async throws -> ClipboardType? {
     showFloatingThumbnails(force: true)
 
@@ -1891,7 +1890,7 @@ func optimiseURL(
             } else if let scalingFactor, scalingFactor < 1 {
                 [.downscale(factor: scalingFactor, cropSize: nil)]
             } else {
-                [.optimise] + (shortcut.map { [.runShortcut($0)] } ?? [])
+                [.optimise]
             }
             let result: Image? = try await runImagePipeline(
                 img, actions: imgActions,
@@ -1914,8 +1913,7 @@ func optimiseURL(
                 scalingFactor: scalingFactor,
                 cropSize: cropSize,
                 changePlaybackSpeedFactor: changePlaybackSpeedFactor,
-                removeAudio: removeAudio,
-                shortcut: shortcut
+                removeAudio: removeAudio
             )
             let result: Video? = if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, thumb: !hideFloatingResult, id: optimiser.id), let size = video.size {
                 if cropSize < size {
@@ -1946,7 +1944,6 @@ func optimiseURL(
 
             var pdfActions: [PipelineAction] = [.optimise]
             if let cropSize { pdfActions.append(.downscale(factor: nil, cropSize: cropSize)) }
-            if let shortcut { pdfActions.append(.runShortcut(shortcut)) }
             let result: PDF? = try await runPDFPipeline(
                 PDF(downloadPath, thumb: !hideFloatingResult, id: optimiser.id),
                 actions: pdfActions,
@@ -2251,7 +2248,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
     output: String? = nil,
     removeAudio: Bool? = nil,
     optimisedFileBehaviour: OptimisedFileBehaviour? = nil,
-    shortcut: Shortcut? = nil
+    skipPipelineLookup: Bool = false
 ) async throws -> ClipboardType? {
     func nope(notice: String, thumbnail: NSImage? = nil, url: URL? = nil, type: ItemType? = nil) {
         let optimiser = OM.optimiser(id: id, type: type ?? .unknown, operation: "", hidden: hideFloatingResult)
@@ -2299,7 +2296,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
             } else if let scalingFactor, scalingFactor < 1 {
                 [.downscale(factor: scalingFactor, cropSize: nil)]
             } else {
-                [.optimise] + (shortcut.map { [.runShortcut($0)] } ?? [])
+                [.optimise]
             }
 
             let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: img.path.url) {
@@ -2318,7 +2315,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 )
             }
             guard let result else { return nil }
-            if let source, let optimiser = opt(id) {
+            if !skipPipelineLookup, let source, let optimiser = opt(id) {
                 await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser)
             }
             return .image(result)
@@ -2330,6 +2327,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     optimiser.image = img
                     let fileSize = path.fileSize() ?? 0
                     optimiser.finish(oldBytes: fileSize, newBytes: fileSize, oldSize: img.size)
+                    if skipPipelineLookup { return .file(path) }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -2343,7 +2341,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 } else if let scalingFactor, scalingFactor < 1 {
                     [.downscale(factor: scalingFactor, cropSize: nil)]
                 } else {
-                    [.optimise] + (shortcut.map { [.runShortcut($0)] } ?? [])
+                    [.optimise]
                 }
 
                 let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
@@ -2362,7 +2360,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
-                if let source, let optimiser = opt(id) {
+                if !skipPipelineLookup, let source, let optimiser = opt(id) {
                     await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser)
                 }
                 return .image(result)
@@ -2378,6 +2376,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                         let fileSize = path.fileSize() ?? 0
                         optimiser.finish(oldBytes: fileSize, newBytes: fileSize, oldSize: nil)
                     }
+                    if skipPipelineLookup { return .file(path) }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -2390,8 +2389,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     scalingFactor: scalingFactor,
                     cropSize: cropSize,
                     changePlaybackSpeedFactor: changePlaybackSpeedFactor,
-                    removeAudio: removeAudio,
-                    shortcut: shortcut
+                    removeAudio: removeAudio
                 )
 
                 let result: Video? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
@@ -2411,7 +2409,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
-                if let source, let optimiser = opt(id) {
+                if !skipPipelineLookup, let source, let optimiser = opt(id) {
                     await runPipelinesAfterOptimisation(file: result.path, type: .video(UTType.from(filePath: result.path) ?? .mpeg4Movie), source: source, optimiser: optimiser)
                 }
                 return .file(result.path)
@@ -2423,6 +2421,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     optimiser.pdf = pdf
                     optimiser.finish(oldBytes: pdf.fileSize, newBytes: pdf.fileSize, oldSize: pdf.size)
 
+                    if skipPipelineLookup { return .file(path) }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -2432,7 +2431,6 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
 
                 var filePdfActions: [PipelineAction] = [.optimise]
                 if let cropSize { filePdfActions.append(.downscale(factor: nil, cropSize: cropSize)) }
-                if let shortcut { filePdfActions.append(.runShortcut(shortcut)) }
 
                 let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                     let pdf = PDF(path, thumb: !hideFloatingResult)
@@ -2449,7 +2447,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
-                if let source, let optimiser = opt(id) {
+                if !skipPipelineLookup, let source, let optimiser = opt(id) {
                     await runPipelinesAfterOptimisation(file: result.path, type: .pdf, source: source, optimiser: optimiser)
                 }
                 return .file(result.path)
@@ -2461,6 +2459,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     let audio = Audio(path: path, thumb: !hideFloatingResult)
                     optimiser.audio = audio
                     optimiser.finish(oldBytes: audio.fileSize, newBytes: audio.fileSize)
+                    if skipPipelineLookup { return .file(path) }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -2476,7 +2475,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     )
                 }
                 guard let result else { return nil }
-                if let source, let optimiser = opt(id) {
+                if !skipPipelineLookup, let source, let optimiser = opt(id) {
                     await runPipelinesAfterOptimisation(file: result.path, type: .audio(path.url.utType() ?? .mp3), source: source, optimiser: optimiser)
                 }
                 return .file(result.path)
@@ -2497,8 +2496,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: source,
                     output: output,
-                    removeAudio: removeAudio,
-                    shortcut: shortcut
+                    removeAudio: removeAudio
                 )
             }
             return result

@@ -19,6 +19,7 @@ struct MenuView: View {
     @ObservedObject var um = UM
     @ObservedObject var pm = PM
     @ObservedObject var om = OM
+    @ObservedObject var wdm = WDM
     @Environment(\.openWindow) var openWindow
 
     @Default(.keyComboModifiers) var keyComboModifiers
@@ -144,6 +145,34 @@ struct MenuView: View {
                 Text(cliInstallResult).disabled(true)
             } else if cliInstalled {
                 Text("CLI installed at \(CLOP_CLI_BIN_SHELL)").disabled(true)
+            }
+        }
+
+        if wdm.hasSessions {
+            Menu("Sending files (\(wdm.sessions.count))") {
+                ForEach(wdm.sessions) { session in
+                    Menu(session.fileNames) {
+                        Button("Copy link") {
+                            session.copyLink()
+                        }
+                        if session.downloadCount > 0 {
+                            Text("Downloaded \(session.downloadCount) time\(session.downloadCount == 1 ? "" : "s")")
+                        }
+                        Button("Stop sending") {
+                            wdm.stopSession(session)
+                        }
+                    }
+                }
+                Divider()
+                Button("Copy all links") {
+                    let links = wdm.sessions.map(\.shareURL).joined(separator: "\n")
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setString(links, forType: .string)
+                }
+                Button("Stop all") {
+                    wdm.stopAll()
+                }
             }
         }
 

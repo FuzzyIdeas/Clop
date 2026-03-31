@@ -187,7 +187,7 @@ struct DropZonePresetsViewDelegate: DropDelegate {
         if DM.optimisationCount == 5 {
             DM.optimisationCount += 1
         }
-        return optimiseDroppedItems(info.itemProviders(for: IMAGE_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf]), copy: NSEvent.modifierFlags.contains(.option), preset: preset)
+        return optimiseDroppedItems(info.itemProviders(for: IMAGE_FORMATS + AUDIO_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf]), copy: NSEvent.modifierFlags.contains(.option), preset: preset)
     }
 }
 
@@ -562,6 +562,26 @@ struct DragPileView: NSViewRepresentable {
     }
 }
 
+/// Run the preset pipeline on the result of `optimiseItem`, matching the pattern in `optimiseFile`.
+@MainActor
+private func runPresetPipeline(_ pipeline: Pipeline?, result: ClipboardType?, id: String) async {
+    guard let pipeline, !pipeline.isEmpty, let result, let optimiser = opt(id) else { return }
+    let path = result.path
+    let fileType: ClopFileType = path.isImage ? .image : path.isVideo ? .video : path.isPDF ? .pdf : .audio
+    do {
+        let (resultFile, _) = try await executePipeline(pipeline, file: path, source: .dropZone, optimiser: optimiser, fileType: fileType)
+        if resultFile != path {
+            optimiser.url = resultFile.url
+            optimiser.type = .from(filePath: resultFile)
+            if let newSize = resultFile.fileSize() {
+                optimiser.newBytes = newSize
+            }
+        }
+    } catch {
+        log.error("Pipeline: preset pipeline failed: \(error)")
+    }
+}
+
 @MainActor
 func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset: PresetZone? = nil, thumbnails: [NSItemProvider] = [], filenames: [NSItemProvider] = []) -> Bool {
     DM.dragging = false
@@ -569,6 +589,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
     var filenames = filenames
 
     let aggressive = NSEvent.modifierFlags.contains(.command) ? true : nil
+    let pipeline = preset?.resolvedPipeline
     let hasItemsToOptimise = itemProviders.contains { provider in
         (IMAGE_FORMATS + VIDEO_FORMATS).contains { provider.hasItemConformingToTypeIdentifier($0.identifier) }
     } || DM.itemsToOptimise.isNotEmpty
@@ -610,7 +631,17 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                     let nsImage = item as? NSImage ?? (data != nil ? NSImage(data: data!) : nil)
 
                     if path == nil, data == nil, nsImage == nil, itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                        try await optimiseItem(item, id: item.id, aggressiveOptimisation: aggressive, optimisationCount: &DM.optimisationCount, copyToClipboard: copyToClipboard, source: .dropZone, output: output, shortcut: preset?.shortcut)
+                        let result = try await optimiseItem(
+                            item,
+                            id: item.id,
+                            aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
+                            optimisationCount: &DM.optimisationCount,
+                            copyToClipboard: copyToClipboard,
+                            source: .dropZone,
+                            output: output,
+                            skipPipelineLookup: pipeline != nil
+                        )
+                        await runPresetPipeline(pipeline, result: result, id: item.id)
                         return
                     }
 
@@ -621,16 +652,17 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                         return
                     }
 
-                    try await optimiseItem(
+                    let result = try await optimiseItem(
                         .image(image),
                         id: image.path.string,
-                        aggressiveOptimisation: aggressive,
+                        aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
                         optimisationCount: &DM.optimisationCount,
                         copyToClipboard: copyToClipboard,
                         source: .dropZone,
                         output: output,
-                        shortcut: preset?.shortcut
+                        skipPipelineLookup: pipeline != nil
                     )
+                    await runPresetPipeline(pipeline, result: result, id: image.path.string)
                 }
             case VIDEO_FORMATS.map(\.identifier):
                 tryAsync {
@@ -661,16 +693,17 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         optimiser.remove(after: 0)
                         if itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
-                            try await optimiseItem(
+                            let result = try await optimiseItem(
                                 item,
                                 id: item.id,
-                                aggressiveOptimisation: aggressive,
+                                aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
                                 optimisationCount: &DM.optimisationCount,
                                 copyToClipboard: copyToClipboard,
                                 source: .dropZone,
                                 output: output,
-                                shortcut: preset?.shortcut
+                                skipPipelineLookup: pipeline != nil
                             )
+                            await runPresetPipeline(pipeline, result: result, id: item.id)
                         }
                         return
                     }
@@ -681,28 +714,30 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                 tryAsync {
                     let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier)
                     if let path = item?.existingFilePath, path.isImage || path.isVideo {
-                        try await optimiseItem(
+                        let result = try await optimiseItem(
                             .file(path),
                             id: path.string,
-                            aggressiveOptimisation: aggressive,
+                            aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
                             optimisationCount: &DM.optimisationCount,
                             copyToClipboard: copyToClipboard,
                             source: .dropZone,
                             output: output,
-                            shortcut: preset?.shortcut
+                            skipPipelineLookup: pipeline != nil
                         )
+                        await runPresetPipeline(pipeline, result: result, id: path.string)
                     }
                     if let url = item?.url, url.isImage || url.isVideo {
-                        try await optimiseItem(
+                        let result = try await optimiseItem(
                             .url(url),
                             id: url.absoluteString,
-                            aggressiveOptimisation: aggressive,
+                            aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
                             optimisationCount: &DM.optimisationCount,
                             copyToClipboard: copyToClipboard,
                             source: .dropZone,
                             output: output,
-                            shortcut: preset?.shortcut
+                            skipPipelineLookup: pipeline != nil
                         )
+                        await runPresetPipeline(pipeline, result: result, id: url.absoluteString)
                     }
                 }
             case UTType.url.identifier:
@@ -710,16 +745,17 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                     guard let url = try await itemProvider.loadItem(forTypeIdentifier: identifier) as? URL, url.isImage || url.isVideo else {
                         return
                     }
-                    try await optimiseItem(
+                    let result = try await optimiseItem(
                         .url(url),
                         id: url.absoluteString,
-                        aggressiveOptimisation: aggressive,
+                        aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
                         optimisationCount: &DM.optimisationCount,
                         copyToClipboard: copyToClipboard,
                         source: .dropZone,
                         output: output,
-                        shortcut: preset?.shortcut
+                        skipPipelineLookup: pipeline != nil
                     )
+                    await runPresetPipeline(pipeline, result: result, id: url.absoluteString)
                 }
             default:
                 break
@@ -741,13 +777,13 @@ extension NSSecureCoding {
 }
 
 @MainActor
-func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, types: [UTType], shortcut: Shortcut? = nil) async throws {
+func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, types: [UTType]) async throws {
     await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
         for url in getURLsFromFolder(dir.url, recursive: true, types: types) {
             let path = url.filePath!
             let added = group.addTaskUnlessCancelled {
                 _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
-                    try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: false, source: source, output: output, shortcut: shortcut)
+                    try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: false, source: source, output: output)
                 }
             }
             guard added else { break }
@@ -756,13 +792,13 @@ func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: Optimisati
 }
 
 @MainActor
-func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, shortcut: Shortcut? = nil, pipeline: Pipeline? = nil) async throws {
+func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, pipeline: Pipeline? = nil) async throws {
     guard let path = item?.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF || path.isDir else {
         return
     }
 
     guard !path.isDir else {
-        try await optimiseDir(path: path, aggressive: aggressive, source: source, output: output, types: ALL_FORMATS, shortcut: shortcut)
+        try await optimiseDir(path: path, aggressive: aggressive, source: source, output: output, types: ALL_FORMATS)
         return
     }
     _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
@@ -775,7 +811,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
             copyToClipboard: Defaults[.autoCopyToClipboard],
             source: source,
             output: output,
-            shortcut: pipeline == nil ? shortcut : nil
+            skipPipelineLookup: pipeline != nil
         )
 
         // Run preset pipeline if configured
@@ -783,7 +819,14 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
             let resultPath = result?.path ?? path
             let fileType: ClopFileType = path.isImage ? .image : path.isVideo ? .video : path.isPDF ? .pdf : .audio
             do {
-                _ = try await executePipeline(pipeline, file: resultPath, source: source, optimiser: optimiser, fileType: fileType)
+                let (resultFile, _) = try await executePipeline(pipeline, file: resultPath, source: source, optimiser: optimiser, fileType: fileType)
+                if resultFile != resultPath {
+                    optimiser.url = resultFile.url
+                    optimiser.type = .from(filePath: resultFile)
+                    if let newSize = resultFile.fileSize() {
+                        optimiser.newBytes = newSize
+                    }
+                }
             } catch {
                 log.error("Pipeline: preset pipeline failed: \(error)")
             }

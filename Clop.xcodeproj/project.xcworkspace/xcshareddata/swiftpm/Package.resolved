@@ -77,8 +77,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "c63a66f1b5107eec3792249bb03e65015eeba905",
-        "version" : "9.7.0"
+        "revision" : "05d3ce8332097ff0b2347231ac66476fd7d2f4d8",
+        "version" : "9.8.0"
       }
     },
     {
@@ -95,8 +95,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "c5d11a805e765f52ba34ec7284bd4fcd6ba68615",
-        "version" : "1.7.0"
+        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
+        "version" : "1.7.1"
       }
     },
     {
@@ -122,8 +122,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/swift-ignore",
       "state" : {
-        "revision" : "4fea2479f50c968fad64092b6d2a9b4312f1b353",
-        "version" : "0.1.3"
+        "revision" : "4fc142964621eda7835a4524e567388f5ef6f1a0",
+        "version" : "0.1.4"
       }
     },
     {
@@ -151,6 +151,15 @@
       "state" : {
         "revision" : "10e1f1c24354711baa14780b7fdcdb83fcbdbc7e",
         "version" : "2.0.1"
+      }
+    },
+    {
+      "identity" : "webrtc",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stasel/WebRTC.git",
+      "state" : {
+        "revision" : "1048f8396529c10e259f8240d0c2cd607a13defd",
+        "version" : "130.0.0"
       }
     }
   ],

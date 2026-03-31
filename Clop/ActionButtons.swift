@@ -13,6 +13,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     case quickLook
     case saveAs
     case addToShelf
+    case sendSecurely
 
     static let maxFloatingButtons = 5
     static let maxCompactButtons = 9
@@ -32,6 +33,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         case .quickLook: "QuickLook"
         case .saveAs: "Save as..."
         case .addToShelf: "Add to shelf"
+        case .sendSecurely: "Send securely"
         }
     }
 
@@ -46,6 +48,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         case .quickLook: "eye"
         case .saveAs: "square.and.arrow.down"
         case .addToShelf: "tray.and.arrow.down"
+        case .sendSecurely: "lock.shield"
         }
     }
 
@@ -267,6 +270,21 @@ struct ActionButton: View {
         case .addToShelf:
             Button(action: { if !preview, let app = runningShelfApp() { app.open(optimiser: optimiser) } }) {
                 SwiftUI.Image(systemName: "tray.and.arrow.down").font(.heavy(9))
+            }
+        case .sendSecurely:
+            if let session = WDM.session(forOptimiser: optimiser) {
+                Button(action: {
+                    if !preview {
+                        session.copyLink()
+                        optimiser.overlayMessage = "Copied link"
+                    }
+                }) {
+                    SwiftUI.Image(systemName: "link").font(.heavy(9))
+                }
+            } else {
+                Button(action: { if !preview { warpDropSend(optimiser: optimiser) } }) {
+                    SwiftUI.Image(systemName: "lock.shield").font(.heavy(9))
+                }
             }
         }
     }
