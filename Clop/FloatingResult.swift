@@ -82,7 +82,15 @@ struct FloatingResultList: View {
             .background(RoundedRectangle(cornerRadius: 7).fill(Color.inverted.opacity(0.9)))
             .foregroundColor(.primary)
             .help("Drag all")
-            .onDragRealPath(optimisers.compactMap(\.url), disabled: preview)
+            .onDrag {
+                guard !preview else { return NSItemProvider() }
+                let urls = optimisers.compactMap(\.url)
+                let provider = NSItemProvider()
+                for url in urls {
+                    provider.registerObject(url as NSURL, visibility: .all)
+                }
+                return provider
+            }
     }
 
     var copyAllButton: some View {
@@ -550,6 +558,7 @@ struct FloatingResult: View {
 
             closeStopButton.offset(x: -22, y: -16)
         }
+        .animation(nil, value: optimiser.running)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .noThumbBackground(isError: optimiser.error != nil)
@@ -697,6 +706,7 @@ struct FloatingResult: View {
                 }
             }
             .hfill(.leading)
+            .animation(nil, value: optimiser.running)
             OverlayMessageView(optimiser: optimiser, color: .black)
         }
         .frame(
@@ -726,13 +736,20 @@ struct FloatingResult: View {
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
-        .onDragRealPath(optimiser.url, disabled: preview) {
-            guard let url = optimiser.url else { return }
-            log.debug("Dragging \(url)")
-            if Defaults[.dismissFloatingResultOnDrop] {
-                optimiser.remove(after: 100, withAnimation: true)
-            }
-        }
+        .ifLet(optimiser.url, transform: { view, url in
+            view
+                .onDrag {
+                    guard !preview else {
+                        return NSItemProvider()
+                    }
+
+                    log.debug("Dragging \(url)")
+                    if Defaults[.dismissFloatingResultOnDrop] {
+                        optimiser.remove(after: 100, withAnimation: true)
+                    }
+                    return NSItemProvider(object: url as NSURL)
+                }
+        })
         .foregroundColor(.white)
         .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 8)
 

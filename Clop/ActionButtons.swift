@@ -83,11 +83,13 @@ struct RestoreOptimiseButton: View {
                 action: { if !preview { optimiser.optimise(allowLarger: false) } },
                 label: { SwiftUI.Image(systemName: "goforward.plus").font(.heavy(9)) }
             )
+            .contentShape(Rectangle())
         } else {
             Button(
                 action: { if !preview { optimiser.restoreOriginal() } },
                 label: { SwiftUI.Image(systemName: "arrow.uturn.left").font(.semibold(9)) }
             )
+            .contentShape(Rectangle())
         }
     }
 }
@@ -114,9 +116,10 @@ struct DownscaleButton: View {
 
     var body: some View {
         Button(
-            action: { if !preview { optimiser.downscale() }},
+            action: { if !preview { optimiser.stepDownscale() }},
             label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
         .contextMenu {
             DownscaleMenu(optimiser: optimiser)
         }
@@ -132,6 +135,7 @@ struct QuickLookButton: View {
             action: { if !preview { optimiser.quicklook() }},
             label: { SwiftUI.Image(systemName: "eye").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
     }
 }
 
@@ -144,6 +148,7 @@ struct ShowInFinderButton: View {
             action: { if !preview { optimiser.showInFinder() }},
             label: { SwiftUI.Image(systemName: "folder").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
     }
 }
 
@@ -156,6 +161,7 @@ struct SaveAsButton: View {
             action: { if !preview { optimiser.save() }},
             label: { SwiftUI.Image(systemName: "square.and.arrow.down").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
     }
 }
 
@@ -173,6 +179,7 @@ struct CopyToClipboardButton: View {
             },
             label: { SwiftUI.Image(systemName: "doc.on.doc").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
     }
 }
 
@@ -190,6 +197,7 @@ struct ShareButton: View {
             },
             label: { SwiftUI.Image(systemName: "square.and.arrow.up").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
         .background(SharingsPicker(isPresented: $optimiser.sharing, sharingItems: [optimiser.url as Any]))
     }
 }
@@ -217,6 +225,7 @@ struct AggressiveOptimisationButton: View {
             },
             label: { SwiftUI.Image(systemName: "bolt").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
     }
 }
 
@@ -232,6 +241,7 @@ struct VideoEncoderButton: View {
             },
             label: { SwiftUI.Image(systemName: "bolt").font(.heavy(9)) }
         )
+        .contentShape(Rectangle())
     }
 }
 
@@ -259,6 +269,7 @@ struct ActionButton: View {
             Button(action: { if !preview { optimiser.copyToClipboard(); optimiser.overlayMessage = "Copied" } }) {
                 SwiftUI.Image(systemName: "doc.on.doc").font(.heavy(9))
             }
+            .contentShape(Rectangle())
         case .showInFinder:
             ShowInFinderButton(optimiser: optimiser)
         case .quickLook:
@@ -267,10 +278,12 @@ struct ActionButton: View {
             Button(action: { if !preview { optimiser.save() } }) {
                 SwiftUI.Image(systemName: "square.and.arrow.down").font(.heavy(9))
             }
+            .contentShape(Rectangle())
         case .addToShelf:
             Button(action: { if !preview, let app = runningShelfApp() { app.open(optimiser: optimiser) } }) {
                 SwiftUI.Image(systemName: "tray.and.arrow.down").font(.heavy(9))
             }
+            .contentShape(Rectangle())
         case .sendSecurely:
             if let session = WDM.session(forOptimiser: optimiser) {
                 Button(action: {
@@ -281,10 +294,12 @@ struct ActionButton: View {
                 }) {
                     SwiftUI.Image(systemName: "link").font(.heavy(9))
                 }
+                .contentShape(Rectangle())
             } else {
                 Button(action: { if !preview { warpDropSend(optimiser: optimiser) } }) {
                     SwiftUI.Image(systemName: "lock.shield").font(.heavy(9))
                 }
+                .contentShape(Rectangle())
             }
         }
     }

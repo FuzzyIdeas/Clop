@@ -213,11 +213,14 @@ func startShortcutWatcher() {
         return
     }
 
+    let shortcutsDB = "\(HOME)/Library/Shortcuts/Shortcuts.sqlite"
+    let shortcutsWAL = "\(HOME)/Library/Shortcuts/Shortcuts.sqlite-wal"
     do {
-        try LowtechFSEvents.startWatching(paths: ["\(HOME)/Library/Shortcuts"], for: ObjectIdentifier(AppDelegate.instance), latency: 0.9) { event in
+        try LowtechFSEvents.startWatching(paths: [shortcutsDB, shortcutsWAL], for: ObjectIdentifier(AppDelegate.instance), latency: 2) { event in
             guard !SWIFTUI_PREVIEW else { return }
+            log.debug("Shortcuts DB changed: \(event.path) [\(event.flag ?? .init())]")
 
-            shortcutCacheResetTask = mainAsyncAfter(ms: 100) {
+            shortcutCacheResetTask = mainAsyncAfter(ms: 500) {
                 SHM.invalidateCache()
             }
         }
@@ -353,10 +356,15 @@ struct ParamTemplate {
     let freeText: Bool
     var needsQuotes = false
     var valueDescriptions: [String: String] = [:]
+    var valueDescriptionsForType: [ClopFileType: [String: String]] = [:]
     var suggestionsForType: [ClopFileType: [String]] = [:]
 
     func suggestions(for fileType: ClopFileType) -> [String] {
         suggestionsForType[fileType] ?? suggestions
+    }
+
+    func valueDescriptions(for fileType: ClopFileType) -> [String: String] {
+        valueDescriptionsForType[fileType] ?? valueDescriptions
     }
 }
 
@@ -379,9 +387,24 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 description: "compression quality preset",
                 suggestions: ["aggressive", "medium", "lossless"],
                 freeText: false,
-                valueDescriptions: ["aggressive": "smallest file size", "medium": "balanced quality/size", "lossless": "no quality loss"]
+                valueDescriptions: ["aggressive": "smallest file size", "medium": "balanced quality/size", "lossless": "no quality loss"],
+                valueDescriptionsForType: [
+                    .video: ["fast": "hardware encoder, quick and battery efficient", "slowHighQuality": "slow software encoder, smaller files", "visuallyLossless": "no perceptible quality loss (CRF 17)"],
+                ],
+                suggestionsForType: [
+                    .video: ["fast", "slowHighQuality", "visuallyLossless"],
+                ]
             ),
-            ParamTemplate(name: "adaptive", description: "auto-pick best format", suggestions: ["true", "false"], freeText: false, valueDescriptions: ["true": "may change file extension", "false": "keep original format"]),
+            ParamTemplate(
+                name: "adaptive",
+                description: "auto-pick best format",
+                suggestions: ["true", "false"],
+                freeText: false,
+                valueDescriptions: ["true": "may change file extension", "false": "keep original format"],
+                valueDescriptionsForType: [
+                    .video: ["true": "auto-picks encoder to prioritise speed based on video size and duration", "false": "use the specified encoder"],
+                ]
+            ),
         ],
         applicableTypes: [.image, .video, .pdf, .audio],
         create: { .optimise() }
@@ -631,8 +654,12 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
 
     switch name {
     case "optimise":
-        let encoder = params["encoder"] ?? "medium"
-        return .optimise(encoder: EncoderQuality(rawValue: encoder) ?? .medium, adaptive: params["adaptive"] == "true")
+        let encoderStr = params["encoder"] ?? "medium"
+        let adaptive = params["adaptive"] == "true"
+        if let videoEncoder = VideoEncoder(rawValue: encoderStr) {
+            return .optimise(adaptive: adaptive, videoEncoder: videoEncoder)
+        }
+        return .optimise(encoder: EncoderQuality(rawValue: encoderStr) ?? .medium, adaptive: adaptive)
 
     case "downscale":
         guard let factor = params["factor"].flatMap({ Double($0) }), factor > 0, factor <= 1 else { return nil }
@@ -827,7 +854,7 @@ func pipelineSuggestions(prefix: String, fileType: ClopFileType) -> [CompletionS
                     CompletionSuggestion(
                         insertText: value,
                         displayText: value,
-                        details: param.valueDescriptions[value] ?? param.description,
+                        details: param.valueDescriptions(for: fileType)[value] ?? param.description,
                         color: step.category.swiftUIColor,
                         opensParens: false,
                         needsQuotes: value == "template"
@@ -1891,7 +1918,7 @@ struct PipelineFieldRow: View {
                 .padding(6)
                 .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
                 .fixedSize()
-                .offset(x: -20, y: 42)
+                .offset(x: -20, y: 22)
                 .allowsHitTesting(false)
                 .zIndex(10)
             }
@@ -1962,8 +1989,21 @@ struct PipelineTypeSectionView: View {
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
 
+    @ObservedObject var svm = settingsViewManager
+
     @State var addedFolders: Set<String> = []
     @State var editingKey: String? = nil
+    @State var highlightedFolder: String?
+
+    func handleHighlightFolder() {
+        guard let folder = svm.highlightFolder, svm.scrollToFileType == fileType else { return }
+        addedFolders.insert(folder)
+        highlightedFolder = folder
+        svm.highlightFolder = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            withAnimation { highlightedFolder = nil }
+        }
+    }
 
     var activeSources: [OptimisationSource] {
         var sources: [OptimisationSource] = []
@@ -2038,6 +2078,12 @@ struct PipelineTypeSectionView: View {
                     pipelines: $pipelines,
                     editingKey: $editingKey
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(fileType.color, lineWidth: 2)
+                        .opacity(highlightedFolder == source.string ? 1 : 0)
+                        .animation(.easeOut(duration: 0.3), value: highlightedFolder)
+                )
             }
 
             if activeSources.isEmpty {
@@ -2048,6 +2094,8 @@ struct PipelineTypeSectionView: View {
                     .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }
             }
         }
+        .onAppear { handleHighlightFolder() }
+        .onChange(of: svm.highlightFolder) { _ in handleHighlightFolder() }
     }
 }
 
@@ -2239,64 +2287,79 @@ struct AutomationSettingsView: View {
     @Default(.pipelinesToRunOnAudio) var audioPipelines
     @Default(.savedPipelines) var savedPipelines
 
+    @ObservedObject var svm = settingsViewManager
+
     var body: some View {
-        Form {
-            Section(header: SectionHeader(
-                title: "Automation",
-                subtitle: "Automatically run actions on files after (or before) optimisation: convert, crop, copy, rename and more\nType an action name and press Tab to fill in, Enter to finish"
-            )) {
-                PipelineTypeSectionView(fileType: .image, pipelines: $imagePipelines)
-                Divider()
-                PipelineTypeSectionView(fileType: .video, pipelines: $videoPipelines)
-                Divider()
-                PipelineTypeSectionView(fileType: .audio, pipelines: $audioPipelines)
-                Divider()
-                PipelineTypeSectionView(fileType: .pdf, pipelines: $pdfPipelines)
-            }
-
-            if !savedPipelines.isEmpty {
+        ScrollViewReader { proxy in
+            Form {
                 Section(header: SectionHeader(
-                    title: "Saved Pipelines",
-                    subtitle: "Reusable pipelines available in automation, preset zones and right-click menus"
+                    title: "Automation",
+                    subtitle: "Automatically run actions on files after (or before) optimisation: convert, crop, copy, rename and more\nType an action name and press Tab to fill in, Enter to finish"
                 )) {
-                    let grouped: [(String, ClopFileType?, [Pipeline])] = {
-                        var result: [(String, ClopFileType?, [Pipeline])] = []
-                        let types: [ClopFileType?] = [.image, .video, .audio, .pdf, nil]
-                        for t in types {
-                            let matching = savedPipelines.filter { $0.fileType == t }
-                            if !matching.isEmpty {
-                                let label = t.map { $0 == .pdf ? "PDF" : $0.description.capitalized } ?? "Any type"
-                                result.append((label, t, matching))
-                            }
-                        }
-                        return result
-                    }()
+                    PipelineTypeSectionView(fileType: .image, pipelines: $imagePipelines)
+                        .id(ClopFileType.image)
+                    Divider()
+                    PipelineTypeSectionView(fileType: .video, pipelines: $videoPipelines)
+                        .id(ClopFileType.video)
+                    Divider()
+                    PipelineTypeSectionView(fileType: .audio, pipelines: $audioPipelines)
+                        .id(ClopFileType.audio)
+                    Divider()
+                    PipelineTypeSectionView(fileType: .pdf, pipelines: $pdfPipelines)
+                        .id(ClopFileType.pdf)
+                }
 
-                    ForEach(grouped, id: \.0) { label, fileType, pipelines in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(label)
-                                .semibold(10)
-                                .foregroundColor(fileType?.color ?? .secondary)
-                                .padding(.top, 4)
-                            ForEach(pipelines) { pipeline in
-                                SavedPipelineRow(
-                                    pipeline: pipeline,
-                                    onUpdate: { updated in
-                                        if let idx = savedPipelines.firstIndex(where: { $0.id == pipeline.id }) {
-                                            savedPipelines[idx] = updated
+                if !savedPipelines.isEmpty {
+                    Section(header: SectionHeader(
+                        title: "Saved Pipelines",
+                        subtitle: "Reusable pipelines available in automation, preset zones and right-click menus"
+                    )) {
+                        let grouped: [(String, ClopFileType?, [Pipeline])] = {
+                            var result: [(String, ClopFileType?, [Pipeline])] = []
+                            let types: [ClopFileType?] = [.image, .video, .audio, .pdf, nil]
+                            for t in types {
+                                let matching = savedPipelines.filter { $0.fileType == t }
+                                if !matching.isEmpty {
+                                    let label = t.map { $0 == .pdf ? "PDF" : $0.description.capitalized } ?? "Any type"
+                                    result.append((label, t, matching))
+                                }
+                            }
+                            return result
+                        }()
+
+                        ForEach(grouped, id: \.0) { label, fileType, pipelines in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(label)
+                                    .semibold(10)
+                                    .foregroundColor(fileType?.color ?? .secondary)
+                                    .padding(.top, 4)
+                                ForEach(pipelines) { pipeline in
+                                    SavedPipelineRow(
+                                        pipeline: pipeline,
+                                        onUpdate: { updated in
+                                            if let idx = savedPipelines.firstIndex(where: { $0.id == pipeline.id }) {
+                                                savedPipelines[idx] = updated
+                                            }
+                                        },
+                                        onDelete: {
+                                            savedPipelines.removeAll { $0.id == pipeline.id }
                                         }
-                                    },
-                                    onDelete: {
-                                        savedPipelines.removeAll { $0.id == pipeline.id }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
+            .padding(4)
+            .onChange(of: svm.scrollToFileType) { fileType in
+                guard let fileType else { return }
+                withAnimation {
+                    proxy.scrollTo(fileType, anchor: .top)
+                }
+                svm.scrollToFileType = nil
+            }
         }
-        .padding(4)
     }
 }
 
@@ -2311,12 +2374,7 @@ struct AutomationSettingsView_Previews: PreviewProvider {
 class ShortcutsManager: ObservableObject {
     init() {
         guard !SWIFTUI_PREVIEW else { return }
-        DispatchQueue.global().async { [self] in
-            let shortcutsMap = getShortcutsMapOrCached()
-            mainActor {
-                self.shortcutsMap = shortcutsMap
-            }
-        }
+        fetch()
     }
 
     @Published var shortcutsMap: [String: [Shortcut]]? = !SWIFTUI_PREVIEW
@@ -2334,20 +2392,22 @@ class ShortcutsManager: ObservableObject {
 
     func invalidateCache() {
         guard !SWIFTUI_PREVIEW else { return }
-        cacheIsValid = false
         if shortcutsCacheByFolder.isNotEmpty {
             shortcutsCacheByFolder = [:]
         }
         shortcutsMapCache = nil
+        refetch()
     }
 
     func fetch() {
-        guard !SWIFTUI_PREVIEW else { return }
+        guard !SWIFTUI_PREVIEW, !isFetching else { return }
+        isFetching = true
         DispatchQueue.global().async { [self] in
             let shortcutsMap = getShortcutsMapOrCached()
             mainActor {
                 self.shortcutsMap = shortcutsMap
                 self.cacheIsValid = true
+                self.isFetching = false
             }
         }
     }
@@ -2358,9 +2418,11 @@ class ShortcutsManager: ObservableObject {
             shortcutsCacheByFolder = [:]
         }
         shortcutsMapCache = nil
-
+        cacheIsValid = false
         fetch()
     }
+
+    private var isFetching = false
 }
 
 let SHM = ShortcutsManager()

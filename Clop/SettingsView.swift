@@ -146,11 +146,30 @@ struct DirListView: View {
 
     }
 
+    func dirHasAutomation(_ dir: String) -> Bool {
+        Defaults[fileType.pipelineKey][dir]?.isEmpty == false
+    }
+
+    func navigateToAutomation(folder: String) {
+        settingsViewManager.highlightFolder = folder
+        settingsViewManager.scrollToFileType = fileType
+        settingsViewManager.tab = .automation
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ScrollView {
                 Table(dirs.sorted(), selection: $selectedDirs) {
-                    TableColumn("Path", content: { dir in Text(dir.replacingOccurrences(of: HOME.string, with: "~")).mono(12) })
+                    TableColumn("Path") { dir in Text(dir.replacingOccurrences(of: HOME.string, with: "~")).mono(12) }
+                    TableColumn("") { dir in
+                        Button(dirHasAutomation(dir) ? "Edit automation" : "Add automation") {
+                            navigateToAutomation(folder: dir)
+                        }
+                        .font(.round(10))
+                        .buttonStyle(.borderless)
+                        .foregroundColor(.accentColor)
+                    }
+                    .width(110)
                 }
                 .tableStyle(.bordered)
                 .frame(height: 150)
@@ -1365,18 +1384,6 @@ struct DropZoneSettingsView: View {
         }
         .hfill()
         .padding(.top)
-        .onChange(of: shortcutsManager.cacheIsValid) { cacheIsValid in
-            if !cacheIsValid {
-                log.debug("Re-fetching Shortcuts from AutomationSettingsView.onChange")
-                shortcutsManager.fetch()
-            }
-        }
-        .onAppear {
-            if !shortcutsManager.cacheIsValid {
-                log.debug("Re-fetching Shortcuts from AutomationSettingsView.onAppear")
-                shortcutsManager.fetch()
-            }
-        }
     }
 }
 
@@ -1694,6 +1701,8 @@ struct GeneralSettingsView: View {
 class SettingsViewManager: ObservableObject {
     @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .floating : .general
     @Published var windowOpen = false
+    @Published var scrollToFileType: ClopFileType?
+    @Published var highlightFolder: String?
 }
 
 let settingsViewManager = SettingsViewManager()

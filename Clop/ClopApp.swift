@@ -111,6 +111,8 @@ class AppDelegate: AppDelegateParent {
         PADDisplayConfiguration(.window, hideNavigationButtons: false, parentWindow: nil)
     }
 
+    var proDebugCancellables = Set<AnyCancellable>()
+
     var videoWatcher: FileOptimisationWatcher?
     var imageWatcher: FileOptimisationWatcher?
     var pdfWatcher: FileOptimisationWatcher?
@@ -237,6 +239,7 @@ class AppDelegate: AppDelegateParent {
             unarchiveBinaries()
             print(NSFilePromiseReceiver.swizzleReceivePromisedFiles)
             NSView.swizzleDragFormation()
+            swizzleDraggableToRealPath()
             shouldRestartOnCrash = true
 
             NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier!)
@@ -283,21 +286,30 @@ class AppDelegate: AppDelegateParent {
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
             KM.onPrimaryHotkey = { key in
                 self.handleHotkey(key)
-                let _ = checkInternalRequirements2(PRODUCTS, nil)
+                let _ = invalidReq2(PRODUCTS, nil)
             }
 
             KM.secondaryKeyModifiers = [.lcmd]
             KM.onSecondaryHotkey = { key in
                 self.handleCommandHotkey(key)
-                let _ = checkInternalRequirements3(PRODUCTS, nil)
+                let _ = invalidReq3(PRODUCTS, nil)
             }
         }
         super.applicationDidFinishLaunching(_: notification)
         UM.updater = updateController.updater
         PM.pro = pro
         if !SWIFTUI_PREVIEW {
+            clopDebugLog("applicationDidFinishLaunching: about to checkProLicense (productActivated=\(pro.productActivated), onTrial=\(pro.onTrial))")
             pro.checkProLicense()
         }
+
+        let p = pro
+        p.$productActivated.sink { newValue in
+            clopDebugLog("proactive observer: productActivated changed to \(newValue) (onTrial=\(p.onTrial), proactive will be \(newValue || p.onTrial))")
+        }.store(in: &proDebugCancellables)
+        p.$onTrial.sink { newValue in
+            clopDebugLog("proactive observer: onTrial changed to \(newValue) (productActivated=\(p.productActivated), proactive will be \(p.productActivated || newValue))")
+        }.store(in: &proDebugCancellables)
 
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
         migrateShortcutsToPipelines()
@@ -399,7 +411,7 @@ class AppDelegate: AppDelegateParent {
             .store(in: &observers)
         initMachPortListener()
 
-        let _ = checkInternalRequirements(PRODUCTS, nil)
+        let _ = invalidReq(PRODUCTS, nil)
         setupServiceProvider()
         startShortcutWatcher()
         DROPSHARE.fetchAppURL()
@@ -504,7 +516,7 @@ class AppDelegate: AppDelegateParent {
             WM.open("settings")
             focus()
         case .minus where opt.downscaleFactor > 0.1:
-            opt.downscale()
+            opt.stepDownscale()
         case .x where opt.changePlaybackSpeedFactor < 10 && opt.canChangePlaybackSpeed():
             opt.changePlaybackSpeed()
         case .delete:
@@ -558,7 +570,7 @@ class AppDelegate: AppDelegateParent {
         case .minus:
             if let opt = OM.current {
                 guard opt.downscaleFactor > 0.1 else { return }
-                opt.downscale()
+                opt.stepDownscale()
             } else {
                 guard scalingFactor > 0.1 else { return }
                 scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
@@ -993,7 +1005,7 @@ class AppDelegate: AppDelegateParent {
             initClipboardOptimiser()
         }
 
-        let _ = checkInternalRequirements(PRODUCTS, nil)
+        let _ = invalidReq(PRODUCTS, nil)
     }
 
     @MainActor func initClipboardOptimiser() {

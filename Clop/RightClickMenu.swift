@@ -440,6 +440,10 @@ struct RunPipelineMenu: View {
     func runPipeline(_ pipeline: Pipeline) {
         guard let url = optimiser.url, let path = url.existingFilePath, let fileType else { return }
 
+        // Replace the temp pipeline with this pipeline's steps
+        optimiser.tempPipeline = pipeline.resolved.steps.filter { !$0.isFilter }
+        optimiser.automationPipeline = pipeline
+
         Task { @MainActor in
             optimiser.running = true
             optimiser.operation = "Pipeline: \(pipeline.name ?? "unnamed")"
@@ -465,6 +469,9 @@ struct WorkflowMenu: View {
 
     var body: some View {
         ShortcutChoiceMenu { shortcut in
+            // Track in temp pipeline
+            optimiser.tempPipeline.append(.runShortcut(shortcut))
+
             switch optimiser.type {
             case .image:
                 processImage(shortcut: shortcut)
@@ -474,18 +481,6 @@ struct WorkflowMenu: View {
                 processPDF(shortcut: shortcut)
             default:
                 break
-            }
-        }
-        .onChange(of: shortcutsManager.cacheIsValid) { cacheIsValid in
-            if !cacheIsValid, OM.optimisers.contains(optimiser) {
-                log.debug("Re-fetching Shortcuts from WorkflowMenu.onChange")
-                shortcutsManager.fetch()
-            }
-        }
-        .onAppear {
-            if !shortcutsManager.cacheIsValid {
-                log.debug("Re-fetching Shortcuts from WorkflowMenu.onAppear")
-                shortcutsManager.fetch()
             }
         }
     }

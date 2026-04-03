@@ -211,7 +211,8 @@ class Video: Optimisable {
         originalPath: FilePath? = nil,
         aggressiveOptimisation: Bool? = nil,
         removeAudio: Bool? = nil,
-        encoderOverride: [String]? = nil
+        encoderOverride: [String]? = nil,
+        videoEncoderOverride: VideoEncoder? = nil
     ) throws -> Video {
         log.debug("Optimising video \(self.path.string)")
         guard let name = path.lastComponent else {
@@ -261,7 +262,7 @@ class Video: Optimisable {
         let duration = duration
         let audioRemoved = removeAudio ?? Defaults[.removeAudioFromVideos]
         let convertAudioToAAC = Defaults[.convertAudioToAAC]
-        let encoder = Defaults[.videoEncoder]
+        let encoder = videoEncoderOverride ?? Defaults[.videoEncoder]
         let aggressive = aggressiveOptimisation ?? (encoder == .slowHighQuality)
         mainActor { optimiser.aggressive = aggressive }
         let encoderArgs: [String] = encoderOverride ?? {

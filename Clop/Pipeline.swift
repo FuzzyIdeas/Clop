@@ -190,7 +190,7 @@ private func imageHeight(_ file: FilePath) -> Int? {
 
 enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
     // Processing steps (explicit, no implicit optimisation)
-    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false)
+    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil)
     case downscale(factor: Double, location: String = "inPlace")
     case convert(to: String, location: String = "sameFolder")
     case crop(width: Int? = nil, height: Int? = nil, keepAspectRatio: Bool = true, longEdge: Int? = nil, location: String = "inPlace")
@@ -216,7 +216,7 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
 
     var id: String {
         switch self {
-        case let .optimise(encoder, adaptive): "optimise-\(encoder.rawValue)-\(adaptive)"
+        case let .optimise(encoder, adaptive, videoEncoder): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)"
         case let .downscale(factor, location): "downscale-\(factor)-\(location)"
         case let .convert(to, location): "convert-\(to)-\(location)"
         case let .crop(width, height, _, longEdge, location): "crop-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(location)"
@@ -256,8 +256,8 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
 
     var displayString: String {
         switch self {
-        case let .optimise(encoder, adaptive):
-            var params = ["encoder: \(encoder.rawValue)"]
+        case let .optimise(encoder, adaptive, videoEncoder):
+            var params = ["encoder: \(videoEncoder?.rawValue ?? encoder.rawValue)"]
             if adaptive { params.append("adaptive: true") }
             return "optimise(\(params.joined(separator: ", ")))"
         case let .downscale(factor, location):
@@ -876,8 +876,10 @@ struct TemplateContext {
                     log.error("Error in image pipeline \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
                     mainActor { optimiser.finish(error: "Optimisation failed") }
                 }
-            } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
-                currentImage = img
+            } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger,
+                ClopError.alreadyOptimised, ClopError.alreadyResized
+            {
+                if currentImage == nil { currentImage = img }
                 mainActor { optimiser.info = "File already fully compressed" }
             } catch let error as ClopError {
                 log.error("Error in image pipeline \(pathString): \(error.description)")
@@ -948,6 +950,9 @@ struct TemplateContext {
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
+    videoEncoderOverride: VideoEncoder? = nil,
+    ffmpegEncoderOverride: [String]? = nil,
+    outputExtension: String? = nil,
     source: OptimisationSource? = nil
 ) async throws -> Video? {
     let path = video.path
@@ -1092,12 +1097,15 @@ struct TemplateContext {
                 optimisedVideo = try video.optimise(
                     optimiser: optimiser,
                     forceMP4: forceMP4,
+                    outputExtension: outputExtension,
                     resizeTo: resizeTo,
                     cropTo: cropTo,
                     changePlaybackSpeedBy: speedFactor,
                     originalPath: effectiveOriginalPath,
                     aggressiveOptimisation: aggressive,
-                    removeAudio: removeAudio
+                    removeAudio: removeAudio,
+                    encoderOverride: ffmpegEncoderOverride,
+                    videoEncoderOverride: videoEncoderOverride
                 )
 
                 // Move result to original location if same extension but different path
@@ -1588,10 +1596,116 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     var shownVisibleResult = false
 
     log.debug("Pipeline: executing \(pipeline.steps.count) steps on \(file.string)")
-    for (stepIndex, step) in pipeline.steps.enumerated() {
+
+    // For video, compile consecutive processing/media steps into a single ffmpeg pass
+    var stepIndex = 0
+    while stepIndex < pipeline.steps.count {
+        let step = pipeline.steps[stepIndex]
+
         if optimiser.inRemoval {
             log.debug("Pipeline: step \(stepIndex) skipped, optimiser removed")
             break
+        }
+
+        // Collect consecutive processing/media steps for compiled execution
+        let isEncodable = step.isProcessingStep || step.category == .mediaSpecific
+        if isEncodable, fileType == .video || fileType == .image {
+            var batch: [PipelineStep] = [step]
+            var peekIdx = stepIndex + 1
+            while peekIdx < pipeline.steps.count {
+                let next = pipeline.steps[peekIdx]
+                if next.isProcessingStep || next.category == .mediaSpecific {
+                    batch.append(next)
+                    peekIdx += 1
+                } else {
+                    break
+                }
+            }
+
+            if batch.count > 1 {
+                let batchDesc = batch.map(\.displayString).joined(separator: " + ")
+                log.info("Pipeline: steps[\(stepIndex)...\(peekIdx - 1)] compiled: \(batchDesc) on \(currentFile.string)")
+
+                let actions = optimiser.compilePipelineActions(from: batch)
+                let hide = isIntermediateTempFile
+
+                // Extract video encoder and ffmpeg encoder overrides
+                let videoEncoderOvr: VideoEncoder? = batch.compactMap { s in
+                    if case let .optimise(_, _, ve) = s { return ve }; return nil
+                }.last
+                var ffmpegEncoder: [String]?
+                var outExt: String?
+                for s in batch {
+                    if case let .convert(fmt, _) = s {
+                        switch fmt {
+                        case "hevc": ffmpegEncoder = ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]; outExt = "mp4"
+                        case "x265": ffmpegEncoder = ["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"]; outExt = "mp4"
+                        case "av1": ffmpegEncoder = ["-vcodec", "libsvtav1"]; outExt = "mkv"
+                        default: break
+                        }
+                    }
+                }
+                let aggressive = batch.contains { if case let .optimise(enc, _, _) = $0 { return enc == .aggressive }; return false }
+
+                if fileType == .video {
+                    let vid = await (try? Video.byFetchingMetadata(path: currentFile)) ?? Video(currentFile)
+                    let vidSize = vid.size ?? .zero
+
+                    // Filter out crop/downscale actions that would upscale the video
+                    let filteredActions = actions.filter { action in
+                        guard case let .downscale(factor, cropSize) = action, factor == nil, let cropSize else {
+                            return true
+                        }
+                        if cropSize.longEdge {
+                            return cropSize.width > 0 && max(vidSize.width, vidSize.height) > cropSize.width.d
+                        }
+                        return (cropSize.width > 0 && vidSize.width > cropSize.width.d) || (cropSize.height > 0 && vidSize.height > cropSize.height.d)
+                    }
+
+                    if let result = try? await runVideoPipeline(
+                        vid, actions: filteredActions,
+                        allowLarger: true,
+                        hideFloatingResult: hide,
+                        aggressiveOptimisation: aggressive ? true : nil,
+                        videoEncoderOverride: videoEncoderOvr,
+                        ffmpegEncoderOverride: ffmpegEncoder,
+                        outputExtension: outExt,
+                        source: source
+                    ) {
+                        currentFile = result.path
+                        if !hide { shownVisibleResult = true }
+                    }
+                } else if fileType == .image, let data = try? Data(contentsOf: currentFile.url) {
+                    let img = Image(data: data, path: currentFile, retinaDownscaled: false)
+
+                    // Filter out crop/downscale actions that would upscale the image
+                    let filteredActions = actions.filter { action in
+                        guard case let .downscale(factor, cropSize) = action, factor == nil, let cropSize else {
+                            return true
+                        }
+                        let imgW = img.size.width
+                        let imgH = img.size.height
+                        if cropSize.longEdge {
+                            return cropSize.width > 0 && max(imgW, imgH) > cropSize.width.d
+                        }
+                        return (cropSize.width > 0 && imgW > cropSize.width.d) || (cropSize.height > 0 && imgH > cropSize.height.d)
+                    }
+
+                    if let result = try? await runImagePipeline(
+                        img, actions: filteredActions,
+                        allowLarger: true,
+                        hideFloatingResult: hide,
+                        aggressiveOptimisation: aggressive,
+                        source: source
+                    ) {
+                        currentFile = result.path
+                        if !hide { shownVisibleResult = true }
+                    }
+                }
+
+                stepIndex = peekIdx
+                continue
+            }
         }
 
         log.info("Pipeline: step[\(stepIndex)] \(step.displayString) on \(currentFile.string)")
@@ -1599,7 +1713,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         switch step {
         // MARK: Processing steps
 
-        case let .optimise(encoder, adaptive):
+        case let .optimise(encoder, adaptive, videoEncoder):
             let aggressive = encoder == .aggressive
             switch fileType {
             case .image:
@@ -1626,6 +1740,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                     allowLarger: true,
                     hideFloatingResult: hide,
                     aggressiveOptimisation: aggressive,
+                    videoEncoderOverride: videoEncoder,
                     source: source
                 ) {
                     currentFile = result.path
@@ -1768,7 +1883,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                     }
                 }
             case .video:
-                let vid = Video(inputFile)
+                let vid = await (try? Video.byFetchingMetadata(path: inputFile)) ?? Video(inputFile)
                 let vidSize = vid.size ?? .zero
                 let maxDim = max(vidSize.width, vidSize.height)
                 let needsCrop = useLongEdge
@@ -2027,7 +2142,12 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
             switch format {
             case .path:
-                pasteboard.setString(currentFile.string, forType: .string)
+                if let relativeTo {
+                    let base = context.resolve(relativeTo)
+                    pasteboard.setString(currentFile.string.replacingOccurrences(of: base, with: ""), forType: .string)
+                } else {
+                    pasteboard.setString(currentFile.string, forType: .string)
+                }
             case .imageData:
                 if fileType == .image, let img = NSImage(contentsOf: currentFile.url) {
                     pasteboard.writeObjects([img])
@@ -2046,6 +2166,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                 pasteboard.setString("[\(name)](\(path))", forType: .string)
             }
         }
+
+        stepIndex += 1
     }
 
     return (currentFile, shownVisibleResult)
@@ -2060,6 +2182,19 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 ) async {
     log.info("Pipeline: checking pipelines for file=\(file.string) type=\(String(describing: type)) source=\(source.string)")
     let pipelines = pipelinesFor(type: type, source: source)
+
+    // Seed the temp pipeline
+    if let first = pipelines.first {
+        optimiser.automationPipeline = first
+        var steps = first.resolved.steps.filter { !$0.isFilter }
+        if !first.skipOptimisation, !steps.contains(where: { $0.stepName == "optimise" || $0.stepName == "convert" }) {
+            steps.insert(.optimise(), at: 0)
+        }
+        optimiser.tempPipeline = steps
+    } else {
+        optimiser.tempPipeline = [.optimise()]
+    }
+
     guard !pipelines.isEmpty else {
         log.debug("Pipeline: no pipelines configured, skipping")
         return

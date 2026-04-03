@@ -486,6 +486,11 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
 @MainActor var BM = BinaryManager()
 
+enum TempPipelineSegment {
+    case encodingGroup([PipelineStep])
+    case singleStep(PipelineStep)
+}
+
 // MARK: - Optimiser
 
 @MainActor final class Optimiser: ObservableObject, Identifiable, Hashable, Equatable, CustomStringConvertible {
@@ -530,8 +535,16 @@ final class QuickLooker: QLPreviewPanelDataSource {
     @Published var startingURL: URL?
     @Published var convertedFromURL: URL?
     @Published var downscaleFactor = 1.0
+    var downscaleDebounceTask: Task<Void, Never>?
     @Published var changePlaybackSpeedFactor = 1.0
     @Published var aggressive = false
+
+    /// Accumulated pipeline of all actions on this item (processing + file ops).
+    /// Processing steps within encoding groups are compiled into single ffmpeg passes.
+    var tempPipeline: [PipelineStep] = []
+
+    /// The automation pipeline that ran after initial optimisation, if any.
+    var automationPipeline: Pipeline?
 
     lazy var path: FilePath? = {
         if let url { return FilePath(url) }
@@ -696,9 +709,226 @@ final class QuickLooker: QLPreviewPanelDataSource {
         lhs.id == rhs.id
     }
 
+    /// Update the temp pipeline with a new user action.
+    /// Same-type steps are replaced; new types are inserted at canonical position.
+    /// optimise and convert are mutually exclusive.
+    func updateTempPipeline(with step: PipelineStep) {
+        guard var groupRange = findPrimaryEncodingGroup() else {
+            // No encoding group exists yet, create one at the end
+            tempPipeline.append(step)
+            return
+        }
+
+        var group = Array(tempPipeline[groupRange])
+
+        // Handle optimise/convert mutual exclusivity
+        if step.stepName == "convert" {
+            group.removeAll { $0.stepName == "optimise" }
+        } else if step.stepName == "optimise" {
+            group.removeAll { $0.stepName == "convert" }
+        }
+
+        // Replace existing step of same type, or insert new
+        if let idx = group.firstIndex(where: { $0.stepName == step.stepName }) {
+            group[idx] = step
+        } else {
+            group.append(step)
+        }
+
+        // Sort group into canonical order
+        group.sort { canonicalOrder($0) < canonicalOrder($1) }
+
+        // Replace group in the full pipeline
+        tempPipeline.replaceSubrange(groupRange, with: group)
+    }
+
+    /// Remove a step by name from the primary encoding group.
+    func removeTempPipelineStep(named name: String) {
+        guard let groupRange = findPrimaryEncodingGroup() else { return }
+        var group = Array(tempPipeline[groupRange])
+        group.removeAll { $0.stepName == name }
+        tempPipeline.replaceSubrange(groupRange, with: group)
+    }
+
+    /// Compile processing PipelineSteps into PipelineActions for runVideoPipeline/runImagePipeline.
+    func compilePipelineActions(from steps: [PipelineStep]) -> [PipelineAction] {
+        var actions: [PipelineAction] = []
+
+        for step in steps {
+            switch step {
+            case let .downscale(factor, _):
+                actions.append(.downscale(factor: factor, cropSize: nil))
+            case let .crop(width, height, _, longEdge, _):
+                let cs = CropSize(
+                    width: longEdge ?? width ?? 0,
+                    height: longEdge != nil ? (longEdge ?? 0) : (height ?? 0),
+                    longEdge: longEdge != nil
+                )
+                actions.append(.downscale(factor: nil, cropSize: cs))
+            case let .changeSpeed(factor):
+                actions.append(.changePlaybackSpeed(factor: factor))
+            case .removeAudio:
+                actions.append(.removeAudio)
+            case .optimise:
+                actions.append(.optimise)
+            case let .convert(formatStr, _):
+                if let uttype = UTType(filenameExtension: formatStr) {
+                    actions.append(.convert(format: uttype))
+                }
+            default:
+                break
+            }
+        }
+
+        // If no encoding step, add default optimise
+        if !actions.contains(where: { $0.isOptimise || $0.isConvert }) {
+            actions.append(.optimise)
+        }
+
+        return actions
+    }
+
+    /// Segment the temp pipeline into runs: consecutive encoding groups and individual non-processing steps.
+    func segmentTempPipeline() -> [TempPipelineSegment] {
+        var segments: [TempPipelineSegment] = []
+        var currentGroup: [PipelineStep] = []
+
+        for step in tempPipeline {
+            if isEncodingGroupStep(step) {
+                currentGroup.append(step)
+            } else {
+                if !currentGroup.isEmpty {
+                    segments.append(.encodingGroup(currentGroup))
+                    currentGroup = []
+                }
+                segments.append(.singleStep(step))
+            }
+        }
+        if !currentGroup.isEmpty {
+            segments.append(.encodingGroup(currentGroup))
+        }
+
+        return segments
+    }
+
+    /// Execute the full temp pipeline from the original/backup file.
+    func executeTempPipeline() {
+        guard !inRemoval, !tempPipeline.isEmpty else { return }
+
+        stop(remove: false)
+        stopRemover()
+        isOriginal = false
+        error = nil
+        notice = nil
+        info = nil
+
+        guard var originalFilePath = originalURL?.filePath ?? path else { return }
+        let backupPath = (originalFilePath.clopBackupPath?.exists ?? false)
+            ? originalFilePath.clopBackupPath
+            : convertedFromURL?.existingFilePath
+        if !originalFilePath.exists, let backupPath {
+            let _ = try? backupPath.copy(to: originalFilePath)
+        }
+
+        let segments = segmentTempPipeline()
+        let optimiserSource = source ?? .cli
+        let fileType = self.fileType ?? .image
+
+        // Extract video encoder override from the pipeline
+        let videoEncoderOverride: VideoEncoder? = tempPipeline.compactMap { step in
+            if case let .optimise(_, _, ve) = step { return ve }
+            return nil
+        }.last
+
+        Task.init {
+            var currentFile = originalFilePath
+
+            for segment in segments {
+                if inRemoval { break }
+
+                switch segment {
+                case let .encodingGroup(steps):
+                    let actions = compilePipelineActions(from: steps)
+
+                    if type.isVideo {
+                        let videoPath = self.path ?? currentFile
+                        let video: Video? = if let oldSize {
+                            Video(path: videoPath, metadata: VideoMetadata(resolution: oldSize, fps: 0, hasAudio: isVideoWithAudio), fileSize: oldBytes, thumb: false)
+                        } else {
+                            try? await Video.byFetchingMetadata(path: videoPath, fileSize: oldBytes, thumb: !hidden, id: self.id)
+                        }
+
+                        // Extract video codec encoder override from convert steps
+                        var ffmpegEncoder: [String]?
+                        var outExt: String?
+                        for step in steps {
+                            if case let .convert(fmt, _) = step {
+                                switch fmt {
+                                case "hevc": ffmpegEncoder = ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]; outExt = "mp4"
+                                case "x265": ffmpegEncoder = ["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"]; outExt = "mp4"
+                                case "av1": ffmpegEncoder = ["-vcodec", "libsvtav1"]; outExt = "mkv"
+                                default: break
+                                }
+                            }
+                        }
+
+                        if let video, let result = try? await runVideoPipeline(
+                            video, actions: actions,
+                            id: self.id,
+                            originalPath: currentFile != videoPath ? currentFile : backupPath,
+                            aggressiveOptimisation: aggressive ? true : nil,
+                            videoEncoderOverride: videoEncoderOverride,
+                            ffmpegEncoderOverride: ffmpegEncoder,
+                            outputExtension: outExt
+                        ) {
+                            currentFile = result.path
+                        }
+                    } else if type.isImage, let image = Image(path: currentFile, retinaDownscaled: self.retinaDownscaled) {
+                        if let result = try? await runImagePipeline(
+                            image, actions: actions,
+                            id: self.id, saveTo: self.path,
+                            copyToClipboard: id == IDs.clipboardImage,
+                            aggressiveOptimisation: aggressive ? true : nil
+                        ) {
+                            currentFile = result.path
+                        }
+                    } else if type.isPDF, let pdf = self.pdf {
+                        if let result = try? await runPDFPipeline(
+                            pdf, actions: actions,
+                            id: self.id,
+                            aggressiveOptimisation: aggressive ? true : nil
+                        ) {
+                            currentFile = result.path
+                        }
+                    }
+
+                case let .singleStep(step):
+                    let singlePipeline = Pipeline(steps: [step])
+                    if let (resultFile, _) = try? await executePipeline(
+                        singlePipeline, file: currentFile,
+                        source: optimiserSource,
+                        optimiser: self,
+                        fileType: fileType
+                    ) {
+                        currentFile = resultFile
+                    }
+                }
+            }
+        }
+    }
+
     func convert(to type: UTType, optimise: Bool = false) {
         guard type != self.type.utType else { return }
         let typeStr = type.preferredFilenameExtension ?? type.identifier
+
+        // Use temp pipeline for video (non-GIF) when initial optimisation has completed
+        if !tempPipeline.isEmpty, self.type.isVideo, type != .gif {
+            let formatStr = typeStr
+            updateTempPipeline(with: .convert(to: formatStr))
+            executeTempPipeline()
+            return
+        }
+
         operation = "Converting to \(typeStr)"
         progress = Progress()
         progress.localizedAdditionalDescription = ""
@@ -785,6 +1015,8 @@ final class QuickLooker: QLPreviewPanelDataSource {
                         self.url = result.path.url
                         self.error = nil
                         self.notice = nil
+                        self.tempPipeline = []
+                        self.automationPipeline = nil
                         self.finish(oldBytes: self.oldBytes, newBytes: result.data.count, removeAfterMs: self.lastRemoveAfterMs)
                     }
                 } else {
@@ -996,6 +1228,12 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func removeAudio() {
         guard !inRemoval, !SWIFTUI_PREVIEW else { return }
 
+        if !tempPipeline.isEmpty {
+            updateTempPipeline(with: .removeAudio)
+            executeTempPipeline()
+            return
+        }
+
         stopRemover()
         isOriginal = false
         error = nil
@@ -1026,6 +1264,19 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func changePlaybackSpeed(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval, !SWIFTUI_PREVIEW else { return }
 
+        let effectiveFactor = factor ?? changePlaybackSpeedFactor
+        changePlaybackSpeedFactor = effectiveFactor
+
+        if !tempPipeline.isEmpty {
+            if effectiveFactor == 1.0 {
+                removeTempPipelineStep(named: "changeSpeed")
+            } else {
+                updateTempPipeline(with: .changeSpeed(factor: effectiveFactor))
+            }
+            executeTempPipeline()
+            return
+        }
+
         stopRemover()
         isOriginal = false
         error = nil
@@ -1048,20 +1299,14 @@ final class QuickLooker: QLPreviewPanelDataSource {
         }
 
         Task.init {
-            // Use current path (may have been renamed) for the output destination,
-            // pass the backup/original as originalPath so ffmpeg reads from it
             let videoPath = self.path ?? path
             guard let video = try await Video.byFetchingMetadata(path: videoPath, fileSize: oldBytes, id: self.id) else {
                 return
             }
 
-            if let factor {
-                changePlaybackSpeedFactor = factor
-            }
-
             let _ = try? await runVideoPipeline(
                 video,
-                actions: [.changePlaybackSpeed(factor: factor ?? changePlaybackSpeedFactor)],
+                actions: [.changePlaybackSpeed(factor: effectiveFactor)],
                 id: self.id,
                 originalPath: path != videoPath ? path : originalPath,
                 hideFloatingResult: hideFloatingResult,
@@ -1070,8 +1315,36 @@ final class QuickLooker: QLPreviewPanelDataSource {
         }
     }
 
+    func stepDownscale() {
+        guard !inRemoval, downscaleFactor > 0.1 else { return }
+
+        let newFactor = max(downscaleFactor > 0.5 ? downscaleFactor - 0.25 : downscaleFactor - 0.1, 0.1)
+        downscaleFactor = newFactor
+        overlayMessage = "\((newFactor * 100).intround)%"
+
+        downscaleDebounceTask?.cancel()
+        downscaleDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard !Task.isCancelled else { return }
+            downscale(toFactor: newFactor)
+        }
+    }
+
     func downscale(toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
         guard !inRemoval else { return }
+
+        let effectiveFactor = factor ?? downscaleFactor
+        if let factor { downscaleFactor = factor }
+
+        if !tempPipeline.isEmpty {
+            if effectiveFactor >= 1.0 {
+                removeTempPipelineStep(named: "downscale")
+            } else {
+                updateTempPipeline(with: .downscale(factor: effectiveFactor))
+            }
+            executeTempPipeline()
+            return
+        }
 
         stopRemover()
         isOriginal = false
@@ -1103,11 +1376,8 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 if !hidden, thumbnail == nil {
                     thumbnail = image.image
                 }
-                if let factor {
-                    downscaleFactor = factor
-                }
                 let _ = try? await runImagePipeline(
-                    image, actions: [.downscale(factor: factor, cropSize: nil)],
+                    image, actions: [.downscale(factor: effectiveFactor, cropSize: nil)],
                     id: self.id, saveTo: self.path,
                     copyToClipboard: id == IDs.clipboardImage,
                     hideFloatingResult: hideFloatingResult,
@@ -1115,8 +1385,6 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 )
             }
             if type.isVideo {
-                // Use current path (may have been renamed) for the output destination,
-                // pass the backup/original as originalPath so ffmpeg reads from it
                 let videoPath = self.path ?? path
                 let video = if let oldSize {
                     Video(path: videoPath, metadata: VideoMetadata(resolution: oldSize, fps: 0, hasAudio: isVideoWithAudio), fileSize: oldBytes, thumb: false)
@@ -1125,13 +1393,9 @@ final class QuickLooker: QLPreviewPanelDataSource {
                 }
                 guard let video else { return }
 
-                if let factor {
-                    downscaleFactor = factor
-                }
-
                 let _ = try? await runVideoPipeline(
                     video,
-                    actions: [.downscale(factor: factor, cropSize: nil)],
+                    actions: [.downscale(factor: effectiveFactor, cropSize: nil)],
                     id: self.id,
                     originalPath: path != videoPath ? path : ((path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath),
                     hideFloatingResult: hideFloatingResult,
@@ -1168,12 +1432,21 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     func reoptimise() {
         try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
+        if !tempPipeline.isEmpty {
+            executeTempPipeline()
+            return
+        }
         optimise()
     }
 
     func reoptimiseWithEncoder(_ encoder: VideoEncoder) {
         Defaults[.videoEncoder] = encoder
         try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
+        if !tempPipeline.isEmpty {
+            updateTempPipeline(with: .optimise(videoEncoder: encoder))
+            executeTempPipeline()
+            return
+        }
         optimise(fromOriginal: true)
     }
 
@@ -1285,6 +1558,8 @@ final class QuickLooker: QLPreviewPanelDataSource {
             image.copyToClipboard()
         }
         isOriginal = true
+        tempPipeline = []
+        automationPipeline = nil
     }
 
     nonisolated func hash(into hasher: inout Hasher) {
@@ -1408,6 +1683,16 @@ final class QuickLooker: QLPreviewPanelDataSource {
     func crop(to size: CropSize) {
         guard let url, url.isFileURL, url.filePath?.exists ?? false else { return }
 
+        if !tempPipeline.isEmpty {
+            updateTempPipeline(with: .crop(
+                width: size.width.i, height: size.height.i,
+                keepAspectRatio: true,
+                longEdge: size.longEdge ? max(size.width.i, size.height.i) : nil
+            ))
+            executeTempPipeline()
+            return
+        }
+
         let clip = ClipboardType.fromURL(url)
 
         Task.init {
@@ -1491,6 +1776,52 @@ final class QuickLooker: QLPreviewPanelDataSource {
             self.inRemoval = true
         }
     }
+
+    // MARK: - Temp Pipeline
+
+    private func canonicalOrder(_ step: PipelineStep) -> Int {
+        switch step {
+        case .downscale: 0
+        case .crop: 1
+        case .changeSpeed: 2
+        case .removeAudio: 3
+        case .optimise, .convert: 4
+        default: 5
+        }
+    }
+
+    private func isEncodingGroupStep(_ step: PipelineStep) -> Bool {
+        step.isProcessingStep || step.category == .mediaSpecific
+    }
+
+    /// Find the primary encoding group: the group of consecutive processing/media steps
+    /// that contains an optimise or convert step, or the first such group if none.
+    private func findPrimaryEncodingGroup() -> Range<Int>? {
+        var groups: [Range<Int>] = []
+        var groupStart: Int?
+
+        for (i, step) in tempPipeline.enumerated() {
+            if isEncodingGroupStep(step) {
+                if groupStart == nil { groupStart = i }
+            } else {
+                if let start = groupStart {
+                    groups.append(start ..< i)
+                    groupStart = nil
+                }
+            }
+        }
+        if let start = groupStart {
+            groups.append(start ..< tempPipeline.count)
+        }
+
+        guard !groups.isEmpty else { return nil }
+
+        // Prefer the group containing optimise/convert
+        return groups.first(where: { range in
+            tempPipeline[range].contains(where: { $0.stepName == "optimise" || $0.stepName == "convert" })
+        }) ?? groups.first
+    }
+
 }
 
 @MainActor
@@ -2114,7 +2445,10 @@ import LowtechPro
 @discardableResult @inline(__always)
 @MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
     guard !BM.decompressingBinaries else { throw ClopError.decompressingBinariesError }
-    guard proactive || count < limit, meetsInternalRequirements() else {
+    guard proactive || count < limit, validReq() else {
+        clopDebugLog(
+            "proGuard BLOCKED: proactive=\(proactive) count=\(count) limit=\(limit) url=\(url?.absoluteString ?? "nil") PRO=\(PRO != nil ? "exists" : "nil") productActivated=\(PRO?.productActivated ?? false) onTrial=\(PRO?.onTrial ?? false)"
+        )
         if let url {
             OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.with(url)
         }
