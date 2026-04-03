@@ -233,6 +233,7 @@ struct CompactResult: View {
                 }
             }
         }
+        .animation(nil, value: optimiser.running)
         .padding(.top, 3)
         .frame(height: 70)
         .hfill(.leading)
@@ -251,13 +252,20 @@ struct CompactResult: View {
                 }
         }
         .onHover(perform: updateHover(_:))
-        .onDragRealPath(optimiser.url, disabled: preview) {
-            guard let url = optimiser.url else { return }
-            log.debug("Dragging \(url)")
-            if Defaults[.dismissCompactResultOnDrop] {
-                optimiser.remove(after: 100, withAnimation: true)
-            }
-        }
+        .ifLet(optimiser.url, transform: { view, url in
+            view
+                .onDrag {
+                    guard !preview else {
+                        return NSItemProvider()
+                    }
+
+                    log.debug("Dragging \(url)")
+                    if Defaults[.dismissCompactResultOnDrop] {
+                        optimiser.remove(after: 100, withAnimation: true)
+                    }
+                    return NSItemProvider(object: url as NSURL)
+                }
+        })
     }
 
     func updateHover(_ hovering: Bool) {
@@ -551,7 +559,14 @@ struct CompactResultList: View {
                 .background(RoundedRectangle(cornerRadius: 7).fill(Color.inverted.opacity(0.9)))
                 .foregroundColor(.mauvish)
                 .help("Drag all")
-                .onDragRealPath(optimisers.compactMap(\.url))
+                .onDrag {
+                    let urls = optimisers.compactMap(\.url)
+                    let provider = NSItemProvider()
+                    for url in urls {
+                        provider.registerObject(url as NSURL, visibility: .all)
+                    }
+                    return provider
+                }
 
             if !floatingResultsCorner.isTrailing {
                 Spacer()
