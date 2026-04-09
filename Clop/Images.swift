@@ -9,6 +9,7 @@ import Accelerate
 import Cocoa
 import Defaults
 import Foundation
+import JxlCoder
 import Lowtech
 import os
 import Photos
@@ -16,6 +17,10 @@ import System
 import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Images")
+
+func jxlNSImage(from data: Data) -> NSImage? {
+    try? JXLCoder.decode(data: data)
+}
 
 var PNGQUANT = BIN_DIR.appendingPathComponent("pngquant").filePath!
 var JPEGOPTIM = BIN_DIR.appendingPathComponent("jpegoptim").filePath!
@@ -264,7 +269,7 @@ class Image: CustomStringConvertible {
             return nil
         }
 
-        guard let data = data ?? ((path != nil) ? fm.contents(atPath: path!.string) : nil), let nsImage = nsImage ?? NSImage(data: data) else {
+        guard let data = data ?? ((path != nil) ? fm.contents(atPath: path!.string) : nil), let nsImage = nsImage ?? NSImage(data: data) ?? jxlNSImage(from: data) else {
             return nil
         }
 
@@ -858,6 +863,8 @@ class Image: CustomStringConvertible {
             img = try optimiseGIF(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
         case .tiff:
             img = try optimiseTIFF(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+        case .jxl:
+            img = self
         default:
             throw ClopError.unknownImageType(path)
         }
@@ -880,6 +887,21 @@ class Image: CustomStringConvertible {
     }
     func convertToWEBP(asTempFile: Bool) throws -> Image {
         try convertWithProc(to: "webp", asTempFile: asTempFile)
+    }
+    func convertToJXL(asTempFile: Bool) throws -> Image {
+        let jxlData = try JXLCoder.encode(image: image, effort: 7, quality: 60)
+        let outPath = path.tempFile(ext: "jxl")
+        fm.createFile(atPath: outPath.string, contents: jxlData)
+        try? outPath.setOptimisationStatusXattr("true")
+        let finalPath = asTempFile ? outPath : try outPath.move(to: path.withExtension("jxl"), force: true)
+        guard let data = fm.contents(atPath: finalPath.string) else {
+            throw ClopError.conversionFailed(path)
+        }
+        // Reuse the original NSImage instead of decoding the JXL back.
+        // JXLCoder.decode creates NSImages via initWithCGImage:size:CGSizeZero
+        // which loses DPI metadata, causing realSize to report doubled dimensions
+        // for images originally at 144 DPI (e.g. 3870x2514 shows as 7740x5028).
+        return Image(data: data, path: finalPath, nsImage: image, type: .jxl, retinaDownscaled: retinaDownscaled)
     }
 
     func convertToAVIFAsync(asTempFile: Bool) async throws -> Image {
@@ -950,6 +972,8 @@ class Image: CustomStringConvertible {
                 return try png.convertToHEIC(asTempFile: asTempFile)
             }
             return try convertToHEIC(asTempFile: asTempFile)
+        case .jxl:
+            return try convertToJXL(asTempFile: asTempFile)
         default:
             if self.type == .heic, type == .jpeg, path.hasExifHDR() {
                 return try convertHDRHEICToJPEG(asTempFile: asTempFile, optimiser: optimiser)
@@ -1118,6 +1142,15 @@ class Image: CustomStringConvertible {
     }
 
     if img.optimised {
+        let type: ItemType = .image(img.type)
+        let pipelines = pipelinesFor(type: type, source: .clipboard)
+        if !pipelines.isEmpty {
+            Task.init {
+                let optimiser = OM.optimiser(id: img.path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+                optimiser.url = img.path.url
+                await runPipelinesAfterOptimisation(file: img.path, type: type, source: .clipboard, optimiser: optimiser)
+            }
+        }
         return
     }
 
@@ -1155,7 +1188,17 @@ class Image: CustomStringConvertible {
         ? "\(Optimiser.IDs.clipboardImage) \(Int(Date().timeIntervalSince1970))"
         : Optimiser.IDs.clipboardImage
     let copyToClipboard = !appendResults || Defaults[.copyConsecutiveClipboardImages]
-    Task.init { try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) }
+    let type: ItemType = .image(img.type)
+    let imgPath = img.path
+    Task.init {
+        if let result = try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) {
+            if let optimiser = opt(clipboardID) {
+                await runPipelinesAfterOptimisation(file: result.path, type: type, source: .clipboard, optimiser: optimiser)
+            }
+        } else if let optimiser = opt(clipboardID) {
+            await runPipelinesAfterOptimisation(file: imgPath, type: type, source: .clipboard, optimiser: optimiser)
+        }
+    }
 }
 
 @MainActor func cancelImageOptimisation(path: FilePath) {
@@ -1215,15 +1258,11 @@ extension FilePath {
         return nil
     }
 
-    guard optImg.path != img.path else {
+    guard optImg.path != img.path, optImg.type == img.type else {
         return nil
     }
 
-    if optImg.type == img.type {
-        try optImg.path.copy(to: img.path, force: true)
-    } else {
-        try optImg.path.copy(to: img.path.dir, force: true)
-    }
+    try optImg.path.copy(to: img.path, force: true)
     return optImg
 }
 

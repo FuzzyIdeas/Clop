@@ -37,6 +37,15 @@
       }
     },
     {
+      "identity" : "jxl-coder-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/awxkee/jxl-coder-swift",
+      "state" : {
+        "revision" : "617f566af9c0529d1c3e557fe667ff9b47b68d90",
+        "version" : "1.9.1"
+      }
+    },
+    {
       "identity" : "launchatlogin-modern",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/LaunchAtLogin-Modern",
@@ -77,8 +86,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "05d3ce8332097ff0b2347231ac66476fd7d2f4d8",
-        "version" : "9.8.0"
+        "revision" : "d459ff99b1912c9603c9e607e030b4b98e2e199a",
+        "version" : "9.9.0"
       }
     },
     {

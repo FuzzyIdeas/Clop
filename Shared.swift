@@ -175,6 +175,8 @@ extension UTType {
     static let hevcVideo = UTType(tag: "hevc", tagClass: .filenameExtension, conformingTo: .movie)
     static let av1Video = UTType(tag: "av1", tagClass: .filenameExtension, conformingTo: .movie)
 
+    static let jxl = UTType("public.jxl") ?? UTType(tag: "jxl", tagClass: .filenameExtension, conformingTo: .image)
+
     static let flac = UTType("org.xiph.flac") ?? UTType("public.flac")
     static let oggAudio = UTType("org.xiph.ogg-audio") ?? UTType("public.ogg-audio")
     static let opusAudio = UTType("org.xiph.opus")
@@ -182,7 +184,7 @@ extension UTType {
 }
 
 let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg].compactMap { $0 }
-let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
+let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .jxl, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
 let AUDIO_FORMATS: [UTType] = [.wav, .aiff, .mp3, .flac, .m4a, .oggAudio].compactMap { $0 }
 let IMAGE_VIDEO_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS
 let ALL_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.pdf]

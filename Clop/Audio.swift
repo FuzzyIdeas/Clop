@@ -60,7 +60,7 @@ class Audio: Optimisable {
         return Audio(path: path, metadata: metadata, fileSize: fileSize, thumb: thumb, id: id)
     }
 
-    func optimise(optimiser: Optimiser) throws -> Audio {
+    func optimise(optimiser: Optimiser, bitrateOverride: Int? = nil) throws -> Audio {
         log.debug("Optimising audio \(self.path.string)")
         guard let name = path.lastComponent else {
             log.error("No file name for path: \(self.path)")
@@ -71,7 +71,7 @@ class Audio: Optimisable {
         try? path.setOptimisationStatusXattr("pending")
 
         let format = Defaults[.audioFormat]
-        let bitrate = Defaults[.audioBitrate]
+        let bitrate = bitrateOverride ?? Defaults[.audioBitrate]
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
 

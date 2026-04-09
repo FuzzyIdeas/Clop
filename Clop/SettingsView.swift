@@ -1295,6 +1295,7 @@ struct DropZoneSettingsView: View {
                         .font(.regular(10))
                 }
                 .buttonStyle(.plain)
+                .contentShape(Rectangle())
                 Button(role: .destructive, action: {
                     presetZones = presetZones.filter { $0.id != zone.id }
                 }) {
@@ -1303,6 +1304,7 @@ struct DropZoneSettingsView: View {
                         .font(.regular(10))
                 }
                 .buttonStyle(.plain)
+                .contentShape(Rectangle())
             }
 
             let resolved = zone.resolvedPipeline

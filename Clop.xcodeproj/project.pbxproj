@@ -139,6 +139,8 @@
 		C7CC9E252E57299900EAFCA1 /* InternetAccessPolicy.plist in Resources */ = {isa = PBXBuildFile; fileRef = C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */; };
 		C7CC9E272E57299900EAFCA1 /* Pipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CC9E262E57299900EAFCA1 /* Pipeline.swift */; };
 		C7CC9E282E57299900EAFCA1 /* Pipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CC9E262E57299900EAFCA1 /* Pipeline.swift */; };
+		C7D697172F837AD000FAFD3A /* LowtechProSentry in Frameworks */ = {isa = PBXBuildFile; productRef = C7D697162F837AD000FAFD3A /* LowtechProSentry */; };
+		C7A1B0012FA3D00000JXLCDR /* JxlCoder in Frameworks */ = {isa = PBXBuildFile; productRef = C7A1B0002FA3D00000JXLCDR /* JxlCoder */; };
 		C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */; };
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
@@ -376,10 +378,12 @@
 			files = (
 				C78211022A59E371008DB106 /* Lowtech in Frameworks */,
 				C78211042A59E371008DB106 /* LowtechIndie in Frameworks */,
+				C7D697172F837AD000FAFD3A /* LowtechProSentry in Frameworks */,
 				C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */,
 				C7605FC32F78194D0087B195 /* WarpDrop in Frameworks */,
 				C78211062A59E371008DB106 /* LowtechPro in Frameworks */,
 				C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */,
+				C7A1B0012FA3D00000JXLCDR /* JxlCoder in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -677,6 +681,8 @@
 				C7DF1A272AB8885600AF8EDC /* Ignore */,
 				C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */,
 				C7605FC22F78194D0087B195 /* WarpDrop */,
+				C7D697162F837AD000FAFD3A /* LowtechProSentry */,
+				C7A1B0002FA3D00000JXLCDR /* JxlCoder */,
 			);
 			productName = Clop;
 			productReference = C7AB6621288301590041BEC8 /* Clop.app */;
@@ -721,7 +727,8 @@
 				C7DF1A262AB8885500AF8EDC /* XCRemoteSwiftPackageReference "swift-ignore" */,
 				C7956A482AC209F200C0EDF2 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
 				C73987702D32ECE200CCC939 /* XCRemoteSwiftPackageReference "SymbolPicker" */,
-				C7605FC12F78194D0087B195 /* XCLocalSwiftPackageReference "swift" */,
+				C7605FC12F78194D0087B195 /* XCLocalSwiftPackageReference "../../../Github/alin23/warpdrop/swift" */,
+				C7A1B0022FA3D00000JXLCDR /* XCRemoteSwiftPackageReference "jxl-coder-swift" */,
 			);
 			productRefGroup = C7AB6622288301590041BEC8 /* Products */;
 			projectDirPath = "";
@@ -1284,8 +1291,9 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
+				COPY_PHASE_STRIP = YES;
 				DEAD_CODE_STRIPPING = YES;
+				DEPLOYMENT_POSTPROCESSING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1405,6 +1413,9 @@
 				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
 				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
 				SWIFT_DISABLE_SAFETY_CHECKS = NO;
+				DEPLOYMENT_POSTPROCESSING = YES;
+				STRIP_INSTALLED_PRODUCT = YES;
+				STRIP_STYLE = "non-global";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -1506,7 +1517,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		C7605FC12F78194D0087B195 /* XCLocalSwiftPackageReference "swift" */ = {
+		C7605FC12F78194D0087B195 /* XCLocalSwiftPackageReference "../../../Github/alin23/warpdrop/swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../../Github/alin23/warpdrop/swift;
 		};
@@ -1551,6 +1562,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 0.0.2;
+			};
+		};
+		C7A1B0022FA3D00000JXLCDR /* XCRemoteSwiftPackageReference "jxl-coder-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/awxkee/jxl-coder-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -1605,10 +1624,19 @@
 			package = C73987702D32ECE200CCC939 /* XCRemoteSwiftPackageReference "SymbolPicker" */;
 			productName = SymbolPicker;
 		};
+		C7D697162F837AD000FAFD3A /* LowtechProSentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LowtechProSentry;
+		};
 		C7DF1A272AB8885600AF8EDC /* Ignore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C7DF1A262AB8885500AF8EDC /* XCRemoteSwiftPackageReference "swift-ignore" */;
 			productName = Ignore;
+		};
+		C7A1B0002FA3D00000JXLCDR /* JxlCoder */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C7A1B0022FA3D00000JXLCDR /* XCRemoteSwiftPackageReference "jxl-coder-swift" */;
+			productName = JxlCoder;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

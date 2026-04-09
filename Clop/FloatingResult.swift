@@ -381,7 +381,29 @@ struct OnboardingFloatingPreview: View {
     @Environment(\.preview) var preview
 
     var body: some View {
-        if !optimiser.running, optimiser.canChangeFormat() {
+        if let folderURL = optimiser.outputFolderURL, !optimiser.running {
+            Button {
+                NSWorkspace.shared.open(folderURL)
+            } label: {
+                HStack(spacing: 3) {
+                    SwiftUI.Image(systemName: "folder")
+                    Text("Open folder with pages")
+                }
+                .font(.medium(8))
+            }
+            .buttonStyle(PickerButton(
+                color: .bg.warm.opacity(0.7),
+                offColor: .bg.warm.opacity(0.9),
+                offTextColor: .fg.primary,
+                horizontalPadding: 3,
+                verticalPadding: 1,
+                radius: 4,
+                hoverColor: .pinkMauve,
+                enumValue: true,
+                onValue: true
+            ))
+            .contentShape(Rectangle())
+        } else if !optimiser.running, optimiser.canChangeFormat() {
             HStack(spacing: 1) {
                 ForEach(optimiser.type.convertibleTypes) { format in
                     let ext = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""

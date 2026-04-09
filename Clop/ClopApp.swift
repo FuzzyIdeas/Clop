@@ -16,6 +16,7 @@ import Ignore
 import Lowtech
 import LowtechIndie
 import LowtechPro
+import LowtechProSentry
 import os
 import Sentry
 import ServiceManagement
@@ -23,6 +24,25 @@ import System
 import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ClopApp")
+
+func clopDebugLog(_ message: String, includeCallStack: Bool = false) {
+    guard let bid = Bundle.main.bundleIdentifier, bid.hasPrefix("com.lowtechguys.Clop") else { return }
+
+    let df = DateFormatter()
+    df.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+    var line = "[\(df.string(from: Date()))] \(message)\n"
+    if includeCallStack {
+        line += Thread.callStackSymbols.joined(separator: "\n") + "\n"
+    }
+    let path = (NSHomeDirectory() as NSString).appendingPathComponent(".clop-debug-logs")
+    if let handle = FileHandle(forWritingAtPath: path) {
+        handle.seekToEndOfFile()
+        handle.write(line.data(using: .utf8)!)
+        handle.closeFile()
+    } else {
+        FileManager.default.createFile(atPath: path, contents: line.data(using: .utf8)!)
+    }
+}
 
 var pauseForNextClipboardEvent = false
 
@@ -828,13 +848,20 @@ class AppDelegate: AppDelegateParent {
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard let hov = hoveredOptimiserID,
                   let optimiser = OM.optimisers.first(where: { $0.id == hov }),
-                  event.modifierFlags.contains(.command),
-                  event.charactersIgnoringModifiers == "e",
-                  let shelfApp = runningShelfApp()
+                  event.modifierFlags.contains(.command)
             else { return event }
 
-            shelfApp.open(optimiser: optimiser)
-            return nil
+            switch event.charactersIgnoringModifiers {
+            case "e":
+                guard let shelfApp = runningShelfApp() else { return event }
+                shelfApp.open(optimiser: optimiser)
+                return nil
+            case "f":
+                optimiser.showInFinder()
+                return nil
+            default:
+                return event
+            }
         }
     }
 
@@ -1033,32 +1060,91 @@ class AppDelegate: AppDelegateParent {
 
                 scalingFactor = 1
 
-                if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo, !path.hasOptimisationStatusXattr() {
+                if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo {
                     let ignore = Defaults[.videoFormatsToSkip]
                     if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
                         return
                     }
-                    Task.init {
-                        let _ = try? await runVideoPipeline(Video(path: path), actions: [.optimise], source: .clipboard)
+                    let alreadyOptimised = path.hasOptimisationStatusXattr()
+                    if alreadyOptimised {
+                        let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
+                        let pipelines = pipelinesFor(type: type, source: .clipboard)
+                        if !pipelines.isEmpty {
+                            Task.init {
+                                let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+                                optimiser.url = path.url
+                                await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
+                            }
+                        }
+                    } else {
+                        Task.init {
+                            let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
+                            var resultPath = path
+                            if let result = try? await runVideoPipeline(Video(path: path), actions: [.optimise], source: .clipboard) {
+                                resultPath = result.path
+                            }
+                            if let optimiser = opt(path.string) {
+                                await runPipelinesAfterOptimisation(file: resultPath, type: type, source: .clipboard, optimiser: optimiser)
+                            }
+                        }
                     }
                     return
                 }
-                if Defaults[.optimisePDFClipboard], let path = item.existingFilePath, path.isPDF, !path.hasOptimisationStatusXattr() {
-                    Task.init {
-                        let _ = try? await runPDFPipeline(PDF(path), actions: [.optimise], source: .clipboard)
+                if Defaults[.optimisePDFClipboard], let path = item.existingFilePath, path.isPDF {
+                    let alreadyOptimised = path.hasOptimisationStatusXattr()
+                    if alreadyOptimised {
+                        let type: ItemType = .pdf
+                        let pipelines = pipelinesFor(type: type, source: .clipboard)
+                        if !pipelines.isEmpty {
+                            Task.init {
+                                let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+                                optimiser.url = path.url
+                                await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
+                            }
+                        }
+                    } else {
+                        Task.init {
+                            var resultPath = path
+                            if let result = try? await runPDFPipeline(PDF(path), actions: [.optimise], source: .clipboard) {
+                                resultPath = result.path
+                            }
+                            if let optimiser = opt(path.string) {
+                                await runPipelinesAfterOptimisation(file: resultPath, type: .pdf, source: .clipboard, optimiser: optimiser)
+                            }
+                        }
                     }
                     return
                 }
                 if item.existingFilePath?.isPDF ?? false {
                     return
                 }
-                if Defaults[.optimiseAudioClipboard], let path = item.existingFilePath, path.isAudio, !path.hasOptimisationStatusXattr() {
+                if Defaults[.optimiseAudioClipboard], let path = item.existingFilePath, path.isAudio {
                     let ignore = Defaults[.audioFormatsToSkip]
                     if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
                         return
                     }
-                    Task.init {
-                        let _ = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], source: .clipboard)
+                    let alreadyOptimised = path.hasOptimisationStatusXattr()
+                    if alreadyOptimised {
+                        let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
+                        let pipelines = pipelinesFor(type: type, source: .clipboard)
+                        if !pipelines.isEmpty {
+                            Task.init {
+                                let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+                                optimiser.url = path.url
+                                await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
+                            }
+                        }
+                    } else {
+                        Task.init {
+                            let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
+                            var resultPath = path
+                            if let result = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], source: .clipboard) {
+                                resultPath = result.path
+                            }
+                            if let optimiser = opt(path.string) {
+                                await runPipelinesAfterOptimisation(file: resultPath, type: type, source: .clipboard, optimiser: optimiser)
+                            }
+                        }
                     }
                     return
                 }
@@ -1731,10 +1817,6 @@ struct ClopApp: App {
             .handlesExternalEvents(matching: ["openSettings"])
 
     }
-}
-
-@inline(__always) var proactive: Bool {
-    (PRO?.productActivated ?? false) || (PRO?.onTrial ?? false)
 }
 
 extension NSFilePromiseReceiver {
