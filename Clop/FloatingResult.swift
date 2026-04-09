@@ -686,7 +686,7 @@ struct FloatingResult: View {
                 )
 
         } else {
-            SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
+            SwiftUI.Image(systemName: optimiser.type.systemImage)
                 .font(.bold(11))
                 .foregroundColor(.grayMauve)
                 .padding(3)

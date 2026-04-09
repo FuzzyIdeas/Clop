@@ -788,7 +788,7 @@ struct DragPreview: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                SwiftUI.Image(systemName: optimiser.type.isVideo ? "video.fill" : (optimiser.type.isPDF ? "doc.fill" : "photo.fill"))
+                SwiftUI.Image(systemName: optimiser.type.systemImage)
                     .resizable()
                     .scaledToFit()
                     .foregroundColor(.primary)

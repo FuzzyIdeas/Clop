@@ -60,7 +60,7 @@ class Audio: Optimisable {
         return Audio(path: path, metadata: metadata, fileSize: fileSize, thumb: thumb, id: id)
     }
 
-    func optimise(optimiser: Optimiser, bitrateOverride: Int? = nil) throws -> Audio {
+    func optimise(optimiser: Optimiser, bitrateOverride: Int? = nil, aggressive: Bool = false) throws -> Audio {
         log.debug("Optimising audio \(self.path.string)")
         guard let name = path.lastComponent else {
             log.error("No file name for path: \(self.path)")
@@ -70,16 +70,14 @@ class Audio: Optimisable {
         path.waitForFile(for: 3)
         try? path.setOptimisationStatusXattr("pending")
 
-        let format = Defaults[.audioFormat]
-        let bitrate = bitrateOverride ?? Defaults[.audioBitrate]
+        let format = Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
+        let rawBitrate = bitrateOverride ?? Defaults[.audioBitrate]
+        let bitrate = format.resolveBitrate(rawBitrate, inputBitrate: bitrate)
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
-
-        let args = [
-            "-y", "-i", inputPath.string,
-            "-vn",
-            "-c:a", format.ffmpegCodec,
-            "-b:a", "\(bitrate)k",
+        var args = ["-y", "-i", inputPath.string, "-vn"]
+        args += format.encodingArgs(bitrate: bitrate, aggressive: aggressive, inputSampleRate: sampleRate)
+        args += [
             "-progress", "pipe:2",
             "-nostats", "-hide_banner", "-stats_period", "0.1",
             outputPath.string,
@@ -208,11 +206,9 @@ class Audio: Optimisable {
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path
 
-        let args = [
-            "-y", "-i", inputPath.string,
-            "-vn",
-            "-c:a", format.ffmpegCodec,
-            "-b:a", "\(bitrate)k",
+        var args = ["-y", "-i", inputPath.string, "-vn"]
+        args += format.encodingArgs(bitrate: bitrate)
+        args += [
             "-progress", "pipe:2",
             "-nostats", "-hide_banner", "-stats_period", "0.1",
             outputPath.string,

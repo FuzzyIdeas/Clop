@@ -15,227 +15,6 @@ import System
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "OptimisationUtils")
 
-enum ItemType: Equatable, Identifiable {
-    case image(UTType)
-    case video(UTType)
-    case audio(UTType)
-    case pdf
-    case url
-    case unknown
-
-    var id: String {
-        switch self {
-        case let .image(utType):
-            utType.identifier
-        case let .video(utType):
-            utType.identifier
-        case let .audio(utType):
-            utType.identifier
-        case .pdf:
-            "pdf"
-        case .url:
-            "url"
-        case .unknown:
-            "unknown"
-        }
-    }
-
-    var convertibleTypes: [UTType] {
-        switch self {
-        case .image:
-            [.jpeg, .webP, .avif, .heic, .png, .jxl].compactMap { $0 }
-        case .video:
-            [.mpeg4Movie, .quickTimeMovie, .gif, .webm, .hevcVideo, .av1Video].compactMap { $0 }
-        case .audio:
-            [.m4a, .mp3, .oggAudio].compactMap { $0 }
-        default:
-            []
-        }
-    }
-
-    var str: String {
-        switch self {
-        case .image:
-            "image"
-        case .video:
-            "video"
-        case .audio:
-            "audio"
-        case .pdf:
-            "PDF"
-        case .url:
-            "file"
-        case .unknown:
-            "file"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .image:
-            "photo"
-        case .video:
-            "film"
-        case .audio:
-            "waveform"
-        case .pdf:
-            "doc.text"
-        case .url:
-            "link"
-        case .unknown:
-            "questionmark"
-        }
-    }
-
-    var ext: String? {
-        switch self {
-        case let .image(uTType):
-            uTType.preferredFilenameExtension
-        case let .video(uTType):
-            uTType.preferredFilenameExtension
-        case let .audio(uTType):
-            uTType.preferredFilenameExtension
-        case .pdf:
-            "pdf"
-        case .url:
-            nil
-        case .unknown:
-            nil
-        }
-    }
-
-    var isImage: Bool {
-        switch self {
-        case .image:
-            true
-        default:
-            false
-        }
-    }
-
-    var isVideo: Bool {
-        switch self {
-        case .video:
-            true
-        default:
-            false
-        }
-    }
-
-    var isAudio: Bool {
-        switch self {
-        case .audio:
-            true
-        default:
-            false
-        }
-    }
-
-    var isPDF: Bool {
-        switch self {
-        case .pdf:
-            true
-        default:
-            false
-        }
-    }
-
-    var isURL: Bool {
-        switch self {
-        case .url:
-            true
-        default:
-            false
-        }
-    }
-
-    var utType: UTType? {
-        switch self {
-        case let .image(utType):
-            utType
-        case let .video(utType):
-            utType
-        case let .audio(utType):
-            utType
-        case .pdf:
-            .pdf
-        case .url:
-            nil
-        case .unknown:
-            nil
-        }
-    }
-
-    var pipelineKey: Defaults.Key<[String: [Pipeline]]>? {
-        switch self {
-        case .image:
-            .pipelinesToRunOnImage
-        case .video:
-            .pipelinesToRunOnVideo
-        case .pdf:
-            .pipelinesToRunOnPdf
-        case .audio:
-            .pipelinesToRunOnAudio
-        default:
-            nil
-        }
-    }
-
-    var pasteboardType: NSPasteboard.PasteboardType? {
-        switch self {
-        case let .image(utType):
-            utType.pasteboardType
-        case let .video(utType):
-            utType.pasteboardType
-        case let .audio(utType):
-            utType.pasteboardType
-        case .pdf:
-            .pdf
-        case .url:
-            .URL
-        case .unknown:
-            nil
-        }
-    }
-
-    static func from(mimeType: String) -> ItemType {
-        switch mimeType {
-        case "image/jpeg", "image/png", "image/gif", "image/tiff", "image/webp", "image/heic", "image/heif", "image/avif":
-            .image(UTType(mimeType: mimeType)!)
-        case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg":
-            .video(UTType(mimeType: mimeType)!)
-        case "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/x-wav", "audio/aiff", "audio/x-aiff", "audio/flac", "audio/ogg", "audio/opus":
-            .audio(UTType(mimeType: mimeType) ?? .mp3)
-        case "application/pdf":
-            .pdf
-        case "text/html":
-            .url
-        default:
-            .unknown
-        }
-    }
-    static func from(filePath: FilePath) -> ItemType {
-        guard let fileType = filePath.fetchFileType()?.split(separator: ";").first?.s else {
-            return .unknown
-        }
-
-        switch fileType {
-        case "image/jpeg", "image/png", "image/gif", "image/tiff", "image/webp", "image/heic", "image/heif", "image/avif":
-            return .image(UTType(mimeType: fileType)!)
-        case "video/mp4", "video/quicktime", "video/x-m4v", "video/x-matroska", "video/x-msvideo", "video/x-flv", "video/x-ms-wmv", "video/x-mpeg", "video/webm":
-            return .video(UTType(mimeType: fileType)!)
-        case "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/x-wav", "audio/aiff", "audio/x-aiff", "audio/flac", "audio/ogg", "audio/opus":
-            return .audio(UTType(mimeType: fileType) ?? .mp3)
-        case "application/pdf":
-            return .pdf
-        case "text/html":
-            return .url
-        default:
-            return .unknown
-        }
-    }
-}
-
 var hoveredOptimiserIDTask: DispatchWorkItem? {
     didSet {
         oldValue?.cancel()
@@ -930,7 +709,8 @@ enum TempPipelineSegment {
                             id: self.id,
                             allowLarger: true,
                             hideFloatingResult: hidden,
-                            bitrateOverride: self.audioBitrateOverride
+                            bitrateOverride: self.audioBitrateOverride,
+                            aggressiveOptimisation: aggressive ? true : nil
                         ) {
                             currentFile = result.path
                             self.audio = result
@@ -963,6 +743,29 @@ enum TempPipelineSegment {
             let originalExt = originalURL?.pathExtension.lowercased() ?? startingURL?.pathExtension.lowercased()
             if let originalExt, originalExt == typeStr.lowercased() {
                 removeTempPipelineStep(named: "convert")
+
+                // For audio, restore original file directly instead of re-encoding
+                if self.type.isAudio, !tempPipeline.contains(where: \.isProcessingStep),
+                   let origPath = (originalURL ?? startingURL)?.filePath, origPath.exists
+                {
+                    stop(remove: false)
+                    stopRemover()
+                    Task {
+                        let audio = await (try? Audio.byFetchingMetadata(path: origPath, thumb: !hidden)) ?? Audio(path: origPath, thumb: !hidden)
+                        self.audio = audio
+                        if let ext = origPath.extension, let audioFmt = AudioFormat.allCases.first(where: { $0.fileExtension == ext })?.utType {
+                            self.type = .audio(audioFmt)
+                        }
+                        self.url = origPath.url
+                        self.isOriginal = true
+                        self.error = nil
+                        self.notice = nil
+                        self.info = nil
+                        self.finish(oldBytes: self.oldBytes, newBytes: origPath.fileSize() ?? self.oldBytes, removeAfterMs: self.lastRemoveAfterMs)
+                    }
+                    return
+                }
+
                 if !tempPipeline.contains(where: { $0.stepName == "optimise" }) {
                     updateTempPipeline(with: .optimise())
                 }
@@ -1008,30 +811,13 @@ enum TempPipelineSegment {
                 }
             }
         case .audio:
-            guard let audio = self.audio else { return }
-            guard let format = AudioFormat.allCases.first(where: { $0.utType == type }) else { return }
-            DispatchQueue.global().async { [weak self] in
-                guard let converted = try? audio.convert(to: format, optimiser: self!) else {
-                    mainActor {
-                        guard let self else { return }
-                        self.finish(error: "\(typeStr) conversion failed")
-                    }
-                    return
-                }
-                mainActor {
-                    guard let self else { return }
-                    if self.convertedFromURL == nil {
-                        self.convertedFromURL = self.url
-                    }
-                    self.audio = converted
-                    self.type = .audio(type)
-                    self.url = converted.path.url
-                    self.error = nil
-                    self.notice = nil
-                    self.info = nil
-                    self.finish(oldBytes: self.oldBytes, newBytes: converted.fileSize, removeAfterMs: self.lastRemoveAfterMs)
-                }
+            // Route through temp pipeline to always convert from the original file
+            // and avoid double-encoding quality loss on subsequent format changes
+            if originalURL == nil {
+                originalURL = url
             }
+            updateTempPipeline(with: .convert(to: typeStr))
+            executeTempPipeline()
         case .video:
             guard let url else { return }
             let path = FilePath(url.path)
@@ -1237,6 +1023,8 @@ enum TempPipelineSegment {
     func canReoptimise() -> Bool {
         switch type {
         case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
+            true
+        case .audio:
             true
         default:
             false
@@ -1592,6 +1380,12 @@ enum TempPipelineSegment {
         }
         if type.isPDF, path.exists, let pdf {
             Task.init { try? await runPDFPipeline(pdf, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+        }
+        if type.isAudio, path.exists {
+            Task.init {
+                let aud = await (try? Audio.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)) ?? Audio(path: path, id: id)
+                let _ = try? await runAudioPipeline(aud, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
+            }
         }
     }
 
@@ -2412,132 +2206,6 @@ func optimiseURL(
 
 @MainActor func opt(_ optimiserID: String) -> Optimiser? {
     OM.optimisers.first(where: { $0.id == optimiserID })
-}
-
-let BASE64_PREFIX = #/(url\()?data:image/[^;]+;base64,/#
-
-enum ClipboardType: Equatable {
-    case image(Image)
-    case file(FilePath)
-    case url(URL)
-    case unknown
-
-    var isImage: Bool {
-        switch self {
-        case .image: true
-        case let .file(path): path.isImage
-        case let .url(url): url.isImage
-        default: false
-        }
-    }
-
-    var isVideo: Bool {
-        switch self {
-        case let .file(path): path.isVideo
-        case let .url(url): url.isVideo
-        default: false
-        }
-    }
-
-    var isPDF: Bool {
-        switch self {
-        case let .file(path): path.isPDF
-        case let .url(url): url.isPDF
-        default: false
-        }
-    }
-
-    var isAudio: Bool {
-        switch self {
-        case let .file(path): path.isAudio
-        case let .url(url): url.isAudio
-        default: false
-        }
-    }
-
-    var id: String {
-        switch self {
-        case let .image(img): img.path.string
-        case let .file(path): path.string
-        case let .url(url): url.path
-        case .unknown: ""
-        }
-    }
-
-    var path: FilePath {
-        switch self {
-        case let .image(img): img.path
-        case let .file(path): path
-        case let .url(url): FilePath.downloads / url.lastPathComponent.safeFilename
-        case .unknown: ""
-        }
-    }
-
-    static func == (lhs: ClipboardType, rhs: ClipboardType) -> Bool {
-        lhs.id == rhs.id
-    }
-
-    static func fromURL(_ url: URL) -> ClipboardType {
-        if url.isFileURL {
-            return .file(url.filePath!)
-        }
-
-        return .url(url)
-    }
-
-    static func fromString(_ str: String) -> ClipboardType {
-        if let data = Data(base64Encoded: str.replacing(BASE64_PREFIX, with: "").trimmedPath), let img = Image(data: data, retinaDownscaled: false) {
-            return .image(img)
-        }
-
-        let str = str.trimmedPath
-        let path = str.starts(with: "file:") ? str.url?.filePath : str.existingFilePath
-        if let path {
-            return .file(path)
-        }
-
-        if str.contains(":"), let url = str.url {
-            return .url(url)
-        }
-
-        return .unknown
-    }
-
-    static func lastItem() -> ClipboardType {
-        guard let item = NSPasteboard.general.pasteboardItems?.first else {
-            return .unknown
-        }
-        return fromPasteboardItem(item)
-    }
-
-    static func fromPasteboardItem(_ item: NSPasteboardItem) -> ClipboardType {
-        if let path = item.string(forType: .fileURL)?.trimmedPath.url?.filePath ?? item.string(forType: .string)?.trimmedPath.existingFilePath {
-            if path.isPDF || path.isVideo || path.isAudio {
-                return .file(path)
-            }
-            if path.isImage, let img = Image(path: path, retinaDownscaled: false) {
-                return .image(img)
-            }
-        }
-
-        if let img = try? Image.fromPasteboard(item: item, anyType: true) {
-            return .image(img)
-        }
-
-        if let str = item.string(forType: .string), let data = Data(base64Encoded: str.replacing(BASE64_PREFIX, with: "").trimmedPath), let img = Image(data: data, retinaDownscaled: false) {
-            return .image(img)
-        }
-
-        if let path = item.string(forType: .fileURL)?.trimmedPath.url?.filePath ?? item.string(forType: .string)?.trimmedPath.existingFilePath {
-            return .file(path)
-        }
-
-        if let url = item.string(forType: .URL)?.url ?? item.string(forType: .string)?.url {
-            return .url(url)
-        }
-
-        return .unknown
-    }
 }
 
 import LowtechPro

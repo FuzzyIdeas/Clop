@@ -46,13 +46,22 @@ class Dockside: AppIntegration {
     override var appPath: String { "/Applications/Dockside.app" }
 }
 
+@MainActor
+class Atoll: AppIntegration {
+    override var BUNDLE_ID: String { "com.Ebullioscopic.Atoll" }
+
+    override var appNameQuery: String { "kMDItemFSName == 'Atoll.app'" }
+    override var appPath: String { "/Applications/Atoll.app" }
+}
+
 @MainActor let DROPSHARE = Dropshare()
 @MainActor let DROPOVER = Dropover()
 @MainActor let YOINK = Yoink()
 @MainActor let DOCKSIDE = Dockside()
+@MainActor let ATOLL = Atoll()
 
 /// Shelf apps in priority order (highest priority first)
-@MainActor let SHELF_APPS: [AppIntegration] = [YOINK, DOCKSIDE, DROPOVER]
+@MainActor let SHELF_APPS: [AppIntegration] = [YOINK, DOCKSIDE, DROPOVER, ATOLL]
 
 /// Returns the highest-priority shelf app that is currently running, or nil.
 @MainActor func runningShelfApp() -> AppIntegration? {
