@@ -708,33 +708,41 @@ struct AudioSettingsView: View {
                 } label: {
                     Text("Output format").regular(13)
                 }
-                Picker(selection: $audioBitrate) {
-                    ForEach(audioFormat.allowedBitrates, id: \.self) { bitrate in
-                        Text("\(bitrate) kbps").tag(bitrate)
-                    }
-                } label: {
-                    Text("Bitrate").regular(13)
-                }
                 .onChange(of: audioFormat) { newFormat in
-                    if !newFormat.allowedBitrates.contains(audioBitrate) {
+                    if newFormat.isLossless {
+                        audioBitrate = newFormat.defaultBitrate
+                    } else if audioBitrate >= 0, !newFormat.allowedBitrates.contains(audioBitrate) {
                         audioBitrate = newFormat.defaultBitrate
                     }
-                    // Remove the output format from the conversion set
                     if let ut = newFormat.utType {
                         formatsToConvertToOutputAudio.remove(ut)
                     }
                 }
+                if !audioFormat.isLossless {
+                    Picker(selection: $audioBitrate) {
+                        Text("1 step lower than input").tag(-1)
+                        Text("2 steps lower than input").tag(-2)
+                        Divider()
+                        ForEach(audioFormat.allowedBitrates, id: \.self) { bitrate in
+                            Text("\(bitrate) kbps").tag(bitrate)
+                        }
+                    } label: {
+                        Text("Bitrate").regular(13)
+                    }
+                }
             }
-            Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts selected formats to \(audioFormat.fileExtension) before optimisation")) {
-                HStack {
-                    (Text("Convert to ").regular(13) + Text(audioFormat.fileExtension).mono(13)).padding(.trailing, 10)
-                    Spacer()
+            if audioFormat != .sameAsInput, !audioFormat.isLossless {
+                Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts selected formats to \(audioFormat.fileExtension) before optimisation")) {
+                    HStack {
+                        (Text("Convert to ").regular(13) + Text(audioFormat.fileExtension).mono(13)).padding(.trailing, 10)
+                        Spacer()
 
-                    ForEach(ALL_AUDIO_CONVERTIBLE_FORMATS.filter { $0 != audioFormat.utType }, id: \.identifier) { format in
-                        Button(format.preferredFilenameExtension ?? format.identifier) {
-                            formatsToConvertToOutputAudio.toggle(format)
-                        }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToOutputAudio.contains(format) }))
-                            .font(.mono(11))
+                        ForEach(ALL_AUDIO_CONVERTIBLE_FORMATS.filter { $0 != audioFormat.utType }, id: \.identifier) { format in
+                            Button(format.preferredFilenameExtension ?? format.identifier) {
+                                formatsToConvertToOutputAudio.toggle(format)
+                            }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToOutputAudio.contains(format) }))
+                                .font(.mono(11))
+                        }
                     }
                 }
             }

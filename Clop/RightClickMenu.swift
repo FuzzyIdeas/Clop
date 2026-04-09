@@ -105,11 +105,13 @@ struct RightClickMenuView: View {
         }
         .keyboardShortcut(" ")
 
-        Button("Compare (diff)") {
-            optimiser.compare()
+        if !optimiser.type.isAudio {
+            Button("Compare (diff)") {
+                optimiser.compare()
+            }
+            .disabled(optimiser.url == nil || optimiser.comparisonOriginalURL == nil)
+            .keyboardShortcut("d")
         }
-        .disabled(optimiser.url == nil || optimiser.comparisonOriginalURL == nil)
-        .keyboardShortcut("d")
 
         if !optimiser.running {
             if optimiser.canDownscale() ||
@@ -120,11 +122,11 @@ struct RightClickMenuView: View {
                 Divider()
             }
             if optimiser.canDownscale() {
-                if optimiser.type.isAudio {
+                if optimiser.type.isAudio, optimiser.type.utType != .wav {
                     Menu("Change bitrate") {
                         LowerBitrateMenu(optimiser: optimiser)
                     }
-                } else {
+                } else if !optimiser.type.isAudio {
                     Menu("Downscale") {
                         DownscaleMenu(optimiser: optimiser)
                     }
@@ -197,11 +199,14 @@ struct RightClickMenuView: View {
                 Button("Add to Dropover") {
                     DROPOVER.open(optimiser: optimiser)
                 }
+                Button("Add to Atoll") {
+                    ATOLL.open(optimiser: optimiser)
+                }
             }
 
             Divider()
 
-            if !optimiser.type.isPDF {
+            if !optimiser.type.isPDF, !optimiser.type.isAudio {
                 Button("Strip EXIF metadata") {
                     optimiser.path?.stripExif()
                     optimiser.overlayMessage = "Stripped"
@@ -294,9 +299,9 @@ struct BatchRightClickMenuView: View {
             }
             .disabled(optimisers.filter { !$0.type.isAudio }.allSatisfy { $0.downscaleFactor <= 0.1 })
         }
-        if optimisers.contains(where: \.type.isAudio) {
+        if optimisers.contains(where: { $0.type.isAudio && $0.type.utType != .wav }) {
             Menu("Change bitrate") {
-                BatchBitrateMenu(optimisers: optimisers.filter(\.type.isAudio))
+                BatchBitrateMenu(optimisers: optimisers.filter { $0.type.isAudio && $0.type.utType != .wav })
             }
         }
 
@@ -352,6 +357,10 @@ struct BatchRightClickMenuView: View {
                 DROPOVER.open(optimisers: sm.optimisers)
                 sm.selection = []
             }
+            Button("Add to Atoll") {
+                ATOLL.open(optimisers: sm.optimisers)
+                sm.selection = []
+            }
         }
 
         Divider()
@@ -362,7 +371,7 @@ struct BatchRightClickMenuView: View {
             }
             sm.selection = []
         }
-        .disabled(optimisers.allSatisfy(\.type.isPDF))
+        .disabled(optimisers.allSatisfy { $0.type.isPDF || $0.type.isAudio })
     }
 }
 

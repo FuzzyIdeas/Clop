@@ -972,9 +972,9 @@ struct ActionButton: View {
     var body: some View {
         switch action {
         case .downscale:
-            if optimiser.type.isAudio {
+            if optimiser.type.isAudio, optimiser.type.utType != .wav {
                 LowerBitrateButton(optimiser: optimiser)
-            } else {
+            } else if !optimiser.type.isAudio {
                 DownscaleButton(optimiser: optimiser)
             }
         case .share:

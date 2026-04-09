@@ -49,14 +49,20 @@ class Optimisable {
             log.debug("Using cached thumbnail from \(thumbURL.path) for \(self.path.string)")
             url = thumbURL
         }
-        generateThumbnail(for: url, size: THUMB_SIZE) { [url, id, path] thumb in
+        generateThumbnail(for: url, size: THUMB_SIZE, onCompletion: { [url, id, path] thumb in
             guard let optimiser = Self.getOptimiser(id: id, path: path) else {
                 log.debug("Thumbnail generation cancelled for \(url.path)")
                 return
             }
             log.debug("Thumbnail generated for \(path.string)")
             optimiser.thumbnail = NSImage(cgImage: thumb.cgImage, size: .zero)
-        }
+        }, onFailure: { [url, id, path] in
+            guard let optimiser = Self.getOptimiser(id: id, path: path) else { return }
+            log.debug("Thumbnail generation failed for \(path.string), using system icon")
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            icon.size = THUMB_SIZE
+            optimiser.thumbnail = icon
+        })
     }
 
     func runThroughShortcut(shortcut: Shortcut? = nil, optimiser: Optimiser, allowLarger: Bool, aggressiveOptimisation: Bool, source: OptimisationSource?) throws -> Self? {

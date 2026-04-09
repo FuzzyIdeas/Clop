@@ -308,7 +308,7 @@ import QuickLookThumbnailing
 
 let SCREEN_SCALE = NSScreen.main!.backingScaleFactor
 
-func generateThumbnail(for url: URL, size: CGSize, onCompletion: @escaping (QLThumbnailRepresentation) -> Void) {
+func generateThumbnail(for url: URL, size: CGSize, onCompletion: @escaping (QLThumbnailRepresentation) -> Void, onFailure: (() -> Void)? = nil) {
     let request = QLThumbnailGenerator.Request(
         fileAt: url,
         size: size,
@@ -322,6 +322,7 @@ func generateThumbnail(for url: URL, size: CGSize, onCompletion: @escaping (QLTh
                 log.error("Error on generating thumbnail for \(url): \(error.localizedDescription)")
             }
             guard let thumbnail else {
+                onFailure?()
                 return
             }
             onCompletion(thumbnail)
