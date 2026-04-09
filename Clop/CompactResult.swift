@@ -253,8 +253,8 @@ struct CompactResult: View {
         }
         .onHover(perform: updateHover(_:))
         .ifLet(optimiser.url, transform: { view, url in
-            view
-                .onDrag {
+            view.if(!optimiser.showDownscaleSlider) { v in
+                v.onDrag {
                     guard !preview else {
                         return NSItemProvider()
                     }
@@ -265,6 +265,7 @@ struct CompactResult: View {
                     }
                     return NSItemProvider(object: url as NSURL)
                 }
+            }
         })
     }
 
@@ -312,7 +313,16 @@ struct OverlayMessageView: View {
     @State var opacity = 1.0
 
     var body: some View {
-        if optimiser.overlayMessage.isNotEmpty {
+        if optimiser.stepIndicator.isNotEmpty, !optimiser.showDownscaleSlider {
+            Text(optimiser.stepIndicator)
+                .foregroundColor(color == .black ? .white : .primary)
+                .roundbg(radius: 12, padding: 6, color: color)
+                .fill()
+                .background(
+                    VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: color == .black ? .vibrantDark : .none).scaleEffect(1.1)
+                )
+                .transaction { $0.animation = nil }
+        } else if optimiser.overlayMessage.isNotEmpty {
             Text(optimiser.overlayMessage)
                 .foregroundColor(color == .black ? .white : .primary)
                 .roundbg(radius: 12, padding: 6, color: color)
@@ -665,8 +675,16 @@ struct CompactResultList: View {
                                     sm.selection = []
                                 }
                                 BatchCropButton()
-                                Menu("Downscale") {
-                                    BatchDownscaleMenu(optimisers: sm.selection.compactMap { opt($0) })
+                                let selectedOptimisers = sm.selection.compactMap { opt($0) }
+                                if selectedOptimisers.contains(where: { !$0.type.isAudio }) {
+                                    Menu("Downscale") {
+                                        BatchDownscaleMenu(optimisers: selectedOptimisers.filter { !$0.type.isAudio })
+                                    }
+                                }
+                                if selectedOptimisers.contains(where: \.type.isAudio) {
+                                    Menu("Bitrate") {
+                                        BatchBitrateMenu(optimisers: selectedOptimisers.filter(\.type.isAudio))
+                                    }
                                 }
                             }
                             .font(.round(10))

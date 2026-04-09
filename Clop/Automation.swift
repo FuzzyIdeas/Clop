@@ -377,6 +377,39 @@ struct StepTemplate {
     let create: () -> PipelineStep
 }
 
+struct InstalledAppsInfo {
+    let names: [String]
+    let descriptions: [String: String]
+}
+
+private var _installedAppsCache: InstalledAppsInfo?
+
+private func installedApps() -> InstalledAppsInfo {
+    if let cache = _installedAppsCache { return cache }
+
+    var descriptions = [String: String]()
+    let fm = FileManager.default
+    let searchPaths = ["/Applications", "\(NSHomeDirectory())/Applications"]
+
+    for base in searchPaths {
+        guard let enumerator = fm.enumerator(atPath: base) else { continue }
+        while let path = enumerator.nextObject() as? String {
+            guard path.hasSuffix(".app") else { continue }
+            enumerator.skipDescendants()
+            let fullPath = "\(base)/\(path)"
+            guard isAppPathRelevant(fullPath) else { continue }
+            guard let bundle = Bundle(path: fullPath) else { continue }
+            let name = bundle.name
+            let bundleID = bundle.bundleIdentifier ?? "unknown"
+            descriptions[name] = "\(name) (\(bundleID))"
+        }
+    }
+
+    let result = InstalledAppsInfo(names: descriptions.keys.sorted(), descriptions: descriptions)
+    _installedAppsCache = result
+    return result
+}
+
 let ALL_STEP_TEMPLATES: [StepTemplate] = [
     StepTemplate(
         name: "optimise", description: "Optimise file size",
@@ -403,6 +436,18 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 valueDescriptions: ["true": "may change file extension", "false": "keep original format"],
                 valueDescriptionsForType: [
                     .video: ["true": "auto-picks encoder to prioritise speed based on video size and duration", "false": "use the specified encoder"],
+                ]
+            ),
+            ParamTemplate(
+                name: "location",
+                description: "where to save the result",
+                suggestions: ["inPlace", "sameFolder", "temporaryFolder", "template"],
+                freeText: true,
+                valueDescriptions: [
+                    "inPlace": "replace original file",
+                    "sameFolder": "save next to original",
+                    "temporaryFolder": "save in temp directory",
+                    "template": "custom path with %f (filename), %y (year), etc. Output extension is added automatically",
                 ]
             ),
         ],
@@ -436,12 +481,13 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         mandatoryParams: [
             ParamTemplate(
                 name: "to", description: "target format extension",
-                suggestions: ["webp", "avif", "heic", "jpeg", "png", "gif", "mp4", "webm", "m4a", "mp3", "ogg", "flac"],
+                suggestions: ["webp", "avif", "heic", "jxl", "jpeg", "png", "gif", "mp4", "webm", "m4a", "mp3", "ogg", "flac"],
                 freeText: true,
                 valueDescriptions: [
                     "webp": "WebP image format",
                     "avif": "AV1 image format",
                     "heic": "HEIC image format",
+                    "jxl": "JPEG XL image format",
                     "jpeg": "JPEG image format",
                     "png": "PNG image format",
                     "gif": "animated GIF",
@@ -458,7 +504,7 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                     "aiff": "AIFF uncompressed audio",
                 ],
                 suggestionsForType: [
-                    .image: ["webp", "avif", "heic", "jpeg", "png", "gif"],
+                    .image: ["webp", "avif", "heic", "jxl", "jpeg", "png", "gif"],
                     .video: ["gif", "webm", "hevc", "x265", "av1"],
                     .audio: ["m4a", "mp3", "ogg", "flac", "wav", "aiff"],
                 ]
@@ -505,6 +551,39 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         ],
         applicableTypes: [.image, .video],
         create: { .crop(width: 1920) }
+    ),
+    StepTemplate(
+        name: "extractPagesAsImages", description: "Extract PDF pages as images",
+        mandatoryParams: [],
+        optionalParams: [
+            ParamTemplate(
+                name: "format",
+                description: "image format for extracted pages",
+                suggestions: ["jpeg", "png"],
+                freeText: false,
+                valueDescriptions: ["jpeg": "JPEG (smaller, white background)", "png": "PNG (transparency preserved)"]
+            ),
+            ParamTemplate(
+                name: "quality",
+                description: "render resolution",
+                suggestions: ["low", "medium", "high"],
+                freeText: false,
+                valueDescriptions: ["low": "1x scale (72 DPI)", "medium": "2x scale (144 DPI)", "high": "3x scale (216 DPI)"]
+            ),
+            ParamTemplate(
+                name: "location",
+                description: "where to save extracted images",
+                suggestions: ["sameFolder", "temporaryFolder", "template"],
+                freeText: true,
+                valueDescriptions: [
+                    "sameFolder": "save next to original PDF",
+                    "temporaryFolder": "save in temp directory",
+                    "template": "custom path with %f (filename), %y (year), etc.",
+                ]
+            ),
+        ],
+        applicableTypes: [.pdf],
+        create: { .extractPagesAsImages() }
     ),
     StepTemplate(
         name: "copy", description: "Copy file to a path",
@@ -622,6 +701,68 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         applicableTypes: [.image, .video, .audio, .pdf],
         create: { .copyToClipboard() }
     ),
+    StepTemplate(
+        name: "copyLinkForSending", description: "Send file securely and copy share link to clipboard",
+        mandatoryParams: [],
+        optionalParams: [],
+        applicableTypes: [.image, .video, .audio, .pdf],
+        create: { .copyLinkForSending }
+    ),
+    StepTemplate(
+        name: "shelveWith", description: "Send file to a shelf app",
+        mandatoryParams: [
+            ParamTemplate(
+                name: "app",
+                description: "shelf app to send to",
+                suggestions: ["yoink", "dockside", "dropover"],
+                freeText: false,
+                valueDescriptions: [
+                    "yoink": "Yoink shelf app",
+                    "dockside": "Dockside shelf app",
+                    "dropover": "Dropover shelf app",
+                ]
+            ),
+        ],
+        optionalParams: [],
+        applicableTypes: [.image, .video, .audio, .pdf],
+        create: { .shelveWith(app: "yoink") }
+    ),
+    StepTemplate(
+        name: "uploadWith", description: "Upload file via an upload app",
+        mandatoryParams: [
+            ParamTemplate(
+                name: "app",
+                description: "upload app to use",
+                suggestions: ["dropshare"],
+                freeText: false,
+                valueDescriptions: [
+                    "dropshare": "Dropshare file upload service",
+                ]
+            ),
+        ],
+        optionalParams: [],
+        applicableTypes: [.image, .video, .audio, .pdf],
+        create: { .uploadWith(app: "dropshare") }
+    ),
+    StepTemplate(
+        name: "openWith", description: "Open file with a specific app",
+        mandatoryParams: [
+            {
+                let apps = installedApps()
+                return ParamTemplate(
+                    name: "app",
+                    description: "application name (e.g. Preview, Pixelmator Pro)",
+                    suggestions: apps.names,
+                    freeText: true,
+                    needsQuotes: false,
+                    valueDescriptions: apps.descriptions
+                )
+            }(),
+        ],
+        optionalParams: [],
+        applicableTypes: [.image, .video, .audio, .pdf],
+        create: { .openWith(app: "") }
+    ),
 ]
 
 func stepTemplates(for fileType: ClopFileType) -> [StepTemplate] {
@@ -635,9 +776,11 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
 
     // Handle no-param steps
     if trimmed == "removeAudio" { return .removeAudio }
+    if trimmed == "copyLinkForSending" { return .copyLinkForSending }
+    if trimmed == "copyToClipboard" { return .copyToClipboard() }
 
     // Parse name(params) format
-    guard let nameRegex = try? NSRegularExpression(pattern: #"^(\w+)(?:\((.+)\))?$"#),
+    guard let nameRegex = try? NSRegularExpression(pattern: #"^(\w+)(?:\((.*)\))?$"#),
           let match = nameRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
           let nameRange = Range(match.range(at: 1), in: trimmed)
     else { return nil }
@@ -656,10 +799,11 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
     case "optimise":
         let encoderStr = params["encoder"] ?? "medium"
         let adaptive = params["adaptive"] == "true"
+        let location = params["location"] ?? "inPlace"
         if let videoEncoder = VideoEncoder(rawValue: encoderStr) {
-            return .optimise(adaptive: adaptive, videoEncoder: videoEncoder)
+            return .optimise(adaptive: adaptive, videoEncoder: videoEncoder, location: location)
         }
-        return .optimise(encoder: EncoderQuality(rawValue: encoderStr) ?? .medium, adaptive: adaptive)
+        return .optimise(encoder: EncoderQuality(rawValue: encoderStr) ?? .medium, adaptive: adaptive, location: location)
 
     case "downscale":
         guard let factor = params["factor"].flatMap({ Double($0) }), factor > 0, factor <= 1 else { return nil }
@@ -696,6 +840,12 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         guard let path = params["path"], !path.isEmpty else { return nil }
         return .delete(path: path)
 
+    case "extractPagesAsImages":
+        let format = params["format"] ?? "jpeg"
+        let quality = params["quality"] ?? "medium"
+        let location = params["location"] ?? "sameFolder"
+        return .extractPagesAsImages(format: format, quality: quality, location: location)
+
     case "if":
         let condition = parseFilterCondition(params)
         guard !condition.isEmpty else { return nil }
@@ -724,6 +874,21 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         let format = ClipboardCopyFormat(rawValue: params["format"] ?? "path") ?? .path
         let relativeTo = params["relativeTo"]
         return .copyToClipboard(format: format, relativeTo: relativeTo)
+
+    case "copyLinkForSending":
+        return .copyLinkForSending
+
+    case "shelveWith":
+        guard let app = params["app"], ["yoink", "dockside", "dropover"].contains(app.lowercased()) else { return nil }
+        return .shelveWith(app: app.lowercased())
+
+    case "uploadWith":
+        guard let app = params["app"], ["dropshare"].contains(app.lowercased()) else { return nil }
+        return .uploadWith(app: app.lowercased())
+
+    case "openWith":
+        guard let app = params["app"], !app.isEmpty else { return nil }
+        return .openWith(app: app)
 
     default:
         return nil
@@ -769,6 +934,7 @@ struct CompletionSuggestion: Identifiable {
     let opensParens: Bool
     var needsQuotes = false
     var isTemplateVar = false
+    var closesParens = false
 }
 
 struct TemplateVariable {
@@ -848,6 +1014,9 @@ func pipelineSuggestions(prefix: String, fileType: ClopFileType) -> [CompletionS
             }
 
             let paramSuggestions = param.suggestions(for: fileType)
+            let filledNames = usedNames.union([paramName])
+            let remainingParams = allParams.filter { !filledNames.contains($0.name) }
+            let isLastParam = remainingParams.isEmpty
             let suggestions = paramSuggestions
                 .filter { typedValue.isEmpty || $0.lowercased().hasPrefix(typedValue.lowercased()) }
                 .map { value in
@@ -857,7 +1026,8 @@ func pipelineSuggestions(prefix: String, fileType: ClopFileType) -> [CompletionS
                         details: param.valueDescriptions(for: fileType)[value] ?? param.description,
                         color: step.category.swiftUIColor,
                         opensParens: false,
-                        needsQuotes: value == "template"
+                        needsQuotes: value == "template",
+                        closesParens: isLastParam
                     )
                 }
 
@@ -1309,7 +1479,8 @@ struct PipelineTextView: NSViewRepresentable {
                     let colonPos = beforeCursor.lastIndex(of: ":")!
                     let replaceStart = beforeCursor.distance(from: beforeCursor.startIndex, to: colonPos) + 1
                     let replaceRange = NSRange(location: replaceStart, length: cursor - replaceStart)
-                    textView.replaceCharacters(in: replaceRange, with: " " + suggestion.insertText + ", ")
+                    let suffix = suggestion.closesParens ? ")" : ", "
+                    textView.replaceCharacters(in: replaceRange, with: " " + suggestion.insertText + suffix)
                 } else {
                     // Completing a param name -> replace from last separator
                     let replaceRange = NSRange(location: lastSep, length: cursor - lastSep)
@@ -2247,7 +2418,7 @@ struct SavedPipelineRow: View {
                     placeholder: "Pipeline steps...",
                     coordinatorRef: { coordHolder.value = $0 }
                 )
-                .frame(minHeight: 26, maxHeight: 80)
+                .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
                 .background(

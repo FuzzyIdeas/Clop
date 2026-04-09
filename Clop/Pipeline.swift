@@ -188,12 +188,13 @@ private func imageHeight(_ file: FilePath) -> Int? {
 
 // MARK: - PipelineStep
 
-enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
+enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     // Processing steps (explicit, no implicit optimisation)
-    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil)
+    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil, location: String = "inPlace")
     case downscale(factor: Double, location: String = "inPlace")
     case convert(to: String, location: String = "sameFolder")
     case crop(width: Int? = nil, height: Int? = nil, keepAspectRatio: Bool = true, longEdge: Int? = nil, location: String = "inPlace")
+    case extractPagesAsImages(format: String = "jpeg", quality: String = "medium", location: String = "sameFolder")
 
     // File path operations (template vars supported)
     case copy(to: String)
@@ -213,13 +214,20 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
     case runScript(path: String)
     case runShortcut(Shortcut)
     case copyToClipboard(format: ClipboardCopyFormat = .path, relativeTo: String? = nil)
+    case copyLinkForSending
+
+    // App integration
+    case shelveWith(app: String)
+    case uploadWith(app: String)
+    case openWith(app: String)
 
     var id: String {
         switch self {
-        case let .optimise(encoder, adaptive, videoEncoder): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)"
+        case let .optimise(encoder, adaptive, videoEncoder, location): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)-\(location)"
         case let .downscale(factor, location): "downscale-\(factor)-\(location)"
         case let .convert(to, location): "convert-\(to)-\(location)"
         case let .crop(width, height, _, longEdge, location): "crop-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(location)"
+        case let .extractPagesAsImages(format, quality, location): "extractPagesAsImages-\(format)-\(quality)-\(location)"
         case let .copy(to): "copy-\(to)"
         case let .move(to): "move-\(to)"
         case let .rename(to): "rename-\(to)"
@@ -231,6 +239,10 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
         case let .runScript(path): "runScript-\(path)"
         case let .runShortcut(shortcut): "runShortcut-\(shortcut.name)"
         case let .copyToClipboard(format, relativeTo): "copyToClipboard-\(format.rawValue)-\(relativeTo ?? "")"
+        case .copyLinkForSending: "copyLinkForSending"
+        case let .shelveWith(app): "shelveWith-\(app)"
+        case let .uploadWith(app): "uploadWith-\(app)"
+        case let .openWith(app): "openWith-\(app)"
         }
     }
 
@@ -240,6 +252,7 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
         case .downscale: "downscale"
         case .convert: "convert"
         case .crop: "crop"
+        case .extractPagesAsImages: "extractPagesAsImages"
         case .copy: "copy"
         case .move: "move"
         case .rename: "rename"
@@ -251,14 +264,19 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
         case .runScript: "runScript"
         case .runShortcut: "runShortcut"
         case .copyToClipboard: "copyToClipboard"
+        case .copyLinkForSending: "copyLinkForSending"
+        case .shelveWith: "shelveWith"
+        case .uploadWith: "uploadWith"
+        case .openWith: "openWith"
         }
     }
 
     var displayString: String {
         switch self {
-        case let .optimise(encoder, adaptive, videoEncoder):
+        case let .optimise(encoder, adaptive, videoEncoder, location):
             var params = ["encoder: \(videoEncoder?.rawValue ?? encoder.rawValue)"]
             if adaptive { params.append("adaptive: true") }
+            if location != "inPlace" { params.append("location: \(location)") }
             return "optimise(\(params.joined(separator: ", ")))"
         case let .downscale(factor, location):
             var params = ["factor: \(factor)"]
@@ -276,6 +294,12 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
             if !keepAspectRatio { params.append("keepAspectRatio: false") }
             if location != "inPlace" { params.append("location: \(location)") }
             return "crop(\(params.joined(separator: ", ")))"
+        case let .extractPagesAsImages(format, quality, location):
+            var params: [String] = []
+            if format != "jpeg" { params.append("format: \(format)") }
+            if quality != "medium" { params.append("quality: \(quality)") }
+            if location != "sameFolder" { params.append("location: \(location)") }
+            return params.isEmpty ? "extractPagesAsImages" : "extractPagesAsImages(\(params.joined(separator: ", ")))"
         case let .copy(to): return "copy(to: \(to))"
         case let .move(to): return "move(to: \(to))"
         case let .rename(to): return "rename(to: \(to))"
@@ -290,12 +314,16 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
             var params = ["format: \(format.rawValue)"]
             if let relativeTo { params.append("relativeTo: \(relativeTo)") }
             return "copyToClipboard(\(params.joined(separator: ", ")))"
+        case .copyLinkForSending: return "copyLinkForSending"
+        case let .shelveWith(app): return "shelveWith(app: \(app))"
+        case let .uploadWith(app): return "uploadWith(app: \(app))"
+        case let .openWith(app): return "openWith(app: \(app))"
         }
     }
 
     var isProcessingStep: Bool {
         switch self {
-        case .optimise, .downscale, .convert, .crop: true
+        case .optimise, .downscale, .convert, .crop, .extractPagesAsImages: true
         default: false
         }
     }
@@ -316,11 +344,11 @@ enum PipelineStep: Codable, Hashable, Identifiable, Defaults.Serializable {
 
     var category: StepCategory {
         switch self {
-        case .optimise, .downscale, .convert, .crop: .processing
+        case .optimise, .downscale, .convert, .crop, .extractPagesAsImages: .processing
         case .copy, .move, .rename, .delete: .fileOperation
         case .filterIf, .filterIfNot: .filter
         case .removeAudio, .changeSpeed: .mediaSpecific
-        case .runScript, .runShortcut, .copyToClipboard: .action
+        case .runScript, .runShortcut, .copyToClipboard, .copyLinkForSending, .shelveWith, .uploadWith, .openWith: .action
         }
     }
 }
@@ -341,6 +369,114 @@ enum StepCategory {
 
 extension PipelineStep {
     var categoryNSColor: NSColor { category.nsColor }
+}
+
+// MARK: - Backward-compatible Decodable
+
+// Custom decoder that uses decodeIfPresent with defaults for all defaultable
+// parameters. This ensures old encoded data (missing newly added fields like
+// `location`) decodes correctly instead of failing.
+// Encodable is auto-synthesized on the enum declaration.
+extension PipelineStep: Decodable {
+    private struct DynKey: CodingKey {
+        init(_ s: String) { stringValue = s }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+
+        var stringValue: String
+
+        var intValue: Int? { nil }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynKey.self)
+
+        if container.contains(DynKey("optimise")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("optimise"))
+            self = try .optimise(
+                encoder: c.decodeIfPresent(EncoderQuality.self, forKey: DynKey("encoder")) ?? .medium,
+                adaptive: c.decodeIfPresent(Bool.self, forKey: DynKey("adaptive")) ?? false,
+                videoEncoder: c.decodeIfPresent(VideoEncoder.self, forKey: DynKey("videoEncoder")),
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
+            )
+        } else if container.contains(DynKey("downscale")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("downscale"))
+            self = try .downscale(
+                factor: c.decode(Double.self, forKey: DynKey("factor")),
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
+            )
+        } else if container.contains(DynKey("convert")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("convert"))
+            self = try .convert(
+                to: c.decode(String.self, forKey: DynKey("to")),
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "sameFolder"
+            )
+        } else if container.contains(DynKey("crop")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("crop"))
+            self = try .crop(
+                width: c.decodeIfPresent(Int.self, forKey: DynKey("width")),
+                height: c.decodeIfPresent(Int.self, forKey: DynKey("height")),
+                keepAspectRatio: c.decodeIfPresent(Bool.self, forKey: DynKey("keepAspectRatio")) ?? true,
+                longEdge: c.decodeIfPresent(Int.self, forKey: DynKey("longEdge")),
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
+            )
+        } else if container.contains(DynKey("extractPagesAsImages")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("extractPagesAsImages"))
+            self = try .extractPagesAsImages(
+                format: c.decodeIfPresent(String.self, forKey: DynKey("format")) ?? "jpeg",
+                quality: c.decodeIfPresent(String.self, forKey: DynKey("quality")) ?? "medium",
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "sameFolder"
+            )
+        } else if container.contains(DynKey("copy")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("copy"))
+            self = try .copy(to: c.decode(String.self, forKey: DynKey("to")))
+        } else if container.contains(DynKey("move")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("move"))
+            self = try .move(to: c.decode(String.self, forKey: DynKey("to")))
+        } else if container.contains(DynKey("rename")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("rename"))
+            self = try .rename(to: c.decode(String.self, forKey: DynKey("to")))
+        } else if container.contains(DynKey("delete")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("delete"))
+            self = try .delete(path: c.decodeIfPresent(String.self, forKey: DynKey("path")) ?? "sourceFile")
+        } else if container.contains(DynKey("filterIf")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("filterIf"))
+            self = try .filterIf(c.decode(FilterCondition.self, forKey: DynKey("_0")))
+        } else if container.contains(DynKey("filterIfNot")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("filterIfNot"))
+            self = try .filterIfNot(c.decode(FilterCondition.self, forKey: DynKey("_0")))
+        } else if container.contains(DynKey("removeAudio")) {
+            self = .removeAudio
+        } else if container.contains(DynKey("changeSpeed")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("changeSpeed"))
+            self = try .changeSpeed(factor: c.decode(Double.self, forKey: DynKey("factor")))
+        } else if container.contains(DynKey("runScript")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("runScript"))
+            self = try .runScript(path: c.decode(String.self, forKey: DynKey("path")))
+        } else if container.contains(DynKey("runShortcut")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("runShortcut"))
+            self = try .runShortcut(c.decode(Shortcut.self, forKey: DynKey("_0")))
+        } else if container.contains(DynKey("copyToClipboard")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("copyToClipboard"))
+            self = try .copyToClipboard(
+                format: c.decodeIfPresent(ClipboardCopyFormat.self, forKey: DynKey("format")) ?? .path,
+                relativeTo: c.decodeIfPresent(String.self, forKey: DynKey("relativeTo"))
+            )
+        } else if container.contains(DynKey("copyLinkForSending")) {
+            self = .copyLinkForSending
+        } else if container.contains(DynKey("shelveWith")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("shelveWith"))
+            self = try .shelveWith(app: c.decode(String.self, forKey: DynKey("app")))
+        } else if container.contains(DynKey("uploadWith")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("uploadWith"))
+            self = try .uploadWith(app: c.decode(String.self, forKey: DynKey("app")))
+        } else if container.contains(DynKey("openWith")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("openWith"))
+            self = try .openWith(app: c.decode(String.self, forKey: DynKey("app")))
+        } else {
+            throw DecodingError.dataCorrupted(.init(codingPath: container.codingPath, debugDescription: "Unknown PipelineStep case"))
+        }
+    }
 }
 
 extension FilterCondition {
@@ -378,15 +514,20 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
-        steps = try container.decodeIfPresent([PipelineStep].self, forKey: .steps) ?? []
+        do {
+            steps = try container.decodeIfPresent([PipelineStep].self, forKey: .steps) ?? []
+        } catch {
+            steps = []
+        }
         name = try container.decodeIfPresent(String.self, forKey: .name)
         rawText = try container.decodeIfPresent(String.self, forKey: .rawText)
         skipOptimisation = try container.decodeIfPresent(Bool.self, forKey: .skipOptimisation) ?? false
         libraryID = try container.decodeIfPresent(String.self, forKey: .libraryID)
         fileType = try container.decodeIfPresent(ClopFileType.self, forKey: .fileType)
 
-        // Re-parse rawText when steps is empty -- rawText parsing handles all step types
-        // correctly while auto-Codable can lose data for some step types.
+        // Re-parse rawText when steps failed to decode or are empty.
+        // rawText parsing handles all step types correctly and provides
+        // backward compatibility when the Codable schema changes.
         if steps.isEmpty, let rawText, !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             steps = Self.parseSteps(from: rawText)
         }
@@ -424,6 +565,11 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
         Pipeline(id: UUID().uuidString, steps: [], libraryID: lib.id)
     }
 
+    static func cleanupPipelineText(_ text: String) -> String {
+        text.replacingOccurrences(of: ")->", with: ") ->")
+            .replacingOccurrences(of: "->(", with: "-> (")
+    }
+
     static func parseSteps(from text: String) -> [PipelineStep] {
         text.components(separatedBy: "->")
             .flatMap { $0.components(separatedBy: "\n") }
@@ -433,7 +579,7 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
     }
 
     mutating func updateFromText(_ text: String) {
-        rawText = text
+        rawText = Self.cleanupPipelineText(text)
         steps = Self.parseSteps(from: text)
     }
 
@@ -527,10 +673,6 @@ struct TemplateContext {
 /// Handles backup of original (for `.inPlace`) and copying converted file to the original directory (for non-`.temporary`).
 /// Returns the image to use going forward (possibly with updated path) and sets `originalPath` if the original was preserved.
 @MainActor func applyImageConversionBehaviour(original img: Image, converted: Image, originalPath: inout FilePath?) throws -> Image {
-    guard img.path.dir != FilePath.images else {
-        return converted
-    }
-
     let behaviour = Defaults[.convertedImageBehaviour]
     if behaviour == .inPlace, let backupPath = img.path.clopBackupPath {
         img.path.backup(path: backupPath, force: true, operation: .move)
@@ -544,6 +686,10 @@ struct TemplateContext {
     return converted
 }
 
+func decrementedDownscaleFactor(_ factor: Double) -> Double {
+    max(factor > 0.5 ? factor - 0.25 : factor - 0.1, 0.1)
+}
+
 /// Compute the downscale factor for an image, handling auto-decrement when no explicit factor is given.
 @MainActor func computeImageDownscaleFactor(id: String?, factor: Double?, cropSize: CropSize?, imageSize: NSSize) -> Double {
     if let cropSize {
@@ -554,14 +700,14 @@ struct TemplateContext {
     }
     let pathID = id ?? ""
     if let currentFactor = opt(pathID)?.downscaleFactor {
-        return max(currentFactor > 0.5 ? currentFactor - 0.25 : currentFactor - 0.1, 0.1)
+        return decrementedDownscaleFactor(currentFactor)
     }
     if let current = OM.current, current.id == pathID {
-        let f = max(current.downscaleFactor > 0.5 ? current.downscaleFactor - 0.25 : current.downscaleFactor - 0.1, 0.1)
+        let f = decrementedDownscaleFactor(current.downscaleFactor)
         current.downscaleFactor = f
         return f
     }
-    return max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
+    return decrementedDownscaleFactor(scalingFactor)
 }
 
 /// Compute the downscale factor for a video.
@@ -573,9 +719,9 @@ struct TemplateContext {
         return factor
     }
     if let currentFactor = opt(id ?? "")?.downscaleFactor {
-        return max(currentFactor > 0.5 ? currentFactor - 0.25 : currentFactor - 0.1, 0.1)
+        return decrementedDownscaleFactor(currentFactor)
     }
-    return max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
+    return decrementedDownscaleFactor(scalingFactor)
 }
 
 /// Compute the speed change factor for a video.
@@ -646,7 +792,8 @@ struct TemplateContext {
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
-    source: OptimisationSource? = nil
+    source: OptimisationSource? = nil,
+    skipCache: Bool = false
 ) async throws -> Image? {
     let path = img.path
     var img = img
@@ -690,7 +837,7 @@ struct TemplateContext {
         img = try applyImageConversionBehaviour(original: img, converted: converted, originalPath: &originalPath)
         pathString = img.path.string
         allowLarger = true
-    } else if !hasExplicitConvert, !hasDownscale, let optImg = try getCachedOptimisedImage(img: img, id: id, retinaDownscaled: false) {
+    } else if !skipCache, !hasExplicitConvert, !hasDownscale, let optImg = try getCachedOptimisedImage(img: img, id: id, retinaDownscaled: false) {
         log.debug("Using cached optimised image \(optImg.path)")
         return optImg
     }
@@ -753,9 +900,11 @@ struct TemplateContext {
         }
         optimiser.stop(remove: false)
         optimiser.operation = opLabel
-        optimiser.originalURL = img.path.backup(path: img.path.clopBackupPath, force: false, operation: .copy)?.url ?? img.path.url
+        if optimiser.originalURL == nil {
+            optimiser.originalURL = img.path.backup(path: img.path.clopBackupPath, force: false, operation: .copy)?.url ?? img.path.url
+        }
         optimiser.url = (savePath ?? img.path).url
-        if id == Optimiser.IDs.clipboardImage {
+        if id == Optimiser.IDs.clipboardImage, optimiser.startingURL == nil {
             optimiser.startingURL = optimiser.url
         }
         if !hideFloatingResult {
@@ -790,6 +939,8 @@ struct TemplateContext {
                         currentImage = converted
                         mainActor {
                             optimiser.operation = "Converting to \(format.preferredFilenameExtension?.uppercased() ?? "?")"
+                            optimiser.url = converted.path.url
+                            optimiser.type = .image(converted.type)
                         }
 
                     case .optimise:
@@ -1046,6 +1197,8 @@ struct TemplateContext {
         optimiser.inRemoval = false
         optimiser.stop(remove: false)
     }
+    optimiser.newSize = nil
+    optimiser.newBytes = -1
 
     // If this is a re-downscale or speed-change, inherit the other setting
     if hasDownscale, !hasSpeedChange {
@@ -1359,7 +1512,8 @@ struct TemplateContext {
     copyToClipboard: Bool = false,
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
-    source: OptimisationSource? = nil
+    source: OptimisationSource? = nil,
+    bitrateOverride: Int? = nil
 ) async throws -> Audio? {
     let path = audio.path
     let pathString = path.string
@@ -1400,7 +1554,7 @@ struct TemplateContext {
                 }
 
                 log.debug("Running audio pipeline \(actions) for \(pathString)")
-                optimisedAudio = try audio.optimise(optimiser: optimiser)
+                optimisedAudio = try audio.optimise(optimiser: optimiser, bitrateOverride: bitrateOverride)
 
                 if !allowLarger, optimisedAudio!.fileSize >= fileSize {
                     audio.path.restore(backupPath: audio.path.clopBackupPath, force: true)
@@ -1627,11 +1781,18 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                 log.info("Pipeline: steps[\(stepIndex)...\(peekIdx - 1)] compiled: \(batchDesc) on \(currentFile.string)")
 
                 let actions = optimiser.compilePipelineActions(from: batch)
+
+                // Extract location from batch and create temp copy if needed
+                let location: String = batch.compactMap { s in
+                    if case let .optimise(_, _, _, loc) = s { return loc }; return nil
+                }.last ?? "inPlace"
+                let inputFile = tempCopyIfNeeded(currentFile, location: location)
+                let usedTempCopy = inputFile != currentFile
                 let hide = isIntermediateTempFile
 
                 // Extract video encoder and ffmpeg encoder overrides
                 let videoEncoderOvr: VideoEncoder? = batch.compactMap { s in
-                    if case let .optimise(_, _, ve) = s { return ve }; return nil
+                    if case let .optimise(_, _, ve, _) = s { return ve }; return nil
                 }.last
                 var ffmpegEncoder: [String]?
                 var outExt: String?
@@ -1645,10 +1806,10 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                         }
                     }
                 }
-                let aggressive = batch.contains { if case let .optimise(enc, _, _) = $0 { return enc == .aggressive }; return false }
+                let aggressive = batch.contains { if case let .optimise(enc, _, _, _) = $0 { return enc == .aggressive }; return false }
 
                 if fileType == .video {
-                    let vid = await (try? Video.byFetchingMetadata(path: currentFile)) ?? Video(currentFile)
+                    let vid = await (try? Video.byFetchingMetadata(path: inputFile)) ?? Video(inputFile)
                     let vidSize = vid.size ?? .zero
 
                     // Filter out crop/downscale actions that would upscale the video
@@ -1664,7 +1825,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
                     if let result = try? await runVideoPipeline(
                         vid, actions: filteredActions,
-                        allowLarger: true,
+                        allowLarger: outExt != nil,
                         hideFloatingResult: hide,
                         aggressiveOptimisation: aggressive ? true : nil,
                         videoEncoderOverride: videoEncoderOvr,
@@ -1672,11 +1833,14 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                         outputExtension: outExt,
                         source: source
                     ) {
-                        currentFile = result.path
+                        currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                         if !hide { shownVisibleResult = true }
+                    } else {
+                        log.warning("Pipeline: steps[\(stepIndex)...\(peekIdx - 1)] compiled batch failed for video \(currentFile.string)")
                     }
-                } else if fileType == .image, let data = try? Data(contentsOf: currentFile.url) {
-                    let img = Image(data: data, path: currentFile, retinaDownscaled: false)
+                } else if fileType == .image, let data = try? Data(contentsOf: inputFile.url) {
+                    let img = Image(data: data, path: inputFile, retinaDownscaled: false)
 
                     // Filter out crop/downscale actions that would upscale the image
                     let filteredActions = actions.filter { action in
@@ -1693,81 +1857,225 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
                     if let result = try? await runImagePipeline(
                         img, actions: filteredActions,
-                        allowLarger: true,
+                        allowLarger: outExt != nil,
                         hideFloatingResult: hide,
                         aggressiveOptimisation: aggressive,
                         source: source
                     ) {
-                        currentFile = result.path
+                        currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                         if !hide { shownVisibleResult = true }
+                    } else {
+                        log.warning("Pipeline: steps[\(stepIndex)...\(peekIdx - 1)] compiled batch failed for image \(currentFile.string)")
                     }
                 }
 
+                log.info("Pipeline: steps[\(stepIndex)...\(peekIdx - 1)] completed, file: \(currentFile.string)")
                 stepIndex = peekIdx
                 continue
             }
         }
 
-        log.info("Pipeline: step[\(stepIndex)] \(step.displayString) on \(currentFile.string)")
+        let stepDesc = step.displayString
+        log.info("Pipeline: step[\(stepIndex)] \(stepDesc) started on \(currentFile.string)")
 
         switch step {
         // MARK: Processing steps
 
-        case let .optimise(encoder, adaptive, videoEncoder):
+        case let .optimise(encoder, adaptive, videoEncoder, location):
             let aggressive = encoder == .aggressive
+            let inputFile = tempCopyIfNeeded(currentFile, location: location)
+            let usedTempCopy = inputFile != currentFile
+
             switch fileType {
             case .image:
-                if let data = try? Data(contentsOf: currentFile.url) {
-                    let img = Image(data: data, path: currentFile, retinaDownscaled: false)
+                if let data = try? Data(contentsOf: inputFile.url) {
+                    let img = Image(data: data, path: inputFile, retinaDownscaled: false)
                     let hide = isIntermediateTempFile
                     if let result = try? await runImagePipeline(
                         img, actions: [.optimise],
-                        allowLarger: true,
+                        allowLarger: false,
                         hideFloatingResult: hide,
                         aggressiveOptimisation: aggressive,
                         adaptiveOptimisation: adaptive,
                         source: source
                     ) {
-                        currentFile = result.path
+                        currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                         if !hide { shownVisibleResult = true }
+                    } else {
+                        log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for image \(inputFile.string)")
+                        if location != "inPlace" {
+                            currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
+                        }
                     }
                 }
             case .video:
                 let hide = isIntermediateTempFile
-                let vid = Video(currentFile)
+                let vid = Video(inputFile)
                 if let result = try? await runVideoPipeline(
                     vid, actions: [.optimise],
-                    allowLarger: true,
+                    allowLarger: false,
                     hideFloatingResult: hide,
                     aggressiveOptimisation: aggressive,
                     videoEncoderOverride: videoEncoder,
                     source: source
                 ) {
-                    currentFile = result.path
+                    currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                     if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for video \(inputFile.string)")
+                    if location != "inPlace" {
+                        currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
+                    }
                 }
             case .pdf:
                 let hide = isIntermediateTempFile
-                let pdf = PDF(currentFile)
+                let pdf = PDF(inputFile)
                 if let result = try? await runPDFPipeline(
                     pdf, actions: [.optimise],
-                    allowLarger: true,
+                    allowLarger: false,
                     hideFloatingResult: hide,
                     source: source
                 ) {
-                    currentFile = result.path
+                    currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                     if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for PDF \(inputFile.string)")
+                    if location != "inPlace" {
+                        currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
+                    }
                 }
             case .audio:
                 let hide = isIntermediateTempFile
-                let audio = Audio(currentFile)
+                let audio = Audio(inputFile)
                 if let result = try? await runAudioPipeline(
                     audio, actions: [.optimise],
                     hideFloatingResult: hide,
                     source: source
                 ) {
-                    currentFile = result.path
+                    currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                     if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for audio \(inputFile.string)")
+                    if location != "inPlace" {
+                        currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
+                    }
+                }
+            }
+
+        case let .extractPagesAsImages(format, quality, location):
+            guard fileType == .pdf else { break }
+
+            let pdf = PDF(currentFile)
+            let pageCount = pdf.pageCount
+            guard pageCount > 0 else { break }
+
+            let ext = format == "png" ? "png" : "jpg"
+            let bitmapFormat: NSBitmapImageRep.FileType = format == "png" ? .png : .jpeg
+            let scale: CGFloat = switch quality {
+            case "low": 1.0
+            case "high": 3.0
+            default: 2.0
+            }
+
+            let stem = currentFile.lastComponent?.stem ?? "page"
+            let outputDir: FilePath = switch location {
+            case "temporaryFolder": .images
+            case "sameFolder": currentFile.removingLastComponent()
+            default:
+                if location.contains("/"), let fp = context.resolve(location).filePath {
+                    fp
+                } else {
+                    currentFile.removingLastComponent()
+                }
+            }
+            try? fm.createDirectory(atPath: outputDir.string, withIntermediateDirectories: true)
+
+            // Phase 1: Extract pages as images
+            optimiser.running = true
+            optimiser.operation = "Extracting pages"
+            optimiser.progress = Progress(totalUnitCount: Int64(pageCount))
+
+            let batchSize = ProcessInfo.processInfo.activeProcessorCount
+
+            let extractedPaths: [FilePath] = await withCheckedContinuation { continuation in
+                DispatchQueue.global().async {
+                    var paths: [FilePath] = []
+                    let pathsLock = NSLock()
+
+                    for batchStart in stride(from: 0, to: pageCount, by: batchSize) {
+                        let batchEnd = min(batchStart + batchSize, pageCount)
+                        let group = DispatchGroup()
+                        for i in batchStart ..< batchEnd {
+                            group.enter()
+                            DispatchQueue.global().async {
+                                defer {
+                                    mainActor { optimiser.progress.completedUnitCount += 1 }
+                                    group.leave()
+                                }
+
+                                guard let imageData = pdf.renderPage(pageIndex: i, format: bitmapFormat, scale: scale) else { return }
+
+                                let filename = "\(stem)-page\(i + 1).\(ext)"
+                                let outputPath = outputDir.appending(filename)
+                                fm.createFile(atPath: outputPath.string, contents: imageData)
+
+                                pathsLock.lock()
+                                paths.append(outputPath)
+                                pathsLock.unlock()
+                            }
+                        }
+                        group.wait()
+                    }
+
+                    paths.sort { $0.string < $1.string }
+                    continuation.resume(returning: paths)
+                }
+            }
+
+            // Phase 2: Optimise extracted images
+            optimiser.operation = "Optimising images"
+            optimiser.progress = Progress(totalUnitCount: Int64(extractedPaths.count))
+
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global().async {
+                    for batchStart in stride(from: 0, to: extractedPaths.count, by: batchSize) {
+                        let batchEnd = min(batchStart + batchSize, extractedPaths.count)
+                        let group = DispatchGroup()
+                        for i in batchStart ..< batchEnd {
+                            let outputPath = extractedPaths[i]
+                            group.enter()
+                            DispatchQueue.global().async {
+                                defer {
+                                    mainActor { optimiser.progress.completedUnitCount += 1 }
+                                    group.leave()
+                                }
+
+                                if let img = Image(path: outputPath, retinaDownscaled: false) {
+                                    let optimised = try? img.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: img.type.aggressiveOptimisation, adaptiveSize: false)
+                                    if let optimised {
+                                        try? optimised.path.copy(to: outputPath, force: true)
+                                    }
+                                }
+                            }
+                        }
+                        group.wait()
+                    }
+                    continuation.resume()
+                }
+            }
+
+            optimiser.running = false
+            optimiser.outputFolderURL = outputDir.url
+
+            if pageCount == 1 {
+                let firstPage = outputDir.appending("\(stem)-page1.\(ext)")
+                if firstPage.exists {
+                    currentFile = firstPage
                 }
             }
 
@@ -1775,7 +2083,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             let action = PipelineAction.downscale(factor: factor, cropSize: nil)
             let inputFile = tempCopyIfNeeded(currentFile, location: location)
             let usedTempCopy = inputFile != currentFile
-            let hide = usedTempCopy || isIntermediateTempFile
+            let hide = isIntermediateTempFile
 
             switch fileType {
             case .image:
@@ -1783,16 +2091,20 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                     let img = Image(data: data, path: inputFile, retinaDownscaled: false)
                     if let result = try? await runImagePipeline(img, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
                         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                        if usedTempCopy { cleanupTempFile(inputFile, original: file) }
+                        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                         if !hide { shownVisibleResult = true }
+                    } else {
+                        log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for image \(inputFile.string)")
                     }
                 }
             case .video:
                 let vid = Video(inputFile)
                 if let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy { cleanupTempFile(inputFile, original: file) }
+                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                     if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for video \(inputFile.string)")
                 }
             default:
                 log.debug("Pipeline: downscale not applicable for \(fileType)")
@@ -1801,7 +2113,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         case let .convert(formatStr, location):
             let inputFile = tempCopyIfNeeded(currentFile, location: location)
             let usedTempCopy = inputFile != currentFile
-            let hide = usedTempCopy || isIntermediateTempFile
+            let hide = isIntermediateTempFile
 
             // Video codec targets (not file extensions) need special handling
             let videoCodecArgs: (encoder: [String], ext: String)? = switch formatStr {
@@ -1820,8 +2132,10 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                     encoderOverride: videoCodecArgs.encoder
                 ) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy { cleanupTempFile(inputFile, original: file) }
+                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                     if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for video codec conversion \(inputFile.string)")
                 }
             } else if let uttype = UTType(filenameExtension: formatStr) {
                 let action = PipelineAction.convert(format: uttype)
@@ -1831,16 +2145,20 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                         let img = Image(data: data, path: inputFile, retinaDownscaled: false)
                         if let result = try? await runImagePipeline(img, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
                             currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                            if usedTempCopy { cleanupTempFile(inputFile, original: file) }
+                            if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                             if !hide { shownVisibleResult = true }
+                        } else {
+                            log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for image conversion \(inputFile.string)")
                         }
                     }
                 case .video:
                     let vid = Video(inputFile)
                     if let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
                         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                        if usedTempCopy { cleanupTempFile(inputFile, original: file) }
+                        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                         if !hide { shownVisibleResult = true }
+                    } else {
+                        log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for video conversion \(inputFile.string)")
                     }
                 default:
                     log.debug("Pipeline: convert not applicable for \(fileType)")
@@ -1857,7 +2175,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             let action = PipelineAction.downscale(factor: nil, cropSize: cs)
             let inputFile = tempCopyIfNeeded(currentFile, location: location)
             let usedTempCopy = inputFile != currentFile
-            let hide = usedTempCopy || isIntermediateTempFile
+            let hide = isIntermediateTempFile
 
             switch fileType {
             case .image:
@@ -1871,7 +2189,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                         : (targetW > 0 && imgW > targetW) || (targetH > 0 && imgH > targetH)
                     if needsCrop, let result = try? await runImagePipeline(img, actions: [action], allowLarger: false, hideFloatingResult: hide, source: source) {
                         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                        if usedTempCopy { cleanupTempFile(inputFile, original: file) }
+                        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                         if !hide { shownVisibleResult = true }
                     } else {
                         // Even if no crop needed, apply location (e.g. rename template)
@@ -1891,7 +2209,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                     : (targetW > 0 && vidSize.width > targetW) || (targetH > 0 && vidSize.height > targetH)
                 if needsCrop, let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: false, hideFloatingResult: hide, source: source) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy { cleanupTempFile(inputFile, original: file) }
+                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: file) }
                     if !hide { shownVisibleResult = true }
                 } else {
                     if location != "inPlace" {
@@ -1977,6 +2295,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                 if let result = try? await runVideoPipeline(vid, actions: [.removeAudio], allowLarger: true, hideFloatingResult: hide, source: source) {
                     currentFile = result.path
                     if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for video \(currentFile.string)")
                 }
             }
 
@@ -1988,6 +2308,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                 if let result = try? await runVideoPipeline(vid, actions: [.changePlaybackSpeed(factor: factor)], allowLarger: true, hideFloatingResult: hide, source: source) {
                     currentFile = result.path
                     if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(stepIndex)] \(stepDesc) failed for video \(currentFile.string)")
                 }
             case .audio:
                 let audio = Audio(currentFile)
@@ -2140,19 +2462,22 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
 
+            let item = NSPasteboardItem()
             switch format {
             case .path:
                 if let relativeTo {
                     let base = context.resolve(relativeTo)
-                    pasteboard.setString(currentFile.string.replacingOccurrences(of: base, with: ""), forType: .string)
+                    item.setString(currentFile.string.replacingOccurrences(of: base, with: ""), forType: .string)
                 } else {
-                    pasteboard.setString(currentFile.string, forType: .string)
+                    item.setString(currentFile.string, forType: .string)
                 }
             case .imageData:
-                if fileType == .image, let img = NSImage(contentsOf: currentFile.url) {
-                    pasteboard.writeObjects([img])
+                if fileType == .image, let data = try? Data(contentsOf: currentFile.url),
+                   let type = UTType(filenameExtension: currentFile.extension ?? "png")
+                {
+                    item.setData(data, forType: type.pasteboardType)
                 } else {
-                    pasteboard.setString(currentFile.string, forType: .string)
+                    item.setString(currentFile.string, forType: .string)
                 }
             case .markdown:
                 let name = currentFile.stem ?? currentFile.lastComponent?.string ?? ""
@@ -2163,10 +2488,92 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                 } else {
                     path = currentFile.string
                 }
-                pasteboard.setString("[\(name)](\(path))", forType: .string)
+                item.setString("[\(name)](\(path))", forType: .string)
+            }
+            item.setString("true", forType: .optimisationStatus)
+            pasteboard.writeObjects([item])
+            try? currentFile.setOptimisationStatusXattr("true")
+
+        case .copyLinkForSending:
+            let url = currentFile.url
+            if let shareURL = await warpDropSendAndWait(url: url, optimiser: optimiser) {
+                log.info("Pipeline: send link copied: \(shareURL)")
+            }
+
+        // MARK: App integration steps
+
+        case let .shelveWith(app):
+            let shelfApp: AppIntegration? = switch app.lowercased() {
+            case "yoink": YOINK
+            case "dockside": DOCKSIDE
+            case "dropover": DROPOVER
+            default: nil
+            }
+            if let shelfApp {
+                shelfApp.fetchAppURL()
+                let available = shelfApp.waitToBeAvailable(for: 5.0)
+                if available {
+                    try await shelfApp.open(currentFile)
+                } else {
+                    log.warning("Pipeline: shelveWith(\(app)) - app not available")
+                    optimiser.finish(error: "\(shelfApp.appName) is not available")
+                    return (currentFile, shownVisibleResult)
+                }
+            } else {
+                log.warning("Pipeline: shelveWith - unknown app '\(app)'")
+            }
+
+        case let .uploadWith(app):
+            let uploadApp: AppIntegration? = switch app.lowercased() {
+            case "dropshare": DROPSHARE
+            default: nil
+            }
+            if let uploadApp {
+                uploadApp.fetchAppURL()
+                let available = uploadApp.waitToBeAvailable(for: 5.0)
+                if available {
+                    try await uploadApp.open(currentFile)
+                } else {
+                    log.warning("Pipeline: uploadWith(\(app)) - app not available")
+                    optimiser.finish(error: "\(uploadApp.appName) is not available")
+                    return (currentFile, shownVisibleResult)
+                }
+            } else {
+                log.warning("Pipeline: uploadWith - unknown app '\(app)'")
+            }
+
+        case let .openWith(app):
+            let appURL: URL? = {
+                // Direct path check in /Applications and ~/Applications
+                for base in ["/Applications", "\(NSHomeDirectory())/Applications"] {
+                    let direct = "\(base)/\(app).app"
+                    if FileManager.default.fileExists(atPath: direct) {
+                        return URL(fileURLWithPath: direct)
+                    }
+                }
+                // Search apps that can open this file type, match by name
+                let candidates = NSWorkspace.shared.urlsForApplications(toOpen: currentFile.url)
+                if let match = candidates.first(where: {
+                    Bundle(url: $0)?.name.localizedCaseInsensitiveCompare(app) == .orderedSame
+                }) {
+                    return match
+                }
+                // Try as bundle identifier
+                return NSWorkspace.shared.urlForApplication(withBundleIdentifier: app)
+            }()
+
+            if let appURL {
+                let config = NSWorkspace.OpenConfiguration()
+                config.addsToRecentItems = false
+                _ = try await NSWorkspace.shared.open([currentFile.url], withApplicationAt: appURL, configuration: config)
+            } else {
+                log.warning("Pipeline: openWith - app '\(app)' not found")
+                optimiser.finish(error: "App '\(app)' not found")
+                return (currentFile, shownVisibleResult)
             }
         }
 
+        log.info("Pipeline: step[\(stepIndex)] \(stepDesc) completed, file: \(currentFile.string)")
         stepIndex += 1
     }
 

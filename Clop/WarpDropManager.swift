@@ -11,10 +11,16 @@ struct WarpDropSession: Identifiable {
     let task: Task<String, Error>
     var downloadCount = 0
 
+    var directURL: String {
+        "https://drop.lowtechguys.com/d/\(id)"
+    }
+
+    var roomURL: String {
+        "https://drop.lowtechguys.com/r/\(id)"
+    }
+
     var shareURL: String {
-        files.count == 1
-            ? "https://drop.lowtechguys.com/d/\(id)"
-            : "https://drop.lowtechguys.com/r/\(id)"
+        files.count == 1 ? directURL : roomURL
     }
 
     var fileNames: String {
@@ -79,6 +85,7 @@ class WarpDropManager: ObservableObject {
 @MainActor
 func warpDropSend(optimiser: Optimiser) {
     guard let url = optimiser.url else { return }
+    optimiser.warpDropConnecting = true
     warpDropSendFiles([url], overlayOptimiser: optimiser)
 }
 
@@ -108,6 +115,7 @@ private func warpDropSendFiles(_ files: [URL], overlayOptimiser: Optimiser?) {
                     pb.clearContents()
                     pb.setString(shareURL, forType: .string)
 
+                    overlayOptimiser?.warpDropConnecting = false
                     overlayOptimiser?.overlayMessage = "Copied link"
                 }
             },
@@ -121,6 +129,7 @@ private func warpDropSendFiles(_ files: [URL], overlayOptimiser: Optimiser?) {
     }
 
     Task {
+        defer { overlayOptimiser?.warpDropConnecting = false }
         for _ in 0 ..< 300 {
             try? await Task.sleep(for: .milliseconds(100))
             if let roomID = roomIDRef.value {
@@ -130,6 +139,48 @@ private func warpDropSendFiles(_ files: [URL], overlayOptimiser: Optimiser?) {
             if task.isCancelled { return }
         }
     }
+}
+
+/// Send a single file securely and await the share link.
+/// Returns the share URL on success, nil on failure or timeout.
+@MainActor
+func warpDropSendAndWait(url: URL, optimiser: Optimiser) async -> String? {
+    let client = WarpDropClient()
+    let roomIDRef = Ref<String?>(nil)
+
+    let task = Task.detached { () -> String in
+        try await client.send(
+            files: [url],
+            keep: true,
+            onRoomCreated: { [roomIDRef] roomID in
+                roomIDRef.value = roomID
+                Task { @MainActor in
+                    let shareURL = "https://drop.lowtechguys.com/d/\(roomID)"
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setString(shareURL, forType: .string)
+                    optimiser.overlayMessage = "Copied link"
+                }
+            },
+            onDownloadCompleted: { [roomIDRef] count in
+                guard let roomID = roomIDRef.value else { return }
+                Task { @MainActor in
+                    WDM.didCompleteDownload(roomID: roomID, count: count)
+                }
+            }
+        )
+    }
+
+    for _ in 0 ..< 300 {
+        try? await Task.sleep(for: .milliseconds(100))
+        if let roomID = roomIDRef.value {
+            WDM.addSession(roomID: roomID, files: [url], task: task)
+            return "https://drop.lowtechguys.com/d/\(roomID)"
+        }
+        if task.isCancelled { return nil }
+    }
+
+    return nil
 }
 
 /// Thread-safe mutable reference for sharing values across sendable closures.

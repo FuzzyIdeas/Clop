@@ -153,6 +153,7 @@ struct PresetZoneEditor: View {
             .buttonStyle(.plain)
             .foregroundColor(canSave ? .accentColor : .secondary.opacity(0.8))
             .disabled(!canSave)
+            .contentShape(Rectangle())
 
             Button(action: cancel) {
                 Text("Cancel")
@@ -160,6 +161,7 @@ struct PresetZoneEditor: View {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
         }
     }
 
@@ -170,6 +172,7 @@ struct PresetZoneEditor: View {
                 .foregroundColor(skipOptimisation ? .secondary.opacity(0.4) : .orange.opacity(0.7))
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .scaleEffect(showBoltTip ? 1.3 : 1.0)
         .animation(.easeOut(duration: 0.15), value: showBoltTip)
         .onHover { showBoltTip = $0 }
@@ -268,7 +271,7 @@ struct PresetZoneEditor: View {
             libPipeline = Pipeline(
                 steps: Pipeline.parseSteps(from: pipelineText),
                 name: name,
-                rawText: trimmedText.isEmpty ? nil : pipelineText,
+                rawText: trimmedText.isEmpty ? nil : Pipeline.cleanupPipelineText(trimmedText),
                 skipOptimisation: skipOptimisation,
                 fileType: type
             )

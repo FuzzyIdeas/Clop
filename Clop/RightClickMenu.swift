@@ -120,10 +120,16 @@ struct RightClickMenuView: View {
                 Divider()
             }
             if optimiser.canDownscale() {
-                Menu("Downscale") {
-                    DownscaleMenu(optimiser: optimiser)
+                if optimiser.type.isAudio {
+                    Menu("Change bitrate") {
+                        LowerBitrateMenu(optimiser: optimiser)
+                    }
+                } else {
+                    Menu("Downscale") {
+                        DownscaleMenu(optimiser: optimiser)
+                    }
+                    .disabled(optimiser.downscaleFactor <= 0.1)
                 }
-                .disabled(optimiser.downscaleFactor <= 0.1)
             }
 
             if optimiser.canChangePlaybackSpeed() {
@@ -282,10 +288,17 @@ struct BatchRightClickMenuView: View {
         }
 
         Divider()
-        Menu("Downscale") {
-            BatchDownscaleMenu(optimisers: optimisers)
+        if optimisers.contains(where: { !$0.type.isAudio }) {
+            Menu("Downscale") {
+                BatchDownscaleMenu(optimisers: optimisers.filter { !$0.type.isAudio })
+            }
+            .disabled(optimisers.filter { !$0.type.isAudio }.allSatisfy { $0.downscaleFactor <= 0.1 })
         }
-        .disabled(optimisers.allSatisfy { $0.downscaleFactor <= 0.1 })
+        if optimisers.contains(where: \.type.isAudio) {
+            Menu("Change bitrate") {
+                BatchBitrateMenu(optimisers: optimisers.filter(\.type.isAudio))
+            }
+        }
 
         if optimisers.allSatisfy({ $0.canChangePlaybackSpeed() }) {
             Menu("Change playback speed") {
@@ -557,6 +570,40 @@ struct DownscaleMenu: View {
                     optimiser.downscale(toFactor: factor)
                 }.disabled(factor == optimiser.downscaleFactor)
             }
+        }
+    }
+}
+
+struct LowerBitrateMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        let format = Defaults[.audioFormat]
+        let bitrates = format.allowedBitrates
+        let currentBitrate = optimiser.audioBitrateOverride ?? Defaults[.audioBitrate]
+
+        ForEach(bitrates, id: \.self) { bitrate in
+            Button("\(bitrate) kbps") {
+                optimiser.lowerBitrate(to: bitrate)
+            }.disabled(bitrate == currentBitrate)
+        }
+    }
+}
+
+struct BatchBitrateMenu: View {
+    var optimisers: [Optimiser]
+
+    var body: some View {
+        let format = Defaults[.audioFormat]
+        let bitrates = format.allowedBitrates
+
+        ForEach(bitrates, id: \.self) { bitrate in
+            Button("\(bitrate) kbps") {
+                for optimiser in optimisers {
+                    optimiser.lowerBitrate(to: bitrate)
+                }
+                SM.selection = []
+            }.disabled(optimisers.allSatisfy { ($0.audioBitrateOverride ?? Defaults[.audioBitrate]) == bitrate })
         }
     }
 }

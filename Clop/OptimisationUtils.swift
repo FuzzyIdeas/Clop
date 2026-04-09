@@ -43,7 +43,7 @@ enum ItemType: Equatable, Identifiable {
     var convertibleTypes: [UTType] {
         switch self {
         case .image:
-            [.jpeg, .webP, .avif, .heic, .png, .gif].compactMap { $0 }
+            [.jpeg, .webP, .avif, .heic, .png, .jxl].compactMap { $0 }
         case .video:
             [.mpeg4Movie, .quickTimeMovie, .gif, .webm, .hevcVideo, .av1Video].compactMap { $0 }
         case .audio:
@@ -534,8 +534,12 @@ enum TempPipelineSegment {
     @Published var originalURL: URL?
     @Published var startingURL: URL?
     @Published var convertedFromURL: URL?
+    @Published var outputFolderURL: URL? = nil
     @Published var downscaleFactor = 1.0
+    @Published var showDownscaleSlider = false
+    @Published var audioBitrateOverride: Int?
     var downscaleDebounceTask: Task<Void, Never>?
+    var lowerBitrateDebounceTask: Task<Void, Never>?
     @Published var changePlaybackSpeedFactor = 1.0
     @Published var aggressive = false
 
@@ -562,6 +566,7 @@ enum TempPipelineSegment {
     var source: OptimisationSource?
 
     @Published var sharing = false
+    @Published var warpDropConnecting = false
     @Published var isVideoWithAudio = false
 
     lazy var image: Image? = fetchImage()
@@ -572,6 +577,8 @@ enum TempPipelineSegment {
     var comparisonWindowController: NSWindowController?
 
     var isComparing = false
+
+    @Published var stepIndicator = ""
 
     var fileType: ClopFileType? {
         switch type {
@@ -822,7 +829,7 @@ enum TempPipelineSegment {
         notice = nil
         info = nil
 
-        guard var originalFilePath = originalURL?.filePath ?? path else { return }
+        guard let originalFilePath = originalURL?.filePath ?? path else { return }
         let backupPath = (originalFilePath.clopBackupPath?.exists ?? false)
             ? originalFilePath.clopBackupPath
             : convertedFromURL?.existingFilePath
@@ -836,7 +843,7 @@ enum TempPipelineSegment {
 
         // Extract video encoder override from the pipeline
         let videoEncoderOverride: VideoEncoder? = tempPipeline.compactMap { step in
-            if case let .optimise(_, _, ve) = step { return ve }
+            if case let .optimise(_, _, ve, _) = step { return ve }
             return nil
         }.last
 
@@ -884,13 +891,18 @@ enum TempPipelineSegment {
                             currentFile = result.path
                         }
                     } else if type.isImage, let image = Image(path: currentFile, retinaDownscaled: self.retinaDownscaled) {
+                        let savePath = self.startingURL?.filePath ?? self.path
                         if let result = try? await runImagePipeline(
                             image, actions: actions,
-                            id: self.id, saveTo: self.path,
+                            id: self.id, saveTo: savePath,
                             copyToClipboard: id == IDs.clipboardImage,
-                            aggressiveOptimisation: aggressive ? true : nil
+                            aggressiveOptimisation: aggressive ? true : nil,
+                            skipCache: true
                         ) {
                             currentFile = result.path
+                            self.url = result.path.url
+                            self.type = .image(result.type)
+                            self.image = result
                         }
                     } else if type.isPDF, let pdf = self.pdf {
                         if let result = try? await runPDFPipeline(
@@ -899,6 +911,29 @@ enum TempPipelineSegment {
                             aggressiveOptimisation: aggressive ? true : nil
                         ) {
                             currentFile = result.path
+                        }
+                    } else if type.isAudio {
+                        let audio = await (try? Audio.byFetchingMetadata(path: currentFile, thumb: !hidden)) ?? Audio(path: currentFile, thumb: !hidden)
+                        if let convertAction = actions.first(where: \.isConvert),
+                           case let .convert(format) = convertAction,
+                           let audioFormat = AudioFormat.allCases.first(where: { $0.utType == format })
+                        {
+                            if let converted = try? audio.convert(to: audioFormat, optimiser: self) {
+                                currentFile = converted.path
+                                self.audio = converted
+                                self.type = .audio(format)
+                                self.url = converted.path.url
+                                self.finish(oldBytes: self.oldBytes, newBytes: converted.fileSize, removeAfterMs: self.lastRemoveAfterMs)
+                            }
+                        } else if let result = try? await runAudioPipeline(
+                            audio, actions: actions,
+                            id: self.id,
+                            allowLarger: true,
+                            hideFloatingResult: hidden,
+                            bitrateOverride: self.audioBitrateOverride
+                        ) {
+                            currentFile = result.path
+                            self.audio = result
                         }
                     }
 
@@ -921,10 +956,19 @@ enum TempPipelineSegment {
         guard type != self.type.utType else { return }
         let typeStr = type.preferredFilenameExtension ?? type.identifier
 
-        // Use temp pipeline for video (non-GIF) when initial optimisation has completed
-        if !tempPipeline.isEmpty, self.type.isVideo, type != .gif {
-            let formatStr = typeStr
-            updateTempPipeline(with: .convert(to: formatStr))
+        // Use temp pipeline when initial optimisation has completed, to always
+        // convert from the original file and avoid double-encoding quality loss
+        if !tempPipeline.isEmpty, !(self.type.isVideo && type == .gif) {
+            // If converting back to the original format, drop convert and restore optimise
+            let originalExt = originalURL?.pathExtension.lowercased() ?? startingURL?.pathExtension.lowercased()
+            if let originalExt, originalExt == typeStr.lowercased() {
+                removeTempPipelineStep(named: "convert")
+                if !tempPipeline.contains(where: { $0.stepName == "optimise" }) {
+                    updateTempPipeline(with: .optimise())
+                }
+            } else {
+                updateTempPipeline(with: .convert(to: typeStr))
+            }
             executeTempPipeline()
             return
         }
@@ -1203,6 +1247,8 @@ enum TempPipelineSegment {
         switch type {
         case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie):
             true
+        case .audio:
+            true
         default:
             false
         }
@@ -1316,17 +1362,71 @@ enum TempPipelineSegment {
     }
 
     func stepDownscale() {
-        guard !inRemoval, downscaleFactor > 0.1 else { return }
+        stopRemover()
+        guard downscaleFactor > 0.1 else { return }
 
         let newFactor = max(downscaleFactor > 0.5 ? downscaleFactor - 0.25 : downscaleFactor - 0.1, 0.1)
         downscaleFactor = newFactor
-        overlayMessage = "\((newFactor * 100).intround)%"
+        stepIndicator = "\((newFactor * 100).intround)%"
 
         downscaleDebounceTask?.cancel()
         downscaleDebounceTask = Task {
             try? await Task.sleep(nanoseconds: 200_000_000)
             guard !Task.isCancelled else { return }
+            stepIndicator = ""
             downscale(toFactor: newFactor)
+        }
+    }
+
+    func stepLowerBitrate() {
+        stopRemover()
+        guard type.isAudio else { return }
+
+        let format = Defaults[.audioFormat]
+        let bitrates = format.allowedBitrates
+        let currentBitrate = audioBitrateOverride ?? Defaults[.audioBitrate]
+
+        guard let currentIndex = bitrates.firstIndex(of: currentBitrate) else { return }
+        let nextIndex = currentIndex - 1
+        guard nextIndex >= 0 else { return }
+
+        let newBitrate = bitrates[nextIndex]
+        audioBitrateOverride = newBitrate
+        stepIndicator = "\(newBitrate) kbps"
+
+        lowerBitrateDebounceTask?.cancel()
+        lowerBitrateDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            stepIndicator = ""
+            lowerBitrate(to: newBitrate)
+        }
+    }
+
+    func lowerBitrate(to bitrate: Int) {
+        guard !inRemoval, type.isAudio else { return }
+
+        audioBitrateOverride = bitrate
+
+        stopRemover()
+        isOriginal = false
+        error = nil
+        notice = nil
+        info = nil
+
+        guard let path = originalURL?.filePath ?? self.path else { return }
+
+        Task.init {
+            let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hidden)) ?? Audio(path: path, thumb: !hidden)
+            let _ = try? await runAudioPipeline(
+                audio,
+                actions: [.optimise],
+                id: self.id,
+                allowLarger: true,
+                hideFloatingResult: hidden,
+                source: source,
+                bitrateOverride: bitrate
+            )
         }
     }
 
