@@ -17,7 +17,7 @@
 		<key>ClopCLI.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>5</integer>
+			<integer>4</integer>
 		</dict>
 		<key>ClopTests.xcscheme_^#shared#^_</key>
 		<dict>
@@ -95,7 +95,7 @@
 		<key>FinderOptimiser.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>4</integer>
+			<integer>5</integer>
 		</dict>
 		<key>SwiftDate (Playground) 1.xcscheme</key>
 		<dict>
