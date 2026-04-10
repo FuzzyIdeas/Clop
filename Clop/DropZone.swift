@@ -481,6 +481,13 @@ struct DropZoneView: View {
                 dragManager.showPresetZones = ctrlPressed
             }
         }
+        .onChange(of: dragManager.showPresetZones) { showing in
+            // Clear any stale preset selection when preset zones hide, so a
+            // subsequent drop on the main zone doesn't inherit it.
+            if !showing {
+                selectedPreset = nil
+            }
+        }
         .if(enableDragAndDrop && !preview && !dragManager.showPresetZones) {
             $0.onDrop(of: IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf], delegate: self)
                 .background(DragPileView().fill(.center))
@@ -530,7 +537,10 @@ extension DropZoneView: DropDelegate {
         } else {
             info.itemProviders(for: [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf])
         }
-        return optimiseDroppedItems(itemProviders, copy: NSEvent.modifierFlags.contains(.option), preset: selectedPreset, thumbnails: thumbnails, filenames: filenames)
+        // Main drop zone: onDrop is gated on !showPresetZones, so this only
+        // fires when the user dropped on the main area. selectedPreset may
+        // still be stale from a prior preset zone drop, so ignore it here.
+        return optimiseDroppedItems(itemProviders, copy: NSEvent.modifierFlags.contains(.option), preset: nil, thumbnails: thumbnails, filenames: filenames)
     }
 }
 
@@ -582,6 +592,64 @@ private func runPresetPipeline(_ pipeline: Pipeline?, result: ClipboardType?, id
     }
 }
 
+/// If `pipeline` already contains an encoding step (optimise, downscale,
+/// lowerBitrate, convert, crop, extractPagesAsImages), skip the implicit
+/// pre-optimise and run the pipeline directly on `path`. Returns true when
+/// the short-circuit was applied so callers should skip their normal
+/// `optimiseItem` flow. Otherwise the underlying tools (ffmpeg, pngquant,
+/// ghostscript, vips) would run twice: once for the default optimise pass
+/// and again for the pipeline's own processing step. For audio this is an
+/// audible quality regression; for video a silent quality loss; for images
+/// and PDFs wasted CPU.
+@MainActor
+private func skipOptimiseAndRunPipelineIfEncoding(
+    _ pipeline: Pipeline?,
+    path: FilePath,
+    id: String? = nil,
+    source: OptimisationSource?,
+    prepare: @MainActor (Optimiser) async -> Void = { _ in }
+) async -> Bool {
+    guard let pipeline, !pipeline.isEmpty, let source,
+          pipeline.steps.contains(where: \.isProcessingStep)
+    else { return false }
+
+    let fileType: ClopFileType = path.isImage ? .image : path.isVideo ? .video : path.isPDF ? .pdf : .audio
+    let optimiser = OM.optimiser(
+        id: id ?? path.string,
+        type: ItemType.from(filePath: path),
+        operation: "Running pipeline",
+        hidden: false,
+        source: source
+    )
+    optimiser.url = path.url
+
+    // Preload audio metadata so the floating result UI can show bitrate
+    // immediately. Other types have their metadata populated by the
+    // pipeline functions themselves during the first processing step.
+    if fileType == .audio {
+        let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: true)) ?? Audio(path: path, thumb: true)
+        optimiser.audio = audio
+    }
+
+    await prepare(optimiser)
+
+    do {
+        let (resultFile, _) = try await executePipeline(
+            pipeline, file: path, source: source, optimiser: optimiser, fileType: fileType
+        )
+        if resultFile != path {
+            optimiser.url = resultFile.url
+            optimiser.type = .from(filePath: resultFile)
+            if let newSize = resultFile.fileSize() {
+                optimiser.newBytes = newSize
+            }
+        }
+    } catch {
+        log.error("Pipeline: preset pipeline failed: \(error)")
+    }
+    return true
+}
+
 @MainActor
 func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset: PresetZone? = nil, thumbnails: [NSItemProvider] = [], filenames: [NSItemProvider] = []) -> Bool {
     DM.dragging = false
@@ -591,7 +659,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
     let aggressive = NSEvent.modifierFlags.contains(.command) ? true : nil
     let pipeline = preset?.resolvedPipeline
     let hasItemsToOptimise = itemProviders.contains { provider in
-        (IMAGE_FORMATS + VIDEO_FORMATS).contains { provider.hasItemConformingToTypeIdentifier($0.identifier) }
+        (IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS).contains { provider.hasItemConformingToTypeIdentifier($0.identifier) }
     } || DM.itemsToOptimise.isNotEmpty
 
     var output: String? = nil
@@ -631,6 +699,16 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                     let nsImage = item as? NSImage ?? (data != nil ? NSImage(data: data!) : nil)
 
                     if path == nil, data == nil, nsImage == nil, itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
+                        if case let .image(img) = item,
+                           await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: img.path, id: item.id, source: .dropZone, prepare: { $0.image = img })
+                        {
+                            return
+                        }
+                        if case let .file(filePath) = item,
+                           await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: filePath, id: item.id, source: .dropZone)
+                        {
+                            return
+                        }
                         let result = try await optimiseItem(
                             item,
                             id: item.id,
@@ -649,6 +727,10 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                         path: path, data: nsImage != nil ? data : nil, nsImage: nsImage,
                         type: UTType(identifier), optimised: false, retinaDownscaled: false
                     ) else {
+                        return
+                    }
+
+                    if await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: image.path, source: .dropZone, prepare: { $0.image = image }) {
                         return
                     }
 
@@ -693,6 +775,53 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                     guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
                         optimiser.remove(after: 0)
                         if itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
+                            if case let .file(filePath) = item,
+                               await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: filePath, id: item.id, source: .dropZone)
+                            {
+                                return
+                            }
+                            let result = try await optimiseItem(
+                                item,
+                                id: item.id,
+                                aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
+                                optimisationCount: &DM.optimisationCount,
+                                copyToClipboard: copyToClipboard,
+                                source: .dropZone,
+                                output: output,
+                                skipPipelineLookup: pipeline != nil
+                            )
+                            await runPresetPipeline(pipeline, result: result, id: item.id)
+                        }
+                        return
+                    }
+                    optimiser.remove(after: 0)
+                    try await optimiseFile(from: item, identifier: identifier, aggressive: aggressive, source: .dropZone, output: output, pipeline: preset?.resolvedPipeline)
+                }
+            case AUDIO_FORMATS.map(\.identifier):
+                tryAsync {
+                    let audioType = itemProvider.registeredContentTypes.first(where: { AUDIO_FORMATS.contains($0) }) ?? .mp3
+                    let optimiser = OM.optimiser(id: itemProvider.description, type: .audio(audioType), operation: "Loading", hidden: !Defaults[.enableFloatingResults], source: .dropZone)
+                    if filenames.isNotEmpty {
+                        let filenameProvider = filenames.removeFirst()
+                        var filename = try? await filenameProvider.loadItem(forTypeIdentifier: UTType.fileURL.identifier)
+                        if filename == nil {
+                            filename = try? await filenameProvider.loadItem(forTypeIdentifier: UTType.url.identifier)
+                        }
+                        if let url = filename as? URL {
+                            optimiser.url = url
+                        } else if let str = filename as? String, let url = URL(string: str) {
+                            optimiser.url = url
+                        }
+                    }
+
+                    guard let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier) else {
+                        optimiser.remove(after: 0)
+                        if itemProvidersCount == 1, let item = itemsToOptimise.first, item != .file(FilePath.tmp) {
+                            if case let .file(filePath) = item,
+                               await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: filePath, id: item.id, source: .dropZone)
+                            {
+                                return
+                            }
                             let result = try await optimiseItem(
                                 item,
                                 id: item.id,
@@ -713,7 +842,10 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
             case [UTType.plainText.identifier, UTType.utf8PlainText.identifier]:
                 tryAsync {
                     let item = try? await itemProvider.loadItem(forTypeIdentifier: identifier)
-                    if let path = item?.existingFilePath, path.isImage || path.isVideo {
+                    if let path = item?.existingFilePath, path.isImage || path.isVideo || path.isAudio {
+                        if await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: path, source: .dropZone) {
+                            return
+                        }
                         let result = try await optimiseItem(
                             .file(path),
                             id: path.string,
@@ -726,7 +858,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                         )
                         await runPresetPipeline(pipeline, result: result, id: path.string)
                     }
-                    if let url = item?.url, url.isImage || url.isVideo {
+                    if let url = item?.url, url.isImage || url.isVideo || url.isAudio {
                         let result = try await optimiseItem(
                             .url(url),
                             id: url.absoluteString,
@@ -742,7 +874,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                 }
             case UTType.url.identifier:
                 tryAsync {
-                    guard let url = try await itemProvider.loadItem(forTypeIdentifier: identifier) as? URL, url.isImage || url.isVideo else {
+                    guard let url = try await itemProvider.loadItem(forTypeIdentifier: identifier) as? URL, url.isImage || url.isVideo || url.isAudio else {
                         return
                     }
                     let result = try await optimiseItem(
@@ -801,7 +933,11 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
         try await optimiseDir(path: path, aggressive: aggressive, source: source, output: output, types: ALL_FORMATS)
         return
     }
-    _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
+    _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) { () async throws -> ClipboardType? in
+        if await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: path, source: source) {
+            return nil
+        }
+
         let skipOpt = pipeline?.skipOptimisation ?? false
         let result = try await optimiseItem(
             .file(path),

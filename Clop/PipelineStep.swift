@@ -186,6 +186,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     // Processing steps (explicit, no implicit optimisation)
     case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil, location: String = "inPlace")
     case downscale(factor: Double, location: String = "inPlace")
+    case lowerBitrate(kbps: Int, location: String = "inPlace")
     case convert(to: String, location: String = "sameFolder")
     case crop(width: Int? = nil, height: Int? = nil, keepAspectRatio: Bool = true, longEdge: Int? = nil, location: String = "inPlace")
     case extractPagesAsImages(format: String = "jpeg", quality: String = "medium", location: String = "sameFolder")
@@ -219,6 +220,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         switch self {
         case let .optimise(encoder, adaptive, videoEncoder, location): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)-\(location)"
         case let .downscale(factor, location): "downscale-\(factor)-\(location)"
+        case let .lowerBitrate(kbps, location): "lowerBitrate-\(kbps)-\(location)"
         case let .convert(to, location): "convert-\(to)-\(location)"
         case let .crop(width, height, _, longEdge, location): "crop-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(location)"
         case let .extractPagesAsImages(format, quality, location): "extractPagesAsImages-\(format)-\(quality)-\(location)"
@@ -244,6 +246,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         switch self {
         case .optimise: "optimise"
         case .downscale: "downscale"
+        case .lowerBitrate: "lowerBitrate"
         case .convert: "convert"
         case .crop: "crop"
         case .extractPagesAsImages: "extractPagesAsImages"
@@ -276,6 +279,10 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
             var params = ["factor: \(factor)"]
             if location != "inPlace" { params.append("location: \(location)") }
             return "downscale(\(params.joined(separator: ", ")))"
+        case let .lowerBitrate(kbps, location):
+            var params = ["kbps: \(kbps)"]
+            if location != "inPlace" { params.append("location: \(location)") }
+            return "lowerBitrate(\(params.joined(separator: ", ")))"
         case let .convert(to, location):
             var params = ["to: \(to)"]
             if location != "sameFolder" { params.append("location: \(location)") }
@@ -317,7 +324,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var isProcessingStep: Bool {
         switch self {
-        case .optimise, .downscale, .convert, .crop, .extractPagesAsImages: true
+        case .optimise, .downscale, .lowerBitrate, .convert, .crop, .extractPagesAsImages: true
         default: false
         }
     }
@@ -338,7 +345,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var category: StepCategory {
         switch self {
-        case .optimise, .downscale, .convert, .crop, .extractPagesAsImages: .processing
+        case .optimise, .downscale, .lowerBitrate, .convert, .crop, .extractPagesAsImages: .processing
         case .copy, .move, .rename, .delete: .fileOperation
         case .filterIf, .filterIfNot: .filter
         case .removeAudio, .changeSpeed: .mediaSpecific
@@ -397,6 +404,12 @@ extension PipelineStep: Decodable {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("downscale"))
             self = try .downscale(
                 factor: c.decode(Double.self, forKey: DynKey("factor")),
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
+            )
+        } else if container.contains(DynKey("lowerBitrate")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("lowerBitrate"))
+            self = try .lowerBitrate(
+                kbps: c.decode(Int.self, forKey: DynKey("kbps")),
                 location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
             )
         } else if container.contains(DynKey("convert")) {

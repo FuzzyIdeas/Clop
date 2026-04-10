@@ -956,7 +956,7 @@ struct Clop: ParsableCommand {
 
     struct Downscale: ParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Downscale and optimise images and videos by a certain factor."
+            abstract: "Downscale and optimise images, videos and audio files by a certain factor. For audio, the factor is applied to the bitrate."
         )
 
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
@@ -1020,12 +1020,12 @@ struct Clop: ParsableCommand {
         """)
         var output: String? = nil
 
-        @Option(help: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
+        @Option(help: "Makes the image, video or audio smaller by a certain amount (1.0 means no change, 0.5 means half the size / half the bitrate)")
         var factor = 0.5
 
         var urls: [URL] = []
 
-        @Argument(help: "Images, videos or URLs to downscale (can be a file, folder, or list of files)")
+        @Argument(help: "Images, videos, audio files or URLs to downscale (can be a file, folder, or list of files)")
         var items: [String] = []
 
         mutating func validate() throws {
@@ -1072,7 +1072,7 @@ struct Clop: ParsableCommand {
 
     struct Optimise: ParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Optimise images, videos and PDFs."
+            abstract: "Optimise images, videos, audio files and PDFs."
         )
 
         @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
@@ -1149,7 +1149,7 @@ struct Clop: ParsableCommand {
 
         var urls: [URL] = []
 
-        @Argument(help: "Images, videos, PDFs or URLs to optimise (can be a file, folder, or list of files)")
+        @Argument(help: "Images, videos, audio files, PDFs or URLs to optimise (can be a file, folder, or list of files)")
         var items: [String] = []
 
         mutating func validate() throws {
@@ -1198,7 +1198,7 @@ struct Clop: ParsableCommand {
     }
 
     static let configuration = CommandConfiguration(
-        abstract: "Clop: optimise, crop and downscale images, videos and PDFs",
+        abstract: "Clop: optimise, crop and downscale images, videos, audio files and PDFs",
         subcommands: [
             Optimise.self,
             Crop.self,
@@ -1342,13 +1342,18 @@ actor ProgressPrinter {
             } else {
                 ""
             }
+            let bitrateChangeStr = if let old = response.oldBitrate, let new = response.newBitrate, old != new {
+                " [\("\(old) kbps".dim()) \(ARROW) \("\(new) kbps".yellow())]"
+            } else {
+                ""
+            }
             let savedAs = if let original = response.forURL.filePath ?? response.convertedFrom?.filePath, let optimised = response.path.filePath, original != optimised {
                 " saved as \(optimised.shellString.underline())".dim()
             } else {
                 ""
             }
             print(
-                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold())\(resolutionChangeStr)\(percentageSaved)\(savedAs)"
+                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold())\(resolutionChangeStr)\(bitrateChangeStr)\(percentageSaved)\(savedAs)"
             )
         }
         for response in errors.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {

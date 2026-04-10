@@ -120,6 +120,32 @@ enum AudioFormat: String, CaseIterable, Codable {
         return allowed[targetIndex]
     }
 
+    /// Clamp `target` so it never exceeds `inputBitrate` and snaps to the nearest
+    /// allowed bitrate for this format that is <= the cap. Returns nil when lowering
+    /// would be a no-op (clamped target is at or above the input bitrate) or when the
+    /// format has no bitrate axis to lower (e.g. WAV).
+    func loweredBitrate(target: Int, inputBitrate: Int?) -> Int? {
+        let allowed = allowedBitrates
+        // Lossless/uncompressed formats (empty allowedBitrates) ignore bitrate entirely.
+        guard !allowed.isEmpty else { return nil }
+
+        let input = inputBitrate ?? defaultBitrate
+        // Never upscale: cap at input if we know it
+        let cap = input > 0 ? min(target, input) : target
+        guard cap > 0 else { return nil }
+
+        let resolved: Int = if let match = allowed.last(where: { $0 <= cap }) {
+            match
+        } else {
+            // Cap is below the lowest allowed bitrate; use the lowest (still a reduction if input is higher).
+            allowed.first ?? cap
+        }
+
+        // No-op if the resolved target would keep (or increase) the input bitrate.
+        if input > 0, resolved >= input { return nil }
+        return resolved
+    }
+
     /// Maps target bitrate to LAME VBR quality (0=best, 9=worst).
     private func lameVBRQuality(forBitrate bitrate: Int) -> Int {
         switch bitrate {

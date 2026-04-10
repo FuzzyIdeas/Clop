@@ -250,6 +250,9 @@ struct OptimisationResponse: Codable, Identifiable {
     var oldWidthHeight: CGSize? = nil
     var newWidthHeight: CGSize? = nil
 
+    var oldBitrate: Int? = nil
+    var newBitrate: Int? = nil
+
     var id: String { path }
     var percentageSaved: Double { 100 - (Double(newBytes) / Double(oldBytes == 0 ? 1 : oldBytes) * 100) }
 }

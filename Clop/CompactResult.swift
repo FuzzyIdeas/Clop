@@ -98,6 +98,27 @@ struct CompactResult: View {
         }
     }
 
+    @ViewBuilder var bitrateDiff: some View {
+        if optimiser.type.isAudio, let oldBitrate = optimiser.oldBitrate, !sm.selecting {
+            HStack(spacing: 3) {
+                let hideOldBitrate = optimiser.newBitrate != nil && optimiser.newBitrate! != oldBitrate
+                if !hideOldBitrate {
+                    Text("\(oldBitrate) kbps")
+                }
+                if let newBitrate = optimiser.newBitrate, newBitrate != oldBitrate {
+                    if !hideOldBitrate {
+                        SwiftUI.Image(systemName: "arrow.right")
+                    }
+                    Text("\(newBitrate) kbps")
+                }
+            }
+            .lineLimit(1)
+            .font(.round(10, weight: .medium))
+            .foregroundColor(.fg.warm)
+            .fixedSize()
+        }
+    }
+
     @ViewBuilder var fileSizeDiff: some View {
         let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
 
@@ -224,6 +245,7 @@ struct CompactResult: View {
                         fileSizeDiff
                         Spacer()
                         sizeDiff
+                        bitrateDiff
                     }
                     if !sm.selecting {
                         ActionButtons(optimiser: optimiser, size: 18)

@@ -290,7 +290,7 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         create: { .optimise() }
     ),
     StepTemplate(
-        name: "downscale", description: "Scale down by a factor, always keeps aspect ratio",
+        name: "downscale", description: "Scale down by a factor, always keeps aspect ratio (lowers audio bitrate for audio files)",
         mandatoryParams: [
             ParamTemplate(name: "factor", description: "0.0 to 1.0 (e.g. 0.5 = half size, 0.75 = 75%)", suggestions: ["0.5", "0.75", "0.25"], freeText: true),
         ],
@@ -308,8 +308,30 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 ]
             ),
         ],
-        applicableTypes: [.image, .video],
+        applicableTypes: [.image, .video, .audio],
         create: { .downscale(factor: 0.5) }
+    ),
+    StepTemplate(
+        name: "lowerBitrate", description: "Lower the audio bitrate (never upscales, snaps to allowed bitrates)",
+        mandatoryParams: [
+            ParamTemplate(name: "kbps", description: "target bitrate in kbps", suggestions: ["192", "160", "128", "96", "64"], freeText: true),
+        ],
+        optionalParams: [
+            ParamTemplate(
+                name: "location",
+                description: "where to save the result",
+                suggestions: ["inPlace", "sameFolder", "temporaryFolder", "template"],
+                freeText: true,
+                valueDescriptions: [
+                    "inPlace": "replace original file",
+                    "sameFolder": "save next to original",
+                    "temporaryFolder": "save in temp directory",
+                    "template": "custom path with %f (filename), %y (year), etc. Output extension is added automatically",
+                ]
+            ),
+        ],
+        applicableTypes: [.audio],
+        create: { .lowerBitrate(kbps: 128) }
     ),
     StepTemplate(
         name: "convert", description: "Convert to a different format",
@@ -644,6 +666,11 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         guard let factor = params["factor"].flatMap({ Double($0) }), factor > 0, factor <= 1 else { return nil }
         let location = params["location"] ?? "inPlace"
         return .downscale(factor: factor, location: location)
+
+    case "lowerBitrate":
+        guard let kbps = params["kbps"].flatMap({ Int($0) }), kbps > 0 else { return nil }
+        let location = params["location"] ?? "inPlace"
+        return .lowerBitrate(kbps: kbps, location: location)
 
     case "convert":
         guard let to = params["to"], !to.isEmpty else { return nil }

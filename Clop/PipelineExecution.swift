@@ -60,7 +60,7 @@ final class PipelineExecution {
         case .image:
             success = await runCompiledImageBatch(batch: batch, actions: actions, inputFile: inputFile, location: location, aggressive: aggressive)
         case .audio:
-            success = await runCompiledAudioBatch(actions: actions, inputFile: inputFile, location: location, aggressive: aggressive)
+            success = await runCompiledAudioBatch(batch: batch, actions: actions, inputFile: inputFile, location: location, aggressive: aggressive)
         case .pdf:
             success = await runCompiledPDFBatch(actions: actions, inputFile: inputFile, location: location, aggressive: aggressive)
         }
@@ -299,8 +299,26 @@ final class PipelineExecution {
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(inputFile.string)")
             }
+        case .audio:
+            await runAudioBitrateStep(inputFile: inputFile, location: location, usedTempCopy: usedTempCopy) { audio in
+                audio.loweredBitrate(factor: factor)
+            }
         default:
             log.debug("Pipeline: downscale not applicable for \(self.fileType)")
+        }
+    }
+
+    func handleLowerBitrate(kbps: Int, location: String) async {
+        let inputFile = tempCopyIfNeeded(currentFile, location: location)
+        let usedTempCopy = inputFile != currentFile
+
+        switch fileType {
+        case .audio:
+            await runAudioBitrateStep(inputFile: inputFile, location: location, usedTempCopy: usedTempCopy) { audio in
+                audio.loweredBitrate(kbps: kbps)
+            }
+        default:
+            log.debug("Pipeline: lowerBitrate not applicable for \(self.fileType)")
         }
     }
 
@@ -782,6 +800,39 @@ final class PipelineExecution {
         }
     }
 
+    /// Shared path for audio bitrate reduction steps (downscale/lowerBitrate).
+    /// Fetches metadata so the clamp helper can see the input bitrate, computes the
+    /// target bitrate via `compute`, and runs the audio pipeline with that override.
+    /// If `compute` returns nil (no-op lowering), the step is skipped without failing.
+    private func runAudioBitrateStep(
+        inputFile: FilePath,
+        location: String,
+        usedTempCopy: Bool,
+        compute: (Audio) -> Int?
+    ) async {
+        let audio = await (try? Audio.byFetchingMetadata(path: inputFile, thumb: false)) ?? Audio(path: inputFile, thumb: false)
+        guard let targetBitrate = compute(audio) else {
+            log.debug("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) skipped — bitrate already at or below target for \(inputFile.string)")
+            if location != "inPlace" {
+                currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
+            }
+            if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
+            return
+        }
+
+        if let result = try? await runAudioPipeline(
+            audio, actions: [.optimise],
+            allowLarger: true, hideFloatingResult: hide,
+            source: source, bitrateOverride: targetBitrate
+        ) {
+            currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+            if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
+            if !hide { shownVisibleResult = true }
+        } else {
+            log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio \(inputFile.string)")
+        }
+    }
+
     private func runCompiledVideoBatch(batch: [PipelineStep], actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool) async -> Bool {
         let videoEncoderOvr: VideoEncoder? = batch.compactMap { s in
             if case let .optimise(_, _, ve, _) = s { return ve }; return nil
@@ -848,13 +899,36 @@ final class PipelineExecution {
         return true
     }
 
-    private func runCompiledAudioBatch(actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool) async -> Bool {
-        let audio = Audio(path: inputFile)
+    private func runCompiledAudioBatch(batch: [PipelineStep], actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool) async -> Bool {
+        // Fetch metadata so bitrate-reduction steps can clamp against the real input bitrate.
+        let audio = await (try? Audio.byFetchingMetadata(path: inputFile, thumb: false)) ?? Audio(path: inputFile, thumb: false)
+
+        // Extract an explicit target bitrate from the batch. `lowerBitrate` wins over
+        // `downscale(factor:)` if both are present; the last one in the batch wins among
+        // duplicates. A nil result from the helper means "no-op" (would be upscaling), so
+        // we simply skip applying a bitrate override in that case.
+        var bitrateOverride: Int?
+        for step in batch {
+            switch step {
+            case let .lowerBitrate(kbps, _):
+                if let clamped = audio.loweredBitrate(kbps: kbps) {
+                    bitrateOverride = clamped
+                }
+            case let .downscale(factor, _):
+                if bitrateOverride == nil, let clamped = audio.loweredBitrate(factor: factor) {
+                    bitrateOverride = clamped
+                }
+            default:
+                break
+            }
+        }
 
         guard let result = try? await runAudioPipeline(
             audio, actions: actions,
             allowLarger: false, hideFloatingResult: hide,
-            source: source, aggressiveOptimisation: aggressive ? true : nil
+            source: source,
+            bitrateOverride: bitrateOverride,
+            aggressiveOptimisation: aggressive ? true : nil
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
