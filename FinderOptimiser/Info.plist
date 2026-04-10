@@ -34,7 +34,8 @@
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.mpeg" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.png" ||
 						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.tiff" ||
-						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.webmproject.webp"
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "org.webmproject.webp" ||
+						ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.audio"
 					).@count &lt;= $extensionItem.attachments.@count).@count &gt;= 1
 			</string>
 			<key>NSExtensionServiceAllowsFinderPreviewItem</key>

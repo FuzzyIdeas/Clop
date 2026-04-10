@@ -34,6 +34,11 @@ class Audio: Optimisable {
         } else {
             Task.init {
                 self.metadata = try? await getAudioMetadata(path: path)
+                await MainActor.run {
+                    if let optimiser = self.optimiser, optimiser.oldBitrate == nil, let kbps = self.bitrate {
+                        optimiser.oldBitrate = kbps
+                    }
+                }
             }
         }
     }
@@ -51,13 +56,44 @@ class Audio: Optimisable {
     var sampleRate: Double? { metadata?.sampleRate }
     var codec: String? { metadata?.codec }
 
+    /// Resolve the output format for this audio (honouring `.sameAsInput`).
+    var outputFormat: AudioFormat {
+        Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
+    }
+
     override func copyWithPath(_ path: FilePath) -> Self {
         Audio(path: path, metadata: metadata, fileSize: path.fileSize() ?? fileSize, thumb: true, id: id) as! Self
     }
 
     static func byFetchingMetadata(path: FilePath, fileSize: Int? = nil, thumb: Bool = true, id: String? = nil) async throws -> Audio? {
         let metadata = try await getAudioMetadata(path: path)
-        return Audio(path: path, metadata: metadata, fileSize: fileSize, thumb: thumb, id: id)
+        let audio = Audio(path: path, metadata: metadata, fileSize: fileSize, thumb: thumb, id: id)
+
+        await MainActor.run {
+            if let optimiser = audio.optimiser, optimiser.oldBitrate == nil, let kbps = metadata?.bitrate {
+                optimiser.oldBitrate = kbps
+            }
+        }
+
+        return audio
+    }
+
+    /// Compute a target bitrate that is at most `kbps`, never exceeds the input bitrate,
+    /// and is snapped to an allowed bitrate for the output format. Returns nil if lowering
+    /// would be a no-op (e.g. input bitrate is already at or below the target).
+    func loweredBitrate(kbps: Int) -> Int? {
+        outputFormat.loweredBitrate(target: kbps, inputBitrate: bitrate)
+    }
+
+    /// Compute a target bitrate by multiplying the input bitrate by `factor` (0-1),
+    /// then clamping/snapping the same way as `loweredBitrate(kbps:)`. Returns nil if
+    /// the factor is >= 1 (never upscales) or if lowering would be a no-op.
+    func loweredBitrate(factor: Double) -> Int? {
+        guard factor > 0, factor < 1 else { return nil }
+        let input = bitrate ?? outputFormat.defaultBitrate
+        guard input > 0 else { return nil }
+        let target = Int((Double(input) * factor).rounded())
+        return outputFormat.loweredBitrate(target: target, inputBitrate: input)
     }
 
     func optimise(optimiser: Optimiser, bitrateOverride: Int? = nil, aggressive: Bool = false) throws -> Audio {

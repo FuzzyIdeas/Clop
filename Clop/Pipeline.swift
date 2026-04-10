@@ -337,6 +337,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             await exec.handleExtractPagesAsImages(format: format, quality: quality, location: location)
         case let .downscale(factor, location):
             await exec.handleDownscale(factor: factor, location: location)
+        case let .lowerBitrate(kbps, location):
+            await exec.handleLowerBitrate(kbps: kbps, location: location)
         case let .convert(formatStr, location):
             await exec.handleConvert(formatStr: formatStr, location: location)
         case let .crop(width, height, _, longEdge, location):

@@ -125,6 +125,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
             }
 
             let hideFilesAfter = Defaults[.autoHideFloatingResultsAfter] * 1000
+            let oldBitrate = audio.bitrate
+            let newBitrate = optimisedAudio.bitrate
             mainActor {
                 result = optimisedAudio
                 optimiser.url = optimisedAudio.path.url
@@ -132,7 +134,11 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                 if let outputType = Defaults[.audioFormat].utType {
                     optimiser.type = .audio(outputType)
                 }
-                optimiser.finish(oldBytes: fileSize, newBytes: optimisedAudio.fileSize, removeAfterMs: hideFilesAfter)
+                optimiser.finish(
+                    oldBytes: fileSize, newBytes: optimisedAudio.fileSize,
+                    oldBitrate: oldBitrate, newBitrate: newBitrate,
+                    removeAfterMs: hideFilesAfter
+                )
 
                 if copyToClipboard {
                     optimiser.copyToClipboard()

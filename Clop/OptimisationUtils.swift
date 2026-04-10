@@ -306,6 +306,9 @@ enum TempPipelineSegment {
     @Published var oldSize: CGSize? = nil
     @Published var newSize: CGSize? = nil
 
+    @Published var oldBitrate: Int? = nil
+    @Published var newBitrate: Int? = nil
+
     @Published var error: String? = nil
     @Published var notice: String? = nil
     @Published var info: String? = nil
@@ -704,16 +707,29 @@ enum TempPipelineSegment {
                                 self.url = converted.path.url
                                 self.finish(oldBytes: self.oldBytes, newBytes: converted.fileSize, removeAfterMs: self.lastRemoveAfterMs)
                             }
-                        } else if let result = try? await runAudioPipeline(
-                            audio, actions: actions,
-                            id: self.id,
-                            allowLarger: true,
-                            hideFloatingResult: hidden,
-                            bitrateOverride: self.audioBitrateOverride,
-                            aggressiveOptimisation: aggressive ? true : nil
-                        ) {
-                            currentFile = result.path
-                            self.audio = result
+                        } else {
+                            // Bitrate-reduction steps in the temp pipeline override the UI's bitrate override.
+                            var stepBitrate: Int?
+                            for step in steps {
+                                switch step {
+                                case let .lowerBitrate(kbps, _):
+                                    if let clamped = audio.loweredBitrate(kbps: kbps) { stepBitrate = clamped }
+                                case let .downscale(factor, _):
+                                    if stepBitrate == nil, let clamped = audio.loweredBitrate(factor: factor) { stepBitrate = clamped }
+                                default: break
+                                }
+                            }
+                            if let result = try? await runAudioPipeline(
+                                audio, actions: actions,
+                                id: self.id,
+                                allowLarger: true,
+                                hideFloatingResult: hidden,
+                                bitrateOverride: stepBitrate ?? self.audioBitrateOverride,
+                                aggressiveOptimisation: aggressive ? true : nil
+                            ) {
+                                currentFile = result.path
+                                self.audio = result
+                            }
                         }
                     }
 
@@ -1529,7 +1545,7 @@ enum TempPipelineSegment {
         self.remove(after: 2500)
     }
 
-    func finish(oldBytes: Int, newBytes: Int, oldSize: CGSize? = nil, newSize: CGSize? = nil, removeAfterMs: Int? = nil) {
+    func finish(oldBytes: Int, newBytes: Int, oldSize: CGSize? = nil, newSize: CGSize? = nil, oldBitrate: Int? = nil, newBitrate: Int? = nil, removeAfterMs: Int? = nil) {
         guard !self.inRemoval else { return }
         self.stopRemover()
         withAnimation(.easeOut(duration: 0.5)) {
@@ -1537,6 +1553,8 @@ enum TempPipelineSegment {
             self.newBytes = newBytes
             if let oldSize { self.oldSize = oldSize }
             if let newSize { self.newSize = newSize }
+            if let oldBitrate { self.oldBitrate = oldBitrate }
+            if let newBitrate { self.newBitrate = newBitrate }
             self.running = false
         }
         self.removeDebouncer()
@@ -1675,7 +1693,7 @@ enum TempPipelineSegment {
 
     private func canonicalOrder(_ step: PipelineStep) -> Int {
         switch step {
-        case .downscale: 0
+        case .downscale, .lowerBitrate: 0
         case .crop: 1
         case .changeSpeed: 2
         case .removeAudio: 3
@@ -2554,26 +2572,32 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 }
                 return .file(result.path)
             } else if path.isAudio {
-                guard !path.hasOptimisationStatusXattr() else {
+                guard aggressiveOptimisation == true || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
                     let audioType = path.url.utType() ?? .mp3
                     let optimiser = OM.optimiser(id: id, type: .audio(audioType), operation: "", hidden: hideFloatingResult, source: source)
                     optimiser.url = path.url
                     let audio = Audio(path: path, thumb: !hideFloatingResult)
                     optimiser.audio = audio
-                    optimiser.finish(oldBytes: audio.fileSize, newBytes: audio.fileSize)
+                    optimiser.finish(oldBytes: audio.fileSize, newBytes: audio.fileSize, oldBitrate: audio.bitrate, newBitrate: audio.bitrate)
                     if skipPipelineLookup { return .file(path) }
                     throw ClopError.alreadyOptimised(path)
                 }
 
                 let result: Audio? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                     let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hideFloatingResult)) ?? Audio(path: path, thumb: !hideFloatingResult)
+                    let bitrateOverride: Int? = if let factor = scalingFactor, factor > 0, factor < 1 {
+                        audio.loweredBitrate(factor: factor)
+                    } else {
+                        nil
+                    }
                     return try await runAudioPipeline(
                         audio,
                         actions: [.optimise],
                         id: id,
                         copyToClipboard: copyToClipboard,
                         hideFloatingResult: hideFloatingResult,
-                        source: source
+                        source: source,
+                        bitrateOverride: bitrateOverride
                     )
                 }
                 guard let result else { return nil }
@@ -2710,7 +2734,8 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                         path: respPath, forURL: url,
                         convertedFrom: opt.convertedFromURL?.filePath?.string,
                         oldBytes: opt.oldBytes ?! url.existingFilePath?.fileSize() ?? 0, newBytes: opt.newBytes,
-                        oldWidthHeight: opt.oldSize, newWidthHeight: opt.newSize
+                        oldWidthHeight: opt.oldSize, newWidthHeight: opt.newSize,
+                        oldBitrate: opt.oldBitrate, newBitrate: opt.newBitrate
                     )
                 } catch let error as ClopError {
                     if let opt = await opt(url.absoluteString), await opt.running {

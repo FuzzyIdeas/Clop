@@ -262,7 +262,12 @@ struct FloatingPreview: View {
         clipEnd.image = Image(nsImage: clipEnd.thumbnail!, data: Data(), type: .png, retinaDownscaled: false)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
+        let audioOpt = Optimiser(id: "Music/podcast.mp3", type: .audio(.mp3))
+        audioOpt.url = "\(HOME)/Music/podcast.mp3".fileURL
+        audioOpt.finish(oldBytes: 9_450_000, newBytes: 4_820_000, oldBitrate: 320, newBitrate: 128)
+
         o.optimisers = [
+            audioOpt,
             clipEnd,
             videoOpt,
             noThumb,
@@ -519,6 +524,27 @@ struct FloatingResult: View {
         }
     }
 
+    @ViewBuilder var bitrateDiff: some View {
+        if optimiser.type.isAudio, let oldBitrate = optimiser.oldBitrate {
+            HStack(spacing: 3) {
+                let hideOldBitrate = OM.compactResults && optimiser.newBitrate != nil && optimiser.newBitrate! != oldBitrate
+                if !hideOldBitrate {
+                    Text("\(oldBitrate) kbps")
+                }
+                if let newBitrate = optimiser.newBitrate, newBitrate != oldBitrate {
+                    if !hideOldBitrate {
+                        SwiftUI.Image(systemName: "arrow.right")
+                    }
+                    Text("\(newBitrate) kbps")
+                }
+            }
+            .lineLimit(1)
+            .font(.round(10))
+            .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
+            .fixedSize()
+        }
+    }
+
     @ViewBuilder var fileSizeDiff: some View {
         let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
         let improvementColor = (optimiser.thumbnail != nil && showImages ? FloatingResult.yellow : (colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue))
@@ -575,6 +601,7 @@ struct FloatingResult: View {
                     }
                     fileSizeDiff
                     sizeDiff
+                    bitrateDiff
                 }
             }
 
@@ -724,6 +751,7 @@ struct FloatingResult: View {
                     VStack(spacing: 4) {
                         fileSizeDiff
                         sizeDiff
+                        bitrateDiff
                     }
                 }
             }
