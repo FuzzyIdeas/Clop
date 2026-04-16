@@ -881,13 +881,18 @@ struct AggressiveOptimisationButton: View {
                     optimiser.finish(oldBytes: optimiser.oldBytes ?! optimiser.path?.fileSize() ?? 0, newBytes: -1)
                 }
 
+                let newAggressive = !optimiser.aggressive
                 if optimiser.downscaleFactor < 1 {
-                    optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
+                    optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: newAggressive)
                 } else {
-                    optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+                    optimiser.optimise(allowLarger: false, aggressiveOptimisation: newAggressive, fromOriginal: true)
                 }
             },
-            label: { SwiftUI.Image(systemName: "bolt").font(.heavy(9)) }
+            label: {
+                SwiftUI.Image(systemName: optimiser.aggressive ? "bolt.fill" : "bolt")
+                    .font(.heavy(9))
+                    .foregroundColor(optimiser.aggressive ? FloatingResult.yellow : nil)
+            }
         )
         .contentShape(Rectangle())
     }
@@ -1026,7 +1031,7 @@ struct ActionButton: View {
     func isAvailable() -> Bool {
         switch action {
         case .downscale: optimiser.canDownscale()
-        case .aggressiveOptimisation: optimiser.canReoptimise() && (optimiser.type.isVideo || !optimiser.aggressive)
+        case .aggressiveOptimisation: optimiser.canReoptimise()
         case .addToShelf: runningShelfApp() != nil
         default: true
         }

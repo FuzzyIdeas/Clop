@@ -39,6 +39,24 @@ class Optimisable {
         OM.optimisers.first(where: { $0.id == id ?? path.string || $0.id == path.string || $0.id == path.url.absoluteString })
     }
 
+    @MainActor static func fallbackThumbnail(for url: URL, path: FilePath) -> NSImage {
+        // Try the file at its current location, then the backup, then a UTType-based generic icon.
+        let candidates: [String?] = [
+            url.existingFilePath?.string,
+            path.string,
+            path.clopBackupPath?.string,
+        ]
+        for case let candidate? in candidates where FileManager.default.fileExists(atPath: candidate) {
+            let icon = NSWorkspace.shared.icon(forFile: candidate)
+            icon.size = THUMB_SIZE
+            return icon
+        }
+        let utType = path.url.utType() ?? (path.extension.flatMap { UTType(filenameExtension: $0) }) ?? .item
+        let icon = NSWorkspace.shared.icon(for: utType)
+        icon.size = THUMB_SIZE
+        return icon
+    }
+
     func copyWithPath(_ path: FilePath) -> Self {
         Self(path, thumb: true, id: id)
     }
@@ -49,6 +67,12 @@ class Optimisable {
             log.debug("Using cached thumbnail from \(thumbURL.path) for \(self.path.string)")
             url = thumbURL
         }
+
+        // Seed with a best-effort placeholder immediately so we always have *something*.
+        if let optimiser = Self.getOptimiser(id: id, path: path), optimiser.thumbnail == nil {
+            optimiser.thumbnail = Self.fallbackThumbnail(for: url, path: path)
+        }
+
         generateThumbnail(for: url, size: THUMB_SIZE, onCompletion: { [url, id, path] thumb in
             guard let optimiser = Self.getOptimiser(id: id, path: path) else {
                 log.debug("Thumbnail generation cancelled for \(url.path)")
@@ -59,9 +83,7 @@ class Optimisable {
         }, onFailure: { [url, id, path] in
             guard let optimiser = Self.getOptimiser(id: id, path: path) else { return }
             log.debug("Thumbnail generation failed for \(path.string), using system icon")
-            let icon = NSWorkspace.shared.icon(forFile: url.path)
-            icon.size = THUMB_SIZE
-            optimiser.thumbnail = icon
+            optimiser.thumbnail = Self.fallbackThumbnail(for: url, path: path)
         })
     }
 

@@ -334,6 +334,8 @@ class AppDelegate: AppDelegateParent {
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
         migrateShortcutsToPipelines()
 
+        BetaLicenseChecker.start()
+
         guard !SWIFTUI_PREVIEW else { return }
 
         #if DEBUG

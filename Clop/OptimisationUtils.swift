@@ -1118,6 +1118,7 @@ enum TempPipelineSegment {
         changePlaybackSpeedFactor = effectiveFactor
 
         if !tempPipeline.isEmpty {
+            if let aggressiveOptimisation { aggressive = aggressiveOptimisation }
             if effectiveFactor == 1.0 {
                 removeTempPipelineStep(named: "changeSpeed")
             } else {
@@ -1241,6 +1242,7 @@ enum TempPipelineSegment {
         if let factor { downscaleFactor = factor }
 
         if !tempPipeline.isEmpty {
+            if let aggressiveOptimisation { aggressive = aggressiveOptimisation }
             if effectiveFactor >= 1.0 {
                 removeTempPipelineStep(named: "downscale")
             } else {

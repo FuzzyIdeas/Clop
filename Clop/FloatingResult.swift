@@ -596,7 +596,9 @@ struct FloatingResult: View {
                     if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                         FileNameField(optimiser: optimiser)
                             .foregroundColor(.primary)
-                            .font(.semibold(14)).lineLimit(1).fixedSize().opacity(0.8)
+                            .font(.semibold(14)).lineLimit(1).opacity(0.8)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: THUMB_SIZE.width * 0.8, alignment: .leading)
                             .padding(.bottom, 4)
                     }
                     fileSizeDiff
