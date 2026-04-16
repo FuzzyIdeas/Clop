@@ -472,6 +472,10 @@ struct FloatingResult: View {
     @State var hoveringThumbnail = false
     @State var editingFilename = false
 
+    var isExpanded: Bool {
+        hovering || optimiser.editingResolution
+    }
+
     @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.showImages) var showImages
     @Default(.floatingResultsCorner) var floatingResultsCorner
@@ -828,8 +832,8 @@ struct FloatingResult: View {
                     .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
                     .fixedSize()
                     .padding(.horizontal, 5)
-                    .offset(y: hovering || SWIFTUI_PREVIEW ? 30 : 0)
-                    .opacity(hovering || SWIFTUI_PREVIEW ? 0 : 1)
+                    .offset(y: isExpanded || SWIFTUI_PREVIEW ? 30 : 0)
+                    .opacity(isExpanded || SWIFTUI_PREVIEW ? 0 : 1)
             }
 
             FileNameField(optimiser: optimiser)
@@ -845,8 +849,8 @@ struct FloatingResult: View {
                 .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
                 .fixedSize()
                 .padding(.horizontal, 5)
-                .offset(y: hovering || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
-                .opacity(hovering || editingFilename || SWIFTUI_PREVIEW ? 1 : 0)
+                .offset(y: isExpanded || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
+                .opacity(isExpanded || editingFilename || SWIFTUI_PREVIEW ? 1 : 0)
                 .scaleEffect(
                     x: optimiser.editingFilename ? 1.2 : 1,
                     y: optimiser.editingFilename ? 1.2 : 1,
@@ -861,7 +865,7 @@ struct FloatingResult: View {
             FlipGroup(if: !floatingResultsCorner.isTrailing) {
                 if hasThumbnail, showImages, optimiser.error == nil {
                     VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 2) {
-                        if hovering, let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
+                        if isExpanded, let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                             topField(url)
                         }
                         Group {
@@ -874,8 +878,8 @@ struct FloatingResult: View {
                                 }
                             FormatSelectorView(optimiser: optimiser)
                                 .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
-                                .opacity(hovering ? 1 : 0.1)
-                                .animation(.easeOut(duration: 0.15), value: hovering)
+                                .opacity(isExpanded ? 1 : 0.1)
+                                .animation(.easeOut(duration: 0.15), value: isExpanded)
                         }
                         .onHover(perform: updateHover(_:))
                     }
@@ -892,13 +896,13 @@ struct FloatingResult: View {
                         if optimiser.error == nil {
                             FormatSelectorView(optimiser: optimiser)
                                 .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
-                                .opacity(hovering ? 1 : 0.1)
-                                .animation(.easeOut(duration: 0.15), value: hovering)
+                                .opacity(isExpanded ? 1 : 0.1)
+                                .animation(.easeOut(duration: 0.15), value: isExpanded)
                         }
                     }
                 }
 
-                if hasThumbnail, hovering || optimiser.sharing {
+                if hasThumbnail, isExpanded || optimiser.sharing {
                     SideButtons(optimiser: optimiser, size: showsThumbnail ? 24 : 18)
                         .frame(width: 30, alignment: .bottom)
                         .fixedSize()
