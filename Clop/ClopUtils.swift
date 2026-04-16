@@ -313,10 +313,10 @@ func generateThumbnail(for url: URL, size: CGSize, onCompletion: @escaping (QLTh
         fileAt: url,
         size: size,
         scale: SCREEN_SCALE,
-        representationTypes: .thumbnail
+        representationTypes: .all
     )
 
-    QLThumbnailGenerator.shared.generateRepresentations(for: request) { thumbnail, type, error in
+    QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { thumbnail, error in
         DispatchQueue.main.async {
             if let error {
                 log.error("Error on generating thumbnail for \(url): \(error.localizedDescription)")
