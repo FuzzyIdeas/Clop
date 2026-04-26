@@ -2,6 +2,7 @@ import Cocoa
 import Defaults
 import Foundation
 import ImageIO
+import Lowtech
 import System
 import UniformTypeIdentifiers
 
@@ -184,7 +185,7 @@ private func imageHeight(_ file: FilePath) -> Int? {
 
 enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     // Processing steps (explicit, no implicit optimisation)
-    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil, location: String = "inPlace")
+    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil, dpi: Int? = nil, location: String = "inPlace")
     case downscale(factor: Double, location: String = "inPlace")
     case lowerBitrate(kbps: Int, location: String = "inPlace")
     case convert(to: String, location: String = "sameFolder")
@@ -218,7 +219,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var id: String {
         switch self {
-        case let .optimise(encoder, adaptive, videoEncoder, location): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)-\(location)"
+        case let .optimise(encoder, adaptive, videoEncoder, dpi, location): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)-\(dpi ?? 0)-\(location)"
         case let .downscale(factor, location): "downscale-\(factor)-\(location)"
         case let .lowerBitrate(kbps, location): "lowerBitrate-\(kbps)-\(location)"
         case let .convert(to, location): "convert-\(to)-\(location)"
@@ -270,9 +271,10 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var displayString: String {
         switch self {
-        case let .optimise(encoder, adaptive, videoEncoder, location):
+        case let .optimise(encoder, adaptive, videoEncoder, dpi, location):
             var params = ["encoder: \(videoEncoder?.rawValue ?? encoder.rawValue)"]
             if adaptive { params.append("adaptive: true") }
+            if let dpi { params.append("dpi: \(dpi)") }
             if location != "inPlace" { params.append("location: \(location)") }
             return "optimise(\(params.joined(separator: ", ")))"
         case let .downscale(factor, location):
@@ -398,6 +400,7 @@ extension PipelineStep: Decodable {
                 encoder: c.decodeIfPresent(EncoderQuality.self, forKey: DynKey("encoder")) ?? .medium,
                 adaptive: c.decodeIfPresent(Bool.self, forKey: DynKey("adaptive")) ?? false,
                 videoEncoder: c.decodeIfPresent(VideoEncoder.self, forKey: DynKey("videoEncoder")),
+                dpi: c.decodeIfPresent(Int.self, forKey: DynKey("dpi")),
                 location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
             )
         } else if container.contains(DynKey("downscale")) {
