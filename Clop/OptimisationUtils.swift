@@ -320,8 +320,10 @@ enum TempPipelineSegment {
     @Published var downscaleFactor = 1.0
     @Published var showDownscaleSlider = false
     @Published var audioBitrateOverride: Int?
+    @Published var pdfDPIOverride: Int?
     var downscaleDebounceTask: Task<Void, Never>?
     var lowerBitrateDebounceTask: Task<Void, Never>?
+    var pdfDPIDebounceTask: Task<Void, Never>?
     @Published var changePlaybackSpeedFactor = 1.0
     @Published var aggressive = false
 
@@ -625,7 +627,7 @@ enum TempPipelineSegment {
 
         // Extract video encoder override from the pipeline
         let videoEncoderOverride: VideoEncoder? = tempPipeline.compactMap { step in
-            if case let .optimise(_, _, ve, _) = step { return ve }
+            if case let .optimise(_, _, ve, _, _) = step { return ve }
             return nil
         }.last
 
@@ -687,10 +689,13 @@ enum TempPipelineSegment {
                             self.image = result
                         }
                     } else if type.isPDF, let pdf = self.pdf {
+                        // Honour DPI from a temp-pipeline `optimise(dpi:)` step, otherwise fall back to the slider override.
+                        let stepDPI: Int? = steps.compactMap { if case let .optimise(_, _, _, d, _) = $0 { return d }; return nil }.last
                         if let result = try? await runPDFPipeline(
                             pdf, actions: actions,
                             id: self.id,
-                            aggressiveOptimisation: aggressive ? true : nil
+                            aggressiveOptimisation: aggressive ? true : nil,
+                            dpiOverride: stepDPI ?? self.pdfDPIOverride
                         ) {
                             currentFile = result.path
                         }
@@ -1049,7 +1054,7 @@ enum TempPipelineSegment {
 
     func canDownscale() -> Bool {
         switch type {
-        case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie):
+        case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
             true
         case .audio:
             true
@@ -1183,6 +1188,30 @@ enum TempPipelineSegment {
         }
     }
 
+    func stepLowerPDFDPI() {
+        stopRemover()
+        guard type.isPDF else { return }
+
+        let stops = PDF_DPI_STOPS
+        let currentDPI = pdfDPIOverride ?? Defaults[aggressive ? .pdfDPIAggressive : .pdfDPI]
+
+        guard let currentIndex = stops.firstIndex(where: { $0 <= currentDPI }) ?? stops.indices.last else { return }
+        let nextIndex = currentIndex + 1
+        guard nextIndex < stops.count else { return }
+
+        let newDPI = stops[nextIndex]
+        pdfDPIOverride = newDPI
+        stepIndicator = "\(newDPI) DPI"
+
+        pdfDPIDebounceTask?.cancel()
+        pdfDPIDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            stepIndicator = ""
+            lowerPDFDPI(to: newDPI)
+        }
+    }
+
     func stepLowerBitrate() {
         stopRemover()
         guard type.isAudio else { return }
@@ -1205,6 +1234,34 @@ enum TempPipelineSegment {
             guard !Task.isCancelled else { return }
             stepIndicator = ""
             lowerBitrate(to: newBitrate)
+        }
+    }
+
+    func lowerPDFDPI(to dpi: Int) {
+        guard !inRemoval, type.isPDF else { return }
+
+        pdfDPIOverride = dpi
+
+        stopRemover()
+        isOriginal = false
+        error = nil
+        notice = nil
+        info = nil
+
+        guard let path = originalURL?.filePath ?? self.path else { return }
+
+        Task.init {
+            let pdf = PDF(path)
+            let _ = try? await runPDFPipeline(
+                pdf,
+                actions: [.optimise],
+                id: self.id,
+                allowLarger: true,
+                hideFloatingResult: hidden,
+                aggressiveOptimisation: aggressive ? true : nil,
+                dpiOverride: dpi,
+                source: source
+            )
         }
     }
 
@@ -2049,6 +2106,10 @@ let audioOptimisationQueue: OperationQueue = {
 @MainActor var videoOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 @MainActor var imageOptimiseDebouncers: [String: DispatchWorkItem] = [:]
 @MainActor var imageResizeDebouncers: [String: DispatchWorkItem] = [:]
+@MainActor var imagePipelineInFlight: [String: Task<Void, Never>] = [:]
+@MainActor var videoPipelineInFlight: [String: Task<Void, Never>] = [:]
+@MainActor var pdfPipelineInFlight: [String: Task<Void, Never>] = [:]
+@MainActor var audioPipelineInFlight: [String: Task<Void, Never>] = [:]
 var scalingFactor = 1.0
 
 @MainActor
