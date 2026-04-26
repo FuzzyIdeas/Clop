@@ -31,7 +31,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
         operationLabel(for: actions, filename: path.lastComponent?.string ?? "", aggressive: aggressive)
     }
 
-    let optimiser = OM.optimiser(id: id ?? pathString, type: .audio(audioType), operation: opLabel, hidden: hideFloatingResult, source: source)
+    let pipelineId = id ?? pathString
+
+    // Serialize per id: terminate the in-flight pipeline's running process and wait for it to unwind.
+    if let previousPipeline = audioPipelineInFlight[pipelineId] {
+        opt(pipelineId)?.stop(remove: false)
+        await previousPipeline.value
+    }
+
+    let optimiser = OM.optimiser(id: pipelineId, type: .audio(audioType), operation: opLabel, hidden: hideFloatingResult, source: source)
     optimiser.aggressive = aggressive
 
     var done = false
@@ -148,8 +156,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     }
     audioOptimiseDebouncers[pathString] = workItem
 
-    while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100_000_000)
+    let pipelineTask = Task<Void, Never> { @MainActor in
+        while !done, !workItem.isCancelled {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+    audioPipelineInFlight[pipelineId] = pipelineTask
+    await pipelineTask.value
+    if audioPipelineInFlight[pipelineId] == pipelineTask {
+        audioPipelineInFlight.removeValue(forKey: pipelineId)
     }
     return result
 }
