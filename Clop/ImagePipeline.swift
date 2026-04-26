@@ -200,9 +200,18 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     }
     let opLabel = operationLabel(for: effectiveActions, filename: img.path.lastComponent?.string ?? "", imageSize: img.size, aggressive: aggressive)
 
+    let pipelineId = id ?? pathString
+
+    // Serialize per id: terminate the in-flight pipeline's running process and wait for it to unwind.
+    // Prevents concurrent downscale passes from racing on the same cache paths (for-resize/<hash>.png, images/<hash>.png).
+    if let previousPipeline = imagePipelineInFlight[pipelineId] {
+        opt(pipelineId)?.stop(remove: false)
+        await previousPipeline.value
+    }
+
     // Set up optimiser
     let optimiser = OM.optimiser(
-        id: id ?? pathString, type: .image(img.type),
+        id: pipelineId, type: .image(img.type),
         operation: opLabel,
         hidden: hideFloatingResult, source: source, indeterminateProgress: true
     )
@@ -414,8 +423,16 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     }
 
     imageOptimiseDebouncers[pathString] = workItem
-    while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100_000_000)
+
+    let pipelineTask = Task<Void, Never> { @MainActor in
+        while !done, !workItem.isCancelled {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+    imagePipelineInFlight[pipelineId] = pipelineTask
+    await pipelineTask.value
+    if imagePipelineInFlight[pipelineId] == pipelineTask {
+        imagePipelineInFlight.removeValue(forKey: pipelineId)
     }
     return result
 }
