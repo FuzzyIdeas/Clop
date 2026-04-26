@@ -156,6 +156,21 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 ]
             ),
             ParamTemplate(
+                name: "dpi",
+                description: "PDF only — image resolution (300 = no downsampling)",
+                suggestions: ["300", "250", "200", "150", "100", "72", "48"],
+                freeText: true,
+                valueDescriptions: [
+                    "300": "no downsampling — preserves embedded image resolution",
+                    "250": "lightly downsample, near print quality",
+                    "200": "lightly downsample — good for screen reading",
+                    "150": "downsample for screen reading",
+                    "100": "smaller — readable but visibly degraded",
+                    "72": "screen quality",
+                    "48": "smallest, very low quality",
+                ]
+            ),
+            ParamTemplate(
                 name: "location",
                 description: "where to save the result",
                 suggestions: ["inPlace", "sameFolder", "temporaryFolder", "template"],
@@ -538,11 +553,12 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
     case "optimise":
         let encoderStr = params["encoder"] ?? "medium"
         let adaptive = params["adaptive"] == "true"
+        let dpi = params["dpi"].flatMap { Int($0) }
         let location = params["location"] ?? "inPlace"
         if let videoEncoder = VideoEncoder(rawValue: encoderStr) {
-            return .optimise(adaptive: adaptive, videoEncoder: videoEncoder, location: location)
+            return .optimise(adaptive: adaptive, videoEncoder: videoEncoder, dpi: dpi, location: location)
         }
-        return .optimise(encoder: EncoderQuality(rawValue: encoderStr) ?? .medium, adaptive: adaptive, location: location)
+        return .optimise(encoder: EncoderQuality(rawValue: encoderStr) ?? .medium, adaptive: adaptive, dpi: dpi, location: location)
 
     case "downscale":
         guard let factor = params["factor"].flatMap({ Double($0) }), factor > 0, factor <= 1 else { return nil }
@@ -610,7 +626,7 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
 
     case "runShortcut":
         guard let shortcutName = params["name"], !shortcutName.isEmpty else { return nil }
-        let shortcuts = SHM.shortcutsMap?.values.flatMap { $0 } ?? []
+        let shortcuts = SHM.shortcuts
         let shortcut = shortcuts.first(where: { $0.name == shortcutName }) ?? Shortcut(name: shortcutName, identifier: shortcutName)
         return .runShortcut(shortcut)
 
