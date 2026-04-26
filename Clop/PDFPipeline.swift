@@ -20,6 +20,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
     allowLarger: Bool = false,
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
+    dpiOverride: Int? = nil,
     source: OptimisationSource? = nil
 ) async throws -> PDF? {
     let path = pdf.path
@@ -32,7 +33,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
         operationLabel(for: actions, filename: path.lastComponent?.string ?? "", aggressive: aggressive)
     }
 
-    let optimiser = OM.optimiser(id: id ?? pathString, type: .pdf, operation: opLabel, hidden: hideFloatingResult, source: source)
+    let pipelineId = id ?? pathString
+
+    // Serialize per id: terminate the in-flight pipeline's running process and wait for it to unwind.
+    if let previousPipeline = pdfPipelineInFlight[pipelineId] {
+        opt(pipelineId)?.stop(remove: false)
+        await previousPipeline.value
+    }
+
+    let optimiser = OM.optimiser(id: pipelineId, type: .pdf, operation: opLabel, hidden: hideFloatingResult, source: source)
 
     // Extract crop size and shortcut from actions
     var cropSize: CropSize?
@@ -72,7 +81,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
                 log.debug("Running PDF pipeline \(actions) for \(pathString)")
 
                 let backupPath = pdf.path.clopBackupPath
-                optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
+                optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, dpi: dpiOverride)
                 if let cropSize {
                     optimisedPDF!.cropTo(aspectRatio: cropSize.longEdge ? cropSize.fractionalAspectRatio : cropSize.aspectRatio)
                 }
@@ -141,8 +150,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
     }
     pdfOptimiseDebouncers[pathString] = workItem
 
-    while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100_000_000)
+    let pipelineTask = Task<Void, Never> { @MainActor in
+        while !done, !workItem.isCancelled {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+    pdfPipelineInFlight[pipelineId] = pipelineTask
+    await pipelineTask.value
+    if pdfPipelineInFlight[pipelineId] == pipelineTask {
+        pdfPipelineInFlight.removeValue(forKey: pipelineId)
     }
     return result
 }
