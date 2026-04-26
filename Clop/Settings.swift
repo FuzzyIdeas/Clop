@@ -112,12 +112,14 @@ extension Defaults.Keys {
     static let useAggressiveOptimisationGIF = Key<Bool>("useAggressiveOptimisationGIF", default: false)
     static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
     static let pdfDPI = Key<Int>("pdfDPI", default: 300)
-    static let pdfDPIAggressive = Key<Int>("pdfDPIAggressive", default: 200)
+    /// 0 = Adaptive: target DPI is chosen per-PDF based on source image density.
+    static let pdfDPIAggressive = Key<Int>("pdfDPIAggressive", default: 0)
 
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
     static let pdfDirs = Key<[String]>("pdfDirs", default: [])
     static let audioDirs = Key<[String]>("audioDirs", default: [])
+    static let dirsHideFloatingResult = Key<Set<String>>("dirsHideFloatingResult", default: [])
     static let enableAutomaticImageOptimisations = Key<Bool>("enableAutomaticImageOptimisations", default: true)
     static let enableAutomaticVideoOptimisations = Key<Bool>("enableAutomaticVideoOptimisations", default: true)
     static let enableAutomaticPDFOptimisations = Key<Bool>("enableAutomaticPDFOptimisations", default: true)
@@ -301,6 +303,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .optimisePDFClipboard,
     .optimisedFileProtectionMs,
     .pdfDirs,
+    .dirsHideFloatingResult,
     .preserveDates,
     .preserveColorMetadata,
     .presetZones,

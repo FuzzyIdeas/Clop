@@ -11,13 +11,6 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDF")
 
 var GS = BIN_DIR.appendingPathComponent("gs").filePath!
 
-// DPI = 300 means no downsampling; below that we let Ghostscript downsample.
-let PDF_DPI_NO_DOWNSAMPLE = 300
-let PDF_DPI_MIN = 48
-let PDF_DPI_MAX = 300
-// Snap points used by the DPI slider, ordered high to low.
-let PDF_DPI_STOPS: [Int] = [300, 250, 200, 150, 100, 72, 48]
-
 func gsLossyArgs(downsample: Bool) -> [String] {
     [
         "-dAutoFilterColorImages=false",
@@ -136,6 +129,144 @@ func gsArgs(_ input: String, _ output: String, lossy: Bool, dpi: Int) -> [String
     return GS_BASE_ARGS + resArgs + optArgs + outArgs + GS_PRE_ARGS + [input] + GS_POST_ARGS
 }
 
+private struct PDFImageDimensions {
+    let widthPx: Int
+    let heightPx: Int
+    let pageWidthIn: Double
+    let pageHeightIn: Double
+
+    var dpi: Double {
+        let wDPI = Double(widthPx) / pageWidthIn
+        let hDPI = Double(heightPx) / pageHeightIn
+        return (wDPI + hDPI) / 2
+    }
+}
+
+private final class PDFImageDimensionsCollector {
+    var images: [PDFImageDimensions] = []
+    var pageWidthIn: Double = 0
+    var pageHeightIn: Double = 0
+}
+
+private func collectPDFImageDimensions(at path: FilePath) -> [PDFImageDimensions] {
+    guard let doc = CGPDFDocument(path.url as CFURL), doc.numberOfPages > 0 else { return [] }
+
+    let collector = PDFImageDimensionsCollector()
+    for pageNum in 1 ... doc.numberOfPages {
+        guard let page = doc.page(at: pageNum) else { continue }
+        let mediaBox = page.getBoxRect(.mediaBox)
+        guard mediaBox.width > 0, mediaBox.height > 0 else { continue }
+        collector.pageWidthIn = Double(mediaBox.width) / 72.0
+        collector.pageHeightIn = Double(mediaBox.height) / 72.0
+
+        guard let pageDict = page.dictionary else { continue }
+        var resourcesDict: CGPDFDictionaryRef?
+        guard CGPDFDictionaryGetDictionary(pageDict, "Resources", &resourcesDict),
+              let resourcesDict
+        else { continue }
+
+        var xobjectDict: CGPDFDictionaryRef?
+        guard CGPDFDictionaryGetDictionary(resourcesDict, "XObject", &xobjectDict),
+              let xobjectDict
+        else { continue }
+
+        CGPDFDictionaryApplyBlock(xobjectDict, { _, object, _ in
+            var stream: CGPDFStreamRef?
+            guard CGPDFObjectGetValue(object, .stream, &stream),
+                  let stream,
+                  let streamDict = CGPDFStreamGetDictionary(stream)
+            else { return true }
+
+            var subtypeName: UnsafePointer<CChar>?
+            guard CGPDFDictionaryGetName(streamDict, "Subtype", &subtypeName),
+                  let subtypeName,
+                  String(cString: subtypeName) == "Image"
+            else { return true }
+
+            var widthInt: CGPDFInteger = 0
+            var heightInt: CGPDFInteger = 0
+            guard CGPDFDictionaryGetInteger(streamDict, "Width", &widthInt),
+                  CGPDFDictionaryGetInteger(streamDict, "Height", &heightInt)
+            else { return true }
+
+            collector.images.append(PDFImageDimensions(
+                widthPx: Int(widthInt),
+                heightPx: Int(heightInt),
+                pageWidthIn: collector.pageWidthIn,
+                pageHeightIn: collector.pageHeightIn
+            ))
+            return true
+        }, nil)
+    }
+
+    return collector.images
+}
+
+/// Lower Tukey fence — drops abnormally low DPI values that come from small
+/// partial-page images mis-counted as low-DPI by the full-page heuristic.
+private func dropLowDPIOutliers(_ values: [Double]) -> [Double] {
+    guard values.count >= 4 else { return values }
+    let sorted = values.sorted()
+    func percentile(_ p: Double) -> Double {
+        let idx = max(0, min(Double(sorted.count - 1), Double(sorted.count - 1) * p))
+        let lo = Int(idx.rounded(.down))
+        let hi = Int(idx.rounded(.up))
+        let frac = idx - Double(lo)
+        return sorted[lo] * (1 - frac) + sorted[hi] * frac
+    }
+    let q1 = percentile(0.25)
+    let q3 = percentile(0.75)
+    let lo = q1 - 1.5 * (q3 - q1)
+    return values.filter { $0 >= lo }
+}
+
+private let MIN_IMAGES_AT_DPI_STOP = 3
+
+struct PDFDPIAnalysis {
+    let chosen: Int
+    let maxSourceDPI: Int?
+}
+
+/// Scan a PDF for image XObjects and return the highest filtered DPI, or nil
+/// when the PDF has no countable images. Used to populate the source DPI label
+/// when the user has chosen a fixed aggressive DPI (no adaptive choice needed).
+func scanPDFMaxImageDPI(at path: FilePath) -> Int? {
+    let images = collectPDFImageDimensions(at: path)
+    guard !images.isEmpty else { return nil }
+    let dpis = dropLowDPIOutliers(images.map(\.dpi))
+    guard !dpis.isEmpty else { return nil }
+    return Int((dpis.max() ?? 0).rounded())
+}
+
+/// Pick the highest stop ≤ `cap` where the cumulative count of images at-or-above
+/// that stop exceeds `MIN_IMAGES_AT_DPI_STOP`. Returns `cap` when the PDF has no
+/// images or no stop qualifies — preserves the existing user setting in those cases.
+/// Also reports the max image DPI in the source (after low-outlier filtering).
+func analyseAggressivePDFDPI(at path: FilePath, cap: Int) -> PDFDPIAnalysis {
+    let images = collectPDFImageDimensions(at: path)
+    guard !images.isEmpty else { return PDFDPIAnalysis(chosen: cap, maxSourceDPI: nil) }
+
+    let dpis = dropLowDPIOutliers(images.map(\.dpi))
+    guard !dpis.isEmpty else { return PDFDPIAnalysis(chosen: cap, maxSourceDPI: nil) }
+
+    let maxSourceDPI = Int((dpis.max() ?? 0).rounded())
+    let stops = PDF_DPI_STOPS.filter { $0 <= cap }
+    var freq: [Int: Int] = [:]
+    for dpi in dpis {
+        guard let bucket = stops.first(where: { Double($0) <= dpi }) else { continue }
+        freq[bucket, default: 0] += 1
+    }
+
+    var imagesAtOrAboveStop = 0
+    for stop in stops {
+        imagesAtOrAboveStop += freq[stop] ?? 0
+        if imagesAtOrAboveStop > MIN_IMAGES_AT_DPI_STOP {
+            return PDFDPIAnalysis(chosen: stop, maxSourceDPI: maxSourceDPI)
+        }
+    }
+    return PDFDPIAnalysis(chosen: cap, maxSourceDPI: maxSourceDPI)
+}
+
 let FONT_PATH: String = [
     "\(NSHomeDirectory())/Library/Fonts",
     "/Library/Fonts/",
@@ -236,8 +367,49 @@ class PDF: Optimisable {
         let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPDF]
         mainActor { optimiser.aggressive = aggressiveOptimisation }
 
-        let effectiveDPI = dpi ?? Defaults[aggressiveOptimisation ? .pdfDPIAggressive : .pdfDPI]
-        let args = gsArgs(path.string, tempFile.string, lossy: aggressiveOptimisation, dpi: effectiveDPI)
+        // Always run gs from the original (backed up on first optimisation) so
+        // re-optimisations don't double-encode and the user can step the DPI
+        // back up after stepping it down.
+        let backupPath = path.clopBackupPath
+        if let bp = backupPath, !bp.exists {
+            path.backup(path: bp, operation: .copy)
+        }
+        let inputPath: FilePath = (backupPath?.exists ?? false) ? backupPath! : path
+
+        let resolvedSetting: Int = if let dpi {
+            dpi
+        } else if aggressiveOptimisation {
+            Defaults[.pdfDPIAggressive]
+        } else {
+            Defaults[.pdfDPI]
+        }
+
+        let effectiveDPI: Int
+        var sourceMaxDPI: Int?
+        if resolvedSetting == PDF_DPI_ADAPTIVE {
+            let analysis = analyseAggressivePDFDPI(at: inputPath, cap: PDF_DPI_NO_DOWNSAMPLE)
+            effectiveDPI = analysis.chosen
+            sourceMaxDPI = analysis.maxSourceDPI
+            if let sourceMax = analysis.maxSourceDPI {
+                log.debug("Adaptive PDF DPI for \(inputPath.string): chose \(analysis.chosen) (source max \(sourceMax))")
+            }
+        } else {
+            effectiveDPI = resolvedSetting
+            if aggressiveOptimisation || dpi != nil {
+                sourceMaxDPI = scanPDFMaxImageDPI(at: inputPath)
+            }
+        }
+
+        if let sourceMaxDPI {
+            mainActor {
+                if optimiser.oldDPI == nil {
+                    optimiser.oldDPI = sourceMaxDPI
+                }
+                let baseDPI = optimiser.oldDPI ?? sourceMaxDPI
+                optimiser.newDPI = min(baseDPI, effectiveDPI)
+            }
+        }
+        let args = gsArgs(inputPath.string, tempFile.string, lossy: aggressiveOptimisation, dpi: effectiveDPI)
         let proc = try tryProc(GS.string, args: args, tries: 3, captureOutput: true, env: GHOSTSCRIPT_ENV) { proc in
             mainActor { [weak self] in
                 guard let self else { return }
@@ -248,7 +420,6 @@ class PDF: Optimisable {
         guard proc.terminationStatus == 0 else {
             throw ClopProcError.processError(proc)
         }
-        path.backup(path: path.clopBackupPath, operation: .copy)
 
         tempFile.waitForFile(for: 2)
         try? tempFile.setOptimisationStatusXattr("true")

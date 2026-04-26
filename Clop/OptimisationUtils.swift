@@ -309,6 +309,9 @@ enum TempPipelineSegment {
     @Published var oldBitrate: Int? = nil
     @Published var newBitrate: Int? = nil
 
+    @Published var oldDPI: Int? = nil
+    @Published var newDPI: Int? = nil
+
     @Published var error: String? = nil
     @Published var notice: String? = nil
     @Published var info: String? = nil
@@ -495,6 +498,18 @@ enum TempPipelineSegment {
     var deleter: DispatchWorkItem? { didSet {
         oldValue?.cancel()
     }}
+
+    /// The DPI shown as "current" in PDF UI (sliders, indicators) when the user
+    /// hasn't dragged a manual override. Resolves the Adaptive sentinel via the
+    /// optimiser's `newDPI` (set during optimisation), falling back to the
+    /// no-downsample stop if no optimisation has run yet.
+    var effectiveBasePDFDPI: Int {
+        if aggressive {
+            let setting = Defaults[.pdfDPIAggressive]
+            return setting == PDF_DPI_ADAPTIVE ? (newDPI ?? PDF_DPI_NO_DOWNSAMPLE) : setting
+        }
+        return Defaults[.pdfDPI]
+    }
 
     nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {
         lhs.id == rhs.id
@@ -1193,7 +1208,7 @@ enum TempPipelineSegment {
         guard type.isPDF else { return }
 
         let stops = PDF_DPI_STOPS
-        let currentDPI = pdfDPIOverride ?? Defaults[aggressive ? .pdfDPIAggressive : .pdfDPI]
+        let currentDPI = pdfDPIOverride ?? effectiveBasePDFDPI
 
         guard let currentIndex = stops.firstIndex(where: { $0 <= currentDPI }) ?? stops.indices.last else { return }
         let nextIndex = currentIndex + 1
@@ -2425,6 +2440,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
+    pdfDPI: Int? = nil,
     optimisationCount: inout Int,
     copyToClipboard: Bool,
     source: OptimisationSource? = nil,
@@ -2626,6 +2642,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                         copyToClipboard: copyToClipboard,
                         hideFloatingResult: hideFloatingResult,
                         aggressiveOptimisation: aggressiveOptimisation,
+                        dpiOverride: pdfDPI,
                         source: source
                     )
                 }
@@ -2702,7 +2719,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
 }
 
 @MainActor func showFloatingThumbnails(force: Bool = false) {
-    guard Defaults[.enableFloatingResults], !floatingResultsWindow.isVisible || force else {
+    guard Defaults[.enableFloatingResults] || DM.showDropZone, !floatingResultsWindow.isVisible || force else {
         return
     }
 
@@ -2751,6 +2768,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             changePlaybackSpeedBy: req.changePlaybackSpeedFactor,
                             aggressiveOptimisation: req.aggressiveOptimisation,
                             adaptiveOptimisation: req.adaptiveOptimisation,
+                            pdfDPI: req.pdfDPI,
                             optimisationCount: &cliOptimisationCount,
                             copyToClipboard: req.copyToClipboard,
                             source: req.source.optSource,
@@ -2798,7 +2816,8 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                         convertedFrom: opt.convertedFromURL?.filePath?.string,
                         oldBytes: opt.oldBytes ?! url.existingFilePath?.fileSize() ?? 0, newBytes: opt.newBytes,
                         oldWidthHeight: opt.oldSize, newWidthHeight: opt.newSize,
-                        oldBitrate: opt.oldBitrate, newBitrate: opt.newBitrate
+                        oldBitrate: opt.oldBitrate, newBitrate: opt.newBitrate,
+                        oldDPI: opt.oldDPI, newDPI: opt.newDPI
                     )
                 } catch let error as ClopError {
                     if let opt = await opt(url.absoluteString), await opt.running {

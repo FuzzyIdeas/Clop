@@ -547,7 +547,7 @@ struct PDFDPISlider: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
     var stops: [Int] { PDF_DPI_STOPS }
-    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI) }
+    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
 
     var body: some View {
         GeometryReader { geo in
@@ -607,7 +607,7 @@ struct PDFDPISlider: View {
                 },
                 onRelease: { factor in
                     let newDPI = stops[dpiIndex(for: factor)]
-                    let startDPI = optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI)
+                    let startDPI = optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI
                     dragDPI = nil
                     optimiser.stepIndicator = ""
                     optimiser.showDownscaleSlider = false
@@ -658,7 +658,7 @@ struct HorizontalPDFDPISlider: View {
     @Default(.pdfDPIAggressive) var defaultDPIAggressive
 
     var stops: [Int] { PDF_DPI_STOPS }
-    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI) }
+    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
 
     var body: some View {
         GeometryReader { geo in
@@ -717,7 +717,7 @@ struct HorizontalPDFDPISlider: View {
                 },
                 onRelease: { factor in
                     let newDPI = stops[dpiIndex(for: factor)]
-                    let startDPI = optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI)
+                    let startDPI = optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI
                     dragDPI = nil
                     optimiser.stepIndicator = ""
                     optimiser.showDownscaleSlider = false

@@ -232,6 +232,15 @@ struct ProgressPayload: Codable {
     let fractionCompleted: Double
 }
 
+// DPI = 300 means no downsampling; below that we let Ghostscript downsample.
+let PDF_DPI_NO_DOWNSAMPLE = 300
+let PDF_DPI_MIN = 48
+let PDF_DPI_MAX = 300
+// Sentinel value indicating the aggressive DPI should be picked adaptively per PDF.
+let PDF_DPI_ADAPTIVE = 0
+// Snap points used by the DPI slider, ordered high to low.
+let PDF_DPI_STOPS: [Int] = [300, 250, 200, 150, 100, 72, 48]
+
 struct OptimisationResponseError: Codable, Identifiable {
     let error: String
     let forURL: URL
@@ -252,6 +261,9 @@ struct OptimisationResponse: Codable, Identifiable {
 
     var oldBitrate: Int? = nil
     var newBitrate: Int? = nil
+
+    var oldDPI: Int? = nil
+    var newDPI: Int? = nil
 
     var id: String { path }
     var percentageSaved: Double { 100 - (Double(newBytes) / Double(oldBytes == 0 ? 1 : oldBytes) * 100) }
@@ -276,6 +288,9 @@ struct OptimisationRequest: Codable, Identifiable {
     let source: String
     var output: String?
     var removeAudio: Bool?
+    /// PDF aggressive DPI override: nil = use the user setting, 0 = adaptive,
+    /// positive = a specific stop from `PDF_DPI_STOPS`.
+    var pdfDPI: Int?
 }
 
 func runningClopApp() -> NSRunningApplication? {

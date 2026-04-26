@@ -70,6 +70,9 @@ class DragManager: ObservableObject {
                 log.debug("Option pressed, hiding drop zone")
                 hideCursorDropZone()
                 dropZoneAtCursor = false
+                if !Defaults[.enableFloatingResults], floatingResultsWindow.isVisible {
+                    floatingResultsWindow.close()
+                }
             }
         }
     }
