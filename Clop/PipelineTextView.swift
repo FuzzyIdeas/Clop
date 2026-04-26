@@ -9,7 +9,7 @@ import SwiftUI
 private let PIPELINE_FONT = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 private let PIPELINE_FONT_BOLD = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
 
-func highlightPipelineText(_ text: String, fileType: ClopFileType) -> NSAttributedString {
+func highlightPipelineText(_ text: String, fileType: ClopFileType?) -> NSAttributedString {
     let font = PIPELINE_FONT
     let baseAttrs: [NSAttributedString.Key: Any] = [
         .font: font,
@@ -115,7 +115,7 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType) -> NSAttribut
                         let paramNameStr = paramsNS.substring(with: nameMatchRange)
                         let allParams = template.mandatoryParams + template.optionalParams
                         let paramTemplate = allParams.first(where: { $0.name == paramNameStr })
-                        let typeSpecific = paramTemplate?.suggestionsForType[fileType]
+                        let typeSpecific = fileType.flatMap { paramTemplate?.suggestionsForType[$0] }
                         let unquotedValue = valueStr.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
                         let isInvalidValue = typeSpecific != nil && !typeSpecific!.contains(unquotedValue)
 
@@ -526,7 +526,7 @@ struct PipelineTextView: NSViewRepresentable {
     @Binding var text: String
     @Environment(\.colorScheme) private var colorScheme
 
-    let fileType: ClopFileType
+    let fileType: ClopFileType?
     let placeholder: String
     var onEditingChanged: ((Bool) -> Void)?
     var onPrefixChanged: ((String) -> Void)?

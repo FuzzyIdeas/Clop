@@ -8,15 +8,28 @@ import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PipelineExecution")
 
+/// Map an EncoderQuality to a fixed PDF DPI so the encoder preset is deterministic
+/// rather than driven by user defaults. An explicit `dpi:` param on the step still
+/// overrides this mapping.
+func pdfDPIForEncoder(_ encoder: EncoderQuality?) -> Int? {
+    switch encoder {
+    case .lossless: PDF_DPI_NO_DOWNSAMPLE
+    case .medium: PDF_DPI_ADAPTIVE
+    case .aggressive: 100
+    case .none: nil
+    }
+}
+
 @MainActor
 final class PipelineExecution {
-    init(file: FilePath, source: OptimisationSource, optimiser: Optimiser, fileType: ClopFileType) {
+    init(file: FilePath, source: OptimisationSource, optimiser: Optimiser, fileType: ClopFileType, forceHide: Bool = false) {
         currentFile = file
         originalFile = file
         context = TemplateContext(sourceFile: file)
         self.source = source
         self.optimiser = optimiser
         self.fileType = fileType
+        self.forceHide = forceHide
     }
 
     var currentFile: FilePath
@@ -30,8 +43,9 @@ final class PipelineExecution {
     let fileType: ClopFileType
     let source: OptimisationSource
     let optimiser: Optimiser
+    let forceHide: Bool
 
-    var hide: Bool { currentFile.string.contains("/pipeline-") }
+    var hide: Bool { forceHide || currentFile.string.contains("/pipeline-") }
 
     // MARK: - Compiled Batch Execution
 
@@ -51,7 +65,9 @@ final class PipelineExecution {
         let usedTempCopy = inputFile != currentFile
 
         let aggressive = batch.contains { if case let .optimise(enc, _, _, _, _) = $0 { return enc == .aggressive }; return false }
-        let dpi: Int? = batch.compactMap { if case let .optimise(_, _, _, d, _) = $0 { return d }; return nil }.last
+        let explicitDPI: Int? = batch.compactMap { if case let .optimise(_, _, _, d, _) = $0 { return d }; return nil }.last
+        let lastEncoder: EncoderQuality? = batch.compactMap { if case let .optimise(enc, _, _, _, _) = $0 { return enc }; return nil }.last
+        let dpi: Int? = explicitDPI ?? pdfDPIForEncoder(lastEncoder)
 
         var success = false
 
@@ -127,12 +143,13 @@ final class PipelineExecution {
             }
         case .pdf:
             let pdf = PDF(inputFile)
+            let pdfDPI = dpi ?? pdfDPIForEncoder(encoder)
             if let result = try? await runPDFPipeline(
                 pdf, actions: [.optimise],
                 allowLarger: false,
                 hideFloatingResult: hide,
                 aggressiveOptimisation: aggressive ? true : nil,
-                dpiOverride: dpi,
+                dpiOverride: pdfDPI,
                 source: source
             ) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)

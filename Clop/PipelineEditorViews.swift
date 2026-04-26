@@ -93,7 +93,7 @@ struct PipelineEditorRow: View {
             }
         } label: {
             HStack(spacing: 3) {
-                SwiftUI.Image(systemName: "plus.circle.fill")
+                // SwiftUI.Image(systemName: "plus.circle.fill")
                 Text("Add pipeline")
             }
             .font(.regular(10))
@@ -114,20 +114,20 @@ struct PipelineEditorRow: View {
                     .font(.regular(10))
                     .foregroundColor(.secondary)
                 Text(sourceLabel)
-                    .mono(11, weight: .medium)
+                    .mono(11, weight: .bold)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
                 addPipelineMenu
-                if isDirSource, let onRemoveSource {
-                    Button(action: onRemoveSource) {
-                        SwiftUI.Image(systemName: "xmark.circle.fill")
-                            .font(.regular(11))
-                            .foregroundColor(.secondary.opacity(0.6))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove this folder from automation")
+                Button(action: { onRemoveSource?() }) {
+                    SwiftUI.Image(systemName: "xmark.circle.fill")
+                        .font(.regular(11))
+                        .foregroundColor(.secondary.opacity(isDirSource ? 0.6 : 0.15))
                 }
+                .buttonStyle(.plain)
+                .disabled(!isDirSource || onRemoveSource == nil)
+                .allowsHitTesting(isDirSource)
+                .help(isDirSource ? "Remove this folder from automation" : "")
             }
             .contentShape(Rectangle())
             .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }
@@ -228,6 +228,8 @@ struct PipelineFieldRow: View {
 
                     boltButton
 
+                    eyeButton
+
                     Button(action: onDelete) {
                         SwiftUI.Image(systemName: "xmark.circle.fill")
                             .font(.regular(11))
@@ -303,6 +305,46 @@ struct PipelineFieldRow: View {
         }
     }
 
+    var eyeButton: some View {
+        Button(action: {
+            var updated = pipeline
+            updated.hideResult.toggle()
+            if pipeline.isLibraryReference, let libID = pipeline.libraryID,
+               let idx = savedPipelines.firstIndex(where: { $0.id == libID })
+            {
+                savedPipelines[idx].hideResult.toggle()
+            }
+            onPipelineChanged(updated)
+        }) {
+            SwiftUI.Image(systemName: resolved.hideResult ? "eye.slash.fill" : "eye.fill")
+                .font(.regular(10))
+                .foregroundColor(resolved.hideResult ? .secondary.opacity(0.4) : .blue.opacity(0.7))
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(showEyeTip ? 1.4 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: showEyeTip)
+        .onHover { showEyeTip = $0 }
+        .overlay(alignment: .bottomTrailing) {
+            if showEyeTip {
+                Text(
+                    resolved.hideResult
+                        ? "Click to show the floating result.\nThe pipeline currently runs silently in the background."
+                        : "Click to hide the floating result.\nThe pipeline will run silently without showing a thumbnail."
+                )
+                .font(.caption)
+                .foregroundStyle(.white)
+                .frame(width: 200)
+                .multilineTextAlignment(.leading)
+                .padding(6)
+                .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
+                .fixedSize()
+                .offset(x: -20, y: 22)
+                .allowsHitTesting(false)
+                .zIndex(10)
+            }
+        }
+    }
+
     /// When the name field is submitted: if name is non-empty, save/update in library.
     /// If name is cleared, remove from library and make inline.
     func syncToLibrary() {
@@ -346,6 +388,7 @@ struct PipelineFieldRow: View {
     @State private var currentPrefix = ""
     @State private var coordHolder = RefHolder<PipelineTextView.Coordinator>()
     @State private var showBoltTip = false
+    @State private var showEyeTip = false
     @State private var pipelineName = ""
 
     @Default(.savedPipelines) private var savedPipelines
@@ -628,7 +671,7 @@ struct SavedPipelineRow: View {
             if isEditingLib {
                 PipelineTextView(
                     text: $editText,
-                    fileType: pipeline.fileType ?? .image,
+                    fileType: pipeline.fileType,
                     placeholder: "Pipeline steps...",
                     coordinatorRef: { coordHolder.value = $0 }
                 )

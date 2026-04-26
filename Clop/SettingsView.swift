@@ -1614,6 +1614,7 @@ struct GeneralSettingsView: View {
     @Default(.optimisePDFClipboard) var optimisePDFClipboard
     @Default(.optimiseImagePathClipboard) var optimiseImagePathClipboard
     @Default(.enableClipboardOptimiser) var enableClipboardOptimiser
+    @Default(.clipboardIgnoredAppBundleIds) var clipboardIgnoredAppBundleIds
     @Default(.appendClipboardResults) var appendClipboardResults
     @Default(.copyConsecutiveClipboardImages) var copyConsecutiveClipboardImages
     @Default(.clipboardAccumulationTimeout) var clipboardAccumulationTimeout
@@ -1677,6 +1678,19 @@ struct GeneralSettingsView: View {
                 }
                 .disabled(!enableClipboardOptimiser)
                 .padding(.leading, 20)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Ignored apps").regular(13)
+                    Text("Skip clipboard optimisation when one of these apps is in the foreground")
+                        .round(11, weight: .regular)
+                        .foregroundColor(.secondary)
+                    IgnoredAppsPicker(bundleIds: $clipboardIgnoredAppBundleIds, enabled: enableClipboardOptimiser)
+                        .padding(.top, 2)
+                }
+                .padding(.leading, 20)
+                .disabled(!enableClipboardOptimiser)
+                .opacity(enableClipboardOptimiser ? 1 : 0.6)
+
                 Toggle(isOn: $appendClipboardResults) {
                     Text("Keep all clipboard results").regular(13)
                         + Text("\nShow each clipboard optimisation as a separate result instead of replacing the previous one").round(11, weight: .regular).foregroundColor(.secondary)

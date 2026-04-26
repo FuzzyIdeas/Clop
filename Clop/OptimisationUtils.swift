@@ -564,7 +564,7 @@ enum TempPipelineSegment {
             switch step {
             case let .downscale(factor, _):
                 actions.append(.downscale(factor: factor, cropSize: nil))
-            case let .crop(width, height, _, longEdge, _):
+            case let .crop(width, height, longEdge, _):
                 let cs = CropSize(
                     width: longEdge ?? width ?? 0,
                     height: longEdge != nil ? (longEdge ?? 0) : (height ?? 0),
@@ -1672,7 +1672,6 @@ enum TempPipelineSegment {
         if !tempPipeline.isEmpty {
             updateTempPipeline(with: .crop(
                 width: size.width.i, height: size.height.i,
-                keepAspectRatio: true,
                 longEdge: size.longEdge ? max(size.width.i, size.height.i) : nil
             ))
             executeTempPipeline()

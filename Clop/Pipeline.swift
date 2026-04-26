@@ -15,12 +15,13 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Pipeline")
 // MARK: - Pipeline
 
 struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
-    init(id: String = UUID().uuidString, steps: [PipelineStep], name: String? = nil, rawText: String? = nil, skipOptimisation: Bool = false, libraryID: String? = nil, fileType: ClopFileType? = nil) {
+    init(id: String = UUID().uuidString, steps: [PipelineStep], name: String? = nil, rawText: String? = nil, skipOptimisation: Bool = false, hideResult: Bool = false, libraryID: String? = nil, fileType: ClopFileType? = nil) {
         self.id = id
         self.steps = steps
         self.name = name
         self.rawText = rawText
         self.skipOptimisation = skipOptimisation
+        self.hideResult = hideResult
         self.libraryID = libraryID
         self.fileType = fileType
     }
@@ -36,6 +37,7 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
         name = try container.decodeIfPresent(String.self, forKey: .name)
         rawText = try container.decodeIfPresent(String.self, forKey: .rawText)
         skipOptimisation = try container.decodeIfPresent(Bool.self, forKey: .skipOptimisation) ?? false
+        hideResult = try container.decodeIfPresent(Bool.self, forKey: .hideResult) ?? false
         libraryID = try container.decodeIfPresent(String.self, forKey: .libraryID)
         fileType = try container.decodeIfPresent(ClopFileType.self, forKey: .fileType)
 
@@ -52,6 +54,7 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
     var name: String?
     var rawText: String?
     var skipOptimisation = false
+    var hideResult = false
     var libraryID: String?
     var fileType: ClopFileType?
 
@@ -289,7 +292,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     optimiser: Optimiser,
     fileType: ClopFileType
 ) async throws -> (file: FilePath, shownVisibleResult: Bool) {
-    let exec = PipelineExecution(file: file, source: source, optimiser: optimiser, fileType: fileType)
+    let exec = PipelineExecution(file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: pipeline.hideResult)
 
     log.debug("Pipeline: executing \(pipeline.steps.count) steps on \(file.string)")
 
@@ -341,7 +344,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             await exec.handleLowerBitrate(kbps: kbps, location: location)
         case let .convert(formatStr, location):
             await exec.handleConvert(formatStr: formatStr, location: location)
-        case let .crop(width, height, _, longEdge, location):
+        case let .crop(width, height, longEdge, location):
             await exec.handleCrop(width: width, height: height, longEdge: longEdge, location: location)
         case let .copy(to):
             try exec.handleCopy(to: to)
@@ -436,11 +439,12 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             log.info("Pipeline: '\(name)' completed, result file: \(resultFile.string), visible: \(shownVisible)")
 
             // If no step showed a visible result, show one via the parent optimiser.
+            // Respect the pipeline's hideResult toggle: keep the optimiser hidden when set.
             if !shownVisible {
                 let resultSize = resultFile.fileSize() ?? 0
                 let originalSize = file.fileSize() ?? 0
                 optimiser.url = resultFile.url
-                optimiser.hidden = false
+                optimiser.hidden = pipeline.hideResult
                 optimiser.thumbnail = NSImage(contentsOf: resultFile.url)
                 optimiser.finish(oldBytes: originalSize, newBytes: resultSize)
                 anyVisibleResult = true

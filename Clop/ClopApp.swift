@@ -282,6 +282,7 @@ class AppDelegate: AppDelegateParent {
             }
 
             syncSettings()
+            _ = LastFocusedAppTracker.shared
             Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
             Migrations.run()
             createFileCleaner()
@@ -1061,6 +1062,14 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             guard let item = NSPasteboard.general.pasteboardItems?.first, item.string(forType: .optimisationStatus) == nil, !TRANSIENT_TYPES.hasElements(from: Set(item.types)) else {
+                return
+            }
+
+            let ignoredApps = Defaults[.clipboardIgnoredAppBundleIds]
+            if !ignoredApps.isEmpty,
+               let frontmostBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+               ignoredApps.contains(frontmostBundleID)
+            {
                 return
             }
 
