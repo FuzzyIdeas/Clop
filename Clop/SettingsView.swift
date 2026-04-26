@@ -257,6 +257,8 @@ struct PDFSettingsView: View {
     @Default(.maxPDFSizeMB) var maxPDFSizeMB
     @Default(.maxPDFFileCount) var maxPDFFileCount
     @Default(.useAggressiveOptimisationPDF) var useAggressiveOptimisationPDF
+    @Default(.pdfDPI) var pdfDPI
+    @Default(.pdfDPIAggressive) var pdfDPIAggressive
     @Default(.enableAutomaticPDFOptimisations) var enableAutomaticPDFOptimisations
     @Default(.optimisedPDFBehaviour) var optimisedPDFBehaviour
     @Default(.sameFolderNameTemplatePDF) var sameFolderNameTemplatePDF
@@ -295,10 +297,35 @@ struct PDFSettingsView: View {
                     Text("Use more aggressive optimisation").regular(13)
                         + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
+                PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive)
             }
         }
         .scrollContentBackground(.hidden)
         .padding(4)
+    }
+}
+
+struct PDFDPIPickerView: View {
+    let label: String
+    @Binding var binding: Int
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).regular(13)
+                Text("300 DPI keeps images at full resolution. Lower values can make the PDF appear less sharp.")
+                    .round(11, weight: .regular).foregroundColor(.secondary)
+            }
+            Spacer()
+            Picker("", selection: $binding) {
+                ForEach(PDF_DPI_STOPS, id: \.self) { dpi in
+                    Text(dpi == PDF_DPI_NO_DOWNSAMPLE ? "\(dpi) (no downsample)" : "\(dpi)").tag(dpi)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+        }
     }
 }
 
