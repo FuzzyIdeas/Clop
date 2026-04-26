@@ -55,6 +55,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     func label(for type: ItemType) -> String {
         switch self {
         case .downscale where type.isAudio: "Lower bitrate"
+        case .downscale where type.isPDF: "Lower DPI"
         default: label
         }
     }
@@ -534,6 +535,228 @@ struct HorizontalBitrateSlider: View {
     @State private var dragBitrate: Int?
 }
 
+// MARK: - PDFDPISlider (vertical)
+
+struct PDFDPISlider: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var size: CGFloat
+
+    @Default(.pdfDPI) var defaultDPI
+    @Default(.pdfDPIAggressive) var defaultDPIAggressive
+    @Default(.floatingResultsCorner) var floatingResultsCorner
+
+    var stops: [Int] { PDF_DPI_STOPS }
+    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI) }
+
+    var body: some View {
+        GeometryReader { geo in
+            let knobSize = size * 0.8
+            let trackTop = knobSize / 2
+            let trackHeight = max(geo.size.height - knobSize, 1)
+            let centerX = geo.size.width / 2
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(.primary.opacity(0.15))
+                    .frame(width: 3, height: trackHeight)
+                    .position(x: centerX, y: geo.size.height / 2)
+
+                ForEach(Array(stops.enumerated()), id: \.offset) { index, dpi in
+                    let y = yPosition(for: index, trackTop: trackTop, trackHeight: trackHeight)
+                    let isActive = dpi == currentDPI
+
+                    RoundedRectangle(cornerRadius: 0.5)
+                        .fill(.primary.opacity(isActive ? 0.7 : 0.3))
+                        .frame(width: size * 0.55, height: isActive ? 2 : 1.5)
+                        .position(x: centerX, y: y)
+                }
+
+                if let index = nearestStopIndex(for: currentDPI) {
+                    let knobY = yPosition(for: index, trackTop: trackTop, trackHeight: trackHeight)
+                    let isTrailing = floatingResultsCorner.isTrailing
+                    let tooltipOffset = knobSize / 2 + 36
+                    Circle()
+                        .fill(.white)
+                        .frame(width: knobSize, height: knobSize)
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .overlay {
+                            Text("\(currentDPI) DPI")
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .foregroundColor(.primary)
+                                .fixedSize()
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                                .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                                .offset(x: isTrailing ? -tooltipOffset : tooltipOffset)
+                        }
+                        .position(x: centerX, y: knobY)
+                }
+            }
+            .background(.ultraThickMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        }
+        .overlay(
+            SliderEventOverlay(
+                buttonSize: size,
+                onDrag: { factor in
+                    let dpi = stops[dpiIndex(for: factor)]
+                    dragDPI = dpi
+                    optimiser.stepIndicator = "\(dpi) DPI"
+                },
+                onRelease: { factor in
+                    let newDPI = stops[dpiIndex(for: factor)]
+                    let startDPI = optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI)
+                    dragDPI = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showDownscaleSlider = false
+                    if newDPI != startDPI {
+                        optimiser.lowerPDFDPI(to: newDPI)
+                    }
+                },
+                onCancel: {
+                    dragDPI = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showDownscaleSlider = false
+                }
+            )
+        )
+    }
+
+    func yPosition(for index: Int, trackTop: CGFloat, trackHeight: CGFloat) -> CGFloat {
+        let count = stops.count
+        guard count > 1 else { return trackTop }
+        // stops[0] is the highest DPI (300) — top of the vertical track.
+        return trackTop + CGFloat(index) / CGFloat(count - 1) * trackHeight
+    }
+
+    func dpiIndex(for factor: Double) -> Int {
+        let count = stops.count
+        guard count > 1 else { return 0 }
+        // factor 1.0 (top of slider) = highest DPI = index 0; factor 0.1 = lowest = last index.
+        let normalized = (1.0 - factor) / 0.9
+        return max(0, min(count - 1, Int(round(normalized * Double(count - 1)))))
+    }
+
+    func nearestStopIndex(for dpi: Int) -> Int? {
+        guard !stops.isEmpty else { return nil }
+        return stops.indices.min(by: { abs(stops[$0] - dpi) < abs(stops[$1] - dpi) })
+    }
+
+    @State private var dragDPI: Int?
+}
+
+// MARK: - HorizontalPDFDPISlider
+
+struct HorizontalPDFDPISlider: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var size: CGFloat
+
+    @Default(.pdfDPI) var defaultDPI
+    @Default(.pdfDPIAggressive) var defaultDPIAggressive
+
+    var stops: [Int] { PDF_DPI_STOPS }
+    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI) }
+
+    var body: some View {
+        GeometryReader { geo in
+            let knobSize = size * 0.8
+            let trackLeft = knobSize / 2
+            let trackWidth = max(geo.size.width - knobSize, 1)
+            let centerY = geo.size.height / 2
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(.primary.opacity(0.15))
+                    .frame(width: trackWidth, height: 3)
+                    .position(x: geo.size.width / 2, y: centerY)
+
+                ForEach(Array(stops.enumerated()), id: \.offset) { index, dpi in
+                    let x = xPosition(for: index, trackLeft: trackLeft, trackWidth: trackWidth)
+                    let isActive = dpi == currentDPI
+
+                    RoundedRectangle(cornerRadius: 0.5)
+                        .fill(.primary.opacity(isActive ? 0.7 : 0.3))
+                        .frame(width: isActive ? 2 : 1.5, height: size * 0.55)
+                        .position(x: x, y: centerY)
+                }
+
+                if let index = nearestStopIndex(for: currentDPI) {
+                    let knobX = xPosition(for: index, trackLeft: trackLeft, trackWidth: trackWidth)
+                    Circle()
+                        .fill(.white)
+                        .frame(width: knobSize, height: knobSize)
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .overlay(alignment: .top) {
+                            Text("\(currentDPI) DPI")
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .foregroundColor(.primary)
+                                .fixedSize()
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                                .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                                .offset(y: -knobSize - 4)
+                        }
+                        .position(x: knobX, y: centerY)
+                }
+            }
+            .background(.ultraThickMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        }
+        .overlay(
+            SliderEventOverlay(
+                buttonSize: size,
+                isHorizontal: true,
+                onDrag: { factor in
+                    let dpi = stops[dpiIndex(for: factor)]
+                    dragDPI = dpi
+                    optimiser.stepIndicator = "\(dpi) DPI"
+                },
+                onRelease: { factor in
+                    let newDPI = stops[dpiIndex(for: factor)]
+                    let startDPI = optimiser.pdfDPIOverride ?? (optimiser.aggressive ? defaultDPIAggressive : defaultDPI)
+                    dragDPI = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showDownscaleSlider = false
+                    if newDPI != startDPI {
+                        optimiser.lowerPDFDPI(to: newDPI)
+                    }
+                },
+                onCancel: {
+                    dragDPI = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showDownscaleSlider = false
+                }
+            )
+        )
+    }
+
+    func xPosition(for index: Int, trackLeft: CGFloat, trackWidth: CGFloat) -> CGFloat {
+        let count = stops.count
+        guard count > 1 else { return trackLeft }
+        // Highest DPI on the LEFT (factor 1.0), lowest DPI on the RIGHT — matches "minus button" UX.
+        return trackLeft + CGFloat(index) / CGFloat(count - 1) * trackWidth
+    }
+
+    func dpiIndex(for factor: Double) -> Int {
+        let count = stops.count
+        guard count > 1 else { return 0 }
+        // factor 1.0 (left) → index 0 (highest DPI); factor 0.1 (right) → last index (lowest DPI).
+        let normalized = (1.0 - factor) / 0.9
+        return max(0, min(count - 1, Int(round(normalized * Double(count - 1)))))
+    }
+
+    func nearestStopIndex(for dpi: Int) -> Int? {
+        guard !stops.isEmpty else { return nil }
+        return stops.indices.min(by: { abs(stops[$0] - dpi) < abs(stops[$1] - dpi) })
+    }
+
+    @State private var dragDPI: Int?
+}
+
 // MARK: - Slider AppKit event handler
 
 private struct SliderEventOverlay: NSViewRepresentable {
@@ -790,6 +1013,23 @@ struct LowerBitrateButton: View {
     }
 }
 
+struct LowerPDFDPIButton: View {
+    @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        Button(action: {}, label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) })
+            .contentShape(Rectangle())
+            .onMouseDown {
+                guard !preview else { return }
+                optimiser.showDownscaleSlider = true
+            }
+            .onRightClick {
+                optimiser.showDownscaleSlider = true
+            }
+    }
+}
+
 struct QuickLookButton: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
@@ -979,6 +1219,8 @@ struct ActionButton: View {
         case .downscale:
             if optimiser.type.isAudio, optimiser.type.utType != .wav {
                 LowerBitrateButton(optimiser: optimiser)
+            } else if optimiser.type.isPDF {
+                LowerPDFDPIButton(optimiser: optimiser)
             } else if !optimiser.type.isAudio {
                 DownscaleButton(optimiser: optimiser)
             }
@@ -1078,6 +1320,8 @@ struct SideButtons: View {
             if optimiser.showDownscaleSlider {
                 if optimiser.type.isAudio {
                     BitrateSlider(optimiser: optimiser, size: size)
+                } else if optimiser.type.isPDF {
+                    PDFDPISlider(optimiser: optimiser, size: size)
                 } else {
                     DownscaleSlider(optimiser: optimiser, size: size)
                 }
@@ -1203,6 +1447,8 @@ struct ActionButtons: View {
             if optimiser.showDownscaleSlider {
                 if optimiser.type.isAudio {
                     HorizontalBitrateSlider(optimiser: optimiser, size: size)
+                } else if optimiser.type.isPDF {
+                    HorizontalPDFDPISlider(optimiser: optimiser, size: size)
                 } else {
                     HorizontalDownscaleSlider(optimiser: optimiser, size: size)
                 }
