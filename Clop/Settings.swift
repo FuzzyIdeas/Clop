@@ -111,6 +111,8 @@ extension Defaults.Keys {
     static let useAggressiveOptimisationPNG = Key<Bool>("useAggressiveOptimisationPNG", default: false)
     static let useAggressiveOptimisationGIF = Key<Bool>("useAggressiveOptimisationGIF", default: false)
     static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
+    static let pdfDPI = Key<Int>("pdfDPI", default: 300)
+    static let pdfDPIAggressive = Key<Int>("pdfDPIAggressive", default: 200)
 
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
@@ -318,6 +320,8 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .useAggressiveOptimisationJPEG,
     .useAggressiveOptimisationMP4,
     .useAggressiveOptimisationPDF,
+    .pdfDPI,
+    .pdfDPIAggressive,
     .useAggressiveOptimisationPNG,
     .videoEncoder,
     .useCustomNameTemplateForClipboardImages,
