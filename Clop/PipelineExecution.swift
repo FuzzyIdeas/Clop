@@ -45,12 +45,13 @@ final class PipelineExecution {
         let actions = optimiser.compilePipelineActions(from: batch)
 
         let location: String = batch.compactMap { s in
-            if case let .optimise(_, _, _, loc) = s { return loc }; return nil
+            if case let .optimise(_, _, _, _, loc) = s { return loc }; return nil
         }.last ?? "inPlace"
         let inputFile = tempCopyIfNeeded(currentFile, location: location)
         let usedTempCopy = inputFile != currentFile
 
-        let aggressive = batch.contains { if case let .optimise(enc, _, _, _) = $0 { return enc == .aggressive }; return false }
+        let aggressive = batch.contains { if case let .optimise(enc, _, _, _, _) = $0 { return enc == .aggressive }; return false }
+        let dpi: Int? = batch.compactMap { if case let .optimise(_, _, _, d, _) = $0 { return d }; return nil }.last
 
         var success = false
 
@@ -62,7 +63,7 @@ final class PipelineExecution {
         case .audio:
             success = await runCompiledAudioBatch(batch: batch, actions: actions, inputFile: inputFile, location: location, aggressive: aggressive)
         case .pdf:
-            success = await runCompiledPDFBatch(actions: actions, inputFile: inputFile, location: location, aggressive: aggressive)
+            success = await runCompiledPDFBatch(actions: actions, inputFile: inputFile, location: location, aggressive: aggressive, dpi: dpi)
         }
 
         if success {
@@ -78,7 +79,7 @@ final class PipelineExecution {
 
     // MARK: - Processing Steps
 
-    func handleOptimise(encoder: EncoderQuality?, adaptive: Bool, videoEncoder: VideoEncoder?, location: String) async {
+    func handleOptimise(encoder: EncoderQuality?, adaptive: Bool, videoEncoder: VideoEncoder?, dpi: Int? = nil, location: String) async {
         let aggressive = encoder == .aggressive
         let inputFile = tempCopyIfNeeded(currentFile, location: location)
         let usedTempCopy = inputFile != currentFile
@@ -130,6 +131,8 @@ final class PipelineExecution {
                 pdf, actions: [.optimise],
                 allowLarger: false,
                 hideFloatingResult: hide,
+                aggressiveOptimisation: aggressive ? true : nil,
+                dpiOverride: dpi,
                 source: source
             ) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
@@ -835,7 +838,7 @@ final class PipelineExecution {
 
     private func runCompiledVideoBatch(batch: [PipelineStep], actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool) async -> Bool {
         let videoEncoderOvr: VideoEncoder? = batch.compactMap { s in
-            if case let .optimise(_, _, ve, _) = s { return ve }; return nil
+            if case let .optimise(_, _, ve, _, _) = s { return ve }; return nil
         }.last
         var ffmpegEncoder: [String]?
         var outExt: String?
@@ -935,13 +938,15 @@ final class PipelineExecution {
         return true
     }
 
-    private func runCompiledPDFBatch(actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool) async -> Bool {
+    private func runCompiledPDFBatch(actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool, dpi: Int?) async -> Bool {
         let pdf = PDF(inputFile)
 
         guard let result = try? await runPDFPipeline(
             pdf, actions: actions,
             allowLarger: false, hideFloatingResult: hide,
-            aggressiveOptimisation: aggressive ? true : nil, source: source
+            aggressiveOptimisation: aggressive ? true : nil,
+            dpiOverride: dpi,
+            source: source
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
