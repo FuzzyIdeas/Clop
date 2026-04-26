@@ -331,8 +331,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         log.info("Pipeline: step[\(stepIndex)] \(stepDesc) started on \(exec.currentFile.string)")
 
         switch step {
-        case let .optimise(encoder, adaptive, videoEncoder, location):
-            await exec.handleOptimise(encoder: encoder, adaptive: adaptive, videoEncoder: videoEncoder, location: location)
+        case let .optimise(encoder, adaptive, videoEncoder, dpi, location):
+            await exec.handleOptimise(encoder: encoder, adaptive: adaptive, videoEncoder: videoEncoder, dpi: dpi, location: location)
         case let .extractPagesAsImages(format, quality, location):
             await exec.handleExtractPagesAsImages(format: format, quality: quality, location: location)
         case let .downscale(factor, location):
