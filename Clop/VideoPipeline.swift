@@ -98,8 +98,17 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
         operationLabel(for: labelActions, filename: path.lastComponent?.string ?? "", videoSize: resolution, aggressive: aggressive)
     }
 
+    let pipelineId = id ?? pathString
+
+    // Serialize per id: terminate the in-flight pipeline's running process and wait for it to unwind.
+    // Prevents concurrent downscale/speed-change passes from racing on the same file paths.
+    if let previousPipeline = videoPipelineInFlight[pipelineId] {
+        opt(pipelineId)?.stop(remove: false)
+        await previousPipeline.value
+    }
+
     // Set up optimiser
-    let optimiser = OM.optimiser(id: id ?? pathString, type: itemType, operation: opLabel, hidden: hideFloatingResult, source: source)
+    let optimiser = OM.optimiser(id: pipelineId, type: itemType, operation: opLabel, hidden: hideFloatingResult, source: source)
     if optimiser.oldBytes == 0 {
         optimiser.oldBytes = video.fileSize
     }
@@ -281,8 +290,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     }
     videoOptimiseDebouncers[pathString] = workItem
 
-    while !done, !workItem.isCancelled {
-        try await Task.sleep(nanoseconds: 100_000_000)
+    let pipelineTask = Task<Void, Never> { @MainActor in
+        while !done, !workItem.isCancelled {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+    videoPipelineInFlight[pipelineId] = pipelineTask
+    await pipelineTask.value
+    if videoPipelineInFlight[pipelineId] == pipelineTask {
+        videoPipelineInFlight.removeValue(forKey: pipelineId)
     }
     return result
 }
