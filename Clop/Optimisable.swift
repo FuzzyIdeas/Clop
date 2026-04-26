@@ -7,6 +7,7 @@
 
 import Cocoa
 import Foundation
+import Lowtech
 import os
 import System
 import UniformTypeIdentifiers
