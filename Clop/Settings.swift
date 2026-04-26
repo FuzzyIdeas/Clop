@@ -67,6 +67,7 @@ extension Defaults.Keys {
 
     static let optimiseTIFF = Key<Bool>("optimiseTIFF", default: true)
     static let enableClipboardOptimiser = Key<Bool>("enableClipboardOptimiser", default: true)
+    static let clipboardIgnoredAppBundleIds = Key<Set<String>>("clipboardIgnoredAppBundleIds", default: [])
     static let optimiseVideoClipboard = Key<Bool>("optimiseVideoClipboard", default: false)
     static let optimiseAudioClipboard = Key<Bool>("optimiseAudioClipboard", default: false)
     static let optimisePDFClipboard = Key<Bool>("optimisePDFClipboard", default: false)
@@ -253,6 +254,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .dismissFloatingResultOnDrop,
     // .downscaleRetinaImages,
     .enableClipboardOptimiser,
+    .clipboardIgnoredAppBundleIds,
     .enabledKeys,
     .enableDragAndDrop,
     .onlyShowDropZoneOnOption,

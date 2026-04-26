@@ -20,6 +20,7 @@ struct MenuView: View {
     @ObservedObject var pm = PM
     @ObservedObject var om = OM
     @ObservedObject var wdm = WDM
+    @ObservedObject var lastApp = LastFocusedAppTracker.shared
     @Environment(\.openWindow) var openWindow
 
     @Default(.keyComboModifiers) var keyComboModifiers
@@ -30,6 +31,7 @@ struct MenuView: View {
     @Default(.cliInstalled) var cliInstalled
     @Default(.pauseAutomaticOptimisations) var pauseAutomaticOptimisations
     @Default(.allowClopToAppearInScreenshots) var allowClopToAppearInScreenshots
+    @Default(.clipboardIgnoredAppBundleIds) var clipboardIgnoredAppBundleIds
 
     @State var cliInstallResult: String?
 
@@ -84,6 +86,19 @@ struct MenuView: View {
                 Task.init { try? await quickLookLastClipboardItem() }
             }.keyboardShortcut(" ", modifiers: keyComboModifiers.eventModifiers)
 
+            if let bundleID = lastApp.bundleId {
+                let appName = lastApp.name ?? bundleID
+                Toggle("Ignore clipboard events from \(appName)", isOn: Binding(
+                    get: { clipboardIgnoredAppBundleIds.contains(bundleID) },
+                    set: { ignore in
+                        if ignore {
+                            clipboardIgnoredAppBundleIds.insert(bundleID)
+                        } else {
+                            clipboardIgnoredAppBundleIds.remove(bundleID)
+                        }
+                    }
+                ))
+            }
         }
 
         Section("Backups") {

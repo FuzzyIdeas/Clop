@@ -189,7 +189,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     case downscale(factor: Double, location: String = "inPlace")
     case lowerBitrate(kbps: Int, location: String = "inPlace")
     case convert(to: String, location: String = "sameFolder")
-    case crop(width: Int? = nil, height: Int? = nil, keepAspectRatio: Bool = true, longEdge: Int? = nil, location: String = "inPlace")
+    case crop(width: Int? = nil, height: Int? = nil, longEdge: Int? = nil, location: String = "inPlace")
     case extractPagesAsImages(format: String = "jpeg", quality: String = "medium", location: String = "sameFolder")
 
     // File path operations (template vars supported)
@@ -223,7 +223,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .downscale(factor, location): "downscale-\(factor)-\(location)"
         case let .lowerBitrate(kbps, location): "lowerBitrate-\(kbps)-\(location)"
         case let .convert(to, location): "convert-\(to)-\(location)"
-        case let .crop(width, height, _, longEdge, location): "crop-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(location)"
+        case let .crop(width, height, longEdge, location): "crop-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(location)"
         case let .extractPagesAsImages(format, quality, location): "extractPagesAsImages-\(format)-\(quality)-\(location)"
         case let .copy(to): "copy-\(to)"
         case let .move(to): "move-\(to)"
@@ -289,12 +289,11 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
             var params = ["to: \(to)"]
             if location != "sameFolder" { params.append("location: \(location)") }
             return "convert(\(params.joined(separator: ", ")))"
-        case let .crop(width, height, keepAspectRatio, longEdge, location):
+        case let .crop(width, height, longEdge, location):
             var params: [String] = []
             if let longEdge { params.append("longEdge: \(longEdge)") }
             if let width { params.append("width: \(width)") }
             if let height { params.append("height: \(height)") }
-            if !keepAspectRatio { params.append("keepAspectRatio: false") }
             if location != "inPlace" { params.append("location: \(location)") }
             return "crop(\(params.joined(separator: ", ")))"
         case let .extractPagesAsImages(format, quality, location):
@@ -426,7 +425,6 @@ extension PipelineStep: Decodable {
             self = try .crop(
                 width: c.decodeIfPresent(Int.self, forKey: DynKey("width")),
                 height: c.decodeIfPresent(Int.self, forKey: DynKey("height")),
-                keepAspectRatio: c.decodeIfPresent(Bool.self, forKey: DynKey("keepAspectRatio")) ?? true,
                 longEdge: c.decodeIfPresent(Int.self, forKey: DynKey("longEdge")),
                 location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
             )

@@ -75,13 +75,24 @@ struct ParamTemplate {
     var valueDescriptions: [String: String] = [:]
     var valueDescriptionsForType: [ClopFileType: [String: String]] = [:]
     var suggestionsForType: [ClopFileType: [String]] = [:]
+    /// When set, the param is only suggested for these file types. nil means it
+    /// applies to every file type (and to "any-type" library pipelines).
+    var applicableTypes: Set<ClopFileType>?
 
-    func suggestions(for fileType: ClopFileType) -> [String] {
-        suggestionsForType[fileType] ?? suggestions
+    func suggestions(for fileType: ClopFileType?) -> [String] {
+        guard let fileType else { return suggestions }
+        return suggestionsForType[fileType] ?? suggestions
     }
 
-    func valueDescriptions(for fileType: ClopFileType) -> [String: String] {
-        valueDescriptionsForType[fileType] ?? valueDescriptions
+    func valueDescriptions(for fileType: ClopFileType?) -> [String: String] {
+        guard let fileType else { return valueDescriptions }
+        return valueDescriptionsForType[fileType] ?? valueDescriptions
+    }
+
+    func applies(to fileType: ClopFileType?) -> Bool {
+        guard let applicableTypes else { return true }
+        guard let fileType else { return true }
+        return applicableTypes.contains(fileType)
     }
 }
 
@@ -140,6 +151,11 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 valueDescriptions: ["aggressive": "smallest file size", "medium": "balanced quality/size", "lossless": "no quality loss"],
                 valueDescriptionsForType: [
                     .video: ["fast": "hardware encoder, quick and battery efficient", "slowHighQuality": "slow software encoder, smaller files", "visuallyLossless": "no perceptible quality loss (CRF 17)"],
+                    .pdf: [
+                        "aggressive": "lossy + downsample images to 100 DPI",
+                        "medium": "adaptive downsampling — picks DPI per PDF based on embedded image resolutions",
+                        "lossless": "no downsampling — preserves embedded image resolution",
+                    ],
                 ],
                 suggestionsForType: [
                     .video: ["fast", "slowHighQuality", "visuallyLossless"],
@@ -151,13 +167,11 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 suggestions: ["true", "false"],
                 freeText: false,
                 valueDescriptions: ["true": "may change file extension", "false": "keep original format"],
-                valueDescriptionsForType: [
-                    .video: ["true": "auto-picks encoder to prioritise speed based on video size and duration", "false": "use the specified encoder"],
-                ]
+                applicableTypes: [.image]
             ),
             ParamTemplate(
                 name: "dpi",
-                description: "PDF only — image resolution (300 = no downsampling)",
+                description: "PDF only — image resolution, overrides encoder choice (300 = no downsampling)",
                 suggestions: ["300", "250", "200", "150", "100", "72", "48"],
                 freeText: true,
                 valueDescriptions: [
@@ -168,7 +182,8 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                     "100": "smaller — readable but visibly degraded",
                     "72": "screen quality",
                     "48": "smallest, very low quality",
-                ]
+                ],
+                applicableTypes: [.pdf]
             ),
             ParamTemplate(
                 name: "location",
@@ -289,7 +304,6 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         optionalParams: [
             ParamTemplate(name: "height", description: "max height in pixels, width is computed if not set", suggestions: ["1080", "900", "720", "1024", "96"], freeText: true),
             ParamTemplate(name: "longEdge", description: "target size for longest dimension (use instead of width/height)", suggestions: ["1920", "1600", "1280", "1024", "512"], freeText: true),
-            ParamTemplate(name: "keepAspectRatio", description: "maintain proportions", suggestions: ["true", "false"], freeText: false, valueDescriptions: ["true": "maintain proportions", "false": "stretch to exact dimensions"]),
             ParamTemplate(
                 name: "location",
                 description: "where to save the result",
@@ -385,10 +399,10 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ParamTemplate(name: "nameIs", description: "exact filename match", suggestions: [], freeText: true, needsQuotes: true),
             ParamTemplate(name: "fileSizeGreaterThan", description: "min file size in bytes", suggestions: [], freeText: true),
             ParamTemplate(name: "fileSizeLowerThan", description: "max file size in bytes", suggestions: [], freeText: true),
-            ParamTemplate(name: "widthGreaterThan", description: "min width in pixels", suggestions: [], freeText: true),
-            ParamTemplate(name: "widthLowerThan", description: "max width in pixels", suggestions: [], freeText: true),
-            ParamTemplate(name: "heightGreaterThan", description: "min height in pixels", suggestions: [], freeText: true),
-            ParamTemplate(name: "heightLowerThan", description: "max height in pixels", suggestions: [], freeText: true),
+            ParamTemplate(name: "widthGreaterThan", description: "min width in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
+            ParamTemplate(name: "widthLowerThan", description: "max width in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
+            ParamTemplate(name: "heightGreaterThan", description: "min height in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
+            ParamTemplate(name: "heightLowerThan", description: "max height in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
         ],
         applicableTypes: [.image, .video, .audio, .pdf],
         create: { .filterIf(FilterCondition(regex: "")) }
@@ -448,7 +462,12 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 description: "clipboard content format",
                 suggestions: ["path", "imageData", "markdown"],
                 freeText: false,
-                valueDescriptions: ["path": "file path, relative if relativeTo is set", "imageData": "raw image data", "markdown": "markdown link, relative if relativeTo is set"]
+                valueDescriptions: ["path": "file path, relative if relativeTo is set", "imageData": "raw image data", "markdown": "markdown link, relative if relativeTo is set"],
+                suggestionsForType: [
+                    .video: ["path", "markdown"],
+                    .audio: ["path", "markdown"],
+                    .pdf: ["path", "markdown"],
+                ]
             ),
             ParamTemplate(name: "relativeTo", description: "base path, makes output relative (e.g. ~/Projects/blog)", suggestions: [], freeText: true, needsQuotes: true),
         ],
@@ -519,8 +538,9 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
     ),
 ]
 
-func stepTemplates(for fileType: ClopFileType) -> [StepTemplate] {
-    ALL_STEP_TEMPLATES.filter { $0.applicableTypes.contains(fileType) }
+func stepTemplates(for fileType: ClopFileType?) -> [StepTemplate] {
+    guard let fileType else { return ALL_STEP_TEMPLATES }
+    return ALL_STEP_TEMPLATES.filter { $0.applicableTypes.contains(fileType) }
 }
 
 // MARK: - Pipeline Step Parsing
@@ -580,9 +600,8 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         let height = params["height"].flatMap { Int($0) }
         let longEdge = params["longEdge"].flatMap { Int($0) }
         guard width != nil || height != nil || longEdge != nil else { return nil }
-        let keepAR = params["keepAspectRatio"] != "false"
         let location = params["location"] ?? "inPlace"
-        return .crop(width: width, height: height, keepAspectRatio: keepAR, longEdge: longEdge, location: location)
+        return .crop(width: width, height: height, longEdge: longEdge, location: location)
 
     case "copy":
         guard let to = params["to"], !to.isEmpty else { return nil }
@@ -725,7 +744,7 @@ let TEMPLATE_VARIABLES: [TemplateVariable] = [
 /// - Step name context: shows step names with descriptions
 /// - Param list context: shows param names with descriptions
 /// - Param value context: shows values for the specific param
-func pipelineSuggestions(prefix: String, fileType: ClopFileType) -> [CompletionSuggestion] {
+func pipelineSuggestions(prefix: String, fileType: ClopFileType?) -> [CompletionSuggestion] {
     let templates = stepTemplates(for: fileType)
     let trimmed = prefix.trimmingCharacters(in: .whitespaces)
 
@@ -744,7 +763,7 @@ func pipelineSuggestions(prefix: String, fileType: ClopFileType) -> [CompletionS
             p.contains(":") ? String(p.split(separator: ":")[0]).trimmingCharacters(in: .whitespaces) : nil
         })
         // Also include the current part if it has a colon and a value
-        let allParams = template.mandatoryParams + template.optionalParams
+        let allParams = (template.mandatoryParams + template.optionalParams).filter { $0.applies(to: fileType) }
 
         if lastPart.contains(":") {
             // User typed "paramName:" or "paramName: val" -> show values for this param
@@ -754,11 +773,12 @@ func pipelineSuggestions(prefix: String, fileType: ClopFileType) -> [CompletionS
 
             guard let param = allParams.first(where: { $0.name == paramName }) else { return [] }
 
-            // Inside quotes and typing % -> show template variables
+            // Inside quotes -> show template variables when empty or after % so the
+            // user discovers available tokens without having to know about them first.
             let insideQuotes = typedValue.hasPrefix("\"")
             let unquotedValue = insideQuotes ? String(typedValue.dropFirst()) : typedValue
-            if insideQuotes, unquotedValue.contains("%") {
-                let afterPercent = String(unquotedValue.suffix(from: unquotedValue.lastIndex(of: "%")!).dropFirst())
+            if insideQuotes, unquotedValue.isEmpty || unquotedValue.contains("%") {
+                let afterPercent = unquotedValue.lastIndex(of: "%").map { String(unquotedValue.suffix(from: $0).dropFirst()) } ?? ""
                 return TEMPLATE_VARIABLES
                     .filter { afterPercent.isEmpty || $0.token.dropFirst().hasPrefix(afterPercent) || $0.name.lowercased().hasPrefix(afterPercent.lowercased()) }
                     .map { tv in
@@ -852,7 +872,7 @@ extension StepCategory {
 // MARK: - Step Action Grid
 
 struct StepActionGrid: View {
-    let fileType: ClopFileType
+    let fileType: ClopFileType?
     let onSelect: (String) -> Void
 
     var templates: [StepTemplate] {
