@@ -375,55 +375,6 @@ struct BatchRightClickMenuView: View {
     }
 }
 
-struct ShortcutChoiceMenu: View {
-    @ObservedObject var shortcutsManager = SHM
-    @Environment(\.preview) var preview
-
-    var onShortcutChosen: ((Shortcut) -> Void)? = nil
-
-    var body: some View {
-        if let shortcutsMap = shortcutsManager.shortcutsMap {
-            if shortcutsMap.isEmpty {
-                Text("Create a Shortcut in the Clop folder to have it appear here").disabled(true)
-            } else {
-                if let clopShortcuts = shortcutsMap["Clop"] {
-                    shortcutList(clopShortcuts)
-                } else {
-                    Text("Create a Shortcut in the Clop folder to have it appear here").disabled(true)
-                    let shorts = shortcutsMap.sorted { $0.key < $1.key }
-
-                    ForEach(shorts, id: \.key) { folder, shortcuts in
-                        Section(folder) { shortcutList(shortcuts) }
-                    }
-
-                }
-            }
-        } else {
-            Text("Loading...")
-                .disabled(true)
-                .onAppear {
-                    guard !preview else { return }
-                    shortcutsManager.fetch()
-                }
-        }
-    }
-
-    @ViewBuilder func shortcutList(_ shortcuts: [Shortcut]) -> some View {
-        if let onShortcutChosen {
-            ForEach(shortcuts) { shortcut in
-                Button(shortcut.name) { onShortcutChosen(shortcut) }
-            }
-        } else {
-            ForEach(shortcuts) { shortcut in
-                Text(shortcut.name).tag(shortcut as Shortcut?)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-    }
-
-}
-
 struct RunPipelineMenu: View {
     @ObservedObject var optimiser: Optimiser
 
