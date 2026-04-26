@@ -898,7 +898,9 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task.init {
-                let source = Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
+                let matchedDir = Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let source = matchedDir?.optSource
+                let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
                 let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
@@ -912,7 +914,7 @@ class AppDelegate: AppDelegateParent {
                     }
                 } else {
                     let video = Video(path: path)
-                    if let result = try? await runVideoPipeline(video, actions: [.optimise], debounceMS: debounceMS, source: source) {
+                    if let result = try? await runVideoPipeline(video, actions: [.optimise], debounceMS: debounceMS, hideFloatingResult: hide, source: source) {
                         resultPath = result.path
                     }
                     if let source, let optimiser = opt(path.string) {
@@ -935,7 +937,9 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task.init {
-                let source = Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
+                let matchedDir = Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let source = matchedDir?.optSource
+                let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 guard let img = Image(path: path, retinaDownscaled: false) else { return }
                 let type: ItemType = .image(img.type)
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
@@ -949,7 +953,7 @@ class AppDelegate: AppDelegateParent {
                         await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
                     }
                 } else {
-                    if let result = try? await runImagePipeline(img, actions: [.optimise], debounceMS: debounceMS, source: source) {
+                    if let result = try? await runImagePipeline(img, actions: [.optimise], debounceMS: debounceMS, hideFloatingResult: hide, source: source) {
                         resultPath = result.path
                     }
                     if let source, let optimiser = opt(path.string) {
@@ -972,7 +976,9 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task.init {
-                let source = Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
+                let matchedDir = Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let source = matchedDir?.optSource
+                let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .pdf
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
                 let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
@@ -985,7 +991,7 @@ class AppDelegate: AppDelegateParent {
                         await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
                     }
                 } else {
-                    if let result = try? await runPDFPipeline(PDF(path), actions: [.optimise], debounceMS: debounceMS, source: source) {
+                    if let result = try? await runPDFPipeline(PDF(path), actions: [.optimise], debounceMS: debounceMS, hideFloatingResult: hide, source: source) {
                         resultPath = result.path
                     }
                     if let source, let optimiser = opt(path.string) {
@@ -1008,7 +1014,9 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task.init {
-                let source = Defaults[.audioDirs].filter { path.string.starts(with: $0) }.max(by: \.count)?.optSource
+                let matchedDir = Defaults[.audioDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let source = matchedDir?.optSource
+                let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
                 let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
@@ -1021,7 +1029,7 @@ class AppDelegate: AppDelegateParent {
                         await runPipelinesAfterOptimisation(file: resultPath, type: type, source: source, optimiser: optimiser)
                     }
                 } else {
-                    if let result = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], debounceMS: debounceMS, source: source) {
+                    if let result = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], debounceMS: debounceMS, hideFloatingResult: hide, source: source) {
                         resultPath = result.path
                     }
                     if let source, let optimiser = opt(path.string) {

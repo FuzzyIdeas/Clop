@@ -403,6 +403,21 @@ enum ImageFormat: String, CaseIterable, Equatable, Decodable, ExpressibleByArgum
     }
 }
 
+func parsePDFDPIArgument(_ value: String?) throws -> Int? {
+    guard let value, !value.isEmpty else { return nil }
+    if value.lowercased() == "adaptive" {
+        return PDF_DPI_ADAPTIVE
+    }
+    let allowed = PDF_DPI_STOPS.map(String.init).joined(separator: ", ")
+    guard let int = Int(value) else {
+        throw ValidationError("Invalid --pdf-dpi value '\(value)': expected 'adaptive' or one of \(allowed)")
+    }
+    guard PDF_DPI_STOPS.contains(int) else {
+        throw ValidationError("--pdf-dpi must be 'adaptive' or one of \(allowed)")
+    }
+    return int
+}
+
 struct Clop: ParsableCommand {
     struct Convert: ParsableCommand {
         static let configuration = CommandConfiguration(
@@ -835,6 +850,9 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
 
+        @Option(name: .long, help: "PDF aggressive DPI: 'adaptive' or one of \(PDF_DPI_STOPS.map(String.init).joined(separator: ", ")). Overrides the app's stored aggressive DPI setting for this run.")
+        var pdfDpi: String?
+
         @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression")
         var adaptiveOptimisation: Bool = UserDefaults.app?.bool(forKey: "adaptiveImageSize") ?? false
 
@@ -931,6 +949,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
+            let parsedPdfDpi = try parsePDFDPIArgument(pdfDpi)
             try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "cropping") {
                 var out = normalizeRelativeOutput(output)
                 if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
@@ -948,7 +967,8 @@ struct Clop: ParsableCommand {
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
                     output: out,
-                    removeAudio: removeAudio
+                    removeAudio: removeAudio,
+                    pdfDPI: parsedPdfDpi
                 )
             }
         }
@@ -970,6 +990,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
+
+        @Option(name: .long, help: "PDF aggressive DPI: 'adaptive' or one of \(PDF_DPI_STOPS.map(String.init).joined(separator: ", ")). Overrides the app's stored aggressive DPI setting for this run.")
+        var pdfDpi: String?
 
         @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression")
         var adaptiveOptimisation = false
@@ -1047,6 +1070,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
+            let parsedPdfDpi = try parsePDFDPIArgument(pdfDpi)
             try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "downscaling") {
                 var out = normalizeRelativeOutput(output)
                 if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
@@ -1064,7 +1088,8 @@ struct Clop: ParsableCommand {
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
                     output: out,
-                    removeAudio: removeAudio
+                    removeAudio: removeAudio,
+                    pdfDPI: parsedPdfDpi
                 )
             }
         }
@@ -1086,6 +1111,9 @@ struct Clop: ParsableCommand {
 
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
         var aggressive = false
+
+        @Option(name: .long, help: "PDF aggressive DPI: 'adaptive' or one of \(PDF_DPI_STOPS.map(String.init).joined(separator: ", ")). Overrides the app's stored aggressive DPI setting for this run.")
+        var pdfDpi: String?
 
         @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression")
         var adaptiveOptimisation: Bool = UserDefaults.app?.bool(forKey: "adaptiveImageSize") ?? false
@@ -1174,6 +1202,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
+            let parsedPdfDpi = try parsePDFDPIArgument(pdfDpi)
             try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "optimisation") {
                 var out = normalizeRelativeOutput(output)
                 if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
@@ -1191,7 +1220,8 @@ struct Clop: ParsableCommand {
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: "cli",
                     output: out,
-                    removeAudio: removeAudio
+                    removeAudio: removeAudio,
+                    pdfDPI: parsedPdfDpi
                 )
             }
         }
@@ -1347,13 +1377,20 @@ actor ProgressPrinter {
             } else {
                 ""
             }
+            let dpiChangeStr = if let old = response.oldDPI, let new = response.newDPI, old != new {
+                " [\("\(old) DPI".dim()) \(ARROW) \("\(new) DPI".yellow())]"
+            } else if let old = response.oldDPI, response.newDPI == nil || response.newDPI == old {
+                " [\("\(old) DPI".dim())]"
+            } else {
+                ""
+            }
             let savedAs = if let original = response.forURL.filePath ?? response.convertedFrom?.filePath, let optimised = response.path.filePath, original != optimised {
                 " saved as \(optimised.shellString.underline())".dim()
             } else {
                 ""
             }
             print(
-                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold())\(resolutionChangeStr)\(bitrateChangeStr)\(percentageSaved)\(savedAs)"
+                "\(CHECKMARK) \(response.forURL.shellString.underline()): \(response.oldBytes.humanSize.foregroundColor(isSmaller ? .red : .green)) \(ARROW) \(response.newBytes.humanSize.foregroundColor(isSmaller ? .green : .red).bold())\(resolutionChangeStr)\(bitrateChangeStr)\(dpiChangeStr)\(percentageSaved)\(savedAs)"
             )
         }
         for response in errors.values.sorted(by: { $0.forURL.path < $1.forURL.path }) {

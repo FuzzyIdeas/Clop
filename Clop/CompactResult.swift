@@ -119,6 +119,27 @@ struct CompactResult: View {
         }
     }
 
+    @ViewBuilder var dpiDiff: some View {
+        if optimiser.type.isPDF, let oldDPI = optimiser.oldDPI, !sm.selecting {
+            HStack(spacing: 3) {
+                let hideOldDPI = optimiser.newDPI != nil && optimiser.newDPI! != oldDPI
+                if !hideOldDPI {
+                    Text("\(oldDPI) DPI")
+                }
+                if let newDPI = optimiser.newDPI, newDPI != oldDPI {
+                    if !hideOldDPI {
+                        SwiftUI.Image(systemName: "arrow.right")
+                    }
+                    Text("\(newDPI) DPI")
+                }
+            }
+            .lineLimit(1)
+            .font(.round(10, weight: .medium))
+            .foregroundColor(.fg.warm)
+            .fixedSize()
+        }
+    }
+
     @ViewBuilder var fileSizeDiff: some View {
         let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
 
@@ -246,6 +267,7 @@ struct CompactResult: View {
                         Spacer()
                         sizeDiff
                         bitrateDiff
+                        dpiDiff
                     }
                     if !sm.selecting {
                         ActionButtons(optimiser: optimiser, size: 18)

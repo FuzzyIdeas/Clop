@@ -177,6 +177,7 @@ struct FloatingResultContainer: View {
     @ObservedObject var dragManager = DM
 
     var isPreview = false
+    @Default(.enableFloatingResults) var enableFloatingResults
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showImages) var showImages
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
@@ -186,7 +187,9 @@ struct FloatingResultContainer: View {
     }
 
     var body: some View {
-        let optimisers = om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
+        let optimisers = (enableFloatingResults || isPreview)
+            ? om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
+            : []
         VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: 10) {
             if shouldShowDropZone, floatingResultsCorner.isTop {
                 DropZoneView()
@@ -544,6 +547,27 @@ struct FloatingResult: View {
         }
     }
 
+    @ViewBuilder var dpiDiff: some View {
+        if optimiser.type.isPDF, let oldDPI = optimiser.oldDPI {
+            HStack(spacing: 3) {
+                let hideOldDPI = OM.compactResults && optimiser.newDPI != nil && optimiser.newDPI! != oldDPI
+                if !hideOldDPI {
+                    Text("\(oldDPI) DPI")
+                }
+                if let newDPI = optimiser.newDPI, newDPI != oldDPI {
+                    if !hideOldDPI {
+                        SwiftUI.Image(systemName: "arrow.right")
+                    }
+                    Text("\(newDPI) DPI")
+                }
+            }
+            .lineLimit(1)
+            .font(.round(10))
+            .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
+            .fixedSize()
+        }
+    }
+
     @ViewBuilder var fileSizeDiff: some View {
         let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
         let improvementColor = (optimiser.thumbnail != nil && showImages ? FloatingResult.yellow : (colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue))
@@ -603,6 +627,7 @@ struct FloatingResult: View {
                     fileSizeDiff
                     sizeDiff
                     bitrateDiff
+                    dpiDiff
                 }
             }
 
@@ -753,6 +778,7 @@ struct FloatingResult: View {
                         fileSizeDiff
                         sizeDiff
                         bitrateDiff
+                        dpiDiff
                     }
                 }
             }

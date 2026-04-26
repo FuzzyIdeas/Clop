@@ -54,6 +54,7 @@ struct PipelineEditorRow: View {
     let fileType: ClopFileType
     @Binding var pipelines: [String: [Pipeline]]
     @Binding var editingKey: String?
+    var onRemoveSource: (() -> Void)?
 
     var sourceIcon: String {
         switch source {
@@ -61,6 +62,11 @@ struct PipelineEditorRow: View {
         case .dropZone: "square.dashed"
         default: "folder"
         }
+    }
+
+    var isDirSource: Bool {
+        if case .dir = source { return true }
+        return false
     }
 
     var addPipelineMenu: some View {
@@ -113,6 +119,15 @@ struct PipelineEditorRow: View {
                     .truncationMode(.middle)
                 Spacer()
                 addPipelineMenu
+                if isDirSource, let onRemoveSource {
+                    Button(action: onRemoveSource) {
+                        SwiftUI.Image(systemName: "xmark.circle.fill")
+                            .font(.regular(11))
+                            .foregroundColor(.secondary.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove this folder from automation")
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }
@@ -359,7 +374,8 @@ struct PipelineTypeSectionView: View {
     @State var highlightedFolder: String?
 
     func handleHighlightFolder() {
-        guard let folder = svm.highlightFolder, svm.scrollToFileType == fileType else { return }
+        guard let req = svm.highlightFolder, req.fileType == fileType else { return }
+        let folder = req.folder
         addedFolders.insert(folder)
         highlightedFolder = folder
         svm.highlightFolder = nil
@@ -439,7 +455,13 @@ struct PipelineTypeSectionView: View {
                     source: source,
                     fileType: fileType,
                     pipelines: $pipelines,
-                    editingKey: $editingKey
+                    editingKey: $editingKey,
+                    onRemoveSource: {
+                        guard case let .dir(folder) = source else { return }
+                        pipelines[folder] = nil
+                        addedFolders.remove(folder)
+                        if highlightedFolder == folder { highlightedFolder = nil }
+                    }
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -715,6 +737,15 @@ struct AutomationSettingsView: View {
                 }
             }
             .padding(4)
+            .onAppear {
+                guard let fileType = svm.scrollToFileType else { return }
+                DispatchQueue.main.async {
+                    withAnimation {
+                        proxy.scrollTo(fileType, anchor: .top)
+                    }
+                    svm.scrollToFileType = nil
+                }
+            }
             .onChange(of: svm.scrollToFileType) { fileType in
                 guard let fileType else { return }
                 withAnimation {

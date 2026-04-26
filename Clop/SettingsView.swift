@@ -68,6 +68,21 @@ struct DirListView: View {
     @State var clopignoreHelpVisible = false
     var hideIgnoreRules = false
 
+    @Default(.dirsHideFloatingResult) var dirsHideFloatingResult
+
+    func showFloatingBinding(for dir: String) -> Binding<Bool> {
+        Binding(
+            get: { !dirsHideFloatingResult.contains(dir) },
+            set: { show in
+                if show {
+                    dirsHideFloatingResult.remove(dir)
+                } else {
+                    dirsHideFloatingResult.insert(dir)
+                }
+            }
+        )
+    }
+
     @ViewBuilder var ignoreRulesView: some View {
         if selectedDirs.count == 1, let dir = selectedDirs.first {
             HStack {
@@ -151,8 +166,8 @@ struct DirListView: View {
     }
 
     func navigateToAutomation(folder: String) {
-        settingsViewManager.highlightFolder = folder
         settingsViewManager.scrollToFileType = fileType
+        settingsViewManager.highlightFolder = HighlightedFolderRequest(fileType: fileType, folder: folder)
         settingsViewManager.tab = .automation
     }
 
@@ -161,6 +176,14 @@ struct DirListView: View {
             ScrollView {
                 Table(dirs.sorted(), selection: $selectedDirs) {
                     TableColumn("Path") { dir in Text(dir.replacingOccurrences(of: HOME.string, with: "~")).mono(12) }
+                    TableColumn("Show floating results") { dir in
+                        Toggle("", isOn: showFloatingBinding(for: dir))
+                            .toggleStyle(.checkbox)
+                            .controlSize(.mini)
+                            .labelsHidden()
+                            .help("Show the floating thumbnail and progress when files in this folder are optimised")
+                    }
+                    .width(130)
                     TableColumn("") { dir in
                         Button(dirHasAutomation(dir) ? "Edit automation" : "Add automation") {
                             navigateToAutomation(folder: dir)
@@ -171,10 +194,11 @@ struct DirListView: View {
                     }
                     .width(110)
                 }
-                .tableStyle(.bordered)
+                .tableStyle(.inset)
                 .frame(height: 150)
                 .disabled(!enabled)
                 .opacity(enabled ? 1 : 0.6)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }.frame(height: 150)
 
             HStack(spacing: 2) {
@@ -298,7 +322,7 @@ struct PDFSettingsView: View {
                         + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
-                PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive)
+                PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive, includeAdaptive: true)
             }
         }
         .scrollContentBackground(.hidden)
@@ -309,16 +333,24 @@ struct PDFSettingsView: View {
 struct PDFDPIPickerView: View {
     let label: String
     @Binding var binding: Int
+    var includeAdaptive = false
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label).regular(13)
-                Text("300 DPI keeps images at full resolution. Lower values can make the PDF appear less sharp.")
-                    .round(11, weight: .regular).foregroundColor(.secondary)
+                Text(
+                    includeAdaptive
+                        ? "Adaptive picks a per-PDF target based on the source image density. Specific values keep the picked DPI for every PDF."
+                        : "300 DPI keeps images at full resolution. Lower values can make the PDF appear less sharp."
+                )
+                .round(11, weight: .regular).foregroundColor(.secondary)
             }
             Spacer()
             Picker("", selection: $binding) {
+                if includeAdaptive {
+                    Text("Adaptive").tag(PDF_DPI_ADAPTIVE)
+                }
                 ForEach(PDF_DPI_STOPS, id: \.self) { dpi in
                     Text(dpi == PDF_DPI_NO_DOWNSAMPLE ? "\(dpi) (no downsample)" : "\(dpi)").tag(dpi)
                 }
@@ -1450,7 +1482,7 @@ struct FloatingSettingsView: View {
         Form {
             Toggle(isOn: $enableFloatingResults) {
                 Text("Show floating results").regular(13)
-                    + Text("\n\nDisabling this will make Clop run in an UI-less mode, but keep optimising files in the background")
+                    + Text("\n\nDisabling this will make Clop run in an UI-less mode, but keep optimising files in the background. Drop zone can be disabled separately in the Drop zone tab")
                     .round(10, weight: .regular)
                     .foregroundColor(.secondary)
             }
@@ -1735,11 +1767,16 @@ struct GeneralSettingsView: View {
     }
 }
 
+struct HighlightedFolderRequest: Equatable {
+    let fileType: ClopFileType
+    let folder: String
+}
+
 class SettingsViewManager: ObservableObject {
     @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .floating : .general
     @Published var windowOpen = false
     @Published var scrollToFileType: ClopFileType?
-    @Published var highlightFolder: String?
+    @Published var highlightFolder: HighlightedFolderRequest?
 }
 
 let settingsViewManager = SettingsViewManager()
