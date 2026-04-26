@@ -11,44 +11,68 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDF")
 
 var GS = BIN_DIR.appendingPathComponent("gs").filePath!
 
-let GS_LOSSY_ARGS: [String] = [
-    "-dAutoFilterGrayImages=false",
-    "-dAutoFilterColorImages=false",
-    "-dAutoFilterMonoImages=true",
-    "-dColorImageFilter=/DCTEncode",
-    "-dDownsampleColorImages=true",
-    "-dDownsampleGrayImages=true",
-    "-dDownsampleMonoImages=true",
-    "-dGrayImageFilter=/DCTEncode",
-    "-dPassThroughJPEGImages=false",
-    "-dPassThroughJPXImages=false",
-    "-dShowAcroForm=false",
-]
-let GS_LOSSLESS_ARGS: [String] = [
-    "-dAutoFilterGrayImages=false",
-    "-dAutoFilterColorImages=false",
-    "-dAutoFilterMonoImages=false",
-    "-dColorImageFilter=/DCTEncode",
-    "-dDownsampleColorImages=false",
-    "-dDownsampleGrayImages=false",
-    "-dDownsampleMonoImages=false",
-    "-dGrayImageFilter=/DCTEncode",
-    "-dPassThroughJPEGImages=true",
-    "-dPassThroughJPXImages=true",
-    "-dShowAcroForm=true",
-]
+// DPI = 300 means no downsampling; below that we let Ghostscript downsample.
+let PDF_DPI_NO_DOWNSAMPLE = 300
+let PDF_DPI_MIN = 48
+let PDF_DPI_MAX = 300
+// Snap points used by the DPI slider, ordered high to low.
+let PDF_DPI_STOPS: [Int] = [300, 250, 200, 150, 100, 72, 48]
 
-let GS_ARGS: [String] = [
-    "-r150",
+func gsLossyArgs(downsample: Bool) -> [String] {
+    [
+        "-dAutoFilterColorImages=false",
+        "-dAutoFilterGrayImages=false",
+        "-dAutoFilterMonoImages=true",
+        "-dColorImageFilter=/DCTEncode",
+        "-dDownsampleColorImages=\(downsample)",
+        "-dDownsampleGrayImages=\(downsample)",
+        "-dDownsampleMonoImages=\(downsample)",
+        "-dGrayImageFilter=/DCTEncode",
+        "-dPassThroughJPEGImages=false",
+        "-dPassThroughJPXImages=false",
+        "-dShowAcroForm=false",
+    ]
+}
+
+func gsLosslessArgs(downsample: Bool) -> [String] {
+    [
+        "-dAutoFilterColorImages=false",
+        "-dAutoFilterGrayImages=false",
+        "-dAutoFilterMonoImages=false",
+        "-dColorImageFilter=/DCTEncode",
+        "-dDownsampleColorImages=\(downsample)",
+        "-dDownsampleGrayImages=\(downsample)",
+        "-dDownsampleMonoImages=\(downsample)",
+        "-dGrayImageFilter=/DCTEncode",
+        // PassThrough only works when not downsampling — preserves originals byte-for-byte.
+        "-dPassThroughJPEGImages=\(!downsample)",
+        "-dPassThroughJPXImages=\(!downsample)",
+        "-dShowAcroForm=true",
+    ]
+}
+
+func gsResolutionArgs(dpi: Int) -> [String] {
+    [
+        "-dColorImageDownsampleThreshold=1.0",
+        "-dColorImageDownsampleType=/Bicubic",
+        "-dColorImageResolution=\(dpi)",
+        "-dGrayImageDownsampleThreshold=1.0",
+        "-dGrayImageDownsampleType=/Bicubic",
+        "-dGrayImageResolution=\(dpi)",
+        "-dMonoImageDownsampleThreshold=1.0",
+        "-dMonoImageDownsampleType=/Bicubic",
+        // Mono (1-bit) images compress poorly below 300 dpi; clamp.
+        "-dMonoImageResolution=\(max(dpi, 300))",
+    ]
+}
+
+let GS_BASE_ARGS: [String] = [
     "-dALLOWPSTRANSPARENCY",
     "-dAutoRotatePages=/None",
     "-dBATCH",
     "-dCannotEmbedFontPolicy=/Warning",
-    "-dColorConversionStrategy=/LeaveColorUnchanged",
     "-dColorConversionStrategy=/sRGB",
-    "-dColorImageDownsampleThreshold=1.0",
-    "-dColorImageDownsampleType=/Bicubic",
-    "-dColorImageResolution=150",
+    "-dCompatibilityLevel=1.6",
     "-dCompressFonts=true",
     "-dCompressPages=true",
     "-dCompressStreams=true",
@@ -63,49 +87,36 @@ let GS_ARGS: [String] = [
     "-dEncodeMonoImages=true",
     "-dFastWebView=false",
     "-dGrayDetection=true",
-    "-dGrayImageDownsampleThreshold=1.0",
-    "-dGrayImageDownsampleType=/Bicubic",
-    "-dGrayImageResolution=150",
     "-dHaveTransparency=true",
     "-dLZWEncodePages=true",
     "-dMaxBitmap=0",
-    "-dMonoImageDownsampleThreshold=1.0",
-    "-dMonoImageDownsampleType=/Bicubic",
     "-dMonoImageFilter=/CCITTFaxEncode",
-    "-dMonoImageResolution=150",
     "-dNOPAUSE",
     "-dNOPROMPT",
-    "-dOptimize=false",
+    "-dOptimize=true",
     "-dParseDSCComments=false",
     "-dParseDSCCommentsForDocInfo=false",
     "-dPDFNOCIDFALLBACK",
-    "-dPDFNOCIDFALLBACK",
     "-dPDFSETTINGS=/screen",
-    // "-dPDFSTOPONERROR",
     "-dPreserveAnnots=true",
     "-dPreserveCopyPage=false",
-    "-dPreserveDeviceN=false",
     "-dPreserveDeviceN=true",
-    "-dPreserveEPSInfo=false",
     "-dPreserveEPSInfo=false",
     "-dPreserveHalftoneInfo=false",
     "-dPreserveOPIComments=false",
-    "-dPreserveOverprintSettings=false",
     "-dPreserveOverprintSettings=true",
-    "-dPreserveSeparation=false",
     "-dPreserveSeparation=true",
     "-dPrinted=false",
     "-dProcessColorModel=/DeviceRGB",
     "-dSAFER",
     "-dSubsetFonts=true",
     "-dTransferFunctionInfo=/Apply",
-    "-dTransferFunctionInfo=/Preserve",
     "-dUCRandBGInfo=/Remove",
 ]
 
 let GS_PRE_ARGS: [String] = [
     "-c",
-    "<< /ColorImageDict << /QFactor 0.76 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /ColorACSImageDict << /QFactor 0.76 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /GrayImageDict << /QFactor 0.76 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /GrayACSImageDict << /QFactor 0.76 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /AlwaysEmbed [ ] >> setdistillerparams << /NeverEmbed [/Courier /Courier-Bold /Courier-Oblique /Courier-BoldOblique /Helvetica /Helvetica-Bold /Helvetica-Oblique /Helvetica-BoldOblique /Times-Roman /Times-Bold /Times-Italic /Times-BoldItalic /Symbol /ZapfDingbats /Arial] >> setdistillerparams",
+    "<< /ColorImageDict << /QFactor 0.68 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /ColorACSImageDict << /QFactor 0.68 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /GrayImageDict << /QFactor 0.68 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /GrayACSImageDict << /QFactor 0.68 /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >> >> setdistillerparams << /AlwaysEmbed [ ] >> setdistillerparams << /NeverEmbed [/Courier /Courier-Bold /Courier-Oblique /Courier-BoldOblique /Helvetica /Helvetica-Bold /Helvetica-Oblique /Helvetica-BoldOblique /Times-Roman /Times-Bold /Times-Italic /Times-BoldItalic /Symbol /ZapfDingbats /Arial] >> setdistillerparams",
     "-f",
     "-c",
     "/originalpdfmark { //pdfmark } bind def /pdfmark { { { counttomark pop } stopped { /pdfmark errordict /unmatchedmark get exec stop } if dup type /nametype ne { /pdfmark errordict /typecheck get exec stop } if dup /DOCINFO eq { (Skipping DOCINFO pdfmark\n) print cleartomark exit } if originalpdfmark exit } loop } def",
@@ -116,10 +127,13 @@ let GS_POST_ARGS: [String] = [
     "-c", "[ /Producer () /ModDate () /CreationDate () /DOCINFO pdfmark", "-f",
 ]
 
-func gsArgs(_ input: String, _ output: String, lossy: Bool) -> [String] {
-    let optArgs: [String] = (lossy ? GS_LOSSY_ARGS : GS_LOSSLESS_ARGS)
+func gsArgs(_ input: String, _ output: String, lossy: Bool, dpi: Int) -> [String] {
+    let clampedDPI = min(max(dpi, PDF_DPI_MIN), PDF_DPI_MAX)
+    let downsample = clampedDPI < PDF_DPI_NO_DOWNSAMPLE
+    let optArgs: [String] = lossy ? gsLossyArgs(downsample: downsample) : gsLosslessArgs(downsample: downsample)
+    let resArgs: [String] = gsResolutionArgs(dpi: clampedDPI)
     let outArgs: [String] = ["-sDEVICE=pdfwrite", "-sFONTPATH=\(FONT_PATH)", "-o", output]
-    return GS_ARGS + optArgs + outArgs + GS_PRE_ARGS + [input] + GS_POST_ARGS
+    return GS_BASE_ARGS + resArgs + optArgs + outArgs + GS_PRE_ARGS + [input] + GS_POST_ARGS
 }
 
 let FONT_PATH: String = [
@@ -208,7 +222,7 @@ class PDF: Optimisable {
         return document.write(to: newPath?.url ?? path.url)
     }
 
-    func optimise(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil) throws -> PDF {
+    func optimise(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, dpi: Int? = nil) throws -> PDF {
         guard let document else {
             throw ClopError.invalidPDF(path)
         }
@@ -222,7 +236,8 @@ class PDF: Optimisable {
         let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPDF]
         mainActor { optimiser.aggressive = aggressiveOptimisation }
 
-        let args = gsArgs(path.string, tempFile.string, lossy: aggressiveOptimisation)
+        let effectiveDPI = dpi ?? Defaults[aggressiveOptimisation ? .pdfDPIAggressive : .pdfDPI]
+        let args = gsArgs(path.string, tempFile.string, lossy: aggressiveOptimisation, dpi: effectiveDPI)
         let proc = try tryProc(GS.string, args: args, tries: 3, captureOutput: true, env: GHOSTSCRIPT_ENV) { proc in
             mainActor { [weak self] in
                 guard let self else { return }
