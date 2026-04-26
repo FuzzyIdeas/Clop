@@ -33,9 +33,13 @@ extension View {
         environment(\.preview, preview)
     }
 
-    @ViewBuilder func sideButtonBackground() -> some View {
+    @ViewBuilder func sideButtonBackground(preview: Bool = false) -> some View {
         let shape = Capsule()
-        if #available(macOS 26.0, *) {
+        if preview {
+            background(Color.white, in: shape)
+                .overlay(shape.strokeBorder(Color.black.opacity(0.15), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        } else if #available(macOS 26.0, *) {
             self.glassEffect(.regular, in: shape)
                 .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
         } else {

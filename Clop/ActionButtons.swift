@@ -1312,10 +1312,17 @@ struct SideButtons: View {
                 }
             }
         }
-        .buttonStyle(FlatButton(color: .primary.opacity(0.02), textColor: .primary.opacity(0.7), hoverColor: .primary.opacity(0.1), width: size, height: size, circle: true))
+        .buttonStyle(FlatButton(
+            color: (preview ? Color.black : Color.primary).opacity(0.02),
+            textColor: (preview ? Color.black : Color.primary).opacity(0.7),
+            hoverColor: (preview ? Color.black : Color.primary).opacity(0.1),
+            width: size,
+            height: size,
+            circle: true
+        ))
         .padding(.vertical, 2)
         .allowsHitTesting(!optimiser.showDownscaleSlider)
-        .sideButtonBackground()
+        .sideButtonBackground(preview: preview)
         .overlay {
             if optimiser.showDownscaleSlider {
                 if optimiser.type.isAudio {
@@ -1395,7 +1402,7 @@ struct ActionListPicker: View {
                         }
                     }
                 }
-                .sideButtonBackground()
+                .sideButtonBackground(preview: true)
 
                 let maxButtons = vertical ? FloatingAction.maxFloatingButtons : FloatingAction.maxCompactButtons
                 if actions.count < maxButtons, !available.isEmpty {
@@ -1440,9 +1447,16 @@ struct ActionButtons: View {
                 }
             }
         }
-        .buttonStyle(FlatButton(color: .primary.opacity(0.02), textColor: .primary.opacity(0.7), hoverColor: .primary.opacity(0.1), width: size, height: size, circle: true))
+        .buttonStyle(FlatButton(
+            color: (preview ? Color.black : Color.primary).opacity(0.02),
+            textColor: (preview ? Color.black : Color.primary).opacity(0.7),
+            hoverColor: (preview ? Color.black : Color.primary).opacity(0.1),
+            width: size,
+            height: size,
+            circle: true
+        ))
         .allowsHitTesting(!optimiser.showDownscaleSlider)
-        .sideButtonBackground()
+        .sideButtonBackground(preview: preview)
         .overlay {
             if optimiser.showDownscaleSlider {
                 if optimiser.type.isAudio {

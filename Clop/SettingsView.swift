@@ -318,7 +318,7 @@ struct PDFSettingsView: View {
                 }
 
                 Toggle(isOn: $useAggressiveOptimisationPDF) {
-                    Text("Use more aggressive optimisation").regular(13)
+                    Text("Use aggressive optimisation by default").regular(13)
                         + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
@@ -1795,9 +1795,39 @@ class SettingsViewManager: ObservableObject {
 
 let settingsViewManager = SettingsViewManager()
 
+struct HideSidebarToggleIfAvailable: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content.toolbar(removing: .sidebarToggle)
+        } else {
+            content
+        }
+    }
+}
+
+struct SettingsSidebarRow: View {
+    let tab: SettingsView.Tabs
+
+    var body: some View {
+        NavigationLink(value: tab) {
+            Label {
+                Text(tab.title)
+            } icon: {
+                SwiftUI.Image(systemName: tab.symbol)
+                    .foregroundStyle(.white)
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 20, height: 20)
+                    .background(tab.tint.gradient, in: RoundedRectangle(cornerRadius: 5))
+            }
+        }
+    }
+}
+
 struct SettingsView: View {
-    enum Tabs: Int, Hashable {
+    enum Tabs: Int, Hashable, CaseIterable, Identifiable {
         case general, video, audio, images, pdf, dropzone, floating, keys, automation, about
+
+        var id: Int { rawValue }
 
         var next: Tabs {
             Tabs(rawValue: rawValue + 1) ?? .general
@@ -1807,6 +1837,50 @@ struct SettingsView: View {
             Tabs(rawValue: rawValue - 1) ?? .automation
         }
 
+        var title: String {
+            switch self {
+            case .general: "General"
+            case .video: "Video"
+            case .audio: "Audio"
+            case .images: "Images"
+            case .pdf: "PDF"
+            case .dropzone: "Drop Zone"
+            case .floating: "Floating Results"
+            case .keys: "Keyboard Shortcuts"
+            case .automation: "Automation"
+            case .about: "About"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .general: "gearshape"
+            case .video: "video"
+            case .audio: "waveform"
+            case .images: "photo"
+            case .pdf: "doc"
+            case .dropzone: "square.stack.3d.up"
+            case .floating: "rectangle.stack"
+            case .keys: "command.square"
+            case .automation: "hammer"
+            case .about: "info.circle"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .general: .gray
+            case .video: .blue
+            case .audio: .indigo
+            case .images: .green
+            case .pdf: .red
+            case .dropzone: .orange
+            case .floating: .teal
+            case .keys: .brown
+            case .automation: .pink
+            case .about: .purple
+            }
+        }
     }
 
     @ObservedObject var svm = settingsViewManager
@@ -1817,105 +1891,61 @@ struct SettingsView: View {
         }
     }
 
-    var tabView: some View {
-        let t = TabView(selection: $svm.tab) {
-            GeneralSettingsView()
-                .tabItem {
-                    Label("General", systemImage: "gear")
-                }
-                .tag(Tabs.general)
-                .fill(.topLeading)
-            VideoSettingsView()
-                .tabItem {
-                    Label("Video", systemImage: "video")
-                }
-                .tag(Tabs.video)
-                .fill(.topLeading)
-            AudioSettingsView()
-                .tabItem {
-                    Label("Audio", systemImage: "waveform")
-                }
-                .tag(Tabs.audio)
-                .fill(.topLeading)
-            ImagesSettingsView()
-                .tabItem {
-                    Label("Images", systemImage: "photo")
-                }
-                .tag(Tabs.images)
-                .fill(.topLeading)
-            PDFSettingsView()
-                .tabItem {
-                    Label("PDF", systemImage: "doc")
-                }
-                .tag(Tabs.pdf)
-                .fill(.topLeading)
-            DropZoneSettingsView()
-                .tabItem {
-                    Label("Drop zone", systemImage: "square.stack")
-                }
-                .tag(Tabs.dropzone)
-                .fill(.topLeading)
-            FloatingSettingsView()
-                .tabItem {
-                    Label("Floating results", systemImage: "square.stack")
-                }
-                .tag(Tabs.floating)
-                .fill(.topLeading)
-            KeysSettingsView()
-                .tabItem {
-                    Label("Keyboard shortcuts", systemImage: "command.square")
-                }
-                .tag(Tabs.keys)
-                .fill(.topLeading)
-            AutomationSettingsView()
-                .tabItem {
-                    Label("Automation", systemImage: "hammer")
-                }
-                .tag(Tabs.automation)
-                .fill(.topLeading)
-            AboutSettingsView()
-                .tabItem {
-                    Label("About", systemImage: "info.circle")
-                }
-                .tag(Tabs.about)
-                .fill(.topLeading)
+    var sidebar: some View {
+        List(selection: $svm.tab) {
+            ForEach(Tabs.allCases, id: \.self) { tab in
+                SettingsSidebarRow(tab: tab)
+            }
         }
-
-        if #available(macOS 15.0, *) {
-            return t.tabViewStyle(.grouped)
-        } else {
-            return t
-        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
+        .modifier(HideSidebarToggleIfAvailable())
     }
 
     var settings: some View {
-        ZStack(alignment: .topTrailing) {
-            tabView
-                .hfill()
-                .padding(.top, 20)
-                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
-                    guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
-                    if window.title == "Settings" {
-                        log.debug("Starting settings tab key monitor")
-                        tabKeyMonitor.start()
-                    }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notif in
-                    guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
-                    if window.title == "Settings" {
-                        log.debug("Stopping settings tab key monitor")
-                        tabKeyMonitor.stop()
-                    }
-                }
-
-            Button("Quit", role: .destructive) { NSApp.terminate(nil) }
-                .buttonStyle(.borderedProminent)
-                .offset(x: -10, y: -15)
-            if svm.tab == .about {
-                MadeBy().fill(.bottomTrailing).offset(x: -6, y: 0)
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detailView
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .navigationTitle(svm.tab.title)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .formStyle(.grouped)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
+            guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
+            if window.title == "Settings" {
+                log.debug("Starting settings tab key monitor")
+                tabKeyMonitor.start()
             }
         }
-        .formStyle(.grouped)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notif in
+            guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
+            if window.title == "Settings" {
+                log.debug("Stopping settings tab key monitor")
+                tabKeyMonitor.stop()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var detailView: some View {
+        switch svm.tab {
+        case .general: GeneralSettingsView()
+        case .video: VideoSettingsView()
+        case .audio: AudioSettingsView()
+        case .images: ImagesSettingsView()
+        case .pdf: PDFSettingsView()
+        case .dropzone: DropZoneSettingsView()
+        case .floating: FloatingSettingsView()
+        case .keys: KeysSettingsView()
+        case .automation: AutomationSettingsView()
+        case .about:
+            AboutSettingsView()
+                .overlay(alignment: .bottomTrailing) {
+                    MadeBy().offset(x: -6, y: 0)
+                }
+        }
     }
 
 }
@@ -1953,6 +1983,7 @@ struct FloatingSettingsView_Previews: PreviewProvider {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
+        let _ = (settingsViewManager.windowOpen = true)
         SettingsView()
             .frame(minWidth: WINDOW_MIN_SIZE.width, maxWidth: .infinity, minHeight: WINDOW_MIN_SIZE.height, maxHeight: .infinity)
     }
