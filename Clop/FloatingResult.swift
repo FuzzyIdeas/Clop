@@ -262,12 +262,7 @@ struct FloatingPreview: View {
         clipEnd.image = Image(nsImage: clipEnd.thumbnail!, data: Data(), type: .png, retinaDownscaled: false)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
-        let audioOpt = Optimiser(id: "Music/podcast.mp3", type: .audio(.mp3))
-        audioOpt.url = "\(HOME)/Music/podcast.mp3".fileURL
-        audioOpt.finish(oldBytes: 9_450_000, newBytes: 4_820_000, oldBitrate: 320, newBitrate: 128)
-
         o.optimisers = [
-            audioOpt,
             clipEnd,
             videoOpt,
             noThumb,
