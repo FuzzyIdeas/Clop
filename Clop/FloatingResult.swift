@@ -864,13 +864,6 @@ struct FloatingResult: View {
             FileNameField(optimiser: optimiser)
                 .font(.medium(9))
                 .foregroundColor(.primary)
-                .padding(.leading, 5)
-                .background(
-                    VisualEffectBlur(material: .sidebar, blendingMode: .withinWindow, state: .active)
-                        .clipShape(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        )
-                )
                 .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
                 .fixedSize()
                 .padding(.horizontal, 5)

@@ -282,18 +282,23 @@ class Video: Optimisable {
                 return ["-vcodec", "h264", "-tag:v", "avc1", "-crf", "17"]
             }
         }()
+        let outExt = outputPath.extension?.lowercased() ?? ""
+        let isWebm = outExt == "webm"
         let audioArgs: [String] = if audioRemoved {
             ["-an"]
+        } else if isWebm {
+            ["-c:a", "libopus", "-b:a", "128k", "-map", "0:v", "-map", "0:a?"]
         } else if convertAudioToAAC {
             ["-c:a", "aac", "-b:a", "192k", "-map", "0:v", "-map", "0:a?"]
         } else {
             ["-c:a", "copy", "-map", "0:v", "-map", "0:a?"]
         }
-        let useEncoder = encoderOverride != nil || ["mp4", "mov", "hevc"].contains(outputPath.extension?.lowercased() ?? "")
+        let useEncoder = encoderOverride != nil || ["mp4", "mov", "hevc"].contains(outExt)
         var args = ["-y", "-i", inputPath.string]
         if useEncoder { args += encoderArgs }
         args += audioArgs + additionalArgs
-        args += ["-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
+        if !isWebm { args += ["-movflags", "+faststart"] }
+        args += ["-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         var realDuration: Int64?
         if let duration {
@@ -354,7 +359,7 @@ class Video: Optimisable {
                     optimiser.convertedFromURL = backupPath.url
                 }
             }
-            if behaviour != .temporary {
+            if behaviour != .temporary, newVideo.path.dir != convertedFrom.path.dir {
                 let path = try newVideo.path.copy(to: convertedFrom.path.dir, force: true)
                 if behaviour != .inPlace {
                     mainActor {
@@ -362,6 +367,10 @@ class Video: Optimisable {
                     }
                 }
                 newVideo = Video(path: path, metadata: metadata, convertedFrom: convertedFrom)
+            } else if behaviour != .inPlace {
+                mainActor {
+                    optimiser.convertedFromURL = convertedFrom.path.url
+                }
             }
         }
         mainActor {

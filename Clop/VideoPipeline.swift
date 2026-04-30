@@ -258,7 +258,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
             mainActor {
                 result = optimisedVideo
                 optimiser.url = optimisedVideo.path.url
-                if let ext = optimisedVideo.path.extension, let utType = UTType(filenameExtension: ext) {
+                if let codec = ffmpegEncoderOverride?.codecUTType {
+                    optimiser.type = .video(codec)
+                } else if let ext = optimisedVideo.path.extension, let utType = UTType(filenameExtension: ext) {
                     optimiser.type = .video(utType)
                 }
                 if !hideFloatingResult {
@@ -301,4 +303,16 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
         videoPipelineInFlight.removeValue(forKey: pipelineId)
     }
     return result
+}
+
+private extension [String] {
+    var codecUTType: UTType? {
+        guard let codecIdx = firstIndex(of: "-vcodec"), codecIdx + 1 < count else { return nil }
+        switch self[codecIdx + 1] {
+        case "libsvtav1", "libaom-av1": return .av1Video
+        case "hevc_videotoolbox", "libx265": return .hevcVideo
+        case "libvpx-vp9", "libvpx": return .webm
+        default: return nil
+        }
+    }
 }

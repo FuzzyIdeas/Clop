@@ -829,15 +829,24 @@ class Image: CustomStringConvertible {
         let size = cropSize.computedSize(from: size)
         let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
         let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)[Q=100]", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
-        let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
-            mainActor { optimiser.processes = [proc] }
-        }
-        guard proc.terminationStatus == 0 else {
-            throw ClopProcError.processError(proc)
+        let resizedPath = pathForResize.withSize(size)
+
+        do {
+            let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
+                mainActor { optimiser.processes = [proc] }
+            }
+            guard proc.terminationStatus == 0 else {
+                throw ClopProcError.processError(proc)
+            }
+            resizedPath.waitForFile(for: 2.0)
+            guard resizedPath.exists else {
+                throw ClopError.downscaleFailed(pathForResize)
+            }
+        } catch {
+            log.warning("vipsthumbnail resize failed for \(pathForResize.string), falling back to NSImage: \(String(describing: error))")
+            try resizeWithNSImage(source: pathForResize, dest: resizedPath, targetSize: NSSize(width: size.width.evenInt.d, height: size.height.evenInt.d))
         }
 
-        let resizedPath = pathForResize.withSize(size)
-        resizedPath.waitForFile(for: 2.0)
         if resizedPath != pathForResize {
             try resizedPath.copy(to: pathForResize, force: true)
         }
@@ -846,6 +855,27 @@ class Image: CustomStringConvertible {
             throw ClopError.downscaleFailed(pathForResize)
         }
         return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+    }
+
+    func resizeWithNSImage(source: FilePath, dest: FilePath, targetSize: NSSize) throws {
+        guard let nsImage = NSImage(contentsOfFile: source.string) else {
+            throw ClopError.downscaleFailed(source)
+        }
+        guard let resized = nsImage.resize(to: targetSize),
+              let cgImage = resized.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else {
+            throw ClopError.downscaleFailed(source)
+        }
+
+        let utType = (dest.extension.flatMap { UTType(filenameExtension: $0) } ?? type).identifier as CFString
+        guard let destination = CGImageDestinationCreateWithURL(dest.url as CFURL, utType, 1, nil) else {
+            throw ClopError.downscaleFailed(source)
+        }
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
+        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw ClopError.downscaleFailed(source)
+        }
     }
 
     func optimise(optimiser: Optimiser, allowLarger: Bool = false, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {

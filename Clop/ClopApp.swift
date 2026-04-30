@@ -301,7 +301,9 @@ class AppDelegate: AppDelegateParent {
         if !SWIFTUI_PREVIEW {
             LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
             LowtechSentry.configureSentry(restartOnHang: false, getUser: LowtechSentry.getSentryUser)
-            configureAppHangDetection()
+            configureAppHangDetection { _, _ in
+                activeCLIRequests.load(ordering: .relaxed) > 0 ? .suppressRestart : .useDefault
+            }
 
             KM.primaryKeyModifiers = Defaults[.keyComboModifiers]
             KM.primaryKeys = Defaults[.enabledKeys] + Defaults[.quickResizeKeys]
