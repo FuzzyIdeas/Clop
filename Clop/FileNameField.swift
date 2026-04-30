@@ -82,11 +82,24 @@ struct FileNameField: View {
 
     var body: some View {
         editorViewer
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .glassOrMaterial(in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .onChange(of: optimiser.running) { running in
                 if running {
                     optimiser.editingFilename = false
                 }
             }
+    }
+}
+
+extension View {
+    @ViewBuilder func glassOrMaterial(in shape: some Shape) -> some View {
+        if #available(macOS 26.0, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(.ultraThinMaterial, in: shape)
+        }
     }
 }
 

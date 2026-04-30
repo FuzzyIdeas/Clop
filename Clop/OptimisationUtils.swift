@@ -673,6 +673,7 @@ enum TempPipelineSegment {
                                 case "hevc": ffmpegEncoder = ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]; outExt = "mp4"
                                 case "x265": ffmpegEncoder = ["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"]; outExt = "mp4"
                                 case "av1": ffmpegEncoder = ["-vcodec", "libsvtav1"]; outExt = "mkv"
+                                case "webm": ffmpegEncoder = ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]; outExt = "webm"
                                 default: break
                                 }
                             }
@@ -858,12 +859,14 @@ enum TempPipelineSegment {
             guard let url else { return }
             let path = FilePath(url.path)
             let video = Video(path: path)
-            let isCodecConversion = type == .hevcVideo || type == .av1Video
+            let isCodecConversion = type == .hevcVideo || type == .av1Video || type == .webm
 
             let encoderOverride: [String]? = if type == .hevcVideo {
                 ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]
             } else if type == .av1Video {
                 ["-vcodec", "libsvtav1"]
+            } else if type == .webm {
+                ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]
             } else {
                 nil
             }
@@ -887,7 +890,13 @@ enum TempPipelineSegment {
                     }
                 } else {
                     let forceMP4 = type == .hevcVideo || type == .mpeg4Movie
-                    let outputExt: String? = type == .av1Video ? "mkv" : nil
+                    let outputExt: String? = if type == .av1Video {
+                        "mkv"
+                    } else if type == .webm {
+                        "webm"
+                    } else {
+                        nil
+                    }
                     guard let result = try? video.optimise(
                         optimiser: self, forceMP4: forceMP4, outputExtension: outputExt, backup: false,
                         encoderOverride: encoderOverride

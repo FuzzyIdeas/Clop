@@ -3,7 +3,10 @@ import Combine
 import Defaults
 import Foundation
 import Lowtech
+import os
 import SwiftUI
+
+private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ShortcutsCompat")
 
 func runShortcutProcess(_ shortcut: Shortcut, _ file: String, outFile: String) -> Process? {
     log.debug("Running shortcut \(shortcut.identifier) on \(file) -> \(outFile)")
