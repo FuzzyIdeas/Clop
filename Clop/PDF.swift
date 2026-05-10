@@ -361,6 +361,10 @@ class PDF: Optimisable {
             throw ClopError.encryptedPDF(path)
         }
 
+        if document.pageCount > PARALLEL_PDF_PAGE_THRESHOLD {
+            return try optimiseInParallel(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, dpi: dpi)
+        }
+
         try? path.setOptimisationStatusXattr("pending")
         let tempFile = FilePath.pdfs.appending(path.lastComponent?.string ?? "clop.pdf")
 
@@ -497,3 +501,215 @@ class PDF: Optimisable {
 }
 
 let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.06.0/Resource/Init").path]
+
+// MARK: - Parallel PDF optimisation
+
+private let PARALLEL_PDF_PAGE_THRESHOLD = 150
+private let PARALLEL_PDF_CHUNK_SIZE = 100
+private let PARALLEL_PDF_CONCURRENCY = 4
+
+private final class ParallelGSProgress: @unchecked Sendable {
+    init(optimiser: Optimiser, totalPages: Int) {
+        self.optimiser = optimiser
+        self.totalPages = totalPages
+    }
+
+    weak var optimiser: Optimiser?
+    let totalPages: Int
+
+    func increment(by n: Int) {
+        lock.lock()
+        completed += n
+        let current = completed
+        lock.unlock()
+        let total = totalPages
+        mainActor { [weak self] in
+            guard let opt = self?.optimiser else { return }
+            opt.progress.completedUnitCount = min(Int64(current), Int64(total))
+            opt.progress.localizedAdditionalDescription = "Page \(current) of \(total)"
+        }
+    }
+
+    private let lock = NSLock()
+    private var completed = 0
+
+}
+
+extension PDF {
+    func optimiseInParallel(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, dpi: Int? = nil) throws -> PDF {
+        guard let document else {
+            throw ClopError.invalidPDF(path)
+        }
+        guard !document.isEncrypted else {
+            throw ClopError.encryptedPDF(path)
+        }
+
+        try? path.setOptimisationStatusXattr("pending")
+        let tempFile = FilePath.pdfs.appending(path.lastComponent?.string ?? "clop.pdf")
+
+        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPDF]
+        mainActor { optimiser.aggressive = aggressive }
+
+        let backupPath = path.clopBackupPath
+        if let bp = backupPath, !bp.exists {
+            path.backup(path: bp, operation: .copy)
+        }
+        let inputPath: FilePath = (backupPath?.exists ?? false) ? backupPath! : path
+
+        let resolvedSetting: Int = if let dpi {
+            dpi
+        } else if aggressive {
+            Defaults[.pdfDPIAggressive]
+        } else {
+            Defaults[.pdfDPI]
+        }
+
+        let effectiveDPI: Int
+        var sourceMaxDPI: Int?
+        if resolvedSetting == PDF_DPI_ADAPTIVE {
+            let analysis = analyseAggressivePDFDPI(at: inputPath, cap: PDF_DPI_NO_DOWNSAMPLE)
+            effectiveDPI = analysis.chosen
+            sourceMaxDPI = analysis.maxSourceDPI
+            if let sourceMax = analysis.maxSourceDPI {
+                log.debug("Adaptive PDF DPI for \(inputPath.string): chose \(analysis.chosen) (source max \(sourceMax))")
+            }
+        } else {
+            effectiveDPI = resolvedSetting
+            if aggressive || dpi != nil {
+                sourceMaxDPI = scanPDFMaxImageDPI(at: inputPath)
+            }
+        }
+
+        if let sourceMaxDPI {
+            mainActor {
+                if optimiser.oldDPI == nil {
+                    optimiser.oldDPI = sourceMaxDPI
+                }
+                let baseDPI = optimiser.oldDPI ?? sourceMaxDPI
+                optimiser.newDPI = min(baseDPI, effectiveDPI)
+            }
+        }
+
+        let totalPages = document.pageCount
+        let chunkDir = FilePath.pdfs.appending("parallel-\(UUID().uuidString)")
+        try? fm.createDirectory(at: chunkDir.url, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: chunkDir.url) }
+
+        var chunks: [(first: Int, last: Int, output: FilePath)] = []
+        var pageStart = 1
+        var idx = 0
+        while pageStart <= totalPages {
+            let pageEnd = min(pageStart + PARALLEL_PDF_CHUNK_SIZE - 1, totalPages)
+            let outPath = chunkDir.appending("chunk-\(idx).pdf")
+            chunks.append((pageStart, pageEnd, outPath))
+            pageStart = pageEnd + 1
+            idx += 1
+        }
+
+        log.debug("Parallel PDF optimisation: \(totalPages) pages → \(chunks.count) chunks (\(PARALLEL_PDF_CONCURRENCY)-way) for \(inputPath.string)")
+
+        let progress = ParallelGSProgress(optimiser: optimiser, totalPages: totalPages)
+        let url = path.url
+        mainActor {
+            optimiser.progress = Progress(totalUnitCount: Int64(totalPages))
+            optimiser.progress.fileURL = url
+            optimiser.progress.localizedDescription = optimiser.operation
+            optimiser.progress.localizedAdditionalDescription = "Page 0 of \(totalPages)"
+            optimiser.progress.publish()
+        }
+
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = PARALLEL_PDF_CONCURRENCY
+        queue.name = "clop.pdf.parallel"
+
+        let stateLock = NSLock()
+        var anyError: Error?
+
+        func setError(_ error: Error) {
+            stateLock.lock()
+            if anyError == nil { anyError = error }
+            stateLock.unlock()
+        }
+
+        for chunk in chunks {
+            queue.addOperation {
+                stateLock.lock()
+                let abort = anyError != nil
+                stateLock.unlock()
+                if abort { return }
+
+                let baseArgs = gsArgs(inputPath.string, chunk.output.string, lossy: aggressive, dpi: effectiveDPI)
+                let args = ["-dFirstPage=\(chunk.first)", "-dLastPage=\(chunk.last)"] + baseArgs
+
+                do {
+                    let proc = try tryProc(GS.string, args: args, tries: 2, captureOutput: true, env: GHOSTSCRIPT_ENV) { p in
+                        mainActor { optimiser.processes.append(p) }
+                        if let pipe = p.standardOutput as? Pipe {
+                            let handle = pipe.fileHandleForReading
+                            handle.readabilityHandler = { pipe in
+                                let data = pipe.availableData
+                                guard !data.isEmpty else {
+                                    handle.readabilityHandler = nil
+                                    return
+                                }
+                                guard let string = String(data: data, encoding: .utf8) else { return }
+                                var n = 0
+                                for line in string.components(separatedBy: .newlines) where line.hasPrefix("Page ") {
+                                    n += 1
+                                }
+                                if n > 0 { progress.increment(by: n) }
+                            }
+                        }
+                    }
+                    guard proc.terminationStatus == 0 else {
+                        setError(ClopProcError.processError(proc))
+                        queue.cancelAllOperations()
+                        return
+                    }
+                } catch {
+                    setError(error)
+                    queue.cancelAllOperations()
+                }
+            }
+        }
+
+        queue.waitUntilAllOperationsAreFinished()
+
+        if let anyError {
+            mainActor { optimiser.progress.unpublish() }
+            throw anyError
+        }
+
+        let merged = PDFDocument()
+        var globalIdx = 0
+        for chunk in chunks {
+            guard let chunkDoc = PDFDocument(url: chunk.output.url) else {
+                mainActor { optimiser.progress.unpublish() }
+                throw ClopError.invalidPDF(chunk.output)
+            }
+            for p in 0 ..< chunkDoc.pageCount {
+                if let page = chunkDoc.page(at: p) {
+                    merged.insert(page, at: globalIdx)
+                    globalIdx += 1
+                }
+            }
+        }
+        guard merged.write(to: tempFile.url) else {
+            mainActor { optimiser.progress.unpublish() }
+            throw ClopError.invalidPDF(tempFile)
+        }
+
+        tempFile.waitForFile(for: 2)
+        try? tempFile.setOptimisationStatusXattr("true")
+        if tempFile != path {
+            if Defaults[.preserveDates] {
+                tempFile.copyCreationModificationDates(from: path)
+            }
+            try tempFile.copy(to: path, force: true)
+        }
+
+        mainActor { optimiser.progress.unpublish() }
+
+        return PDF(path)
+    }
+}
