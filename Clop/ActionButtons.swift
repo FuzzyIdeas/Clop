@@ -1413,16 +1413,6 @@ struct ActionListPicker: View {
     }
 }
 
-extension View {
-    func bottomHelpTag(isPresented: Binding<Bool>, _ text: String) -> some View {
-        helpTag(isPresented: isPresented, alignment: .bottom, offset: CGSize(width: 0, height: 15), text)
-    }
-
-    func topHelpTag(isPresented: Binding<Bool>, _ text: String) -> some View {
-        helpTag(isPresented: isPresented, alignment: .top, offset: CGSize(width: 0, height: -15), text)
-    }
-}
-
 struct ActionButtons: View {
     @ObservedObject var optimiser: Optimiser
     var size: CGFloat
