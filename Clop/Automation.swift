@@ -61,7 +61,7 @@ func migrateShortcutsToPipelines() {
     if !pdfPipelines.isEmpty { Defaults[.pipelinesToRunOnPdf] = pdfPipelines }
 
     Defaults[.pipelinesMigrated] = true
-    log.info("Migrated shortcuts to pipelines: images=\(imagePipelines.count), videos=\(videoPipelines.count), pdfs=\(pdfPipelines.count)")
+    log.debug("Migrated shortcuts to pipelines: images=\(imagePipelines.count), videos=\(videoPipelines.count), pdfs=\(pdfPipelines.count)")
 }
 
 // MARK: - Step Catalog

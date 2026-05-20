@@ -748,7 +748,7 @@ class AppDelegate: AppDelegateParent {
                     }
 
                     if now.timeIntervalSince(date) > interval.rawValue {
-                        log.info("Deleting \(url.path) because it's older than \(interval.title) (last modified \(date))")
+                        log.debug("Deleting \(url.path) because it's older than \(interval.title) (last modified \(date))")
                         try? fm.removeItem(at: url)
                     }
                 }

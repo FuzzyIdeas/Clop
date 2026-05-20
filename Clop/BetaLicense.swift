@@ -30,7 +30,7 @@ enum BetaLicenseChecker {
               code.caseInsensitiveCompare(BETA_LICENSE_KEY) == .orderedSame
         else { return }
 
-        log.info("Beta license detected; forcing Paddle re-verification")
+        log.debug("Beta license detected; forcing Paddle re-verification")
         PM.pro?.verifyLicense(force: true)
     }
 }

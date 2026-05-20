@@ -262,7 +262,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         guard !resolved.isEmpty else { return resultFile }
 
         // If resolved is just a filename (no /), put it in the same folder as the original
-        let destPath: FilePath
+        var destPath: FilePath
         if !resolved.contains("/") {
             let ext = resultFile.extension ?? original.extension ?? ""
             let nameWithExt = resolved.contains(".") ? resolved : "\(resolved).\(ext)"
@@ -273,10 +273,18 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             return resultFile
         }
 
+        // Inherit the result's extension when the template didn't specify one.
+        // Lets users write "%P/optimised/%f" without knowing the post-optimisation extension
+        // (e.g. .mov gets converted to .mp4).
+        if let last = destPath.lastComponent?.string, !last.contains("."),
+           let ext = resultFile.extension ?? original.extension, !ext.isEmpty {
+            destPath = destPath.removingLastComponent().appending("\(last).\(ext)")
+        }
+
         let destDir = destPath.removingLastComponent()
         try? fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
         if let copied = try? resultFile.copy(to: destPath, force: true) {
-            log.info("Pipeline: location template '\(location)' resolved to \(copied.string)")
+            log.debug("Pipeline: location template '\(location)' resolved to \(copied.string)")
             return copied
         }
         return resultFile
@@ -331,7 +339,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         let stepDesc = step.displayString
         exec.stepIndex = stepIndex
         exec.stepDesc = stepDesc
-        log.info("Pipeline: step[\(stepIndex)] \(stepDesc) started on \(exec.currentFile.string)")
+        log.debug("Pipeline: step[\(stepIndex)] \(stepDesc) started on \(exec.currentFile.string)")
 
         switch step {
         case let .optimise(encoder, adaptive, videoEncoder, dpi, location):
@@ -380,7 +388,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
         if exec.shouldStop { break }
 
-        log.info("Pipeline: step[\(stepIndex)] \(stepDesc) completed, file: \(exec.currentFile.string)")
+        log.debug("Pipeline: step[\(stepIndex)] \(stepDesc) completed, file: \(exec.currentFile.string)")
         stepIndex += 1
     }
 
@@ -394,7 +402,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     source: OptimisationSource,
     optimiser: Optimiser
 ) async {
-    log.info("Pipeline: checking pipelines for file=\(file.string) type=\(String(describing: type)) source=\(source.string)")
+    log.debug("Pipeline: checking pipelines for file=\(file.string) type=\(String(describing: type)) source=\(source.string)")
     let pipelines = pipelinesFor(type: type, source: source)
 
     // Seed the temp pipeline
@@ -432,11 +440,11 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     for (i, pipeline) in pipelines.enumerated() {
         let name = pipeline.name ?? "pipeline[\(i)]"
         let stepsDesc = pipeline.steps.map(\.displayString).joined(separator: " -> ")
-        log.info("Pipeline: running '\(name)': \(stepsDesc)")
+        log.debug("Pipeline: running '\(name)': \(stepsDesc)")
         do {
             let (resultFile, shownVisible) = try await executePipeline(pipeline, file: file, source: source, optimiser: optimiser, fileType: fileType)
             if shownVisible { anyVisibleResult = true }
-            log.info("Pipeline: '\(name)' completed, result file: \(resultFile.string), visible: \(shownVisible)")
+            log.debug("Pipeline: '\(name)' completed, result file: \(resultFile.string), visible: \(shownVisible)")
 
             // If no step showed a visible result, show one via the parent optimiser.
             // Respect the pipeline's hideResult toggle: keep the optimiser hidden when set.
