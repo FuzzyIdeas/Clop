@@ -47,6 +47,16 @@ final class PipelineExecution {
 
     var hide: Bool { forceHide || currentFile.string.contains("/pipeline-") }
 
+    /// After `applyLocation` copies the result somewhere outside the temp cache,
+    /// point the visible child optimiser (created by run{Video,Image,PDF,Audio}Pipeline
+    /// keyed by the temp input path) at the final destination so the floating result
+    /// tracks a file that won't be deleted by cache cleanup. The `url` setter
+    /// re-derives path/filename and calls `refetch()` to refresh the thumbnail.
+    func retargetChildOptimiser(originalID: String, to dest: FilePath) {
+        guard let child = opt(originalID), child.url != dest.url else { return }
+        child.url = dest.url
+    }
+
     // MARK: - Compiled Batch Execution
 
     /// Execute a batch of consecutive processing/media steps as a single compiled pass.
@@ -54,7 +64,7 @@ final class PipelineExecution {
     func handleCompiledBatch(_ batch: [PipelineStep], startIndex: Int) async -> Int {
         let batchDesc = batch.map(\.displayString).joined(separator: " + ")
         let endIndex = startIndex + batch.count - 1
-        log.info("Pipeline: steps[\(startIndex)...\(endIndex)] compiled: \(batchDesc) on \(self.currentFile.string)")
+        log.debug("Pipeline: steps[\(startIndex)...\(endIndex)] compiled: \(batchDesc) on \(self.currentFile.string)")
 
         let actions = optimiser.compilePipelineActions(from: batch)
 
@@ -89,7 +99,7 @@ final class PipelineExecution {
             log.warning("Pipeline: steps[\(startIndex)...\(endIndex)] compiled batch failed for \(self.fileType.rawValue) \(self.currentFile.string)")
         }
 
-        log.info("Pipeline: steps[\(startIndex)...\(endIndex)] completed, file: \(self.currentFile.string)")
+        log.debug("Pipeline: steps[\(startIndex)...\(endIndex)] completed, file: \(self.currentFile.string)")
         return batch.count
     }
 
@@ -115,6 +125,7 @@ final class PipelineExecution {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
+                    retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
                 } else {
                     log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for image \(inputFile.string)")
                     if location != "inPlace" {
@@ -135,6 +146,7 @@ final class PipelineExecution {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
+                retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(inputFile.string)")
                 if location != "inPlace" {
@@ -155,6 +167,7 @@ final class PipelineExecution {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
+                retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for PDF \(inputFile.string)")
                 if location != "inPlace" {
@@ -171,6 +184,7 @@ final class PipelineExecution {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
+                retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio \(inputFile.string)")
                 if location != "inPlace" {
@@ -509,7 +523,7 @@ final class PipelineExecution {
     func handleFilterIf(condition: FilterCondition) {
         let (matches, captures) = condition.evaluate(file: currentFile, context: context)
         if !matches {
-            log.info("Pipeline: filter condition not met, stopping pipeline for \(self.currentFile.string)")
+            log.debug("Pipeline: filter condition not met, stopping pipeline for \(self.currentFile.string)")
             shouldStop = true
             return
         }
@@ -519,7 +533,7 @@ final class PipelineExecution {
     func handleFilterIfNot(condition: FilterCondition) {
         let (matches, _) = condition.evaluate(file: currentFile, context: context)
         if matches {
-            log.info("Pipeline: exclusion filter matched, stopping pipeline for \(self.currentFile.string)")
+            log.debug("Pipeline: exclusion filter matched, stopping pipeline for \(self.currentFile.string)")
             shouldStop = true
         }
     }
@@ -563,7 +577,7 @@ final class PipelineExecution {
         let resolvedPath = context.resolve(scriptPath)
         let inputPath = currentFile.string
         let scriptName = FilePath(resolvedPath).stem ?? resolvedPath
-        log.info("Pipeline: running script '\(scriptName)' at \(resolvedPath) with input \(inputPath)")
+        log.debug("Pipeline: running script '\(scriptName)' at \(resolvedPath) with input \(inputPath)")
 
         let currentFile = currentFile
         let scriptResult: (newPath: FilePath?, error: String?) = await Task.detached {
@@ -743,7 +757,7 @@ final class PipelineExecution {
     func handleCopyLinkForSending() async {
         let url = currentFile.url
         if let shareURL = await warpDropSendAndWait(url: url, optimiser: optimiser) {
-            log.info("Pipeline: send link copied: \(shareURL)")
+            log.debug("Pipeline: send link copied: \(shareURL)")
         }
     }
 
@@ -889,6 +903,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
         return true
     }
 
@@ -916,6 +931,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
         return true
     }
 
@@ -952,6 +968,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
         return true
     }
 
@@ -967,6 +984,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
         return true
     }
 

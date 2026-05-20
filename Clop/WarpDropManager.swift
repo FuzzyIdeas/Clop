@@ -58,13 +58,13 @@ class WarpDropManager: ObservableObject {
     func addSession(roomID: String, files: [URL], task: Task<String, Error>) {
         let session = WarpDropSession(id: roomID, files: files, task: task)
         sessions.append(session)
-        log.info("WarpDrop room created: \(roomID)")
+        log.debug("WarpDrop room created: \(roomID)")
     }
 
     func didCompleteDownload(roomID: String, count: Int) {
         guard let idx = sessions.firstIndex(where: { $0.id == roomID }) else { return }
         sessions[idx].downloadCount = count
-        log.info("WarpDrop download #\(count) completed for room \(roomID)")
+        log.debug("WarpDrop download #\(count) completed for room \(roomID)")
     }
 
     func stopSession(_ session: WarpDropSession) {

@@ -263,19 +263,31 @@ class Video: Optimisable {
         let audioRemoved = removeAudio ?? Defaults[.removeAudioFromVideos]
         let convertAudioToAAC = Defaults[.convertAudioToAAC]
         let encoder = videoEncoderOverride ?? Defaults[.videoEncoder]
-        let aggressive = aggressiveOptimisation ?? (encoder == .slowHighQuality)
+        let aggressive = aggressiveOptimisation ?? false
         mainActor { optimiser.aggressive = aggressive }
-        let encoderArgs: [String] = encoderOverride ?? {
+
+        // Adaptive only kicks in when the pipeline didn't explicitly request an encoder.
+        // It swaps the default encoder between .fast and .slowHighQuality based on file traits.
+        let resolvedEncoder: VideoEncoder = {
+            guard videoEncoderOverride == nil, Defaults[.adaptiveVideoSize] else { return encoder }
             #if arch(arm64)
-                let useFastEncoder = encoder == .fast && aggressiveOptimisation != true
-                let useAdaptiveFast = encoder != .fast && Defaults[.adaptiveVideoSize] && !useAggressiveOptimisation(aggressiveSetting: aggressiveOptimisation ?? false)
-                if useFastEncoder || useAdaptiveFast {
-                    return ["-vcodec", "h264_videotoolbox", "-q:v", "45", "-tag:v", "avc1"]
-                }
+                return useAggressiveOptimisation(aggressiveSetting: false) ? .slowHighQuality : .fast
+            #else
+                return encoder
             #endif
-            switch (aggressiveOptimisation == true) ? .slowHighQuality : encoder {
+        }()
+
+        let encoderArgs: [String] = encoderOverride ?? {
+            if aggressive {
+                return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "veryslow", "-crf", "28"]
+            }
+            switch resolvedEncoder {
             case .fast:
-                return ["-vcodec", "h264", "-tag:v", "avc1"]
+                #if arch(arm64)
+                    return ["-vcodec", "h264_videotoolbox", "-q:v", "45", "-tag:v", "avc1"]
+                #else
+                    return ["-vcodec", "h264", "-tag:v", "avc1"]
+                #endif
             case .slowHighQuality:
                 return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "slower"]
             case .visuallyLossless:
