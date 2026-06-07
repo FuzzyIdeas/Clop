@@ -1344,6 +1344,13 @@ func migrateSettings() {
         Defaults[.compactResultActions] = withCompression(Defaults[.compactResultActions])
         Defaults[.compressionModelMigratedVersion] = 4
     }
+
+    if Defaults[.compressionModelMigratedVersion] < 6 {
+        // PDF compression is now a single DPI control (0 = Adaptive) and defaults to Adaptive, which
+        // matches the old default behaviour (aggressive + adaptive DPI). Reset to Adaptive once.
+        Defaults[.pdfDPI] = PDF_DPI_ADAPTIVE
+        Defaults[.compressionModelMigratedVersion] = 6
+    }
 }
 
 let WINDOW_MIN_SIZE = CGSize(width: 870, height: 750)
