@@ -392,6 +392,17 @@ struct VideoSettingsView: View {
 
     @Default(.videoEncoder) var videoEncoder
     @Default(.videoCompression) var videoCompression
+
+    var videoCompressionDescription: String {
+        switch videoCompression.tier {
+        case .adaptive: "Picks the best encoder and amount of compression for each file"
+        case .lossless: "No perceptible quality loss"
+        case .fast: "Hardware encoder: fast, battery efficient, no CPU usage, modest size gains"
+        default: videoCompression.videoUsesAutoCRF
+            ? "Software encoder: slower, high CPU usage; ffmpeg picks the compression amount"
+            : "Software encoder: slower, high CPU usage, better quality and size gains"
+        }
+    }
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
     #endif
@@ -455,48 +466,42 @@ struct VideoSettingsView: View {
                             .font(.mono(11))
                     }
                 }
-                Picker(selection: Binding(
-                    get: { cqToVideoEncoder(videoCompression) },
-                    set: { videoCompression.tier = videoEncoderToCQ($0).tier }
-                )) {
-                    ForEach(VideoEncoder.allCases, id: \.self) { encoder in
-                        Text(encoder.name).tag(encoder)
-                    }
-                } label: {
+                HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Video encoder").regular(13)
-                        Text(cqToVideoEncoder(videoCompression).description).round(11, weight: .regular).foregroundColor(.secondary)
+                        Text("Compression").regular(13)
+                        Text(videoCompressionDescription).round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    Spacer()
+                    if videoCompression.tier == .smaller || videoCompression.tier == .custom {
+                        if !videoCompression.videoUsesAutoCRF {
+                            Slider(
+                                value: Binding(
+                                    get: { Double(max(5, videoCompression.factor)) },
+                                    set: { videoCompression = CompressionQuality(tier: .smaller, factor: Int($0.rounded())) }
+                                ),
+                                in: 5 ... 100, step: 1
+                            )
+                            .frame(width: 90)
+                            Text("\(videoCompression.factor)%").mono(11).frame(width: 38, alignment: .trailing)
+                        }
+                        Button("Auto") {
+                            videoCompression = CompressionQuality(tier: .smaller, factor: videoCompression.videoUsesAutoCRF ? 50 : 0)
+                        }
+                        .buttonStyle(ToggleButton(isOn: .oneway { videoCompression.videoUsesAutoCRF }))
+                        .font(.mono(11))
+                    }
+                    Picker("", selection: Binding<CompressionTier>(
+                        get: { videoCompression.tier == .custom ? .smaller : videoCompression.tier },
+                        set: { videoCompression = CompressionQuality(tier: $0, factor: videoCompression.factor) }
+                    )) {
+                        Text("Adaptive").tag(CompressionTier.adaptive)
+                        Text("Visually lossless").tag(CompressionTier.lossless)
+                        Text("Hardware encoder").tag(CompressionTier.fast)
+                        Text("Software encoder").tag(CompressionTier.smaller)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                if videoCompression.tier == .smaller || videoCompression.tier == .custom {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Compression").regular(13)
-                            Spacer()
-                            Text("CRF \(videoCompression.videoH264CRF)").mono(11).foregroundColor(.secondary)
-                        }
-                        Slider(
-                            value: Binding(
-                                get: { Double(videoCompression.factor) },
-                                set: { videoCompression.factor = Int($0.rounded()) }
-                            ),
-                            in: 5 ... 100, step: 1
-                        )
-                        HStack {
-                            Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
-                            Spacer()
-                            Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
-                        }
-                    }
-                }
-                #if arch(arm64)
-                    if videoCompression.tier != .fast {
-                        Toggle(isOn: $adaptiveVideoSize) {
-                            Text("Adaptive optimisation").regular(13)
-                                + Text("\nFalls back to the fast encoder for large files to save time and battery").round(11, weight: .regular).foregroundColor(.secondary)
-                        }
-                    }
-                #endif
                 Toggle("Remove audio on optimised videos", isOn: $removeAudioFromVideos)
                 Toggle(isOn: $capVideoFPS.animation(.spring())) {
                     HStack {

@@ -370,7 +370,7 @@ enum CompressionScale {
             switch cq.tier {
             case .lossless: return "Lossless"
             case .fast: return "Fast"
-            default: return "CRF \(cq.videoH264CRF)"
+            default: return cq.videoUsesAutoCRF ? "Auto" : "\(cq.factor)%"
             }
         }
         return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)"

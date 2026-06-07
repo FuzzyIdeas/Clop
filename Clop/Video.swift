@@ -268,14 +268,14 @@ class Video: Optimisable {
         let aggressive = aggressiveOptimisation ?? false
         mainActor { optimiser.aggressive = aggressive }
 
-        // Adaptive only kicks in when the pipeline didn't explicitly request an encoder.
-        // It swaps the tier between .fast and .smaller based on file traits, keeping the factor.
+        // The "Adaptive" choice picks the best encoder per file: hardware for small/short clips,
+        // efficient software for larger ones (arm64). On Intel there's no VideoToolbox, so software.
         let resolvedCQ: CompressionQuality = {
-            guard videoEncoderOverride == nil, Defaults[.adaptiveVideoSize] else { return cq }
+            guard videoEncoderOverride == nil, cq.tier == .adaptive else { return cq }
             #if arch(arm64)
                 return CompressionQuality(tier: useAggressiveOptimisation(aggressiveSetting: false) ? .smaller : .fast, factor: cq.factor)
             #else
-                return cq
+                return CompressionQuality(tier: .smaller, factor: cq.factor)
             #endif
         }()
 
