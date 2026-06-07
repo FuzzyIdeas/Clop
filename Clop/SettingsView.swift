@@ -393,6 +393,7 @@ struct VideoSettingsView: View {
 
     @Default(.videoEncoder) var videoEncoder
     @Default(.videoCompression) var videoCompression
+    @State private var lastVideoFactor = 50
 
     var videoResolvedTier: CompressionTier {
         videoCompression.tier == .custom ? .smaller : videoCompression.tier
@@ -436,22 +437,27 @@ struct VideoSettingsView: View {
                     Text("Compression").regular(13)
                     Spacer()
                     if videoCompression.tier == .smaller || videoCompression.tier == .custom {
-                        if !videoCompression.videoUsesAutoCRF {
-                            Slider(
-                                value: Binding(
-                                    get: { Double(max(5, videoCompression.factor)) },
-                                    set: { videoCompression = CompressionQuality(tier: .smaller, factor: Int($0.rounded())) }
-                                ),
-                                in: 5 ... 100, step: 1
-                            )
-                            .frame(width: 90)
-                            Text("\(videoCompression.factor)%").mono(11).frame(width: 38, alignment: .trailing)
-                        }
                         Button("Auto") {
-                            videoCompression = CompressionQuality(tier: .smaller, factor: videoCompression.videoUsesAutoCRF ? 50 : 0)
+                            if videoCompression.videoUsesAutoCRF {
+                                videoCompression = CompressionQuality(tier: .smaller, factor: lastVideoFactor)
+                            } else {
+                                lastVideoFactor = max(5, videoCompression.factor)
+                                videoCompression = CompressionQuality(tier: .smaller, factor: 0)
+                            }
                         }
                         .buttonStyle(ToggleButton(isOn: .oneway { videoCompression.videoUsesAutoCRF }))
                         .font(.mono(11))
+                        Slider(
+                            value: Binding(
+                                get: { Double(videoCompression.videoUsesAutoCRF ? lastVideoFactor : max(5, videoCompression.factor)) },
+                                set: { videoCompression = CompressionQuality(tier: .smaller, factor: Int($0.rounded())) }
+                            ),
+                            in: 5 ... 100, step: 1
+                        )
+                        .frame(width: 150)
+                        .disabled(videoCompression.videoUsesAutoCRF)
+                        Text(videoCompression.videoUsesAutoCRF ? "Auto" : "\(videoCompression.factor)%")
+                            .mono(11).frame(width: 38, alignment: .trailing)
                     }
                     Menu {
                         ForEach([CompressionTier.adaptive, .lossless, .fast, .smaller], id: \.self) { tier in
