@@ -279,6 +279,7 @@ struct DirListView: View {
 struct PDFSettingsView: View {
     @Default(.pdfDirs) var pdfDirs
     @Default(.maxPDFSizeMB) var maxPDFSizeMB
+    @Default(.minPDFSizeKB) var minPDFSizeKB
     @Default(.maxPDFFileCount) var maxPDFFileCount
     @Default(.useAggressiveOptimisationPDF) var useAggressiveOptimisationPDF
     @Default(.pdfDPI) var pdfDPI
@@ -307,6 +308,15 @@ struct PDFSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
                     Text("are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Skip when PDFs smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minPDFSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("KB").mono(13)
+                    Text("are copied or moved (0 disables)").regular(13)
                 }
                 HStack {
                     Text("Skip when more than").regular(13)
@@ -365,6 +375,8 @@ struct VideoSettingsView: View {
     @Default(.videoDirs) var videoDirs
     @Default(.formatsToConvertToMP4) var formatsToConvertToMP4
     @Default(.maxVideoSizeMB) var maxVideoSizeMB
+    @Default(.minVideoSizeKB) var minVideoSizeKB
+    @Default(.minVideoResolution) var minVideoResolution
     @Default(.videoFormatsToSkip) var videoFormatsToSkip
     @Default(.adaptiveVideoSize) var adaptiveVideoSize
     @Default(.capVideoFPS) var capVideoFPS
@@ -404,6 +416,24 @@ struct VideoSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
                     Text("are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Skip when videos smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minVideoSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("KB").mono(13)
+                    Text("are copied or moved (0 disables)").regular(13)
+                }
+                HStack {
+                    Text("Skip videos smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minVideoResolution, formatter: BoundFormatter(min: 0, max: 100_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 60)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("px").mono(13)
+                    Text("on either side (0 disables)").regular(13)
                 }
                 HStack {
                     Text("Skip when more than").regular(13)
@@ -726,6 +756,7 @@ struct AudioSettingsView: View {
     @Default(.audioFormatsToSkip) var audioFormatsToSkip
     @Default(.formatsToConvertToOutputAudio) var formatsToConvertToOutputAudio
     @Default(.maxAudioSizeMB) var maxAudioSizeMB
+    @Default(.minAudioSizeKB) var minAudioSizeKB
     @Default(.maxAudioFileCount) var maxAudioFileCount
     @Default(.optimisedAudioBehaviour) var optimisedAudioBehaviour
     @Default(.sameFolderNameTemplateAudio) var sameFolderNameTemplateAudio
@@ -751,6 +782,15 @@ struct AudioSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
                     Text("are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Skip when audio files smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minAudioSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("KB").mono(13)
+                    Text("are copied or moved (0 disables)").regular(13)
                 }
                 HStack {
                     Text("Skip when more than").regular(13)
@@ -816,6 +856,8 @@ struct ImagesSettingsView: View {
     @Default(.formatsToConvertToJPEG) var formatsToConvertToJPEG
     @Default(.formatsToConvertToPNG) var formatsToConvertToPNG
     @Default(.maxImageSizeMB) var maxImageSizeMB
+    @Default(.minImageSizeKB) var minImageSizeKB
+    @Default(.minImageResolution) var minImageResolution
     @Default(.imageFormatsToSkip) var imageFormatsToSkip
     @Default(.adaptiveImageSize) var adaptiveImageSize
     // @Default(.downscaleRetinaImages) var downscaleRetinaImages
@@ -971,6 +1013,24 @@ struct ImagesSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("MB").mono(13)
                     Text("are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Skip when images smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minImageSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("KB").mono(13)
+                    Text("are copied or moved (0 disables)").regular(13)
+                }
+                HStack {
+                    Text("Skip images smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minImageResolution, formatter: BoundFormatter(min: 0, max: 100_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 60)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("px").mono(13)
+                    Text("on either side (0 disables)").regular(13)
                 }
                 HStack {
                     Text("Skip when more than").regular(13)

@@ -901,6 +901,12 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task.init {
+                // Skip videos below the minimum resolution (metadata is only fetched when enabled).
+                let minRes = Defaults[.minVideoResolution]
+                if minRes > 0, let video = try? await Video.byFetchingMetadata(path: path, thumb: false),
+                   let res = video.size, res.width < CGFloat(minRes) || res.height < CGFloat(minRes) {
+                    return
+                }
                 let matchedDir = Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false

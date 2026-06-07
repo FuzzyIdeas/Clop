@@ -98,11 +98,13 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
     var heightLowerThan: Int?
     var dpiGreaterThan: Int?
     var dpiLowerThan: Int?
+    var minFileSize: Int?
+    var minResolution: Int?
 
     var isEmpty: Bool {
         let noText: Bool = types == nil && regex == nil && nameContains == nil && nameIs == nil
-        let noSize: Bool = fileSizeGreaterThan == nil && fileSizeLowerThan == nil
-        let noDims: Bool = widthGreaterThan == nil && widthLowerThan == nil && heightGreaterThan == nil && heightLowerThan == nil
+        let noSize: Bool = fileSizeGreaterThan == nil && fileSizeLowerThan == nil && minFileSize == nil
+        let noDims: Bool = widthGreaterThan == nil && widthLowerThan == nil && heightGreaterThan == nil && heightLowerThan == nil && minResolution == nil
         let noDPI: Bool = dpiGreaterThan == nil && dpiLowerThan == nil
         return noText && noSize && noDims && noDPI
     }
@@ -170,6 +172,14 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
 
         if let dpiLowerThan {
             guard let dpi = fileDPI(file), dpi < dpiLowerThan else { return (false, []) }
+        }
+
+        if let minFileSize {
+            guard let size = file.fileSize(), size >= minFileSize else { return (false, []) }
+        }
+
+        if let minResolution {
+            guard let w = imageWidth(file), let h = imageHeight(file), w >= minResolution, h >= minResolution else { return (false, []) }
         }
 
         return (true, captures)
@@ -534,6 +544,8 @@ extension FilterCondition {
         if let heightLowerThan { parts.append("height < \(heightLowerThan)") }
         if let dpiGreaterThan { parts.append("dpi > \(dpiGreaterThan)") }
         if let dpiLowerThan { parts.append("dpi < \(dpiLowerThan)") }
+        if let minFileSize { parts.append("size >= \(minFileSize)") }
+        if let minResolution { parts.append("resolution >= \(minResolution)") }
         return parts.isEmpty ? "" : parts.joined(separator: ", ")
     }
 }
