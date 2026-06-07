@@ -66,6 +66,7 @@ struct DirListView: View {
     @State var selectedDirs: Set<String> = []
     @State var chooseFile = false
     @State var clopignoreHelpVisible = false
+    @State var automationsExpanded = true
     var hideIgnoreRules = false
 
     @Default(.dirsHideFloatingResult) var dirsHideFloatingResult
@@ -165,10 +166,13 @@ struct DirListView: View {
         Defaults[fileType.pipelineKey][dir]?.isEmpty == false
     }
 
-    func navigateToAutomation(folder: String) {
-        settingsViewManager.scrollToFileType = fileType
-        settingsViewManager.highlightFolder = HighlightedFolderRequest(fileType: fileType, folder: folder)
-        settingsViewManager.tab = .automation
+    func showAutomations(folder: String, addNew: Bool) {
+        selectedDirs = [folder]
+        withAnimation(.easeOut(duration: 0.15)) { automationsExpanded = true }
+        guard addNew else { return }
+        var dict = Defaults[fileType.pipelineKey]
+        dict[folder, default: []].append(Pipeline(steps: []))
+        Defaults[fileType.pipelineKey] = dict
     }
 
     var body: some View {
@@ -186,7 +190,7 @@ struct DirListView: View {
                     .width(130)
                     TableColumn("") { dir in
                         Button(dirHasAutomation(dir) ? "Edit automation" : "Add automation") {
-                            navigateToAutomation(folder: dir)
+                            showAutomations(folder: dir, addNew: !dirHasAutomation(dir))
                         }
                         .font(.round(10))
                         .buttonStyle(.borderless)
@@ -237,6 +241,9 @@ struct DirListView: View {
             if !hideIgnoreRules, enabled {
                 ignoreRulesView
             }
+            if enabled, selectedDirs.count == 1, let dir = selectedDirs.first {
+                FolderAutomationsSection(fileType: fileType, folder: dir, expanded: $automationsExpanded)
+            }
         }
         .padding(4)
         .onChange(of: selectedDirs) { [selectedDirs] newSelectedDirs in
@@ -276,6 +283,62 @@ struct DirListView: View {
     }
 }
 
+/// Per-path automations shown below the watched-paths table. Edits the same Defaults the
+/// Automation tab uses (`fileType.pipelineKey`), filtered to a single folder.
+struct FolderAutomationsSection: View {
+    let fileType: ClopFileType
+    let folder: String
+    @Binding var expanded: Bool
+
+    @Default(.pipelinesToRunOnImage) var imagePipelines
+    @Default(.pipelinesToRunOnVideo) var videoPipelines
+    @Default(.pipelinesToRunOnPdf) var pdfPipelines
+    @Default(.pipelinesToRunOnAudio) var audioPipelines
+    @State private var editingKey: String?
+
+    var pipelinesBinding: Binding<[String: [Pipeline]]> {
+        switch fileType {
+        case .image: $imagePipelines
+        case .video: $videoPipelines
+        case .pdf: $pdfPipelines
+        case .audio: $audioPipelines
+        }
+    }
+
+    var count: Int { pipelinesBinding.wrappedValue[folder]?.count ?? 0 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button(action: { withAnimation(.easeOut(duration: 0.15)) { expanded.toggle() } }) {
+                HStack(spacing: 5) {
+                    SwiftUI.Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.semibold(9)).foregroundColor(.secondary)
+                    Text("Automations").semibold(12)
+                    if count > 0 {
+                        Text("\(count)").mono(10)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.primary.opacity(0.1)))
+                    }
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                PipelineEditorRow(
+                    source: .dir(folder),
+                    fileType: fileType,
+                    pipelines: pipelinesBinding,
+                    editingKey: $editingKey,
+                    onRemoveSource: { pipelinesBinding.wrappedValue[folder] = nil }
+                )
+            }
+        }
+        .padding(.top, 6)
+    }
+}
+
 struct PDFSettingsView: View {
     @Default(.pdfDirs) var pdfDirs
     @Default(.maxPDFSizeMB) var maxPDFSizeMB
@@ -299,9 +362,9 @@ struct PDFSettingsView: View {
             return "Clop automatically picks a per-PDF DPI from the source image density and downscales images above it"
         }
         if pdfDPI >= PDF_DPI_NO_DOWNSAMPLE {
-            return "Keeps images at full resolution without downsampling"
+            return "Lossless compression, tries to save space on metadata and reencoding. May not yield significant size reductions."
         }
-        return "Downscales images above \(pdfDPI) DPI to \(pdfDPI) DPI; lower-resolution images are left untouched"
+        return "Downscales high resolution images to \(pdfDPI) DPI; lower-resolution images are left untouched"
     }
 
     var body: some View {
