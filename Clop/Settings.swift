@@ -150,13 +150,13 @@ extension Defaults.Keys {
     static let maxPDFSizeMB = Key<Int>("maxPDFSizeMB", default: 100)
     static let maxAudioSizeMB = Key<Int>("maxAudioSizeMB", default: 100)
     // Minimum size thresholds (in KB) — files smaller than this are skipped in watched folders. 0 = disabled.
-    static let minVideoSizeKB = Key<Int>("minVideoSizeKB", default: 0)
-    static let minImageSizeKB = Key<Int>("minImageSizeKB", default: 0)
+    static let minVideoSizeKB = Key<Int>("minVideoSizeKB", default: 200)
+    static let minImageSizeKB = Key<Int>("minImageSizeKB", default: 50)
     static let minPDFSizeKB = Key<Int>("minPDFSizeKB", default: 0)
     static let minAudioSizeKB = Key<Int>("minAudioSizeKB", default: 0)
     // Minimum resolution (px applied to BOTH width and height) for images/videos. 0 = disabled.
-    static let minImageResolution = Key<Int>("minImageResolution", default: 0)
-    static let minVideoResolution = Key<Int>("minVideoResolution", default: 0)
+    static let minImageResolution = Key<Int>("minImageResolution", default: 20)
+    static let minVideoResolution = Key<Int>("minVideoResolution", default: 50)
     // Maximum resolution (px applied to BOTH width and height) for images/videos. 0 = disabled.
     static let maxImageResolution = Key<Int>("maxImageResolution", default: 0)
     static let maxVideoResolution = Key<Int>("maxVideoResolution", default: 0)
