@@ -307,9 +307,9 @@ struct PDFSettingsView: View {
                 PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
                 PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive, includeAdaptive: true)
             }
-            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
+            Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minPDFSizeKB, maxMB: $maxPDFSizeMB)
-                CountSliderRow(count: $maxPDFFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "PDF is" : "PDFs are") copied or moved at once" })
+                CountSliderRow(count: $maxPDFFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "PDF is" : "PDFs are") copied or moved at once" })
             }
         }
         .scrollContentBackground(.hidden)
@@ -495,10 +495,10 @@ struct VideoSettingsView: View {
                 }
 
             }
-            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
+            Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minVideoSizeKB, maxMB: $maxVideoSizeMB)
                 ResolutionRangeRow(label: "Resolution", minRes: $minVideoResolution, maxRes: $maxVideoResolution)
-                CountSliderRow(count: $maxVideoFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "video is" : "videos are") copied or moved at once" })
+                CountSliderRow(count: $maxVideoFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "video is" : "videos are") copied or moved at once" })
                 HStack {
                     Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
                     Spacer()
@@ -790,12 +790,8 @@ struct AudioSettingsView: View {
                     }
                 }
                 if !audioFormat.isLossless {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Compression").regular(13)
-                            Spacer()
-                            Text("\(audioCompression.factor)%").mono(11).foregroundColor(.secondary)
-                        }
+                    HStack(spacing: 8) {
+                        Text("Compression").regular(13)
                         Slider(
                             value: Binding(
                                 get: { Double(audioCompression.factor) },
@@ -803,17 +799,14 @@ struct AudioSettingsView: View {
                             ),
                             in: 5 ... 100, step: 1
                         )
-                        HStack {
-                            Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
-                            Spacer()
-                            Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
-                        }
+                        Text("\(audioCompression.factor)%")
+                            .mono(11).foregroundColor(.secondary).frame(width: 38, alignment: .trailing)
                     }
                 }
             }
-            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
+            Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minAudioSizeKB, maxMB: $maxAudioSizeMB)
-                CountSliderRow(count: $maxAudioFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "audio file is" : "audio files are") copied or moved at once" })
+                CountSliderRow(count: $maxAudioFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "audio file is" : "audio files are") copied or moved at once" })
             }
             if audioFormat != .sameAsInput, !audioFormat.isLossless {
                 Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts selected formats to \(audioFormat.fileExtension) before optimisation")) {
@@ -960,7 +953,7 @@ struct ImagesSettingsView: View {
                     Text("Optimise images copied from Photos.app").regular(13)
                 }
 
-                CountSliderRow(count: $maxCopiedPhotosCount, range: 1 ... 50, caption: { "Skips when more than \($0) \($0 == 1 ? "photo is" : "photos are") copied at once" })
+                CountSliderRow(count: $maxCopiedPhotosCount, range: 1 ... 50, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "photo is" : "photos are") copied at once" })
                     .disabled(!enablePhotosIntegration)
 
                 HStack(spacing: 6) {
@@ -995,8 +988,10 @@ struct ImagesSettingsView: View {
                         in: 5 ... 100, step: 1
                     )
                     .disabled(imageCompression.tier == .adaptive)
-                    Text(imageCompression.tier == .adaptive ? "Adaptive" : "\(imageCompression.factor)%")
-                        .mono(11).foregroundColor(.secondary).frame(width: 64, alignment: .trailing)
+                    Text("\(imageCompression.factor)%")
+                        .mono(11).foregroundColor(.secondary)
+                        .opacity(imageCompression.tier == .adaptive ? 0.2 : 1)
+                        .frame(width: 38, alignment: .trailing)
                     Button("Adaptive") {
                         imageCompression.tier = imageCompression.tier == .adaptive ? .custom : .adaptive
                     }
@@ -1010,10 +1005,10 @@ struct ImagesSettingsView: View {
                 // }
 
             }
-            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
+            Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minImageSizeKB, maxMB: $maxImageSizeMB)
                 ResolutionRangeRow(label: "Resolution", minRes: $minImageResolution, maxRes: $maxImageResolution)
-                CountSliderRow(count: $maxImageFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "image is" : "images are") copied or moved at once" })
+                CountSliderRow(count: $maxImageFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "image is" : "images are") copied or moved at once" })
                 HStack {
                     Text("Ignore images with extension").regular(13).padding(.trailing, 10)
                     Spacer()
@@ -2206,7 +2201,7 @@ struct SkipSliderPreview: View {
             Section(header: Text("Skip rules preview")) {
                 FileSizeRangeRow(minKB: $minKB, maxMB: $maxMB)
                 ResolutionRangeRow(minRes: $minRes, maxRes: $maxRes)
-                CountSliderRow(count: $count, caption: { "Skips when more than \($0) \($0 == 1 ? "image is" : "images are") copied or moved at once" })
+                CountSliderRow(count: $count, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "image is" : "images are") copied or moved at once" })
             }
         }
         .formStyle(.grouped)
