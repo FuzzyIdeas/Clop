@@ -62,6 +62,21 @@ enum AudioFormat: String, CaseIterable, Codable {
         }
     }
 
+    /// Continuous bitrate range (kbps) used by the compression-percentage slider.
+    /// `hi` = best quality end (least compression), `lo` = smallest-file end. The ranges
+    /// reflect codec efficiency for the same perceived quality: Opus needs the fewest kbps,
+    /// AAC a bit more, MP3 the most. Returns nil for lossless formats (no bitrate axis).
+    var bitrateRange: (lo: Int, hi: Int)? {
+        switch self {
+        case .mp3: (64, 320)
+        case .aac: (48, 256)
+        case .opus: (32, 160)
+        // Resolved to a concrete format before encoding; a generic lossy range for display.
+        case .sameAsInput: (48, 256)
+        case .wav: nil
+        }
+    }
+
     var utType: UTType? {
         switch self {
         case .sameAsInput: nil
