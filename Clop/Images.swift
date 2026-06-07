@@ -498,7 +498,7 @@ class Image: CustomStringConvertible {
         }
 
         if outImg.canBeOptimised {
-            outImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.imageCompression].tier == .adaptive)) ?? outImg
+            outImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride).tier == .adaptive)) ?? outImg
         }
 
         if outImg.path != path, outImg.type == type {

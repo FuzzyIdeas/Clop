@@ -129,10 +129,11 @@ struct DownscaleButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
             .onRightClick {
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
     }
@@ -373,7 +374,19 @@ enum CompressionScale {
             default: return cq.videoUsesAutoCRF ? "Auto" : "\(cq.factor)%"
             }
         }
-        return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)"
+        return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)%"
+    }
+
+    /// Spelled-out label shown in the centre of the result while dragging (the knob keeps the terse one).
+    static func stepLabel(for cq: CompressionQuality, type: ItemType) -> String {
+        if type.isVideo {
+            switch cq.tier {
+            case .lossless: return "Lossless"
+            case .fast: return "Fast"
+            default: return cq.videoUsesAutoCRF ? "Auto" : "\(cq.factor)% compression"
+            }
+        }
+        return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)% compression"
     }
 
     static func anchors(for type: ItemType) -> [Double] {
@@ -394,10 +407,11 @@ struct CompressionButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "slider.horizontal.3").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showCompressionSlider = true
             }
             .onRightClick {
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showCompressionSlider = true
             }
     }
@@ -469,7 +483,7 @@ struct CompressionSlider: View {
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
-                    optimiser.stepIndicator = CompressionScale.label(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
+                    optimiser.stepIndicator = CompressionScale.stepLabel(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
                 },
                 onRelease: { value in
                     let p = (1.0 - value) / 0.9
@@ -558,7 +572,7 @@ struct HorizontalCompressionSlider: View {
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
-                    optimiser.stepIndicator = CompressionScale.label(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
+                    optimiser.stepIndicator = CompressionScale.stepLabel(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
                 },
                 onRelease: { value in
                     let p = (1.0 - value) / 0.9
@@ -1071,8 +1085,18 @@ private struct SliderEventOverlay: NSViewRepresentable {
             super.viewDidMoveToWindow()
             guard window != nil, dragMonitor == nil else { return }
             didDrag = false
-            dragMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp]) { [weak self] event in
-                guard let self, window != nil, !self.directTracking else { return event }
+            dragMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp, .keyDown]) { [weak self] event in
+                guard let self, window != nil else { return event }
+
+                if event.type == .keyDown {
+                    guard event.keyCode == 53 else { return event } // Esc bails out of the drag without committing
+                    directTracking = false
+                    didDrag = false
+                    onCancel?()
+                    return nil
+                }
+
+                guard !self.directTracking else { return event }
 
                 let location = convert(event.locationInWindow, from: nil)
                 let f = factorForLocation(location)
@@ -1260,10 +1284,11 @@ struct LowerBitrateButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
             .onRightClick {
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
     }
@@ -1277,10 +1302,11 @@ struct LowerPDFDPIButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "slider.horizontal.3").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
             .onRightClick {
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
     }
