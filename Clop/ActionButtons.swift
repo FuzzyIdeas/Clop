@@ -42,7 +42,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     var icon: String {
         switch self {
         case .downscale: "minus"
-        case .compression: "dial.high"
+        case .compression: "slider.horizontal.3"
         case .share: "square.and.arrow.up"
         case .restoreOptimise: "arrow.uturn.backward"
         case .aggressiveOptimisation: "bolt.horizontal"
@@ -391,7 +391,7 @@ struct CompressionButton: View {
     @Environment(\.preview) var preview
 
     var body: some View {
-        Button(action: {}, label: { SwiftUI.Image(systemName: "dial.high").font(.heavy(9)) })
+        Button(action: {}, label: { SwiftUI.Image(systemName: "slider.horizontal.3").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
                 guard !preview else { return }
@@ -1274,7 +1274,7 @@ struct LowerPDFDPIButton: View {
     @Environment(\.preview) var preview
 
     var body: some View {
-        Button(action: {}, label: { SwiftUI.Image(systemName: "dial.high").font(.heavy(9)) })
+        Button(action: {}, label: { SwiftUI.Image(systemName: "slider.horizontal.3").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
                 guard !preview else { return }
