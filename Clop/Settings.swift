@@ -156,6 +156,9 @@ extension Defaults.Keys {
     // Minimum resolution (px applied to BOTH width and height) for images/videos. 0 = disabled.
     static let minImageResolution = Key<Int>("minImageResolution", default: 0)
     static let minVideoResolution = Key<Int>("minVideoResolution", default: 0)
+    // Maximum resolution (px applied to BOTH width and height) for images/videos. 0 = disabled.
+    static let maxImageResolution = Key<Int>("maxImageResolution", default: 0)
+    static let maxVideoResolution = Key<Int>("maxVideoResolution", default: 0)
     static let maxVideoFileCount = Key<Int>("maxVideoFileCount", default: 1)
     static let maxImageFileCount = Key<Int>("maxImageFileCount", default: 4)
     static let maxPDFFileCount = Key<Int>("maxPDFFileCount", default: 2)
@@ -315,6 +318,8 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .minAudioSizeKB,
     .minImageResolution,
     .minVideoResolution,
+    .maxImageResolution,
+    .maxVideoResolution,
     .minVideoFPS,
     .removeAudioFromVideos,
     .convertAudioToAAC,

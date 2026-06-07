@@ -577,7 +577,8 @@ var processTerminated = Set<pid_t>()
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
-          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxVideoSizeMB] * 1_000_000,
+          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
+          Defaults[.maxVideoSizeMB] == 0 || size < Defaults[.maxVideoSizeMB] * 1_000_000,
           Defaults[.minVideoSizeKB] == 0 || size >= Defaults[.minVideoSizeKB] * 1000, videoOptimiseDebouncers[event.path] == nil
     else {
         if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {

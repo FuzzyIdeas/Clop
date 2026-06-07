@@ -916,11 +916,16 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task.init {
-                // Skip videos below the minimum resolution (metadata is only fetched when enabled).
+                // Skip videos outside the resolution range (metadata is only fetched when a bound is set).
                 let minRes = Defaults[.minVideoResolution]
-                if minRes > 0, let video = try? await Video.byFetchingMetadata(path: path, thumb: false),
-                   let res = video.size, res.width < CGFloat(minRes) || res.height < CGFloat(minRes) {
-                    return
+                let maxRes = Defaults[.maxVideoResolution]
+                if minRes > 0 || maxRes > 0, let video = try? await Video.byFetchingMetadata(path: path, thumb: false), let res = video.size {
+                    if minRes > 0, res.width < CGFloat(minRes) || res.height < CGFloat(minRes) {
+                        return
+                    }
+                    if maxRes > 0, res.width > CGFloat(maxRes) || res.height > CGFloat(maxRes) {
+                        return
+                    }
                 }
                 let matchedDir = Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
                 let source = matchedDir?.optSource
