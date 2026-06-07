@@ -352,6 +352,11 @@ enum TempPipelineSegment {
 
     var source: OptimisationSource?
 
+    /// Bundle id and display name of the app that placed the clipboard content, captured at
+    /// clipboard-read time for the `copiedBy` pipeline filter. nil for non-clipboard sources.
+    var copiedFromAppBundleID: String?
+    var copiedFromAppName: String?
+
     @Published var sharing = false
     @Published var warpDropConnecting = false
     @Published var isVideoWithAudio = false
@@ -1827,6 +1832,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     var optimisedFilesByHash: [String: FilePath] = [:]
 
+    /// App that placed the most recent clipboard content (bundle id + display name), captured by the
+    /// clipboard watcher and applied to clipboard optimisers in `optimiser(id:...)` for the `copiedBy` filter.
+    var lastClipboardSourceApp: (bundleID: String?, name: String?) = (nil, nil)
+
     @Published var doneCount = 0
     @Published var failedCount = 0
     @Published var visibleCount = 0
@@ -2015,6 +2024,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
         if let source {
             optimiser.source = source
+        }
+        if source == .clipboard {
+            optimiser.copiedFromAppBundleID = lastClipboardSourceApp.bundleID
+            optimiser.copiedFromAppName = lastClipboardSourceApp.name
         }
 
         if !OM.optimisers.contains(optimiser) {

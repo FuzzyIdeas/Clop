@@ -546,7 +546,7 @@ final class PipelineExecution {
     // MARK: - Filter Steps
 
     func handleFilterIf(condition: FilterCondition) {
-        let (matches, captures) = condition.evaluate(file: currentFile, context: context)
+        let (matches, captures) = condition.evaluate(file: currentFile, context: context, sourceAppBundleID: optimiser.copiedFromAppBundleID, sourceAppName: optimiser.copiedFromAppName)
         if !matches {
             log.debug("Pipeline: filter condition not met, stopping pipeline for \(self.currentFile.string)")
             shouldStop = true
@@ -556,7 +556,7 @@ final class PipelineExecution {
     }
 
     func handleFilterIfNot(condition: FilterCondition) {
-        let (matches, _) = condition.evaluate(file: currentFile, context: context)
+        let (matches, _) = condition.evaluate(file: currentFile, context: context, sourceAppBundleID: optimiser.copiedFromAppBundleID, sourceAppName: optimiser.copiedFromAppName)
         if matches {
             log.debug("Pipeline: exclusion filter matched, stopping pipeline for \(self.currentFile.string)")
             shouldStop = true

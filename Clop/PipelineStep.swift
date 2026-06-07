@@ -100,16 +100,18 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
     var dpiLowerThan: Int?
     var minFileSize: Int?
     var minResolution: Int?
+    var copiedBy: String?
 
     var isEmpty: Bool {
         let noText: Bool = types == nil && regex == nil && nameContains == nil && nameIs == nil
         let noSize: Bool = fileSizeGreaterThan == nil && fileSizeLowerThan == nil && minFileSize == nil
         let noDims: Bool = widthGreaterThan == nil && widthLowerThan == nil && heightGreaterThan == nil && heightLowerThan == nil && minResolution == nil
         let noDPI: Bool = dpiGreaterThan == nil && dpiLowerThan == nil
-        return noText && noSize && noDims && noDPI
+        let noApp: Bool = copiedBy == nil
+        return noText && noSize && noDims && noDPI && noApp
     }
 
-    func evaluate(file: FilePath, context: TemplateContext) -> (matches: Bool, captures: [String]) {
+    func evaluate(file: FilePath, context: TemplateContext, sourceAppBundleID: String? = nil, sourceAppName: String? = nil) -> (matches: Bool, captures: [String]) {
         let name = file.lastComponent?.string ?? ""
         var captures: [String] = []
 
@@ -180,6 +182,14 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
 
         if let minResolution {
             guard let w = imageWidth(file), let h = imageHeight(file), w >= minResolution, h >= minResolution else { return (false, []) }
+        }
+
+        if let copiedBy, !copiedBy.isEmpty {
+            // Fuzzy match the source app: the bundle id or display name must contain the query,
+            // case-insensitively (so "safari" matches both "Safari" and "com.apple.Safari").
+            let needle = copiedBy.lowercased()
+            let haystacks = [sourceAppBundleID, sourceAppName].compactMap { $0?.lowercased() }
+            guard haystacks.contains(where: { $0.contains(needle) }) else { return (false, []) }
         }
 
         return (true, captures)
@@ -546,6 +556,7 @@ extension FilterCondition {
         if let dpiLowerThan { parts.append("dpi < \(dpiLowerThan)") }
         if let minFileSize { parts.append("size >= \(minFileSize)") }
         if let minResolution { parts.append("resolution >= \(minResolution)") }
+        if let copiedBy { parts.append("copiedBy: \(copiedBy)") }
         return parts.isEmpty ? "" : parts.joined(separator: ", ")
     }
 }
