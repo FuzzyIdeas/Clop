@@ -124,8 +124,9 @@ extension Defaults.Keys {
     // Versioned guard so the legacy→unified migration runs exactly once.
     static let compressionModelMigratedVersion = Key<Int>("compressionModelMigratedVersion", default: 0)
     static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
-    static let pdfDPI = Key<Int>("pdfDPI", default: 300)
-    /// 0 = Adaptive: target DPI is chosen per-PDF based on source image density.
+    /// PDF target DPI. 0 = Adaptive (target chosen per-PDF from source image density),
+    /// positive = a fixed stop from `PDF_DPI_STOPS`. Default Adaptive so it compresses out of the box.
+    static let pdfDPI = Key<Int>("pdfDPI", default: PDF_DPI_ADAPTIVE)
     static let pdfDPIAggressive = Key<Int>("pdfDPIAggressive", default: 0)
 
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])

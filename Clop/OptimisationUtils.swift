@@ -515,11 +515,8 @@ enum TempPipelineSegment {
     /// optimiser's `newDPI` (set during optimisation), falling back to the
     /// no-downsample stop if no optimisation has run yet.
     var effectiveBasePDFDPI: Int {
-        if aggressive {
-            let setting = Defaults[.pdfDPIAggressive]
-            return setting == PDF_DPI_ADAPTIVE ? (newDPI ?? PDF_DPI_NO_DOWNSAMPLE) : setting
-        }
-        return Defaults[.pdfDPI]
+        let setting = Defaults[.pdfDPI]
+        return setting == PDF_DPI_ADAPTIVE ? (newDPI ?? PDF_DPI_NO_DOWNSAMPLE) : setting
     }
 
     nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {

@@ -281,13 +281,28 @@ struct PDFSettingsView: View {
     @Default(.maxPDFSizeMB) var maxPDFSizeMB
     @Default(.minPDFSizeKB) var minPDFSizeKB
     @Default(.maxPDFFileCount) var maxPDFFileCount
-    @Default(.useAggressiveOptimisationPDF) var useAggressiveOptimisationPDF
     @Default(.pdfDPI) var pdfDPI
-    @Default(.pdfDPIAggressive) var pdfDPIAggressive
     @Default(.enableAutomaticPDFOptimisations) var enableAutomaticPDFOptimisations
     @Default(.optimisedPDFBehaviour) var optimisedPDFBehaviour
     @Default(.sameFolderNameTemplatePDF) var sameFolderNameTemplatePDF
     @Default(.specificFolderNameTemplatePDF) var specificFolderNameTemplatePDF
+    @State private var lastPDFDPI = 150
+
+    private func pdfStopIndex(_ dpi: Int) -> Int {
+        PDF_DPI_STOPS.firstIndex(of: dpi)
+            ?? PDF_DPI_STOPS.enumerated().min(by: { abs($0.element - dpi) < abs($1.element - dpi) })?.offset
+            ?? 0
+    }
+
+    private var pdfCompressionSubtitle: String {
+        if pdfDPI == PDF_DPI_ADAPTIVE {
+            return "Clop automatically picks a per-PDF DPI from the source image density and downscales images above it"
+        }
+        if pdfDPI >= PDF_DPI_NO_DOWNSAMPLE {
+            return "Keeps images at full resolution without downsampling"
+        }
+        return "Downscales images above \(pdfDPI) DPI to \(pdfDPI) DPI; lower-resolution images are left untouched"
+    }
 
     var body: some View {
         Form {
@@ -300,12 +315,34 @@ struct PDFSettingsView: View {
                     sameFolderNameTemplate: $sameFolderNameTemplatePDF,
                     specificFolderNameTemplate: $specificFolderNameTemplatePDF
                 )
-                Toggle(isOn: $useAggressiveOptimisationPDF) {
-                    Text("Use aggressive optimisation by default").regular(13)
-                        + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text("Compression").regular(13)
+                        Slider(
+                            value: Binding(
+                                get: { Double(pdfStopIndex(pdfDPI == PDF_DPI_ADAPTIVE ? lastPDFDPI : pdfDPI)) },
+                                set: { pdfDPI = PDF_DPI_STOPS[Int($0.rounded())] }
+                            ),
+                            in: 0 ... Double(PDF_DPI_STOPS.count - 1), step: 1
+                        )
+                        .disabled(pdfDPI == PDF_DPI_ADAPTIVE)
+                        Text("\(pdfDPI == PDF_DPI_ADAPTIVE ? lastPDFDPI : pdfDPI) DPI")
+                            .mono(11).foregroundColor(.secondary)
+                            .opacity(pdfDPI == PDF_DPI_ADAPTIVE ? 0.2 : 1)
+                            .frame(width: 56, alignment: .trailing)
+                        Button("Adaptive") {
+                            if pdfDPI == PDF_DPI_ADAPTIVE {
+                                pdfDPI = lastPDFDPI
+                            } else {
+                                lastPDFDPI = pdfDPI
+                                pdfDPI = PDF_DPI_ADAPTIVE
+                            }
+                        }
+                        .buttonStyle(ToggleButton(isOn: .oneway { pdfDPI == PDF_DPI_ADAPTIVE }))
+                        .font(.mono(11))
+                    }
+                    Text(pdfCompressionSubtitle).round(10, weight: .regular).foregroundColor(.secondary)
                 }
-                PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
-                PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive, includeAdaptive: true)
             }
             Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minPDFSizeKB, maxMB: $maxPDFSizeMB)
@@ -314,37 +351,6 @@ struct PDFSettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .padding(4)
-    }
-}
-
-struct PDFDPIPickerView: View {
-    let label: String
-    @Binding var binding: Int
-    var includeAdaptive = false
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label).regular(13)
-                Text(
-                    includeAdaptive
-                        ? "Adaptive picks a per-PDF target based on the source image density. Specific values keep the picked DPI for every PDF."
-                        : "300 DPI keeps images at full resolution. Lower values can make the PDF appear less sharp."
-                )
-                .round(11, weight: .regular).foregroundColor(.secondary)
-            }
-            Spacer()
-            Picker("", selection: $binding) {
-                if includeAdaptive {
-                    Text("Adaptive").tag(PDF_DPI_ADAPTIVE)
-                }
-                ForEach(PDF_DPI_STOPS, id: \.self) { dpi in
-                    Text(dpi == PDF_DPI_NO_DOWNSAMPLE ? "\(dpi) (no downsample)" : "\(dpi)").tag(dpi)
-                }
-            }
-            .labelsHidden()
-            .fixedSize()
-        }
     }
 }
 
@@ -413,7 +419,24 @@ struct VideoSettingsView: View {
                 HStack(spacing: 8) {
                     Text("Compression").regular(13)
                     Spacer()
-                    if videoCompression.tier == .smaller || videoCompression.tier == .custom {
+                    Menu {
+                        ForEach([CompressionTier.adaptive, .lossless, .fast, .smaller], id: \.self) { tier in
+                            Toggle(isOn: Binding(
+                                get: { videoResolvedTier == tier },
+                                set: { if $0 { videoCompression = CompressionQuality(tier: tier, factor: videoCompression.factor) } }
+                            )) {
+                                Text(videoCompressionTitle(tier))
+                                Text(videoCompressionSubtitle(tier))
+                            }
+                        }
+                    } label: {
+                        Text(videoCompressionTitle(videoResolvedTier))
+                    }
+                    .menuStyle(.button)
+                    .fixedSize()
+                }
+                if videoCompression.tier == .smaller || videoCompression.tier == .custom {
+                    HStack(spacing: 8) {
                         Button("Auto") {
                             if videoCompression.videoUsesAutoCRF {
                                 videoCompression = CompressionQuality(tier: .smaller, factor: lastVideoFactor)
@@ -432,26 +455,12 @@ struct VideoSettingsView: View {
                             in: 5 ... 100, step: 1
                         )
                         .frame(maxWidth: .infinity)
-                        .frame(width: 150)
                         .disabled(videoCompression.videoUsesAutoCRF)
-                        Text(videoCompression.videoUsesAutoCRF ? "Auto" : "\(videoCompression.factor)%")
-                            .mono(11).frame(width: 38, alignment: .trailing)
+                        Text("\(videoCompression.videoUsesAutoCRF ? lastVideoFactor : videoCompression.factor)%")
+                            .mono(11).foregroundColor(.secondary)
+                            .opacity(videoCompression.videoUsesAutoCRF ? 0.2 : 1)
+                            .frame(width: 38, alignment: .trailing)
                     }
-                    Menu {
-                        ForEach([CompressionTier.adaptive, .lossless, .fast, .smaller], id: \.self) { tier in
-                            Toggle(isOn: Binding(
-                                get: { videoResolvedTier == tier },
-                                set: { if $0 { videoCompression = CompressionQuality(tier: tier, factor: videoCompression.factor) } }
-                            )) {
-                                Text(videoCompressionTitle(tier))
-                                Text(videoCompressionSubtitle(tier))
-                            }
-                        }
-                    } label: {
-                        Text(videoCompressionTitle(videoResolvedTier))
-                    }
-                    .menuStyle(.button)
-                    .fixedSize()
                 }
                 Toggle("Remove audio on optimised videos", isOn: $removeAudioFromVideos)
                 Toggle(isOn: $capVideoFPS.animation(.spring())) {

@@ -801,7 +801,6 @@ struct PDFDPISlider: View {
     var size: CGFloat
 
     @Default(.pdfDPI) var defaultDPI
-    @Default(.pdfDPIAggressive) var defaultDPIAggressive
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
     var stops: [Int] { PDF_DPI_STOPS }
@@ -913,7 +912,6 @@ struct HorizontalPDFDPISlider: View {
     var size: CGFloat
 
     @Default(.pdfDPI) var defaultDPI
-    @Default(.pdfDPIAggressive) var defaultDPIAggressive
 
     var stops: [Int] { PDF_DPI_STOPS }
     var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
