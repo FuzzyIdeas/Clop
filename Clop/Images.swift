@@ -1221,7 +1221,18 @@ class Image: CustomStringConvertible {
     let type: ItemType = .image(img.type)
     let imgPath = img.path
     Task.init {
-        if let result = try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) {
+        // When every clipboard pipeline skips optimisation (e.g. a `downscale(0.5)`-only
+        // pipeline), don't run a separate visible optimise pass: it would show its own
+        // floating result alongside the pipeline's final result. Mirror the file-watcher
+        // `allSkip` path and let the pipeline produce the single result on a hidden parent.
+        let pipelines = pipelinesFor(type: type, source: .clipboard)
+        let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+        if allSkip {
+            let optimiser = OM.optimiser(id: clipboardID, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+            optimiser.url = imgPath.url
+            optimiser.startingURL = imgPath.url
+            await runPipelinesAfterOptimisation(file: imgPath, type: type, source: .clipboard, optimiser: optimiser)
+        } else if let result = try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) {
             if let optimiser = opt(clipboardID) {
                 await runPipelinesAfterOptimisation(file: result.path, type: type, source: .clipboard, optimiser: optimiser)
             }

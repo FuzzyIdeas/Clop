@@ -47,6 +47,28 @@ final class PipelineExecution {
 
     var hide: Bool { forceHide || currentFile.string.contains("/pipeline-") }
 
+    /// Clipboard image pipelines must keep updating the single "Clipboard image" optimiser
+    /// (rather than spawning a new floating result keyed by each step's temp file path) so a
+    /// pipeline like `downscale(0.5)` shows only one result. For in-place steps on a clipboard
+    /// source, reuse the parent optimiser id; for file/dir sources the optimiser id already
+    /// equals the file path so this is a no-op.
+    func encodeID(forLocation location: String) -> String? {
+        (source == .clipboard && location == "inPlace") ? optimiser.id : nil
+    }
+
+    /// Save destination for clipboard re-encode steps so the visible result tracks a stable
+    /// file (matches `optimiser.downscale` / `executeTempPipeline`). nil for non-clipboard.
+    var clipboardSaveTo: FilePath? {
+        source == .clipboard ? (optimiser.startingURL?.filePath ?? optimiser.path) : nil
+    }
+
+    /// Whether a clipboard image re-encode step should copy its result back to the clipboard,
+    /// matching `optimiseClipboardImage`'s copyToClipboard decision.
+    var copyResultToClipboard: Bool {
+        source == .clipboard && fileType == .image
+            && (!Defaults[.appendClipboardResults] || Defaults[.copyConsecutiveClipboardImages])
+    }
+
     /// After `applyLocation` copies the result somewhere outside the temp cache,
     /// point the visible child optimiser (created by run{Video,Image,PDF,Audio}Pipeline
     /// keyed by the temp input path) at the final destination so the floating result
@@ -116,6 +138,9 @@ final class PipelineExecution {
                 let img = Image(data: data, path: inputFile, retinaDownscaled: false)
                 if let result = try? await runImagePipeline(
                     img, actions: [.optimise],
+                    id: encodeID(forLocation: location),
+                    saveTo: clipboardSaveTo,
+                    copyToClipboard: copyResultToClipboard,
                     allowLarger: false,
                     hideFloatingResult: hide,
                     aggressiveOptimisation: aggressive,
@@ -316,7 +341,7 @@ final class PipelineExecution {
         case .image:
             if let data = try? Data(contentsOf: inputFile.url) {
                 let img = Image(data: data, path: inputFile, retinaDownscaled: false)
-                if let result = try? await runImagePipeline(img, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
+                if let result = try? await runImagePipeline(img, actions: [action], id: encodeID(forLocation: location), saveTo: clipboardSaveTo, copyToClipboard: copyResultToClipboard, allowLarger: true, hideFloatingResult: hide, source: source) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
@@ -388,7 +413,7 @@ final class PipelineExecution {
             case .image:
                 if let data = try? Data(contentsOf: inputFile.url) {
                     let img = Image(data: data, path: inputFile, retinaDownscaled: false)
-                    if let result = try? await runImagePipeline(img, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
+                    if let result = try? await runImagePipeline(img, actions: [action], id: encodeID(forLocation: location), saveTo: clipboardSaveTo, copyToClipboard: copyResultToClipboard, allowLarger: true, hideFloatingResult: hide, source: source) {
                         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                         if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                         if !hide { shownVisibleResult = true }
@@ -432,7 +457,7 @@ final class PipelineExecution {
                 let needsCrop = useLongEdge
                     ? (targetW > 0 && maxDim > targetW)
                     : (targetW > 0 && imgW > targetW) || (targetH > 0 && imgH > targetH)
-                if needsCrop, let result = try? await runImagePipeline(img, actions: [action], allowLarger: false, hideFloatingResult: hide, source: source) {
+                if needsCrop, let result = try? await runImagePipeline(img, actions: [action], id: encodeID(forLocation: location), saveTo: clipboardSaveTo, copyToClipboard: copyResultToClipboard, allowLarger: false, hideFloatingResult: hide, source: source) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
@@ -926,6 +951,9 @@ final class PipelineExecution {
 
         guard let result = try? await runImagePipeline(
             img, actions: filteredActions,
+            id: encodeID(forLocation: location),
+            saveTo: clipboardSaveTo,
+            copyToClipboard: copyResultToClipboard,
             allowLarger: outExt != nil, hideFloatingResult: hide,
             aggressiveOptimisation: aggressive, source: source
         ) else { return false }
