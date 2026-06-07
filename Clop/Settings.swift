@@ -119,6 +119,8 @@ extension Defaults.Keys {
     // factor 35 reproduces the legacy default 192 kbps for AAC; tier is always .custom for audio
     // (WAV/lossless stays the AudioFormat choice).
     static let audioCompression = Key<CompressionQuality>("audioCompression", default: CompressionQuality(tier: .custom, factor: 35))
+    // Video: tier (lossless/fast/smaller) + factor for the smaller/software CRF. .fast matches the legacy default.
+    static let videoCompression = Key<CompressionQuality>("videoCompression", default: CompressionQuality(tier: .fast, factor: 50))
     // Versioned guard so the legacy→unified migration runs exactly once.
     static let compressionModelMigratedVersion = Key<Int>("compressionModelMigratedVersion", default: 0)
     static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
@@ -258,6 +260,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .adaptiveImageSize,
     .imageCompression,
     .audioCompression,
+    .videoCompression,
     .adaptiveVideoSize,
     .alwaysShowCompactResults,
     .autoClearAllCompactResultsAfter,

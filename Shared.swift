@@ -316,6 +316,50 @@ extension CompressionQuality {
     var jxlEffort: Int { factor >= 70 ? 9 : (factor >= 50 ? 8 : 7) }
 }
 
+// MARK: Video translation (default H.264 optimise path; factor 5..100, higher = more compression)
+// Only H.264 uses the compression factor; explicit codec conversions (hevc/x265/av1/vp9) keep
+// their own fixed args. The named tiers map to the legacy VideoEncoder presets.
+extension CompressionQuality {
+    /// libx264 CRF for the software path. factor 5 -> 18 (best), 100 -> 30 (smallest); 50 ≈ 24 (≈ legacy default 23).
+    var videoH264CRF: Int { cqClamp(18 + Int((Double(factor - 5) / 95.0 * 12.0).rounded()), 17, 32) }
+
+    /// ffmpeg encoder args for the default H.264 encode, honouring tier + factor.
+    func videoH264Args() -> [String] {
+        switch tier {
+        case .lossless:
+            return ["-vcodec", "h264", "-tag:v", "avc1", "-crf", "17"]
+        case .fast:
+            #if arch(arm64)
+                // VideoToolbox -q:v: higher = better quality. factor 50 ≈ 46 (≈ legacy 45).
+                let q = cqClamp(Int((70.0 - Double(factor - 5) / 95.0 * 45.0).rounded()), 25, 75)
+                return ["-vcodec", "h264_videotoolbox", "-q:v", "\(q)", "-tag:v", "avc1"]
+            #else
+                return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "veryfast", "-crf", "\(videoH264CRF)"]
+            #endif
+        default: // .smaller / .custom / .adaptive -> efficient software libx264
+            return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "slower", "-crf", "\(videoH264CRF)"]
+        }
+    }
+}
+
+/// Map a unified value to the legacy VideoEncoder tier (for the adaptive swap + back-compat UI).
+func cqToVideoEncoder(_ cq: CompressionQuality) -> VideoEncoder {
+    switch cq.tier {
+    case .lossless: .visuallyLossless
+    case .fast: .fast
+    default: .slowHighQuality
+    }
+}
+
+/// Map a legacy VideoEncoder override to a unified value (used when a pipeline/button passes one explicitly).
+func videoEncoderToCQ(_ ve: VideoEncoder) -> CompressionQuality {
+    switch ve {
+    case .visuallyLossless: CompressionQuality(tier: .lossless, factor: 5)
+    case .fast: CompressionQuality(tier: .fast, factor: 50)
+    case .slowHighQuality: CompressionQuality(tier: .smaller, factor: 50)
+    }
+}
+
 struct OptimisationResponseError: Codable, Identifiable {
     let error: String
     let forURL: URL

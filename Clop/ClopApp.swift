@@ -1304,6 +1304,15 @@ func migrateSettings() {
         Defaults[.audioCompression] = CompressionQuality(tier: .custom, factor: factor)
         Defaults[.compressionModelMigratedVersion] = 2
     }
+    if Defaults[.compressionModelMigratedVersion] < 3 {
+        // VIDEO: map the legacy encoder tier; useAggressiveOptimisationMP4 nudges the factor smaller.
+        var cq = videoEncoderToCQ(Defaults[.videoEncoder])
+        if Defaults[.useAggressiveOptimisationMP4], cq.tier != .lossless {
+            cq = CompressionQuality(tier: .smaller, factor: COMPRESSION_FACTOR_AGGRESSIVE)
+        }
+        Defaults[.videoCompression] = cq
+        Defaults[.compressionModelMigratedVersion] = 3
+    }
 }
 
 let WINDOW_MIN_SIZE = CGSize(width: 870, height: 750)

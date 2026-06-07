@@ -262,18 +262,20 @@ class Video: Optimisable {
         let duration = duration
         let audioRemoved = removeAudio ?? Defaults[.removeAudioFromVideos]
         let convertAudioToAAC = Defaults[.convertAudioToAAC]
-        let encoder = videoEncoderOverride ?? Defaults[.videoEncoder]
+        // Source of truth for the default H.264 encode: the unified compression value. An explicit
+        // VideoEncoder override (from a pipeline/button) maps onto a tier; otherwise use the setting.
+        let cq: CompressionQuality = videoEncoderOverride.map { videoEncoderToCQ($0) } ?? Defaults[.videoCompression]
         let aggressive = aggressiveOptimisation ?? false
         mainActor { optimiser.aggressive = aggressive }
 
         // Adaptive only kicks in when the pipeline didn't explicitly request an encoder.
-        // It swaps the default encoder between .fast and .slowHighQuality based on file traits.
-        let resolvedEncoder: VideoEncoder = {
-            guard videoEncoderOverride == nil, Defaults[.adaptiveVideoSize] else { return encoder }
+        // It swaps the tier between .fast and .smaller based on file traits, keeping the factor.
+        let resolvedCQ: CompressionQuality = {
+            guard videoEncoderOverride == nil, Defaults[.adaptiveVideoSize] else { return cq }
             #if arch(arm64)
-                return useAggressiveOptimisation(aggressiveSetting: false) ? .slowHighQuality : .fast
+                return CompressionQuality(tier: useAggressiveOptimisation(aggressiveSetting: false) ? .smaller : .fast, factor: cq.factor)
             #else
-                return encoder
+                return cq
             #endif
         }()
 
@@ -281,18 +283,7 @@ class Video: Optimisable {
             if aggressive {
                 return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "veryslow", "-crf", "28"]
             }
-            switch resolvedEncoder {
-            case .fast:
-                #if arch(arm64)
-                    return ["-vcodec", "h264_videotoolbox", "-q:v", "45", "-tag:v", "avc1"]
-                #else
-                    return ["-vcodec", "h264", "-tag:v", "avc1"]
-                #endif
-            case .slowHighQuality:
-                return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "slower"]
-            case .visuallyLossless:
-                return ["-vcodec", "h264", "-tag:v", "avc1", "-crf", "17"]
-            }
+            return resolvedCQ.videoH264Args()
         }()
         let outExt = outputPath.extension?.lowercased() ?? ""
         let isWebm = outExt == "webm"
