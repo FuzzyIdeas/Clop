@@ -499,37 +499,43 @@ struct VideoSettingsView: View {
                     .fixedSize()
                 }
                 if videoCompression.tier == .smaller || videoCompression.tier == .custom {
-                    HStack(spacing: 8) {
-                        Button("Auto") {
-                            if videoCompression.videoUsesAutoCRF {
-                                videoCompression = CompressionQuality(tier: .smaller, factor: lastVideoFactor)
-                            } else {
-                                lastVideoFactor = max(5, videoCompression.factor)
-                                videoCompression = CompressionQuality(tier: .smaller, factor: 0)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Button("Auto") {
+                                if videoCompression.videoUsesAutoCRF {
+                                    videoCompression = CompressionQuality(tier: .smaller, factor: lastVideoFactor)
+                                } else {
+                                    lastVideoFactor = max(5, videoCompression.factor)
+                                    videoCompression = CompressionQuality(tier: .smaller, factor: 0)
+                                }
                             }
+                            .buttonStyle(ToggleButton(isOn: .oneway { videoCompression.videoUsesAutoCRF }))
+                            .font(.mono(11))
+                            Slider(
+                                value: Binding(
+                                    get: { Double(videoCompression.videoUsesAutoCRF ? lastVideoFactor : max(5, videoCompression.factor)) },
+                                    set: { videoCompression = CompressionQuality(tier: .smaller, factor: Int($0.rounded())) }
+                                ),
+                                in: 5 ... 100, step: 1
+                            ) {
+                                EmptyView()
+                            } minimumValueLabel: {
+                                Text("Better quality").round(9, weight: .regular).foregroundColor(.secondary)
+                            } maximumValueLabel: {
+                                Text("Smaller size").round(9, weight: .regular).foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .disabled(videoCompression.videoUsesAutoCRF)
+                            .help("Drag toward Better quality for better-looking video, toward Smaller size for a smaller file")
+                            Text("\(videoCompression.videoUsesAutoCRF ? lastVideoFactor : videoCompression.factor)%")
+                                .mono(11).foregroundColor(.secondary)
+                                .opacity(videoCompression.videoUsesAutoCRF ? 0.2 : 1)
+                                .frame(width: 38, alignment: .trailing)
                         }
-                        .buttonStyle(ToggleButton(isOn: .oneway { videoCompression.videoUsesAutoCRF }))
-                        .font(.mono(11))
-                        Slider(
-                            value: Binding(
-                                get: { Double(videoCompression.videoUsesAutoCRF ? lastVideoFactor : max(5, videoCompression.factor)) },
-                                set: { videoCompression = CompressionQuality(tier: .smaller, factor: Int($0.rounded())) }
-                            ),
-                            in: 5 ... 100, step: 1
-                        ) {
-                            EmptyView()
-                        } minimumValueLabel: {
-                            Text("Quality").round(9, weight: .regular).foregroundColor(.secondary)
-                        } maximumValueLabel: {
-                            Text("Smaller").round(9, weight: .regular).foregroundColor(.secondary)
+                        if videoCompression.videoUsesAutoCRF {
+                            Text("The encoder will choose the best compression factor based on the video contents")
+                                .round(10, weight: .regular).foregroundColor(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-                        .disabled(videoCompression.videoUsesAutoCRF)
-                        .help("Drag toward Quality for better-looking video, toward Smaller for a smaller file")
-                        Text("\(videoCompression.videoUsesAutoCRF ? lastVideoFactor : videoCompression.factor)%")
-                            .mono(11).foregroundColor(.secondary)
-                            .opacity(videoCompression.videoUsesAutoCRF ? 0.2 : 1)
-                            .frame(width: 38, alignment: .trailing)
                     }
                 }
                 Toggle("Remove audio on optimised videos", isOn: $removeAudioFromVideos)
