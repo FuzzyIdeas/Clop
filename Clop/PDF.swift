@@ -380,13 +380,7 @@ class PDF: Optimisable {
         }
         let inputPath: FilePath = (backupPath?.exists ?? false) ? backupPath! : path
 
-        let resolvedSetting: Int = if let dpi {
-            dpi
-        } else if aggressiveOptimisation {
-            Defaults[.pdfDPIAggressive]
-        } else {
-            Defaults[.pdfDPI]
-        }
+        let resolvedSetting = dpi ?? Defaults[.pdfDPI]
 
         let effectiveDPI: Int
         var sourceMaxDPI: Int?
@@ -399,7 +393,7 @@ class PDF: Optimisable {
             }
         } else {
             effectiveDPI = resolvedSetting
-            if aggressiveOptimisation || dpi != nil {
+            if dpi != nil || effectiveDPI < PDF_DPI_NO_DOWNSAMPLE {
                 sourceMaxDPI = scanPDFMaxImageDPI(at: inputPath)
             }
         }
@@ -413,7 +407,8 @@ class PDF: Optimisable {
                 optimiser.newDPI = min(baseDPI, effectiveDPI)
             }
         }
-        let args = gsArgs(inputPath.string, tempFile.string, lossy: aggressiveOptimisation, dpi: effectiveDPI)
+        // Recompress images (lossy) only when we're actually downsampling below full DPI.
+        let args = gsArgs(inputPath.string, tempFile.string, lossy: effectiveDPI < PDF_DPI_NO_DOWNSAMPLE, dpi: effectiveDPI)
         let proc = try tryProc(GS.string, args: args, tries: 3, captureOutput: true, env: GHOSTSCRIPT_ENV) { proc in
             mainActor { [weak self] in
                 guard let self else { return }
@@ -558,13 +553,7 @@ extension PDF {
         }
         let inputPath: FilePath = (backupPath?.exists ?? false) ? backupPath! : path
 
-        let resolvedSetting: Int = if let dpi {
-            dpi
-        } else if aggressive {
-            Defaults[.pdfDPIAggressive]
-        } else {
-            Defaults[.pdfDPI]
-        }
+        let resolvedSetting = dpi ?? Defaults[.pdfDPI]
 
         let effectiveDPI: Int
         var sourceMaxDPI: Int?
@@ -577,7 +566,7 @@ extension PDF {
             }
         } else {
             effectiveDPI = resolvedSetting
-            if aggressive || dpi != nil {
+            if dpi != nil || effectiveDPI < PDF_DPI_NO_DOWNSAMPLE {
                 sourceMaxDPI = scanPDFMaxImageDPI(at: inputPath)
             }
         }
@@ -640,7 +629,7 @@ extension PDF {
                 stateLock.unlock()
                 if abort { return }
 
-                let baseArgs = gsArgs(inputPath.string, chunk.output.string, lossy: aggressive, dpi: effectiveDPI)
+                let baseArgs = gsArgs(inputPath.string, chunk.output.string, lossy: effectiveDPI < PDF_DPI_NO_DOWNSAMPLE, dpi: effectiveDPI)
                 let args = ["-dFirstPage=\(chunk.first)", "-dLastPage=\(chunk.last)"] + baseArgs
 
                 do {
