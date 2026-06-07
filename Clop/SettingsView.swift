@@ -516,9 +516,16 @@ struct VideoSettingsView: View {
                                 set: { videoCompression = CompressionQuality(tier: .smaller, factor: Int($0.rounded())) }
                             ),
                             in: 5 ... 100, step: 1
-                        )
+                        ) {
+                            EmptyView()
+                        } minimumValueLabel: {
+                            Text("Quality").round(9, weight: .regular).foregroundColor(.secondary)
+                        } maximumValueLabel: {
+                            Text("Smaller").round(9, weight: .regular).foregroundColor(.secondary)
+                        }
                         .frame(maxWidth: .infinity)
                         .disabled(videoCompression.videoUsesAutoCRF)
+                        .help("Drag toward Quality for better-looking video, toward Smaller for a smaller file")
                         Text("\(videoCompression.videoUsesAutoCRF ? lastVideoFactor : videoCompression.factor)%")
                             .mono(11).foregroundColor(.secondary)
                             .opacity(videoCompression.videoUsesAutoCRF ? 0.2 : 1)
