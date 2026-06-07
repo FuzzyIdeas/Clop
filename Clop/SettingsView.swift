@@ -993,26 +993,32 @@ struct ImagesSettingsView: View {
                     specificFolderNameTemplate: $specificFolderNameTemplateImage
                 )
 
-                HStack(spacing: 8) {
-                    Text("Compression").regular(13)
-                    Slider(
-                        value: Binding(
-                            get: { Double(imageCompression.factor) },
-                            set: { imageCompression.factor = Int($0.rounded()) }
-                        ),
-                        in: 5 ... 100, step: 1
-                    )
-                    .disabled(imageCompression.tier == .adaptive)
-                    Text("\(imageCompression.factor)%")
-                        .mono(11).foregroundColor(.secondary)
-                        .opacity(imageCompression.tier == .adaptive ? 0.2 : 1)
-                        .frame(width: 38, alignment: .trailing)
-                    Button("Adaptive") {
-                        imageCompression.tier = imageCompression.tier == .adaptive ? .custom : .adaptive
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text("Compression").regular(13)
+                        Slider(
+                            value: Binding(
+                                get: { Double(imageCompression.factor) },
+                                set: { imageCompression.factor = Int($0.rounded()) }
+                            ),
+                            in: 5 ... 100, step: 1
+                        )
+                        .disabled(imageCompression.tier == .adaptive)
+                        Text("\(imageCompression.factor)%")
+                            .mono(11).foregroundColor(.secondary)
+                            .opacity(imageCompression.tier == .adaptive ? 0.2 : 1)
+                            .frame(width: 38, alignment: .trailing)
+                        Button("Adaptive") {
+                            imageCompression.tier = imageCompression.tier == .adaptive ? .custom : .adaptive
+                        }
+                        .buttonStyle(ToggleButton(isOn: .oneway { imageCompression.tier == .adaptive }))
+                        .font(.mono(11))
+                        .help("Convert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format")
                     }
-                    .buttonStyle(ToggleButton(isOn: .oneway { imageCompression.tier == .adaptive }))
-                    .font(.mono(11))
-                    .help("Convert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format")
+                    if imageCompression.tier == .adaptive {
+                        Text("Clop will automatically pick between JPEG or PNG conversion based on image entropy, and choose a fitting compression factor adaptively")
+                            .round(10, weight: .regular).foregroundColor(.secondary)
+                    }
                 }
                 // Toggle(isOn: $downscaleRetinaImages) {
                 //     Text("Downscale HiDPI images to 72 DPI").regular(13)
