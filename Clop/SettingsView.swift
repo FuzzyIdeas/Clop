@@ -2046,14 +2046,14 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
             guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
-            if window.title == "Settings" {
+            if window.isSettingsWindow {
                 log.debug("Starting settings tab key monitor")
                 tabKeyMonitor.start()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { notif in
             guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
-            if window.title == "Settings" {
+            if window.isSettingsWindow {
                 log.debug("Stopping settings tab key monitor")
                 tabKeyMonitor.stop()
             }

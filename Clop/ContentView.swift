@@ -49,7 +49,7 @@ struct MenuView: View {
 
                 PRO?.manageLicence()
                 focus()
-                NSApp.windows.first(where: { $0.title == "Settings" })?.makeKeyAndOrderFront(nil)
+                NSApp.windows.first(where: { $0.isSettingsWindow })?.makeKeyAndOrderFront(nil)
             }
         }
     }
@@ -220,7 +220,7 @@ struct MenuView: View {
 
             PRO?.manageLicence()
             focus()
-            NSApp.windows.first(where: { $0.title == "Settings" })?.makeKeyAndOrderFront(nil)
+            NSApp.windows.first(where: { $0.isSettingsWindow })?.makeKeyAndOrderFront(nil)
         }
 
         Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {

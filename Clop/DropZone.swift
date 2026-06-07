@@ -241,7 +241,7 @@ struct DropZonePresetsView: View {
     }
 
     func zoneAction(zone: PresetZone?) {
-        guard let w = NSApp.keyWindow, w.title == "Settings" else {
+        guard let w = NSApp.keyWindow, w.isSettingsWindow else {
             settingsViewManager.tab = .dropzone
             WM.open("settings")
             focus()
