@@ -96,12 +96,15 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
     var widthLowerThan: Int?
     var heightGreaterThan: Int?
     var heightLowerThan: Int?
+    var dpiGreaterThan: Int?
+    var dpiLowerThan: Int?
 
     var isEmpty: Bool {
         let noText: Bool = types == nil && regex == nil && nameContains == nil && nameIs == nil
         let noSize: Bool = fileSizeGreaterThan == nil && fileSizeLowerThan == nil
         let noDims: Bool = widthGreaterThan == nil && widthLowerThan == nil && heightGreaterThan == nil && heightLowerThan == nil
-        return noText && noSize && noDims
+        let noDPI: Bool = dpiGreaterThan == nil && dpiLowerThan == nil
+        return noText && noSize && noDims && noDPI
     }
 
     func evaluate(file: FilePath, context: TemplateContext) -> (matches: Bool, captures: [String]) {
@@ -161,6 +164,14 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
             guard let h = imageHeight(file), h < heightLowerThan else { return (false, []) }
         }
 
+        if let dpiGreaterThan {
+            guard let dpi = fileDPI(file), dpi > dpiGreaterThan else { return (false, []) }
+        }
+
+        if let dpiLowerThan {
+            guard let dpi = fileDPI(file), dpi < dpiLowerThan else { return (false, []) }
+        }
+
         return (true, captures)
     }
 }
@@ -179,6 +190,25 @@ private func imageHeight(_ file: FilePath) -> Int? {
           let h = props[kCGImagePropertyPixelHeight] as? Int
     else { return nil }
     return h
+}
+
+private func imageDPI(_ file: FilePath) -> Int? {
+    guard let source = CGImageSourceCreateWithURL(file.url as CFURL, nil),
+          let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    else { return nil }
+    if let dpi = (props[kCGImagePropertyDPIWidth] as? NSNumber)?.intValue, dpi > 0 { return dpi }
+    if let dpi = (props[kCGImagePropertyDPIHeight] as? NSNumber)?.intValue, dpi > 0 { return dpi }
+    return nil
+}
+
+/// Resolve a DPI value for the dpi filter: images expose it via metadata, PDFs via the
+/// highest embedded-image DPI scan. Returns nil when no DPI information is available
+/// (so the guard fails, matching how width/height behave for non-image files).
+private func fileDPI(_ file: FilePath) -> Int? {
+    if file.extension?.lowercased() == "pdf" {
+        return scanPDFMaxImageDPI(at: file)
+    }
+    return imageDPI(file)
 }
 
 // MARK: - PipelineStep
@@ -502,6 +532,8 @@ extension FilterCondition {
         if let widthLowerThan { parts.append("width < \(widthLowerThan)") }
         if let heightGreaterThan { parts.append("height > \(heightGreaterThan)") }
         if let heightLowerThan { parts.append("height < \(heightLowerThan)") }
+        if let dpiGreaterThan { parts.append("dpi > \(dpiGreaterThan)") }
+        if let dpiLowerThan { parts.append("dpi < \(dpiLowerThan)") }
         return parts.isEmpty ? "" : parts.joined(separator: ", ")
     }
 }

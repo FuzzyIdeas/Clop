@@ -403,6 +403,8 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ParamTemplate(name: "widthLowerThan", description: "max width in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
             ParamTemplate(name: "heightGreaterThan", description: "min height in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
             ParamTemplate(name: "heightLowerThan", description: "max height in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
+            ParamTemplate(name: "dpiGreaterThan", description: "min DPI (images & PDFs)", suggestions: ["72", "150", "300"], freeText: true, applicableTypes: [.image, .pdf]),
+            ParamTemplate(name: "dpiLowerThan", description: "max DPI (images & PDFs)", suggestions: ["72", "150", "300"], freeText: true, applicableTypes: [.image, .pdf]),
         ],
         applicableTypes: [.image, .video, .audio, .pdf],
         create: { .filterIf(FilterCondition(regex: "")) }
@@ -698,7 +700,9 @@ private func parseFilterCondition(_ params: [String: String]) -> FilterCondition
         widthGreaterThan: params["widthGreaterThan"].flatMap { Int($0) },
         widthLowerThan: params["widthLowerThan"].flatMap { Int($0) },
         heightGreaterThan: params["heightGreaterThan"].flatMap { Int($0) },
-        heightLowerThan: params["heightLowerThan"].flatMap { Int($0) }
+        heightLowerThan: params["heightLowerThan"].flatMap { Int($0) },
+        dpiGreaterThan: params["dpiGreaterThan"].flatMap { Int($0) },
+        dpiLowerThan: params["dpiLowerThan"].flatMap { Int($0) }
     )
 }
 
