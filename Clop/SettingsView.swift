@@ -300,6 +300,14 @@ struct PDFSettingsView: View {
                     sameFolderNameTemplate: $sameFolderNameTemplatePDF,
                     specificFolderNameTemplate: $specificFolderNameTemplatePDF
                 )
+                Toggle(isOn: $useAggressiveOptimisationPDF) {
+                    Text("Use aggressive optimisation by default").regular(13)
+                        + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
+                PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive, includeAdaptive: true)
+            }
+            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
                 HStack {
                     Text("Skip when PDFs larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxPDFSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
@@ -326,13 +334,6 @@ struct PDFSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text(maxPDFFileCount == 1 ? "PDF is copied or moved in watched folders" : "PDFs are copied or moved in watched folders").regular(13)
                 }
-
-                Toggle(isOn: $useAggressiveOptimisationPDF) {
-                    Text("Use aggressive optimisation by default").regular(13)
-                        + Text("\nGenerates smaller files with slightly worse visual quality").round(11, weight: .regular).foregroundColor(.secondary)
-                }
-                PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
-                PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive, includeAdaptive: true)
             }
         }
         .scrollContentBackground(.hidden)
@@ -420,52 +421,6 @@ struct VideoSettingsView: View {
                     sameFolderNameTemplate: $sameFolderNameTemplateVideo,
                     specificFolderNameTemplate: $specificFolderNameTemplateVideo
                 )
-                HStack {
-                    Text("Skip when videos larger than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $maxVideoSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("MB").mono(13)
-                    Text("are copied or moved in watched folders").regular(13)
-                }
-                HStack {
-                    Text("Skip when videos smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minVideoSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("KB").mono(13)
-                    Text("are copied or moved (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip videos smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minVideoResolution, formatter: BoundFormatter(min: 0, max: 100_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 60)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("px").mono(13)
-                    Text("on either side (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip when more than").regular(13)
-                    TextField("", value: $maxVideoFileCount, formatter: BoundFormatter(min: 1, max: 100))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxVideoFileCount == 1 ? "video is copied or moved in watched folders" : "videos are copied or moved in watched folders").regular(13)
-                }
-                HStack {
-                    Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
-                    Spacer()
-
-                    ForEach(VIDEO_FORMATS, id: \.identifier) { format in
-                        Button(format.preferredFilenameExtension!) {
-                            videoFormatsToSkip.toggle(format)
-                        }.buttonStyle(ToggleButton(isOn: .oneway { videoFormatsToSkip.contains(format) }))
-                            .font(.mono(11))
-                    }
-                }
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Compression").regular(13)
@@ -543,6 +498,54 @@ struct VideoSettingsView: View {
                     .padding(.leading, 10)
                 }
 
+            }
+            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
+                HStack {
+                    Text("Skip when videos larger than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $maxVideoSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("MB").mono(13)
+                    Text("are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Skip when videos smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minVideoSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("KB").mono(13)
+                    Text("are copied or moved (0 disables)").regular(13)
+                }
+                HStack {
+                    Text("Skip videos smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minVideoResolution, formatter: BoundFormatter(min: 0, max: 100_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 60)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("px").mono(13)
+                    Text("on either side (0 disables)").regular(13)
+                }
+                HStack {
+                    Text("Skip when more than").regular(13)
+                    TextField("", value: $maxVideoFileCount, formatter: BoundFormatter(min: 1, max: 100))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 50)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text(maxVideoFileCount == 1 ? "video is copied or moved in watched folders" : "videos are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
+                    Spacer()
+
+                    ForEach(VIDEO_FORMATS, id: \.identifier) { format in
+                        Button(format.preferredFilenameExtension!) {
+                            videoFormatsToSkip.toggle(format)
+                        }.buttonStyle(ToggleButton(isOn: .oneway { videoFormatsToSkip.contains(format) }))
+                            .font(.mono(11))
+                    }
+                }
             }
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
@@ -805,32 +808,6 @@ struct AudioSettingsView: View {
                     sameFolderNameTemplate: $sameFolderNameTemplateAudio,
                     specificFolderNameTemplate: $specificFolderNameTemplateAudio
                 )
-                HStack {
-                    Text("Skip when audio files larger than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $maxAudioSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("MB").mono(13)
-                    Text("are copied or moved in watched folders").regular(13)
-                }
-                HStack {
-                    Text("Skip when audio files smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minAudioSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("KB").mono(13)
-                    Text("are copied or moved (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip when more than").regular(13)
-                    TextField("", value: $maxAudioFileCount, formatter: BoundFormatter(min: 1, max: 100))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxAudioFileCount == 1 ? "audio file is copied or moved in watched folders" : "audio files are copied or moved in watched folders").regular(13)
-                }
                 Picker(selection: $audioFormat) {
                     ForEach(AudioFormat.allCases, id: \.self) { format in
                         Text(format.name).tag(format)
@@ -870,6 +847,34 @@ struct AudioSettingsView: View {
                             Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
                         }
                     }
+                }
+            }
+            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
+                HStack {
+                    Text("Skip when audio files larger than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $maxAudioSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("MB").mono(13)
+                    Text("are copied or moved in watched folders").regular(13)
+                }
+                HStack {
+                    Text("Skip when audio files smaller than").regular(13).padding(.trailing, 10)
+                    TextField("", value: $minAudioSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 70)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("KB").mono(13)
+                    Text("are copied or moved (0 disables)").regular(13)
+                }
+                HStack {
+                    Text("Skip when more than").regular(13)
+                    TextField("", value: $maxAudioFileCount, formatter: BoundFormatter(min: 1, max: 100))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 50)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text(maxAudioFileCount == 1 ? "audio file is copied or moved in watched folders" : "audio files are copied or moved in watched folders").regular(13)
                 }
             }
             if audioFormat != .sameAsInput, !audioFormat.isLossless {
@@ -1048,6 +1053,39 @@ struct ImagesSettingsView: View {
                     specificFolderNameTemplate: $specificFolderNameTemplateImage
                 )
 
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Compression").regular(13)
+                        Spacer()
+                        Text(imageCompression.tier == .adaptive ? "adaptive" : "\(imageCompression.factor)").mono(11).foregroundColor(.secondary)
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { Double(imageCompression.factor) },
+                            set: { imageCompression.factor = Int($0.rounded()) }
+                        ),
+                        in: 5 ... 100, step: 1
+                    )
+                    HStack {
+                        Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
+                        Spacer()
+                        Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
+                    }
+                }
+                Toggle(isOn: Binding(
+                    get: { imageCompression.tier == .adaptive },
+                    set: { imageCompression.tier = $0 ? .adaptive : .custom }
+                )) {
+                    Text("Adaptive optimisation").regular(13)
+                        + Text("\nConvert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                // Toggle(isOn: $downscaleRetinaImages) {
+                //     Text("Downscale HiDPI images to 72 DPI").regular(13)
+                //         + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular).foregroundColor(.secondary)
+                // }
+
+            }
+            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
                 HStack {
                     Text("Skip when images larger than").regular(13).padding(.trailing, 10)
                     TextField("", value: $maxImageSizeMB, formatter: BoundFormatter(min: 1, max: 500))
@@ -1083,7 +1121,6 @@ struct ImagesSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text(maxImageFileCount == 1 ? "image is copied or moved in watched folders" : "images are copied or moved in watched folders").regular(13)
                 }
-
                 HStack {
                     Text("Ignore images with extension").regular(13).padding(.trailing, 10)
                     Spacer()
@@ -1095,37 +1132,6 @@ struct ImagesSettingsView: View {
                             .font(.mono(11))
                     }
                 }
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Compression").regular(13)
-                        Spacer()
-                        Text(imageCompression.tier == .adaptive ? "adaptive" : "\(imageCompression.factor)").mono(11).foregroundColor(.secondary)
-                    }
-                    Slider(
-                        value: Binding(
-                            get: { Double(imageCompression.factor) },
-                            set: { imageCompression.factor = Int($0.rounded()) }
-                        ),
-                        in: 5 ... 100, step: 1
-                    )
-                    HStack {
-                        Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
-                        Spacer()
-                        Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
-                    }
-                }
-                Toggle(isOn: Binding(
-                    get: { imageCompression.tier == .adaptive },
-                    set: { imageCompression.tier = $0 ? .adaptive : .custom }
-                )) {
-                    Text("Adaptive optimisation").regular(13)
-                        + Text("\nConvert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format").round(11, weight: .regular).foregroundColor(.secondary)
-                }
-                // Toggle(isOn: $downscaleRetinaImages) {
-                //     Text("Downscale HiDPI images to 72 DPI").regular(13)
-                //         + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular).foregroundColor(.secondary)
-                // }
-
             }
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
