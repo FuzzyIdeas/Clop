@@ -753,6 +753,7 @@ struct AudioSettingsView: View {
     @Default(.audioDirs) var audioDirs
     @Default(.audioFormat) var audioFormat
     @Default(.audioBitrate) var audioBitrate
+    @Default(.audioCompression) var audioCompression
     @Default(.audioFormatsToSkip) var audioFormatsToSkip
     @Default(.formatsToConvertToOutputAudio) var formatsToConvertToOutputAudio
     @Default(.maxAudioSizeMB) var maxAudioSizeMB
@@ -818,15 +819,26 @@ struct AudioSettingsView: View {
                     }
                 }
                 if !audioFormat.isLossless {
-                    Picker(selection: $audioBitrate) {
-                        Text("1 step lower than input").tag(-1)
-                        Text("2 steps lower than input").tag(-2)
-                        Divider()
-                        ForEach(audioFormat.allowedBitrates, id: \.self) { bitrate in
-                            Text("\(bitrate) kbps").tag(bitrate)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Compression").regular(13)
+                            Spacer()
+                            if let kbps = audioCompression.audioBitrate(for: audioFormat) {
+                                Text("\(kbps) kbps").mono(11).foregroundColor(.secondary)
+                            }
                         }
-                    } label: {
-                        Text("Bitrate").regular(13)
+                        Slider(
+                            value: Binding(
+                                get: { Double(audioCompression.factor) },
+                                set: { audioCompression.factor = Int($0.rounded()) }
+                            ),
+                            in: 5 ... 100, step: 1
+                        )
+                        HStack {
+                            Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
+                            Spacer()
+                            Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
+                        }
                     }
                 }
             }

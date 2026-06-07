@@ -14,6 +14,28 @@ import System
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Audio")
 
+extension CompressionQuality {
+    /// Target bitrate (kbps) for an audio format. factor 5 -> highest allowed bitrate (best quality),
+    /// factor 100 -> lowest (most compressed), snapped to the format's allowed ladder.
+    /// Returns nil for lossless/empty formats (WAV) — those have no bitrate axis.
+    func audioBitrate(for format: AudioFormat) -> Int? {
+        let ladder = format.allowedBitrates
+        guard let lo = ladder.min(), let hi = ladder.max(), hi > lo else { return nil }
+        let t = Double(factor - 5) / 95.0
+        let target = Int((Double(hi) - t * Double(hi - lo)).rounded())
+        return ladder.min(by: { abs($0 - target) < abs($1 - target) }) ?? hi
+    }
+}
+
+/// Inverse of `CompressionQuality.audioBitrate(for:)`: the nearest 5..100 factor for a bitrate.
+func audioCompressionFactor(forBitrate bitrate: Int, format: AudioFormat) -> Int {
+    let ladder = format.allowedBitrates
+    guard let lo = ladder.min(), let hi = ladder.max(), hi > lo, bitrate > 0 else { return 35 }
+    let clamped = Double(min(hi, max(lo, bitrate)))
+    let t = (Double(hi) - clamped) / Double(hi - lo)
+    return Int((5 + t * 95).rounded())
+}
+
 struct AudioMetadata {
     let duration: TimeInterval?
     let bitrate: Int?
@@ -107,7 +129,7 @@ class Audio: Optimisable {
         try? path.setOptimisationStatusXattr("pending")
 
         let format = Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
-        let rawBitrate = bitrateOverride ?? Defaults[.audioBitrate]
+        let rawBitrate = bitrateOverride ?? Defaults[.audioCompression].audioBitrate(for: format) ?? Defaults[.audioBitrate]
         let bitrate = format.resolveBitrate(rawBitrate, inputBitrate: bitrate)
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path

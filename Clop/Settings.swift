@@ -116,6 +116,9 @@ extension Defaults.Keys {
     // Unified per-format compression value (tier + 5..100 factor). Source of truth for the
     // compression slider; legacy aggressive/adaptive keys above are kept readable for back-compat.
     static let imageCompression = Key<CompressionQuality>("imageCompression", default: CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_NORMAL))
+    // factor 35 reproduces the legacy default 192 kbps for AAC; tier is always .custom for audio
+    // (WAV/lossless stays the AudioFormat choice).
+    static let audioCompression = Key<CompressionQuality>("audioCompression", default: CompressionQuality(tier: .custom, factor: 35))
     // Versioned guard so the legacy→unified migration runs exactly once.
     static let compressionModelMigratedVersion = Key<Int>("compressionModelMigratedVersion", default: 0)
     static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
@@ -254,6 +257,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     Defaults.Keys.showMenubarIcon,
     .adaptiveImageSize,
     .imageCompression,
+    .audioCompression,
     .adaptiveVideoSize,
     .alwaysShowCompactResults,
     .autoClearAllCompactResultsAfter,

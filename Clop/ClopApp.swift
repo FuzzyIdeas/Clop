@@ -1296,6 +1296,14 @@ func migrateSettings() {
         )
         Defaults[.compressionModelMigratedVersion] = 1
     }
+    if Defaults[.compressionModelMigratedVersion] < 2 {
+        // AUDIO: map the legacy absolute bitrate onto the factor for the current output format.
+        // Negative sentinels (-1/-2 = "N steps lower than input") fall back to the default factor.
+        let bitrate = Defaults[.audioBitrate]
+        let factor = bitrate > 0 ? audioCompressionFactor(forBitrate: bitrate, format: Defaults[.audioFormat]) : 35
+        Defaults[.audioCompression] = CompressionQuality(tier: .custom, factor: factor)
+        Defaults[.compressionModelMigratedVersion] = 2
+    }
 }
 
 let WINDOW_MIN_SIZE = CGSize(width: 870, height: 750)
