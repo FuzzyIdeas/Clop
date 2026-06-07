@@ -454,6 +454,7 @@ struct VideoSettingsView: View {
                             ),
                             in: 5 ... 100, step: 1
                         )
+                        .frame(maxWidth: .infinity)
                         .frame(width: 150)
                         .disabled(videoCompression.videoUsesAutoCRF)
                         Text(videoCompression.videoUsesAutoCRF ? "Auto" : "\(videoCompression.factor)%")
@@ -848,9 +849,7 @@ struct AudioSettingsView: View {
                         HStack {
                             Text("Compression").regular(13)
                             Spacer()
-                            if let kbps = audioCompression.audioBitrate(for: audioFormat) {
-                                Text("\(kbps) kbps").mono(11).foregroundColor(.secondary)
-                            }
+                            Text("\(audioCompression.factor)%").mono(11).foregroundColor(.secondary)
                         }
                         Slider(
                             value: Binding(
@@ -1075,7 +1074,14 @@ struct ImagesSettingsView: View {
                     HStack {
                         Text("Compression").regular(13)
                         Spacer()
-                        Text(imageCompression.tier == .adaptive ? "adaptive" : "\(imageCompression.factor)").mono(11).foregroundColor(.secondary)
+                        Button("Adaptive") {
+                            imageCompression.tier = imageCompression.tier == .adaptive ? .custom : .adaptive
+                        }
+                        .buttonStyle(ToggleButton(isOn: .oneway { imageCompression.tier == .adaptive }))
+                        .font(.mono(11))
+                        .help("Convert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format")
+                        Text(imageCompression.tier == .adaptive ? "Adaptive" : "\(imageCompression.factor)%")
+                            .mono(11).foregroundColor(.secondary).frame(width: 64, alignment: .trailing)
                     }
                     Slider(
                         value: Binding(
@@ -1084,18 +1090,12 @@ struct ImagesSettingsView: View {
                         ),
                         in: 5 ... 100, step: 1
                     )
+                    .disabled(imageCompression.tier == .adaptive)
                     HStack {
                         Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
                         Spacer()
                         Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
                     }
-                }
-                Toggle(isOn: Binding(
-                    get: { imageCompression.tier == .adaptive },
-                    set: { imageCompression.tier = $0 ? .adaptive : .custom }
-                )) {
-                    Text("Adaptive optimisation").regular(13)
-                        + Text("\nConvert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 // Toggle(isOn: $downscaleRetinaImages) {
                 //     Text("Downscale HiDPI images to 72 DPI").regular(13)
