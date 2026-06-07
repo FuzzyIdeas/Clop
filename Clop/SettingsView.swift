@@ -308,32 +308,8 @@ struct PDFSettingsView: View {
                 PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive, includeAdaptive: true)
             }
             Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
-                HStack {
-                    Text("Skip when PDFs larger than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $maxPDFSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("MB").mono(13)
-                    Text("are copied or moved in watched folders").regular(13)
-                }
-                HStack {
-                    Text("Skip when PDFs smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minPDFSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("KB").mono(13)
-                    Text("are copied or moved (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip when more than").regular(13)
-                    TextField("", value: $maxPDFFileCount, formatter: BoundFormatter(min: 1, max: 100))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxPDFFileCount == 1 ? "PDF is copied or moved in watched folders" : "PDFs are copied or moved in watched folders").regular(13)
-                }
+                FileSizeRangeRow(minKB: $minPDFSizeKB, maxMB: $maxPDFSizeMB)
+                CountSliderRow(label: "Skip when more than", count: $maxPDFFileCount, range: 1 ... 100, caption: { $0 == 1 ? "PDF copied or moved at once" : "PDFs copied or moved at once" })
             }
         }
         .scrollContentBackground(.hidden)
@@ -378,6 +354,7 @@ struct VideoSettingsView: View {
     @Default(.maxVideoSizeMB) var maxVideoSizeMB
     @Default(.minVideoSizeKB) var minVideoSizeKB
     @Default(.minVideoResolution) var minVideoResolution
+    @Default(.maxVideoResolution) var maxVideoResolution
     @Default(.videoFormatsToSkip) var videoFormatsToSkip
     @Default(.adaptiveVideoSize) var adaptiveVideoSize
     @Default(.capVideoFPS) var capVideoFPS
@@ -519,41 +496,9 @@ struct VideoSettingsView: View {
 
             }
             Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
-                HStack {
-                    Text("Skip when videos larger than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $maxVideoSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("MB").mono(13)
-                    Text("are copied or moved in watched folders").regular(13)
-                }
-                HStack {
-                    Text("Skip when videos smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minVideoSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("KB").mono(13)
-                    Text("are copied or moved (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip videos smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minVideoResolution, formatter: BoundFormatter(min: 0, max: 100_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 60)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("px").mono(13)
-                    Text("on either side (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip when more than").regular(13)
-                    TextField("", value: $maxVideoFileCount, formatter: BoundFormatter(min: 1, max: 100))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxVideoFileCount == 1 ? "video is copied or moved in watched folders" : "videos are copied or moved in watched folders").regular(13)
-                }
+                FileSizeRangeRow(minKB: $minVideoSizeKB, maxMB: $maxVideoSizeMB)
+                ResolutionRangeRow(label: "Resolution", minRes: $minVideoResolution, maxRes: $maxVideoResolution)
+                CountSliderRow(label: "Skip when more than", count: $maxVideoFileCount, range: 1 ... 100, caption: { $0 == 1 ? "video copied or moved at once" : "videos copied or moved at once" })
                 HStack {
                     Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
                     Spacer()
@@ -867,32 +812,8 @@ struct AudioSettingsView: View {
                 }
             }
             Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
-                HStack {
-                    Text("Skip when audio files larger than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $maxAudioSizeMB, formatter: BoundFormatter(min: 1, max: 10000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("MB").mono(13)
-                    Text("are copied or moved in watched folders").regular(13)
-                }
-                HStack {
-                    Text("Skip when audio files smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minAudioSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("KB").mono(13)
-                    Text("are copied or moved (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip when more than").regular(13)
-                    TextField("", value: $maxAudioFileCount, formatter: BoundFormatter(min: 1, max: 100))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxAudioFileCount == 1 ? "audio file is copied or moved in watched folders" : "audio files are copied or moved in watched folders").regular(13)
-                }
+                FileSizeRangeRow(minKB: $minAudioSizeKB, maxMB: $maxAudioSizeMB)
+                CountSliderRow(label: "Skip when more than", count: $maxAudioFileCount, range: 1 ... 100, caption: { $0 == 1 ? "audio file copied or moved at once" : "audio files copied or moved at once" })
             }
             if audioFormat != .sameAsInput, !audioFormat.isLossless {
                 Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts selected formats to \(audioFormat.fileExtension) before optimisation")) {
@@ -922,6 +843,7 @@ struct ImagesSettingsView: View {
     @Default(.maxImageSizeMB) var maxImageSizeMB
     @Default(.minImageSizeKB) var minImageSizeKB
     @Default(.minImageResolution) var minImageResolution
+    @Default(.maxImageResolution) var maxImageResolution
     @Default(.imageFormatsToSkip) var imageFormatsToSkip
     @Default(.adaptiveImageSize) var adaptiveImageSize
     @Default(.imageCompression) var imageCompression
@@ -1038,15 +960,8 @@ struct ImagesSettingsView: View {
                     Text("Optimise images copied from Photos.app").regular(13)
                 }
 
-                HStack {
-                    Text("Skip when more than").regular(13)
-                    TextField("", value: $maxCopiedPhotosCount, formatter: BoundFormatter(min: 1, max: 50))
-                        .lineLimit(1)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxCopiedPhotosCount == 1 ? "photo is copied" : "photos are copied").regular(13)
-                }
-                .disabled(!enablePhotosIntegration)
+                CountSliderRow(label: "Skip when more than", count: $maxCopiedPhotosCount, range: 1 ... 50, caption: { $0 == 1 ? "photo is copied at once" : "photos are copied at once" })
+                    .disabled(!enablePhotosIntegration)
 
                 HStack(spacing: 6) {
                     Text("Downscale to").regular(13).lineLimit(1).fixedSize()
@@ -1104,41 +1019,9 @@ struct ImagesSettingsView: View {
 
             }
             Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
-                HStack {
-                    Text("Skip when images larger than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $maxImageSizeMB, formatter: BoundFormatter(min: 1, max: 500))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("MB").mono(13)
-                    Text("are copied or moved in watched folders").regular(13)
-                }
-                HStack {
-                    Text("Skip when images smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minImageSizeKB, formatter: BoundFormatter(min: 0, max: 10_000_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 70)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("KB").mono(13)
-                    Text("are copied or moved (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip images smaller than").regular(13).padding(.trailing, 10)
-                    TextField("", value: $minImageResolution, formatter: BoundFormatter(min: 0, max: 100_000))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 60)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("px").mono(13)
-                    Text("on either side (0 disables)").regular(13)
-                }
-                HStack {
-                    Text("Skip when more than").regular(13)
-                    TextField("", value: $maxImageFileCount, formatter: BoundFormatter(min: 1, max: 100))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 50)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text(maxImageFileCount == 1 ? "image is copied or moved in watched folders" : "images are copied or moved in watched folders").regular(13)
-                }
+                FileSizeRangeRow(minKB: $minImageSizeKB, maxMB: $maxImageSizeMB)
+                ResolutionRangeRow(label: "Resolution", minRes: $minImageResolution, maxRes: $maxImageResolution)
+                CountSliderRow(label: "Skip when more than", count: $maxImageFileCount, range: 1 ... 100, caption: { $0 == 1 ? "image copied or moved at once" : "images copied or moved at once" })
                 HStack {
                     Text("Ignore images with extension").regular(13).padding(.trailing, 10)
                     Spacer()
@@ -2104,6 +1987,222 @@ struct SettingsView: View {
     }
     return event
 }
+
+// MARK: - Skip-rule sliders
+
+/// Human-readable file size for slider labels (KB / MB / GB).
+func formatSkipFileSize(_ bytes: Double) -> String {
+    if bytes >= 1_000_000_000 {
+        String(format: "%.1f GB", bytes / 1_000_000_000)
+    } else if bytes >= 1_000_000 {
+        String(format: "%.0f MB", bytes / 1_000_000)
+    } else {
+        String(format: "%.0f KB", bytes / 1000)
+    }
+}
+
+struct SkipSliderKnob: View {
+    var body: some View {
+        Circle()
+            .fill(Color.white)
+            .overlay(Circle().strokeBorder(Color.black.opacity(0.18), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
+    }
+}
+
+/// Two-knob range slider operating on normalised fractions (0...1). The left knob is clamped
+/// to never pass the right knob and vice versa. Callers map fractions to/from their domain.
+struct DualKnobSlider: View {
+    @Binding var low: Double
+    @Binding var high: Double
+    var onChanged: () -> Void = {}
+
+    private let thumb: CGFloat = 16
+    private let track: CGFloat = 4
+    private let space = "dualKnobSlider"
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let usable = max(1, w - thumb)
+            let lowX = thumb / 2 + CGFloat(low) * usable
+            let highX = thumb / 2 + CGFloat(high) * usable
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.12)).frame(height: track)
+                Capsule().fill(Color.accentColor.opacity(0.7))
+                    .frame(width: max(0, highX - lowX), height: track)
+                    .position(x: (lowX + highX) / 2, y: thumb / 2)
+                SkipSliderKnob().frame(width: thumb, height: thumb).position(x: lowX, y: thumb / 2)
+                    .gesture(knobDrag(usable: usable, lower: true))
+                SkipSliderKnob().frame(width: thumb, height: thumb).position(x: highX, y: thumb / 2)
+                    .gesture(knobDrag(usable: usable, lower: false))
+            }
+            .frame(width: w, height: thumb)
+            .coordinateSpace(name: space)
+        }
+        .frame(height: thumb)
+    }
+
+    private func knobDrag(usable: CGFloat, lower: Bool) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
+            .onChanged { v in
+                let f = Double((v.location.x - thumb / 2) / usable)
+                if lower {
+                    low = Swift.min(high, Swift.max(0, f))
+                } else {
+                    high = Swift.max(low, Swift.min(1, f))
+                }
+            }
+            .onEnded { _ in onChanged() }
+    }
+}
+
+/// One-knob slider on normalised fractions (0...1); click or drag anywhere on the track.
+struct SingleKnobSlider: View {
+    @Binding var value: Double
+    var onChanged: () -> Void = {}
+
+    private let thumb: CGFloat = 16
+    private let track: CGFloat = 4
+    private let space = "singleKnobSlider"
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let usable = max(1, w - thumb)
+            let x = thumb / 2 + CGFloat(value) * usable
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.12)).frame(height: track)
+                Capsule().fill(Color.accentColor.opacity(0.7))
+                    .frame(width: max(0, x - thumb / 2), height: track)
+                    .position(x: (thumb / 2 + x) / 2, y: thumb / 2)
+                SkipSliderKnob().frame(width: thumb, height: thumb).position(x: x, y: thumb / 2)
+            }
+            .frame(width: w, height: thumb)
+            .coordinateSpace(name: space)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
+                    .onChanged { v in
+                        value = Swift.min(1, Swift.max(0, Double((v.location.x - thumb / 2) / usable)))
+                    }
+                    .onEnded { _ in onChanged() }
+            )
+        }
+        .frame(height: thumb)
+    }
+}
+
+/// File size skip range. min is stored in KB, max in MB; 0 disables that bound. Log-scaled.
+struct FileSizeRangeRow: View {
+    var label = "File size"
+    @Binding var minKB: Int
+    @Binding var maxMB: Int
+
+    private let lo = 1000.0 // 1 KB
+    private let hi = 10_000_000_000.0 // 10 GB
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label).regular(13)
+                Spacer()
+                Text("\(minKB == 0 ? "0" : formatSkipFileSize(Double(minKB) * 1000)) – \(maxMB == 0 ? "∞" : formatSkipFileSize(Double(maxMB) * 1_000_000))")
+                    .mono(11).foregroundColor(.secondary)
+            }
+            DualKnobSlider(
+                low: Binding(get: { minKB == 0 ? 0 : frac(Double(minKB) * 1000) }, set: setLow),
+                high: Binding(get: { maxMB == 0 ? 1 : frac(Double(maxMB) * 1_000_000) }, set: setHigh)
+            )
+            Text("Files outside this range are skipped in watched folders").round(10, weight: .regular).foregroundColor(.secondary)
+        }
+    }
+
+    private func frac(_ bytes: Double) -> Double {
+        let b = Swift.max(lo, Swift.min(hi, bytes))
+        return (log2(b) - log2(lo)) / (log2(hi) - log2(lo))
+    }
+
+    private func bytes(_ f: Double) -> Double { lo * pow(hi / lo, f) }
+    private func setLow(_ f: Double) { minKB = f <= 0 ? 0 : Int((bytes(f) / 1000).rounded()) }
+    private func setHigh(_ f: Double) { maxMB = f >= 1 ? 0 : Swift.max(1, Int((bytes(f) / 1_000_000).rounded())) }
+}
+
+/// Resolution skip range (px on either side). 0 disables that bound. Linear scale to 8000px.
+struct ResolutionRangeRow: View {
+    var label = "Resolution"
+    @Binding var minRes: Int
+    @Binding var maxRes: Int
+
+    private let maxScale = 8000.0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label).regular(13)
+                Spacer()
+                Text("\(minRes == 0 ? "0" : "\(minRes)") – \(maxRes == 0 ? "∞" : "\(maxRes)") px")
+                    .mono(11).foregroundColor(.secondary)
+            }
+            DualKnobSlider(
+                low: Binding(get: { minRes == 0 ? 0 : Swift.min(1, Double(minRes) / maxScale) }, set: setLow),
+                high: Binding(get: { maxRes == 0 ? 1 : Swift.min(1, Double(maxRes) / maxScale) }, set: setHigh)
+            )
+            Text("Skips files whose width or height falls outside this range").round(10, weight: .regular).foregroundColor(.secondary)
+        }
+    }
+
+    private func snap(_ f: Double) -> Int { Int((f * maxScale / 10).rounded()) * 10 }
+    private func setLow(_ f: Double) { minRes = f <= 0 ? 0 : snap(f) }
+    private func setHigh(_ f: Double) { maxRes = f >= 1 ? 0 : Swift.max(10, snap(f)) }
+}
+
+/// One-knob stepped slider for integer counts.
+struct CountSliderRow: View {
+    var label: String
+    @Binding var count: Int
+    var range: ClosedRange<Int> = 1 ... 50
+    var caption: (Int) -> String = { _ in "" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label).regular(13)
+                Spacer()
+                Text("\(count)").mono(11).foregroundColor(.secondary)
+            }
+            SingleKnobSlider(value: Binding(
+                get: { Double(count - range.lowerBound) / Double(range.upperBound - range.lowerBound) },
+                set: { count = range.lowerBound + Int(($0 * Double(range.upperBound - range.lowerBound)).rounded()) }
+            ))
+            if !caption(count).isEmpty {
+                Text(caption(count)).round(10, weight: .regular).foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+struct SkipSliderPreview: View {
+    @State var minKB = 100
+    @State var maxMB = 500
+    @State var minRes = 0
+    @State var maxRes = 0
+    @State var count = 4
+
+    var body: some View {
+        Form {
+            Section(header: Text("Skip rules preview")) {
+                FileSizeRangeRow(minKB: $minKB, maxMB: $maxMB)
+                ResolutionRangeRow(minRes: $minRes, maxRes: $maxRes)
+                CountSliderRow(label: "Skip when more than", count: $count, caption: { "\($0) images are copied or moved" })
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 500, height: 420)
+    }
+}
+
+#Preview { SkipSliderPreview() }
 
 struct FloatingSettingsView_Previews: PreviewProvider {
     static var previews: some View {

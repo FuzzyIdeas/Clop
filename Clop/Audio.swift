@@ -356,7 +356,8 @@ func getAudioMetadata(path: FilePath) async throws -> AudioMetadata? {
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
-          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxAudioSizeMB] * 1_000_000,
+          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
+          Defaults[.maxAudioSizeMB] == 0 || size < Defaults[.maxAudioSizeMB] * 1_000_000,
           Defaults[.minAudioSizeKB] == 0 || size >= Defaults[.minAudioSizeKB] * 1000, audioOptimiseDebouncers[event.path] == nil
     else {
         if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {
