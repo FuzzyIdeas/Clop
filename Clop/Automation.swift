@@ -407,6 +407,7 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ParamTemplate(name: "dpiLowerThan", description: "max DPI (images & PDFs)", suggestions: ["72", "150", "300"], freeText: true, applicableTypes: [.image, .pdf]),
             ParamTemplate(name: "minFileSize", description: "minimum file size, e.g. 100kb or 2mb", suggestions: ["100kb", "1mb"], freeText: true),
             ParamTemplate(name: "minResolution", description: "minimum width & height in pixels, e.g. 100x100", suggestions: ["100x100", "640x480"], freeText: true, applicableTypes: [.image]),
+            ParamTemplate(name: "copiedBy", description: "app that copied the item (clipboard only), fuzzy match on app name or bundle id", suggestions: [], freeText: true, needsQuotes: true),
         ],
         applicableTypes: [.image, .video, .audio, .pdf],
         create: { .filterIf(FilterCondition(regex: "")) }
@@ -419,6 +420,7 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ParamTemplate(name: "types", description: "space-separated UTTypes to exclude", suggestions: [], freeText: true),
             ParamTemplate(name: "nameContains", description: "case-insensitive substring to exclude", suggestions: [], freeText: true, needsQuotes: true),
             ParamTemplate(name: "nameIs", description: "exact filename to exclude", suggestions: [], freeText: true, needsQuotes: true),
+            ParamTemplate(name: "copiedBy", description: "exclude when copied by this app (clipboard only), fuzzy match on app name or bundle id", suggestions: [], freeText: true, needsQuotes: true),
         ],
         applicableTypes: [.image, .video, .audio, .pdf],
         create: { .filterIfNot(FilterCondition(regex: "")) }
@@ -706,7 +708,8 @@ private func parseFilterCondition(_ params: [String: String]) -> FilterCondition
         dpiGreaterThan: params["dpiGreaterThan"].flatMap { Int($0) },
         dpiLowerThan: params["dpiLowerThan"].flatMap { Int($0) },
         minFileSize: params["minFileSize"].flatMap { parseByteSize($0) },
-        minResolution: params["minResolution"].flatMap { parseResolution($0) }
+        minResolution: params["minResolution"].flatMap { parseResolution($0) },
+        copiedBy: params["copiedBy"]
     )
 }
 

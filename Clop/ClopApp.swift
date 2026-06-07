@@ -125,6 +125,20 @@ extension String {
     }
 }
 
+/// Determine which app placed the current clipboard content, for the `copiedBy` pipeline filter.
+/// Prefers the explicit `org.nspasteboard.source` bundle id, then the last-focused / frontmost app.
+@MainActor func clipboardSourceApp(item: NSPasteboardItem?) -> (bundleID: String?, name: String?) {
+    if let bundleID = item?.string(forType: NSPasteboard.PasteboardType("org.nspasteboard.source")), !bundleID.isEmpty {
+        let name = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).flatMap { Bundle(url: $0)?.name }
+        return (bundleID, name)
+    }
+    if let id = LastFocusedAppTracker.shared.bundleId {
+        return (id, LastFocusedAppTracker.shared.name)
+    }
+    let app = NSWorkspace.shared.frontmostApplication
+    return (app?.bundleIdentifier, app?.localizedName)
+}
+
 class AppDelegate: AppDelegateParent {
     @MainActor
     override public func willShowPaddle(_: PADUIType, product _: PADProduct) -> PADDisplayConfiguration? {
@@ -1087,6 +1101,8 @@ class AppDelegate: AppDelegateParent {
                 }
 
                 scalingFactor = 1
+                // Capture the app that placed this clipboard content for the `copiedBy` pipeline filter.
+                OM.lastClipboardSourceApp = clipboardSourceApp(item: item)
 
                 if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo {
                     let ignore = Defaults[.videoFormatsToSkip]
