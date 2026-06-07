@@ -394,14 +394,25 @@ struct VideoSettingsView: View {
     @Default(.videoEncoder) var videoEncoder
     @Default(.videoCompression) var videoCompression
 
-    var videoCompressionDescription: String {
-        switch videoCompression.tier {
+    var videoResolvedTier: CompressionTier {
+        videoCompression.tier == .custom ? .smaller : videoCompression.tier
+    }
+
+    func videoCompressionTitle(_ tier: CompressionTier) -> String {
+        switch tier {
+        case .adaptive: "Adaptive"
+        case .lossless: "Visually lossless"
+        case .fast: "Hardware encoder"
+        default: "Software encoder"
+        }
+    }
+
+    func videoCompressionSubtitle(_ tier: CompressionTier) -> String {
+        switch tier {
         case .adaptive: "Picks the best encoder and amount of compression for each file"
         case .lossless: "No perceptible quality loss"
-        case .fast: "Hardware encoder: fast, battery efficient, no CPU usage, modest size gains"
-        default: videoCompression.videoUsesAutoCRF
-            ? "Software encoder: slower, high CPU usage; ffmpeg picks the compression amount"
-            : "Software encoder: slower, high CPU usage, better quality and size gains"
+        case .fast: "Fast, battery efficient, no CPU usage, modest size gains"
+        default: "Slower, higher CPU usage, better quality and size gains"
         }
     }
     #if arch(arm64)
@@ -422,10 +433,7 @@ struct VideoSettingsView: View {
                     specificFolderNameTemplate: $specificFolderNameTemplateVideo
                 )
                 HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Compression").regular(13)
-                        Text(videoCompressionDescription).round(11, weight: .regular).foregroundColor(.secondary)
-                    }
+                    Text("Compression").regular(13)
                     Spacer()
                     if videoCompression.tier == .smaller || videoCompression.tier == .custom {
                         if !videoCompression.videoUsesAutoCRF {
@@ -445,16 +453,20 @@ struct VideoSettingsView: View {
                         .buttonStyle(ToggleButton(isOn: .oneway { videoCompression.videoUsesAutoCRF }))
                         .font(.mono(11))
                     }
-                    Picker("", selection: Binding<CompressionTier>(
-                        get: { videoCompression.tier == .custom ? .smaller : videoCompression.tier },
-                        set: { videoCompression = CompressionQuality(tier: $0, factor: videoCompression.factor) }
-                    )) {
-                        Text("Adaptive").tag(CompressionTier.adaptive)
-                        Text("Visually lossless").tag(CompressionTier.lossless)
-                        Text("Hardware encoder").tag(CompressionTier.fast)
-                        Text("Software encoder").tag(CompressionTier.smaller)
+                    Menu {
+                        ForEach([CompressionTier.adaptive, .lossless, .fast, .smaller], id: \.self) { tier in
+                            Toggle(isOn: Binding(
+                                get: { videoResolvedTier == tier },
+                                set: { if $0 { videoCompression = CompressionQuality(tier: tier, factor: videoCompression.factor) } }
+                            )) {
+                                Text(videoCompressionTitle(tier))
+                                Text(videoCompressionSubtitle(tier))
+                            }
+                        }
+                    } label: {
+                        Text(videoCompressionTitle(videoResolvedTier))
                     }
-                    .labelsHidden()
+                    .menuStyle(.button)
                     .fixedSize()
                 }
                 Toggle("Remove audio on optimised videos", isOn: $removeAudioFromVideos)
