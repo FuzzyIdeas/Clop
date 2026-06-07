@@ -19,6 +19,16 @@ import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Images")
 
+/// Resolve the effective image compression for an encode pass. An explicit `aggressiveOptimisation`
+/// override (from a pipeline EncoderQuality, the aggressive button, CLI, or Shortcuts) maps onto the
+/// legacy normal/aggressive factor anchors; otherwise the unified `imageCompression` setting is used.
+func effectiveImageCompression(_ aggressiveOptimisation: Bool?) -> CompressionQuality {
+    if let aggressiveOptimisation {
+        return CompressionQuality(tier: .custom, factor: aggressiveOptimisation ? COMPRESSION_FACTOR_AGGRESSIVE : COMPRESSION_FACTOR_NORMAL)
+    }
+    return Defaults[.imageCompression]
+}
+
 func jxlNSImage(from data: Data) -> NSImage? {
     try? JXLCoder.decode(data: data)
 }
@@ -485,7 +495,7 @@ class Image: CustomStringConvertible {
         }
 
         if outImg.canBeOptimised {
-            outImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.adaptiveImageSize])) ?? outImg
+            outImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: Defaults[.imageCompression].tier == .adaptive)) ?? outImg
         }
 
         if outImg.path != path, outImg.type == type {
@@ -552,19 +562,15 @@ class Image: CustomStringConvertible {
             }
         }
 
-        let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationGIF]
-        mainActor { optimiser.aggressive = aggressiveOptimisation }
+        let cq = effectiveImageCompression(aggressiveOptimisation)
+        mainActor { optimiser.aggressive = cq.imageIsAggressive }
 
         let backup = path.backup(path: path.clopBackupPath, operation: .copy)
         let proc = try tryProc(
             GIFSICLE.string,
-            args: [
-                "-O\(aggressiveOptimisation ? 3 : 2)",
-                "--lossy=\(aggressiveOptimisation ? 80 : 30)",
-                "--threads=\(ProcessInfo.processInfo.activeProcessorCount)",
-            ] +
-                (aggressiveOptimisation ? ["--colors=256"] : []) +
+            args: cq.gifsicleArgs +
                 [
+                    "--threads=\(ProcessInfo.processInfo.activeProcessorCount)",
                     "--output",
                     tempFile.string,
                     (resizedFile ?? path).string,
@@ -593,7 +599,8 @@ class Image: CustomStringConvertible {
         let backupPath = path.clopBackupPath
         var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
 
-        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
+        let cq = effectiveImageCompression(aggressiveOptimisation)
+        let aggressive = cq.imageIsAggressive
         mainActor { optimiser.aggressive = aggressive }
 
         #if arch(arm64)
@@ -603,7 +610,7 @@ class Image: CustomStringConvertible {
         #endif
 
         let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
-            "--keep-all", "--force", "--max", aggressive ? "68" : "85",
+            "--keep-all", "--force", "--max", "\(cq.jpegMaxQuality)",
         ] + archDependentArgs + [
             "--overwrite",
             "--dest",
@@ -615,15 +622,13 @@ class Image: CustomStringConvertible {
 
         var pngOutFile: FilePath?
         if testPNG, let png = try? convert(to: .png, asTempFile: true) {
-            let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPNG]
             pngOutFile = FilePath.images.appending(png.path.name.string)
             if pngOutFile != png.path {
                 try? pngOutFile!.delete()
             }
             let pngProc = Proc(cmd: PNGQUANT.string, args: [
                 "--force",
-//                "--speed", aggressive ? "1" : "3",
-                "--quality", aggressive ? "0-85" : "0-100",
+                "--quality", cq.pngQuantQuality,
             ] + (pngOutFile == png.path ? ["--ext", ".png"] : ["--output", pngOutFile!.string]) + [png.path.string])
 
             procs.append(pngProc)
@@ -639,7 +644,7 @@ class Image: CustomStringConvertible {
         }
         if proc.terminationStatus != 0 {
             let args = [
-                "--keep-all", "--force", "--max", aggressive ? "70" : "90",
+                "--keep-all", "--force", "--max", "\(cq.jpegSecondaryMaxQuality)",
                 "--auto-mode", "--overwrite",
                 "--dest", FilePath.images.string, path.string,
             ]
@@ -729,22 +734,20 @@ class Image: CustomStringConvertible {
             try? tempFile.delete()
         }
 
-        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPNG]
+        let cq = effectiveImageCompression(aggressiveOptimisation)
+        let aggressive = cq.imageIsAggressive
         mainActor { optimiser.aggressive = aggressive }
 
         let pngProc = Proc(cmd: PNGQUANT.string, args: [
             "--force",
-//            "--speed", aggressive ? "1" : "3",
-            "--quality", aggressive ? "0-85" : "0-100",
+            "--quality", cq.pngQuantQuality,
         ] + (tempFile == path ? ["--ext", ".png"] : ["--output", tempFile.string]) + [path.string])
         var procs = [pngProc]
 
         var jpegOutFile: FilePath?
         if testJPEG, !image.hasTransparentPixels, let jpeg = try? convert(to: .jpeg, asTempFile: true) {
-            let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationJPEG]
-
             let jpegProc = Proc(cmd: JPEGOPTIM.string, args: [
-                "--keep-all", "--force", "--max", aggressive ? "70" : "90",
+                "--keep-all", "--force", "--max", "\(cq.jpegSecondaryMaxQuality)",
                 "--auto-mode", "--overwrite",
                 "--dest", FilePath.images.string, jpeg.path.string,
             ])
@@ -920,7 +923,8 @@ class Image: CustomStringConvertible {
         try convertWithProc(to: "webp", asTempFile: asTempFile)
     }
     func convertToJXL(asTempFile: Bool) throws -> Image {
-        let jxlData = try JXLCoder.encode(image: image, effort: 7, quality: 60)
+        let cq = Defaults[.imageCompression]
+        let jxlData = try JXLCoder.encode(image: image, effort: cq.jxlEffort, quality: cq.jxlQuality)
         let outPath = path.tempFile(ext: "jxl")
         fm.createFile(atPath: outPath.string, contents: jxlData)
         try? outPath.setOptimisationStatusXattr("true")
@@ -1045,10 +1049,11 @@ class Image: CustomStringConvertible {
     }
 
     private func conversionArgs(to format: String, outPath: FilePath) -> [String] {
-        switch format {
-        case "avif": ["--avif", "-q", "60", "-o", outPath.string, path.string]
-        case "heic": ["-q", "60", "-o", outPath.string, path.string]
-        case "webp": ["-mt", "-q", "60", "-sharp_yuv", "-metadata", "all", path.string, "-o", outPath.string]
+        let q = "\(Defaults[.imageCompression].conversionQuality)"
+        return switch format {
+        case "avif": ["--avif", "-q", q, "-o", outPath.string, path.string]
+        case "heic": ["-q", q, "-o", outPath.string, path.string]
+        case "webp": ["-mt", "-q", q, "-sharp_yuv", "-metadata", "all", path.string, "-o", outPath.string]
         default: []
         }
     }
