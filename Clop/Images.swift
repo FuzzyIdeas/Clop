@@ -9,6 +9,7 @@ import Accelerate
 import Cocoa
 import Defaults
 import Foundation
+import ImageIO
 import JxlCoder
 import Lowtech
 import os
@@ -1273,13 +1274,23 @@ class Image: CustomStringConvertible {
 
     guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
           flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
-          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxImageSizeMB] * 1_000_000, imageOptimiseDebouncers[event.path] == nil
+          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0, size < Defaults[.maxImageSizeMB] * 1_000_000,
+          Defaults[.minImageSizeKB] == 0 || size >= Defaults[.minImageSizeKB] * 1000, imageOptimiseDebouncers[event.path] == nil
     else {
         if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {
             imageOptimiseDebouncers[event.path]?.cancel()
             imageOptimiseDebouncers.removeValue(forKey: event.path)
         }
         return false
+    }
+
+    let minRes = Defaults[.minImageResolution]
+    if minRes > 0 {
+        guard let source = CGImageSourceCreateWithURL(path.url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int,
+              w >= minRes, h >= minRes
+        else { return false }
     }
 
     return true

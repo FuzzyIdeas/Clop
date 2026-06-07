@@ -405,6 +405,8 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ParamTemplate(name: "heightLowerThan", description: "max height in pixels", suggestions: [], freeText: true, applicableTypes: [.image]),
             ParamTemplate(name: "dpiGreaterThan", description: "min DPI (images & PDFs)", suggestions: ["72", "150", "300"], freeText: true, applicableTypes: [.image, .pdf]),
             ParamTemplate(name: "dpiLowerThan", description: "max DPI (images & PDFs)", suggestions: ["72", "150", "300"], freeText: true, applicableTypes: [.image, .pdf]),
+            ParamTemplate(name: "minFileSize", description: "minimum file size, e.g. 100kb or 2mb", suggestions: ["100kb", "1mb"], freeText: true),
+            ParamTemplate(name: "minResolution", description: "minimum width & height in pixels, e.g. 100x100", suggestions: ["100x100", "640x480"], freeText: true, applicableTypes: [.image]),
         ],
         applicableTypes: [.image, .video, .audio, .pdf],
         create: { .filterIf(FilterCondition(regex: "")) }
@@ -702,8 +704,35 @@ private func parseFilterCondition(_ params: [String: String]) -> FilterCondition
         heightGreaterThan: params["heightGreaterThan"].flatMap { Int($0) },
         heightLowerThan: params["heightLowerThan"].flatMap { Int($0) },
         dpiGreaterThan: params["dpiGreaterThan"].flatMap { Int($0) },
-        dpiLowerThan: params["dpiLowerThan"].flatMap { Int($0) }
+        dpiLowerThan: params["dpiLowerThan"].flatMap { Int($0) },
+        minFileSize: params["minFileSize"].flatMap { parseByteSize($0) },
+        minResolution: params["minResolution"].flatMap { parseResolution($0) }
     )
+}
+
+/// Parse a human-friendly byte size like "100kb", "2mb", "1.5MiB" or a raw byte count.
+private func parseByteSize(_ str: String) -> Int? {
+    let s = str.trimmingCharacters(in: .whitespaces).lowercased()
+    if let n = Int(s) { return n }
+    // Longer suffixes first so "kib"/"mib" win over "kb"/"mb".
+    let multipliers: [(String, Double)] = [
+        ("gib", 1_073_741_824), ("gb", 1_000_000_000),
+        ("mib", 1_048_576), ("mb", 1_000_000),
+        ("kib", 1024), ("kb", 1000), ("b", 1),
+    ]
+    for (suffix, mult) in multipliers where s.hasSuffix(suffix) {
+        if let num = Double(s.dropLast(suffix.count).trimmingCharacters(in: .whitespaces)) {
+            return Int(num * mult)
+        }
+    }
+    return nil
+}
+
+/// Parse a resolution like "100" or "100x100" into a single minimum-edge value (the first number).
+private func parseResolution(_ str: String) -> Int? {
+    let parts = str.lowercased().split(whereSeparator: { $0 == "x" || $0 == "×" })
+    guard let first = parts.first, let n = Int(first.trimmingCharacters(in: .whitespaces)) else { return nil }
+    return n
 }
 
 // MARK: - Pipeline Text Completions
