@@ -51,7 +51,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         case .quickLook: "eye"
         case .saveAs: "square.and.arrow.down"
         case .addToShelf: "tray.and.arrow.down"
-        case .sendSecurely: "lock.shield"
+        case .sendSecurely: "paperplane.fill"
         }
     }
 
@@ -1522,7 +1522,7 @@ struct ActionButton: View {
                 WarpDropActiveButton(session: session, optimiser: optimiser)
             } else {
                 Button(action: { if !preview { warpDropSend(optimiser: optimiser) } }) {
-                    SwiftUI.Image(systemName: "link").font(.heavy(9))
+                    SwiftUI.Image(systemName: "paperplane.fill").font(.heavy(9))
                 }
                 .contentShape(Rectangle())
             }
