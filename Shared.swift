@@ -263,7 +263,8 @@ struct CompressionQuality: Codable, Hashable {
 
     init(tier: CompressionTier = .custom, factor: Int = 50) {
         self.tier = tier
-        self.factor = cqClamp(factor, 5, 100)
+        // 0 is a valid sentinel for "Auto" (video software encoder: let ffmpeg pick the CRF).
+        self.factor = cqClamp(factor, 0, 100)
     }
 
     // Tolerant decode so old/partial blobs round-trip through Defaults/iCloud without dropping.
@@ -321,7 +322,22 @@ extension CompressionQuality {
 // their own fixed args. The named tiers map to the legacy VideoEncoder presets.
 extension CompressionQuality {
     /// libx264 CRF for the software path. factor 5 -> 18 (best), 100 -> 30 (smallest); 50 ≈ 24 (≈ legacy default 23).
-    var videoH264CRF: Int { cqClamp(18 + Int((Double(factor - 5) / 95.0 * 12.0).rounded()), 17, 32) }
+    var videoH264CRF: Int { cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 12.0).rounded()), 17, 32) }
+
+    /// Whether the software encoder lets ffmpeg pick the CRF (the "Auto" toggle, factor 0).
+    var videoUsesAutoCRF: Bool { factor <= 0 }
+
+    /// libx264 -preset chosen from the compression percentage: slower presets the higher the factor
+    /// (closer to 100), faster presets the lower (closer to 5).
+    var videoH264Preset: String {
+        switch factor {
+        case ..<20: "veryfast"
+        case 20 ..< 40: "fast"
+        case 40 ..< 60: "medium"
+        case 60 ..< 85: "slow"
+        default: "slower"
+        }
+    }
 
     /// ffmpeg encoder args for the default H.264 encode, honouring tier + factor.
     func videoH264Args() -> [String] {
@@ -331,13 +347,18 @@ extension CompressionQuality {
         case .fast:
             #if arch(arm64)
                 // VideoToolbox -q:v: higher = better quality. factor 50 ≈ 46 (≈ legacy 45).
-                let q = cqClamp(Int((70.0 - Double(factor - 5) / 95.0 * 45.0).rounded()), 25, 75)
+                let q = cqClamp(Int((70.0 - Double(max(5, factor) - 5) / 95.0 * 45.0).rounded()), 25, 75)
                 return ["-vcodec", "h264_videotoolbox", "-q:v", "\(q)", "-tag:v", "avc1"]
             #else
-                return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "veryfast", "-crf", "\(videoH264CRF)"]
+                return videoUsesAutoCRF
+                    ? ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "veryfast"]
+                    : ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "veryfast", "-crf", "\(videoH264CRF)"]
             #endif
         default: // .smaller / .custom / .adaptive -> efficient software libx264
-            return ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "slower", "-crf", "\(videoH264CRF)"]
+            // Auto: omit -crf so ffmpeg/libx264 uses its default; otherwise map the percentage to CRF + preset.
+            return videoUsesAutoCRF
+                ? ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "slower"]
+                : ["-vcodec", "h264", "-tag:v", "avc1", "-preset", videoH264Preset, "-crf", "\(videoH264CRF)"]
         }
     }
 }
