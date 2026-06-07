@@ -297,7 +297,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                             optimiser: optimiser,
                             allowLarger: allowLarger,
                             aggressiveOptimisation: aggressiveOptimisation,
-                            adaptiveSize: adaptiveOptimisation ?? Defaults[.adaptiveImageSize]
+                            adaptiveSize: adaptiveOptimisation ?? (Defaults[.imageCompression].tier == .adaptive)
                         )
                         if currentImage!.type == img.type {
                             currentImage = try currentImage?.copyWithPath(currentImage!.path.copy(to: img.path, force: true))

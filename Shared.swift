@@ -241,6 +241,81 @@ let PDF_DPI_ADAPTIVE = 0
 // Snap points used by the DPI slider, ordered high to low.
 let PDF_DPI_STOPS: [Int] = [300, 250, 200, 150, 100, 72, 48]
 
+// MARK: - Unified compression model
+
+private func cqClamp(_ v: Int, _ lo: Int, _ hi: Int) -> Int { Swift.max(lo, Swift.min(hi, v)) }
+
+/// Named per-format compression anchor. Not every case is valid for every format; the
+/// format-specific helpers only ever produce/consume the cases relevant to that format.
+enum CompressionTier: String, Codable, CaseIterable, Hashable {
+    case adaptive   // image: PNG↔JPEG cross-format test; pdf: adaptive DPI
+    case lossless   // video: CRF 17; pdf: 300 DPI (no downsample)
+    case fast       // video only: hardware VideoToolbox encoder
+    case smaller    // video only: efficient software encoder
+    case custom     // pure-factor mode (no named anchor)
+}
+
+/// Single per-format "how hard do we compress" value: a named `tier` plus a continuous
+/// `factor` from 5 (least compression / best quality) to 100 (most compression / smallest file).
+struct CompressionQuality: Codable, Hashable {
+    var tier: CompressionTier
+    var factor: Int
+
+    init(tier: CompressionTier = .custom, factor: Int = 50) {
+        self.tier = tier
+        self.factor = cqClamp(factor, 5, 100)
+    }
+
+    // Tolerant decode so old/partial blobs round-trip through Defaults/iCloud without dropping.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let t = (try? c.decode(CompressionTier.self, forKey: .tier)) ?? .custom
+        let f = (try? c.decode(Int.self, forKey: .factor)) ?? 50
+        self.init(tier: t, factor: f)
+    }
+}
+
+// Factor anchors that reproduce the legacy presets exactly, so migration keeps behaviour identical:
+// factor 30 == the old "normal" preset, factor 64 == the old "aggressive" preset.
+let COMPRESSION_FACTOR_NORMAL = 30
+let COMPRESSION_FACTOR_AGGRESSIVE = 64
+
+// MARK: Image translation (factor 5..100, higher = more compression)
+// jpegoptim --max / pngquant --quality ceiling / cwebp,heif,jxl -q are QUALITY scales (inverted);
+// gifsicle -O/--lossy is a compression scale (direct).
+extension CompressionQuality {
+    /// Whether this resolves to the legacy "aggressive" preset (drives UI labels + adaptive thresholds).
+    var imageIsAggressive: Bool { tier != .adaptive && factor >= 50 }
+
+    /// jpegoptim --max quality ceiling. factor 30 -> 85 (legacy normal), 64 -> 68 (legacy aggressive).
+    var jpegMaxQuality: Int { cqClamp(85 - (factor - 30) / 2, 40, 95) }
+
+    /// jpegoptim --max for the old-binary fallback and the adaptive cross-test. factor 30 -> 90, 64 -> 70.
+    var jpegSecondaryMaxQuality: Int { cqClamp(Int((90.0 - Double(factor - 30) * (20.0 / 34.0)).rounded()), 40, 97) }
+
+    /// pngquant --quality string "0-MAX". factor 30 -> "0-100", 64 -> "0-85".
+    var pngQuantQuality: String { "0-\(cqClamp(Int((100.0 - Double(factor - 30) * (15.0 / 34.0)).rounded()), 40, 100))" }
+
+    /// gifsicle args. factor 30 -> -O2 --lossy=30 (normal); 64 -> -O3 --lossy=80 --colors=N (aggressive).
+    var gifsicleArgs: [String] {
+        let oLevel = factor >= 50 ? 3 : (factor >= 20 ? 2 : 1)
+        let lossy = cqClamp(Int((30.0 + Double(factor - 30) * (50.0 / 34.0)).rounded()), 0, 200)
+        var args = ["-O\(oLevel)", "--lossy=\(lossy)"]
+        if factor >= 50 {
+            let colors = cqClamp(Int((256.0 - Double(factor - 50) * (192.0 / 50.0)).rounded()), 32, 256)
+            args.append("--colors=\(colors)")
+        }
+        return args
+    }
+
+    /// cwebp / heif-enc -q quality (0-100). factor 30 -> 60 (legacy hardcoded default).
+    var conversionQuality: Int { cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 90) }
+    /// JXLCoder quality (0-100). factor 30 -> 60 (legacy).
+    var jxlQuality: Int { cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 95) }
+    /// JXLCoder effort (1-9). factor <50 -> 7 (legacy), ramps to 9 at high compression.
+    var jxlEffort: Int { factor >= 70 ? 9 : (factor >= 50 ? 8 : 7) }
+}
+
 struct OptimisationResponseError: Codable, Identifiable {
     let error: String
     let forURL: URL

@@ -58,6 +58,8 @@ enum CleanupInterval: TimeInterval, Codable, Defaults.Serializable {
 extension CropOrientation: Defaults.Serializable {}
 extension VideoEncoder: Defaults.Serializable {}
 extension AudioFormat: Defaults.Serializable {}
+extension CompressionTier: Defaults.Serializable {}
+extension CompressionQuality: Defaults.Serializable {}
 
 extension Defaults.Keys {
     static let finishedOnboarding = Key<Bool>("finishedOnboarding", default: false)
@@ -111,6 +113,11 @@ extension Defaults.Keys {
     static let useAggressiveOptimisationJPEG = Key<Bool>("useAggressiveOptimisationJPEG", default: false)
     static let useAggressiveOptimisationPNG = Key<Bool>("useAggressiveOptimisationPNG", default: false)
     static let useAggressiveOptimisationGIF = Key<Bool>("useAggressiveOptimisationGIF", default: false)
+    // Unified per-format compression value (tier + 5..100 factor). Source of truth for the
+    // compression slider; legacy aggressive/adaptive keys above are kept readable for back-compat.
+    static let imageCompression = Key<CompressionQuality>("imageCompression", default: CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_NORMAL))
+    // Versioned guard so the legacy→unified migration runs exactly once.
+    static let compressionModelMigratedVersion = Key<Int>("compressionModelMigratedVersion", default: 0)
     static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
     static let pdfDPI = Key<Int>("pdfDPI", default: 300)
     /// 0 = Adaptive: target DPI is chosen per-PDF based on source image density.
@@ -246,6 +253,7 @@ public enum OptimisedFileBehaviour: String, Defaults.Serializable {
 let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     Defaults.Keys.showMenubarIcon,
     .adaptiveImageSize,
+    .imageCompression,
     .adaptiveVideoSize,
     .alwaysShowCompactResults,
     .autoClearAllCompactResultsAfter,

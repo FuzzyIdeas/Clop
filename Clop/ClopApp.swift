@@ -350,6 +350,7 @@ class AppDelegate: AppDelegateParent {
 
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
         migrateShortcutsToPipelines()
+        migrateToUnifiedCompression()
 
         BetaLicenseChecker.start()
 
@@ -1276,6 +1277,24 @@ func migrateSettings() {
         try? FileManager.default.copyItem(at: oldPrefs, to: currentPrefs)
         NSUbiquitousKeyValueStore.default.synchronize()
         restart()
+    }
+}
+
+/// Seed the unified per-format `CompressionQuality` keys from the legacy aggressive/adaptive/encoder/bitrate
+/// settings so existing users keep identical behaviour. Each version block runs exactly once; adding a new
+/// block (for another format) never re-runs the earlier ones.
+@MainActor func migrateToUnifiedCompression() {
+    if Defaults[.compressionModelMigratedVersion] < 1 {
+        // IMAGE: collapse the three per-format aggressive bools into one factor (any aggressive -> 64),
+        // and map adaptiveImageSize onto the Adaptive tier.
+        let anyAggressive = Defaults[.useAggressiveOptimisationJPEG]
+            || Defaults[.useAggressiveOptimisationPNG]
+            || Defaults[.useAggressiveOptimisationGIF]
+        Defaults[.imageCompression] = CompressionQuality(
+            tier: Defaults[.adaptiveImageSize] ? .adaptive : .custom,
+            factor: anyAggressive ? COMPRESSION_FACTOR_AGGRESSIVE : COMPRESSION_FACTOR_NORMAL
+        )
+        Defaults[.compressionModelMigratedVersion] = 1
     }
 }
 

@@ -860,6 +860,7 @@ struct ImagesSettingsView: View {
     @Default(.minImageResolution) var minImageResolution
     @Default(.imageFormatsToSkip) var imageFormatsToSkip
     @Default(.adaptiveImageSize) var adaptiveImageSize
+    @Default(.imageCompression) var imageCompression
     // @Default(.downscaleRetinaImages) var downscaleRetinaImages
     @Default(.convertedImageBehaviour) var convertedImageBehaviour
     @Default(.optimisedImageBehaviour) var optimisedImageBehaviour
@@ -1052,26 +1053,31 @@ struct ImagesSettingsView: View {
                             .font(.mono(11))
                     }
                 }
-                HStack {
-                    Text("Use more aggressive optimisation for").regular(13).padding(.trailing, 10)
-                    Spacer()
-
-                    Button("jpeg") {
-                        useAggressiveOptimisationJPEG.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationJPEG))
-                        .font(.mono(11))
-                    Button("png") {
-                        useAggressiveOptimisationPNG.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationPNG))
-                        .font(.mono(11))
-                    Button("gif") {
-                        useAggressiveOptimisationGIF.toggle()
-                    }.buttonStyle(ToggleButton(isOn: $useAggressiveOptimisationGIF))
-                        .font(.mono(11))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Compression").regular(13)
+                        Spacer()
+                        Text(imageCompression.tier == .adaptive ? "adaptive" : "\(imageCompression.factor)").mono(11).foregroundColor(.secondary)
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { Double(imageCompression.factor) },
+                            set: { imageCompression.factor = Int($0.rounded()) }
+                        ),
+                        in: 5 ... 100, step: 1
+                    )
+                    HStack {
+                        Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
+                        Spacer()
+                        Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
+                    }
                 }
-                Toggle(isOn: $adaptiveImageSize) {
+                Toggle(isOn: Binding(
+                    get: { imageCompression.tier == .adaptive },
+                    set: { imageCompression.tier = $0 ? .adaptive : .custom }
+                )) {
                     Text("Adaptive optimisation").regular(13)
-                        + Text("\nConvert detail heavy images to JPEG and low-detail ones to PNG").round(11, weight: .regular).foregroundColor(.secondary)
+                        + Text("\nConvert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 // Toggle(isOn: $downscaleRetinaImages) {
                 //     Text("Downscale HiDPI images to 72 DPI").regular(13)
