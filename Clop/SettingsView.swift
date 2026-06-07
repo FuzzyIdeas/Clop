@@ -391,6 +391,7 @@ struct VideoSettingsView: View {
     @Default(.convertAudioToAAC) var convertAudioToAAC
 
     @Default(.videoEncoder) var videoEncoder
+    @Default(.videoCompression) var videoCompression
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
     #endif
@@ -454,18 +455,42 @@ struct VideoSettingsView: View {
                             .font(.mono(11))
                     }
                 }
-                Picker(selection: $videoEncoder) {
+                Picker(selection: Binding(
+                    get: { cqToVideoEncoder(videoCompression) },
+                    set: { videoCompression.tier = videoEncoderToCQ($0).tier }
+                )) {
                     ForEach(VideoEncoder.allCases, id: \.self) { encoder in
                         Text(encoder.name).tag(encoder)
                     }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Video encoder").regular(13)
-                        Text(videoEncoder.description).round(11, weight: .regular).foregroundColor(.secondary)
+                        Text(cqToVideoEncoder(videoCompression).description).round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                }
+                if videoCompression.tier == .smaller || videoCompression.tier == .custom {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Compression").regular(13)
+                            Spacer()
+                            Text("CRF \(videoCompression.videoH264CRF)").mono(11).foregroundColor(.secondary)
+                        }
+                        Slider(
+                            value: Binding(
+                                get: { Double(videoCompression.factor) },
+                                set: { videoCompression.factor = Int($0.rounded()) }
+                            ),
+                            in: 5 ... 100, step: 1
+                        )
+                        HStack {
+                            Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
+                            Spacer()
+                            Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
+                        }
                     }
                 }
                 #if arch(arm64)
-                    if videoEncoder != .fast {
+                    if videoCompression.tier != .fast {
                         Toggle(isOn: $adaptiveVideoSize) {
                             Text("Adaptive optimisation").regular(13)
                                 + Text("\nFalls back to the fast encoder for large files to save time and battery").round(11, weight: .regular).foregroundColor(.secondary)

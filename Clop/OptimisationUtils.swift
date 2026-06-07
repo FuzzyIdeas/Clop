@@ -1433,6 +1433,8 @@ enum TempPipelineSegment {
 
     func reoptimiseWithEncoder(_ encoder: VideoEncoder) {
         Defaults[.videoEncoder] = encoder
+        // Keep the unified value (the real source of truth for the encode) in sync with the legacy encoder.
+        Defaults[.videoCompression] = videoEncoderToCQ(encoder)
         try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
         if !tempPipeline.isEmpty {
             updateTempPipeline(with: .optimise(videoEncoder: encoder))
