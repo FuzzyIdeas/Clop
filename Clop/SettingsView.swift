@@ -307,9 +307,9 @@ struct PDFSettingsView: View {
                 PDFDPIPickerView(label: "Image DPI for normal optimisation", binding: $pdfDPI)
                 PDFDPIPickerView(label: "Image DPI for aggressive optimisation", binding: $pdfDPIAggressive, includeAdaptive: true)
             }
-            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
+            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
                 FileSizeRangeRow(minKB: $minPDFSizeKB, maxMB: $maxPDFSizeMB)
-                CountSliderRow(label: "Skip when more than", count: $maxPDFFileCount, range: 1 ... 100, caption: { $0 == 1 ? "PDF copied or moved at once" : "PDFs copied or moved at once" })
+                CountSliderRow(count: $maxPDFFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "PDF is" : "PDFs are") copied or moved at once" })
             }
         }
         .scrollContentBackground(.hidden)
@@ -495,10 +495,10 @@ struct VideoSettingsView: View {
                 }
 
             }
-            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
+            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
                 FileSizeRangeRow(minKB: $minVideoSizeKB, maxMB: $maxVideoSizeMB)
                 ResolutionRangeRow(label: "Resolution", minRes: $minVideoResolution, maxRes: $maxVideoResolution)
-                CountSliderRow(label: "Skip when more than", count: $maxVideoFileCount, range: 1 ... 100, caption: { $0 == 1 ? "video copied or moved at once" : "videos copied or moved at once" })
+                CountSliderRow(count: $maxVideoFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "video is" : "videos are") copied or moved at once" })
                 HStack {
                     Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
                     Spacer()
@@ -811,9 +811,9 @@ struct AudioSettingsView: View {
                     }
                 }
             }
-            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
+            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
                 FileSizeRangeRow(minKB: $minAudioSizeKB, maxMB: $maxAudioSizeMB)
-                CountSliderRow(label: "Skip when more than", count: $maxAudioFileCount, range: 1 ... 100, caption: { $0 == 1 ? "audio file copied or moved at once" : "audio files copied or moved at once" })
+                CountSliderRow(count: $maxAudioFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "audio file is" : "audio files are") copied or moved at once" })
             }
             if audioFormat != .sameAsInput, !audioFormat.isLossless {
                 Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts selected formats to \(audioFormat.fileExtension) before optimisation")) {
@@ -960,7 +960,7 @@ struct ImagesSettingsView: View {
                     Text("Optimise images copied from Photos.app").regular(13)
                 }
 
-                CountSliderRow(label: "Skip when more than", count: $maxCopiedPhotosCount, range: 1 ... 50, caption: { $0 == 1 ? "photo is copied at once" : "photos are copied at once" })
+                CountSliderRow(count: $maxCopiedPhotosCount, range: 1 ... 50, caption: { "Skips when more than \($0) \($0 == 1 ? "photo is" : "photos are") copied at once" })
                     .disabled(!enablePhotosIntegration)
 
                 HStack(spacing: 6) {
@@ -985,19 +985,8 @@ struct ImagesSettingsView: View {
                     specificFolderNameTemplate: $specificFolderNameTemplateImage
                 )
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Compression").regular(13)
-                        Spacer()
-                        Button("Adaptive") {
-                            imageCompression.tier = imageCompression.tier == .adaptive ? .custom : .adaptive
-                        }
-                        .buttonStyle(ToggleButton(isOn: .oneway { imageCompression.tier == .adaptive }))
-                        .font(.mono(11))
-                        .help("Convert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format")
-                        Text(imageCompression.tier == .adaptive ? "Adaptive" : "\(imageCompression.factor)%")
-                            .mono(11).foregroundColor(.secondary).frame(width: 64, alignment: .trailing)
-                    }
+                HStack(spacing: 8) {
+                    Text("Compression").regular(13)
                     Slider(
                         value: Binding(
                             get: { Double(imageCompression.factor) },
@@ -1006,11 +995,14 @@ struct ImagesSettingsView: View {
                         in: 5 ... 100, step: 1
                     )
                     .disabled(imageCompression.tier == .adaptive)
-                    HStack {
-                        Text("Best quality").round(10, weight: .regular).foregroundColor(.secondary)
-                        Spacer()
-                        Text("Smallest file").round(10, weight: .regular).foregroundColor(.secondary)
+                    Text(imageCompression.tier == .adaptive ? "Adaptive" : "\(imageCompression.factor)%")
+                        .mono(11).foregroundColor(.secondary).frame(width: 64, alignment: .trailing)
+                    Button("Adaptive") {
+                        imageCompression.tier = imageCompression.tier == .adaptive ? .custom : .adaptive
                     }
+                    .buttonStyle(ToggleButton(isOn: .oneway { imageCompression.tier == .adaptive }))
+                    .font(.mono(11))
+                    .help("Convert detail heavy images to JPEG and low-detail ones to PNG, ignoring the compression factor's format")
                 }
                 // Toggle(isOn: $downscaleRetinaImages) {
                 //     Text("Downscale HiDPI images to 72 DPI").regular(13)
@@ -1018,10 +1010,10 @@ struct ImagesSettingsView: View {
                 // }
 
             }
-            Section(header: SectionHeader(title: "Skip rules", subtitle: "Ignore files outside these limits in watched folders")) {
+            Section(header: SectionHeader(title: "Files to optimise", subtitle: "Only files within these limits are optimised in watched folders")) {
                 FileSizeRangeRow(minKB: $minImageSizeKB, maxMB: $maxImageSizeMB)
                 ResolutionRangeRow(label: "Resolution", minRes: $minImageResolution, maxRes: $maxImageResolution)
-                CountSliderRow(label: "Skip when more than", count: $maxImageFileCount, range: 1 ... 100, caption: { $0 == 1 ? "image copied or moved at once" : "images copied or moved at once" })
+                CountSliderRow(count: $maxImageFileCount, caption: { "Skips when more than \($0) \($0 == 1 ? "image is" : "images are") copied or moved at once" })
                 HStack {
                     Text("Ignore images with extension").regular(13).padding(.trailing, 10)
                     Spacer()
@@ -2104,17 +2096,23 @@ struct FileSizeRangeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label).regular(13)
-                Spacer()
-                Text("\(minKB == 0 ? "0" : formatSkipFileSize(Double(minKB) * 1000)) – \(maxMB == 0 ? "∞" : formatSkipFileSize(Double(maxMB) * 1_000_000))")
-                    .mono(11).foregroundColor(.secondary)
-            }
+            Text(label).regular(13)
             DualKnobSlider(
                 low: Binding(get: { minKB == 0 ? 0 : frac(Double(minKB) * 1000) }, set: setLow),
                 high: Binding(get: { maxMB == 0 ? 1 : frac(Double(maxMB) * 1_000_000) }, set: setHigh)
             )
-            Text("Files outside this range are skipped in watched folders").round(10, weight: .regular).foregroundColor(.secondary)
+            Text(caption).round(10, weight: .regular).foregroundColor(.secondary)
+        }
+    }
+
+    private var caption: String {
+        let minS = formatSkipFileSize(Double(minKB) * 1000)
+        let maxS = formatSkipFileSize(Double(maxMB) * 1_000_000)
+        return switch (minKB > 0, maxMB > 0) {
+        case (true, true): "Only optimises files between \(minS) and \(maxS)"
+        case (true, false): "Only optimises files larger than \(minS)"
+        case (false, true): "Only optimises files smaller than \(maxS)"
+        case (false, false): "Optimises files of any size"
         }
     }
 
@@ -2134,21 +2132,25 @@ struct ResolutionRangeRow: View {
     @Binding var minRes: Int
     @Binding var maxRes: Int
 
-    private let maxScale = 8000.0
+    private let maxScale = 30000.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label).regular(13)
-                Spacer()
-                Text("\(minRes == 0 ? "0" : "\(minRes)") – \(maxRes == 0 ? "∞" : "\(maxRes)") px")
-                    .mono(11).foregroundColor(.secondary)
-            }
+            Text(label).regular(13)
             DualKnobSlider(
                 low: Binding(get: { minRes == 0 ? 0 : Swift.min(1, Double(minRes) / maxScale) }, set: setLow),
                 high: Binding(get: { maxRes == 0 ? 1 : Swift.min(1, Double(maxRes) / maxScale) }, set: setHigh)
             )
-            Text("Skips files whose width or height falls outside this range").round(10, weight: .regular).foregroundColor(.secondary)
+            Text(caption).round(10, weight: .regular).foregroundColor(.secondary)
+        }
+    }
+
+    private var caption: String {
+        switch (minRes > 0, maxRes > 0) {
+        case (true, true): "Only optimises files with width and height between \(minRes) and \(maxRes)px"
+        case (true, false): "Only optimises files with width and height over \(minRes)px"
+        case (false, true): "Only optimises files with width and height under \(maxRes)px"
+        case (false, false): "Optimises files of any resolution"
         }
     }
 
@@ -2159,18 +2161,14 @@ struct ResolutionRangeRow: View {
 
 /// One-knob stepped slider for integer counts.
 struct CountSliderRow: View {
-    var label: String
+    var label = "File count"
     @Binding var count: Int
-    var range: ClosedRange<Int> = 1 ... 50
+    var range: ClosedRange<Int> = 1 ... 100
     var caption: (Int) -> String = { _ in "" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label).regular(13)
-                Spacer()
-                Text("\(count)").mono(11).foregroundColor(.secondary)
-            }
+            Text(label).regular(13)
             SingleKnobSlider(value: Binding(
                 get: { Double(count - range.lowerBound) / Double(range.upperBound - range.lowerBound) },
                 set: { count = range.lowerBound + Int(($0 * Double(range.upperBound - range.lowerBound)).rounded()) }
@@ -2194,7 +2192,7 @@ struct SkipSliderPreview: View {
             Section(header: Text("Skip rules preview")) {
                 FileSizeRangeRow(minKB: $minKB, maxMB: $maxMB)
                 ResolutionRangeRow(minRes: $minRes, maxRes: $maxRes)
-                CountSliderRow(label: "Skip when more than", count: $count, caption: { "\($0) images are copied or moved" })
+                CountSliderRow(count: $count, caption: { "Skips when more than \($0) \($0 == 1 ? "image is" : "images are") copied or moved at once" })
             }
         }
         .formStyle(.grouped)
