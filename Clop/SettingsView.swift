@@ -2096,7 +2096,12 @@ struct FileSizeRangeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).regular(13)
+            HStack {
+                Text(label).regular(13)
+                Spacer()
+                Text("\(minKB == 0 ? "0" : formatSkipFileSize(Double(minKB) * 1000)) – \(maxMB == 0 ? "∞" : formatSkipFileSize(Double(maxMB) * 1_000_000))")
+                    .mono(11).foregroundColor(.secondary)
+            }
             DualKnobSlider(
                 low: Binding(get: { minKB == 0 ? 0 : frac(Double(minKB) * 1000) }, set: setLow),
                 high: Binding(get: { maxMB == 0 ? 1 : frac(Double(maxMB) * 1_000_000) }, set: setHigh)
@@ -2136,7 +2141,12 @@ struct ResolutionRangeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).regular(13)
+            HStack {
+                Text(label).regular(13)
+                Spacer()
+                Text("\(minRes == 0 ? "0" : "\(minRes)") – \(maxRes == 0 ? "∞" : "\(maxRes)") px")
+                    .mono(11).foregroundColor(.secondary)
+            }
             DualKnobSlider(
                 low: Binding(get: { minRes == 0 ? 0 : Swift.min(1, Double(minRes) / maxScale) }, set: setLow),
                 high: Binding(get: { maxRes == 0 ? 1 : Swift.min(1, Double(maxRes) / maxScale) }, set: setHigh)
@@ -2168,7 +2178,11 @@ struct CountSliderRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).regular(13)
+            HStack {
+                Text(label).regular(13)
+                Spacer()
+                Text("\(count)").mono(11).foregroundColor(.secondary)
+            }
             SingleKnobSlider(value: Binding(
                 get: { Double(count - range.lowerBound) / Double(range.upperBound - range.lowerBound) },
                 set: { count = range.lowerBound + Int(($0 * Double(range.upperBound - range.lowerBound)).rounded()) }
