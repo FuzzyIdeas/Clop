@@ -761,6 +761,18 @@ struct AudioSettingsView: View {
     @Default(.specificFolderNameTemplateAudio) var specificFolderNameTemplateAudio
     @Default(.enableAutomaticAudioOptimisations) var enableAutomaticAudioOptimisations
 
+    /// Reveals what the abstract percentage maps to in real bitrates (all formats use VBR).
+    var audioCompressionCaption: String {
+        if audioFormat == .sameAsInput {
+            let mp3 = audioCompression.audioBitrate(for: .mp3) ?? 0
+            let aac = audioCompression.audioBitrate(for: .aac) ?? 0
+            let opus = audioCompression.audioBitrate(for: .opus) ?? 0
+            return "Around \(mp3) kbps for MP3, \(aac) for AAC, \(opus) for Opus"
+        }
+        guard let kbps = audioCompression.audioBitrate(for: audioFormat) else { return "" }
+        return "Around \(kbps) kbps, variable bitrate"
+    }
+
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise audio files as they appear in these folders")) {
@@ -790,17 +802,20 @@ struct AudioSettingsView: View {
                     }
                 }
                 if !audioFormat.isLossless {
-                    HStack(spacing: 8) {
-                        Text("Compression").regular(13)
-                        Slider(
-                            value: Binding(
-                                get: { Double(audioCompression.factor) },
-                                set: { audioCompression.factor = Int($0.rounded()) }
-                            ),
-                            in: 5 ... 100, step: 1
-                        )
-                        Text("\(audioCompression.factor)%")
-                            .mono(11).foregroundColor(.secondary).frame(width: 38, alignment: .trailing)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Text("Compression").regular(13)
+                            Slider(
+                                value: Binding(
+                                    get: { Double(audioCompression.factor) },
+                                    set: { audioCompression.factor = Int($0.rounded()) }
+                                ),
+                                in: 5 ... 100, step: 1
+                            )
+                            Text("\(audioCompression.factor)%")
+                                .mono(11).foregroundColor(.secondary).frame(width: 38, alignment: .trailing)
+                        }
+                        Text(audioCompressionCaption).round(10, weight: .regular).foregroundColor(.secondary)
                     }
                 }
             }
@@ -2132,7 +2147,8 @@ struct ResolutionRangeRow: View {
     @Binding var minRes: Int
     @Binding var maxRes: Int
 
-    private let maxScale = 30000.0
+    private let lo = 16.0
+    private let hi = 30000.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -2143,8 +2159,8 @@ struct ResolutionRangeRow: View {
                     .mono(11).foregroundColor(.secondary)
             }
             DualKnobSlider(
-                low: Binding(get: { minRes == 0 ? 0 : Swift.min(1, Double(minRes) / maxScale) }, set: setLow),
-                high: Binding(get: { maxRes == 0 ? 1 : Swift.min(1, Double(maxRes) / maxScale) }, set: setHigh)
+                low: Binding(get: { minRes == 0 ? 0 : frac(Double(minRes)) }, set: setLow),
+                high: Binding(get: { maxRes == 0 ? 1 : frac(Double(maxRes)) }, set: setHigh)
             )
             Text(caption).round(10, weight: .regular).foregroundColor(.secondary)
         }
@@ -2159,7 +2175,19 @@ struct ResolutionRangeRow: View {
         }
     }
 
-    private func snap(_ f: Double) -> Int { Int((f * maxScale / 10).rounded()) * 10 }
+    private func frac(_ px: Double) -> Double {
+        let p = Swift.max(lo, Swift.min(hi, px))
+        return (log2(p) - log2(lo)) / (log2(hi) - log2(lo))
+    }
+
+    private func pixels(_ f: Double) -> Double { lo * pow(hi / lo, f) }
+    // Round to nicer steps: 10px under 1000, 50px above, where the slider gets coarse.
+    private func snap(_ f: Double) -> Int {
+        let px = pixels(f)
+        let step = px < 1000 ? 10.0 : 50.0
+        return Int((px / step).rounded()) * Int(step)
+    }
+
     private func setLow(_ f: Double) { minRes = f <= 0 ? 0 : snap(f) }
     private func setHigh(_ f: Double) { maxRes = f >= 1 ? 0 : Swift.max(10, snap(f)) }
 }
@@ -2192,8 +2220,8 @@ struct CountSliderRow: View {
 struct SkipSliderPreview: View {
     @State var minKB = 100
     @State var maxMB = 500
-    @State var minRes = 0
-    @State var maxRes = 0
+    @State var minRes = 100
+    @State var maxRes = 4000
     @State var count = 4
 
     var body: some View {
