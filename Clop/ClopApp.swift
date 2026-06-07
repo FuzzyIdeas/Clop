@@ -1313,6 +1313,22 @@ func migrateSettings() {
         Defaults[.videoCompression] = cq
         Defaults[.compressionModelMigratedVersion] = 3
     }
+    if Defaults[.compressionModelMigratedVersion] < 4 {
+        // Surface the new draggable compression button by default in place of the aggressive button.
+        func withCompression(_ list: [FloatingAction]) -> [FloatingAction] {
+            var l = list
+            if let i = l.firstIndex(of: .aggressiveOptimisation) {
+                l[i] = .compression
+            } else if !l.contains(.compression) {
+                l.insert(.compression, at: min(1, l.count))
+            }
+            var seen = Set<FloatingAction>()
+            return l.filter { seen.insert($0).inserted }
+        }
+        Defaults[.floatingResultActions] = withCompression(Defaults[.floatingResultActions])
+        Defaults[.compactResultActions] = withCompression(Defaults[.compactResultActions])
+        Defaults[.compressionModelMigratedVersion] = 4
+    }
 }
 
 let WINDOW_MIN_SIZE = CGSize(width: 870, height: 750)

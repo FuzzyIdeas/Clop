@@ -264,7 +264,7 @@ class Video: Optimisable {
         let convertAudioToAAC = Defaults[.convertAudioToAAC]
         // Source of truth for the default H.264 encode: the unified compression value. An explicit
         // VideoEncoder override (from a pipeline/button) maps onto a tier; otherwise use the setting.
-        let cq: CompressionQuality = videoEncoderOverride.map { videoEncoderToCQ($0) } ?? Defaults[.videoCompression]
+        let cq: CompressionQuality = optimiser.compressionOverride ?? videoEncoderOverride.map { videoEncoderToCQ($0) } ?? Defaults[.videoCompression]
         let aggressive = aggressiveOptimisation ?? false
         mainActor { optimiser.aggressive = aggressive }
 

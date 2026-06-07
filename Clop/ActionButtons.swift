@@ -5,6 +5,7 @@ import SwiftUI
 
 enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Identifiable {
     case downscale
+    case compression
     case share
     case restoreOptimise
     case aggressiveOptimisation
@@ -17,14 +18,15 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
 
     static let maxFloatingButtons = 5
     static let maxCompactButtons = 9
-    static let defaultFloating: [FloatingAction] = [.downscale, .share, .restoreOptimise, .aggressiveOptimisation]
-    static let defaultCompact: [FloatingAction] = [.downscale, .quickLook, .restoreOptimise, .aggressiveOptimisation, .showInFinder, .saveAs, .copyToClipboard, .share]
+    static let defaultFloating: [FloatingAction] = [.downscale, .compression, .share, .restoreOptimise]
+    static let defaultCompact: [FloatingAction] = [.downscale, .compression, .quickLook, .restoreOptimise, .showInFinder, .saveAs, .copyToClipboard, .share]
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .downscale: "Downscale"
+        case .compression: "Compression"
         case .share: "Share"
         case .restoreOptimise: "Restore / Optimise"
         case .aggressiveOptimisation: "Aggressive optimisation"
@@ -40,6 +42,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     var icon: String {
         switch self {
         case .downscale: "minus"
+        case .compression: "dial.high"
         case .share: "square.and.arrow.up"
         case .restoreOptimise: "arrow.uturn.backward"
         case .aggressiveOptimisation: "bolt.horizontal"
@@ -55,7 +58,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     func label(for type: ItemType) -> String {
         switch self {
         case .downscale where type.isAudio: "Lower bitrate"
-        case .downscale where type.isPDF: "Lower DPI"
+        case .downscale where type.isPDF: "Compression"
         default: label
         }
     }
@@ -323,6 +326,261 @@ struct HorizontalDownscaleSlider: View {
     }
 
     @State private var dragFactor: Double?
+}
+
+// MARK: - Compression button + slider (per-result quality)
+
+/// Maps the compression slider's normalized position (0 = top = least compression / best quality,
+/// 1 = bottom = most compression / smallest file) to a `CompressionQuality` per item type, and back.
+/// Video flows through Lossless → Fast (hardware) → Smaller (software CRF). Image is Adaptive → factor.
+enum CompressionScale {
+    static let videoLossless = 0.0
+    static let videoFast = 0.15
+    static let videoSmallerStart = 0.3
+    static let imageAdaptive = 0.0
+    static let imageFactorStart = 0.15
+
+    static func quality(forPosition position: Double, type: ItemType) -> CompressionQuality {
+        let p = max(0, min(1, position))
+        if type.isVideo {
+            if p < (videoLossless + videoFast) / 2 { return CompressionQuality(tier: .lossless, factor: 5) }
+            if p < (videoFast + videoSmallerStart) / 2 { return CompressionQuality(tier: .fast, factor: 50) }
+            let f = 5 + (p - videoSmallerStart) / (1 - videoSmallerStart) * 95
+            return CompressionQuality(tier: .smaller, factor: Int(max(5, min(100, f)).rounded()))
+        }
+        if p < imageFactorStart / 2 { return CompressionQuality(tier: .adaptive, factor: 5) }
+        let f = 5 + (p - imageFactorStart) / (1 - imageFactorStart) * 95
+        return CompressionQuality(tier: .custom, factor: Int(max(5, min(100, f)).rounded()))
+    }
+
+    static func position(for cq: CompressionQuality, type: ItemType) -> Double {
+        if type.isVideo {
+            switch cq.tier {
+            case .lossless: return videoLossless
+            case .fast: return videoFast
+            default: return videoSmallerStart + Double(cq.factor - 5) / 95 * (1 - videoSmallerStart)
+            }
+        }
+        if cq.tier == .adaptive { return imageAdaptive }
+        return imageFactorStart + Double(cq.factor - 5) / 95 * (1 - imageFactorStart)
+    }
+
+    static func label(for cq: CompressionQuality, type: ItemType) -> String {
+        if type.isVideo {
+            switch cq.tier {
+            case .lossless: return "Lossless"
+            case .fast: return "Fast"
+            default: return "CRF \(cq.videoH264CRF)"
+            }
+        }
+        return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)"
+    }
+
+    static func anchors(for type: ItemType) -> [Double] {
+        type.isVideo ? [videoLossless, videoFast, videoSmallerStart] : [imageAdaptive, imageFactorStart]
+    }
+}
+
+@MainActor func currentCompressionQuality(for optimiser: Optimiser) -> CompressionQuality {
+    if let override = optimiser.compressionOverride { return override }
+    return optimiser.type.isVideo ? Defaults[.videoCompression] : Defaults[.imageCompression]
+}
+
+struct CompressionButton: View {
+    @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        Button(action: {}, label: { SwiftUI.Image(systemName: "dial.high").font(.heavy(9)) })
+            .contentShape(Rectangle())
+            .onMouseDown {
+                guard !preview else { return }
+                optimiser.showCompressionSlider = true
+            }
+            .onRightClick {
+                optimiser.showCompressionSlider = true
+            }
+    }
+}
+
+struct CompressionSlider: View {
+    @ObservedObject var optimiser: Optimiser
+    @Default(.floatingResultsCorner) var floatingResultsCorner
+    var size: CGFloat
+
+    @State private var dragPosition: Double?
+
+    var displayPosition: Double {
+        dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
+    }
+
+    var displayLabel: String {
+        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) } ?? currentCompressionQuality(for: optimiser)
+        return CompressionScale.label(for: cq, type: optimiser.type)
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let knobSize = size * 0.8
+            let trackTop = knobSize / 2
+            let trackHeight = max(geo.size.height - knobSize, 1)
+            let centerX = geo.size.width / 2
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(.primary.opacity(0.15))
+                    .frame(width: 3, height: trackHeight)
+                    .position(x: centerX, y: geo.size.height / 2)
+
+                ForEach(CompressionScale.anchors(for: optimiser.type), id: \.self) { anchor in
+                    let y = yPosition(for: anchor, trackTop: trackTop, trackHeight: trackHeight)
+                    RoundedRectangle(cornerRadius: 0.5)
+                        .fill(.primary.opacity(0.3))
+                        .frame(width: size * 0.55, height: 1.5)
+                        .position(x: centerX, y: y)
+                }
+
+                let knobY = yPosition(for: displayPosition, trackTop: trackTop, trackHeight: trackHeight)
+                let isTrailing = floatingResultsCorner.isTrailing
+                let tooltipOffset = knobSize / 2 + 38
+                Circle()
+                    .fill(.white)
+                    .frame(width: knobSize, height: knobSize)
+                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                    .overlay {
+                        Text(displayLabel)
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            .foregroundColor(.primary)
+                            .fixedSize()
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                            .offset(x: isTrailing ? -tooltipOffset : tooltipOffset)
+                    }
+                    .position(x: centerX, y: knobY)
+            }
+            .background(.ultraThickMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        }
+        .overlay(
+            SliderEventOverlay(
+                buttonSize: size,
+                onDrag: { value in
+                    let p = (1.0 - value) / 0.9
+                    dragPosition = p
+                    optimiser.stepIndicator = CompressionScale.label(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
+                },
+                onRelease: { value in
+                    let p = (1.0 - value) / 0.9
+                    let startCQ = currentCompressionQuality(for: optimiser)
+                    dragPosition = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showCompressionSlider = false
+                    let cq = CompressionScale.quality(forPosition: p, type: optimiser.type)
+                    if cq != startCQ { optimiser.reoptimise(compression: cq) }
+                },
+                onCancel: {
+                    dragPosition = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showCompressionSlider = false
+                }
+            )
+        )
+    }
+
+    func yPosition(for position: Double, trackTop: CGFloat, trackHeight: CGFloat) -> CGFloat {
+        trackTop + position * trackHeight
+    }
+}
+
+struct HorizontalCompressionSlider: View {
+    @ObservedObject var optimiser: Optimiser
+    var size: CGFloat
+
+    @State private var dragPosition: Double?
+
+    var displayPosition: Double {
+        dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
+    }
+
+    var displayLabel: String {
+        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) } ?? currentCompressionQuality(for: optimiser)
+        return CompressionScale.label(for: cq, type: optimiser.type)
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let knobSize = size * 0.8
+            let trackLeft = knobSize / 2
+            let trackWidth = max(geo.size.width - knobSize, 1)
+            let centerY = geo.size.height / 2
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(.primary.opacity(0.15))
+                    .frame(width: trackWidth, height: 3)
+                    .position(x: geo.size.width / 2, y: centerY)
+
+                ForEach(CompressionScale.anchors(for: optimiser.type), id: \.self) { anchor in
+                    let x = xPosition(for: anchor, trackLeft: trackLeft, trackWidth: trackWidth)
+                    RoundedRectangle(cornerRadius: 0.5)
+                        .fill(.primary.opacity(0.3))
+                        .frame(width: 1.5, height: size * 0.55)
+                        .position(x: x, y: centerY)
+                }
+
+                let knobX = xPosition(for: displayPosition, trackLeft: trackLeft, trackWidth: trackWidth)
+                Circle()
+                    .fill(.white)
+                    .frame(width: knobSize, height: knobSize)
+                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                    .overlay {
+                        Text(displayLabel)
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            .foregroundColor(.primary)
+                            .fixedSize()
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                            .offset(y: -knobSize / 2 - 16)
+                    }
+                    .position(x: knobX, y: centerY)
+            }
+            .background(.ultraThickMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        }
+        .overlay(
+            SliderEventOverlay(
+                buttonSize: size,
+                isHorizontal: true,
+                onDrag: { value in
+                    let p = (1.0 - value) / 0.9
+                    dragPosition = p
+                    optimiser.stepIndicator = CompressionScale.label(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
+                },
+                onRelease: { value in
+                    let p = (1.0 - value) / 0.9
+                    let startCQ = currentCompressionQuality(for: optimiser)
+                    dragPosition = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showCompressionSlider = false
+                    let cq = CompressionScale.quality(forPosition: p, type: optimiser.type)
+                    if cq != startCQ { optimiser.reoptimise(compression: cq) }
+                },
+                onCancel: {
+                    dragPosition = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showCompressionSlider = false
+                }
+            )
+        )
+    }
+
+    func xPosition(for position: Double, trackLeft: CGFloat, trackWidth: CGFloat) -> CGFloat {
+        trackLeft + position * trackWidth
+    }
 }
 
 // MARK: - BitrateSlider (vertical)
@@ -1018,7 +1276,7 @@ struct LowerPDFDPIButton: View {
     @Environment(\.preview) var preview
 
     var body: some View {
-        Button(action: {}, label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) })
+        Button(action: {}, label: { SwiftUI.Image(systemName: "dial.high").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
                 guard !preview else { return }
@@ -1121,6 +1379,7 @@ struct AggressiveOptimisationButton: View {
                     optimiser.finish(oldBytes: optimiser.oldBytes ?! optimiser.path?.fileSize() ?? 0, newBytes: -1)
                 }
 
+                optimiser.compressionOverride = nil
                 let newAggressive = !optimiser.aggressive
                 if optimiser.downscaleFactor < 1 {
                     optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: newAggressive)
@@ -1224,6 +1483,8 @@ struct ActionButton: View {
             } else if !optimiser.type.isAudio {
                 DownscaleButton(optimiser: optimiser)
             }
+        case .compression:
+            CompressionButton(optimiser: optimiser)
         case .share:
             ShareButton(optimiser: optimiser)
         case .restoreOptimise:
@@ -1273,6 +1534,7 @@ struct ActionButton: View {
     func isAvailable() -> Bool {
         switch action {
         case .downscale: optimiser.canDownscale()
+        case .compression: optimiser.canReoptimise() && (optimiser.type.isImage || optimiser.type.isVideo)
         case .aggressiveOptimisation: optimiser.canReoptimise()
         case .addToShelf: runningShelfApp() != nil
         default: true
@@ -1304,7 +1566,7 @@ struct SideButtons: View {
                     btn
                         .onHover { h in hoveringAction = h ? action : nil }
                         .helpTag(
-                            isPresented: .init(get: { hoveringAction == action && !optimiser.showDownscaleSlider }, set: { if !$0 { hoveringAction = nil } }),
+                            isPresented: .init(get: { hoveringAction == action && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
                             alignment: isTrailing ? .trailing : .leading,
                             offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
                             action.label(for: optimiser.type)
@@ -1321,7 +1583,7 @@ struct SideButtons: View {
             circle: true
         ))
         .padding(.vertical, 2)
-        .allowsHitTesting(!optimiser.showDownscaleSlider)
+        .allowsHitTesting(!optimiser.showDownscaleSlider && !optimiser.showCompressionSlider)
         .sideButtonBackground(preview: preview)
         .overlay {
             if optimiser.showDownscaleSlider {
@@ -1332,6 +1594,8 @@ struct SideButtons: View {
                 } else {
                     DownscaleSlider(optimiser: optimiser, size: size)
                 }
+            } else if optimiser.showCompressionSlider {
+                CompressionSlider(optimiser: optimiser, size: size)
             }
         }
         .animation(.fastSpring, value: optimiser.aggressive)
@@ -1431,7 +1695,7 @@ struct ActionButtons: View {
                         .hfill()
                         .onHover { h in hoveringAction = h ? action : nil }
                         .topHelpTag(
-                            isPresented: .init(get: { hoveringAction == action && !optimiser.showDownscaleSlider }, set: { if !$0 { hoveringAction = nil } }),
+                            isPresented: .init(get: { hoveringAction == action && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
                             action.label(for: optimiser.type)
                         )
                 }
@@ -1445,7 +1709,7 @@ struct ActionButtons: View {
             height: size,
             circle: true
         ))
-        .allowsHitTesting(!optimiser.showDownscaleSlider)
+        .allowsHitTesting(!optimiser.showDownscaleSlider && !optimiser.showCompressionSlider)
         .sideButtonBackground(preview: preview)
         .overlay {
             if optimiser.showDownscaleSlider {
@@ -1456,6 +1720,8 @@ struct ActionButtons: View {
                 } else {
                     HorizontalDownscaleSlider(optimiser: optimiser, size: size)
                 }
+            } else if optimiser.showCompressionSlider {
+                HorizontalCompressionSlider(optimiser: optimiser, size: size)
             }
         }
         .hfill()

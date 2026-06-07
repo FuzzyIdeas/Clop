@@ -322,8 +322,14 @@ enum TempPipelineSegment {
     @Published var outputFolderURL: URL? = nil
     @Published var downscaleFactor = 1.0
     @Published var showDownscaleSlider = false
+    @Published var showCompressionSlider = false
     @Published var audioBitrateOverride: Int?
     @Published var pdfDPIOverride: Int?
+    /// Per-result compression override set by the draggable compression button; takes priority
+    /// over the global per-format Defaults at encode time. nil = use the global setting.
+    /// Set on the main actor (the slider) and read by the background encode; the per-id in-flight
+    /// pipeline is terminated before a new encode starts, so there is no concurrent read+write.
+    nonisolated(unsafe) var compressionOverride: CompressionQuality?
     var downscaleDebounceTask: Task<Void, Never>?
     var lowerBitrateDebounceTask: Task<Void, Never>?
     var pdfDPIDebounceTask: Task<Void, Never>?
@@ -1438,6 +1444,23 @@ enum TempPipelineSegment {
         try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
         if !tempPipeline.isEmpty {
             updateTempPipeline(with: .optimise(videoEncoder: encoder))
+            executeTempPipeline()
+            return
+        }
+        optimise(fromOriginal: true)
+    }
+
+    /// Re-run optimisation for this result with a per-result compression value (the draggable
+    /// compression button). The override is read by the image/video encode paths at encode time.
+    func reoptimise(compression cq: CompressionQuality) {
+        guard !inRemoval else { return }
+        compressionOverride = cq
+        try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
+        if downscaleFactor < 1 {
+            downscale(toFactor: downscaleFactor)
+            return
+        }
+        if !tempPipeline.isEmpty {
             executeTempPipeline()
             return
         }
