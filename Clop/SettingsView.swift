@@ -238,11 +238,11 @@ struct DirListView: View {
                     .fixedSize()
             }
 
-            if !hideIgnoreRules, enabled {
-                ignoreRulesView
-            }
             if enabled, selectedDirs.count == 1, let dir = selectedDirs.first {
                 FolderAutomationsSection(fileType: fileType, folder: dir, expanded: $automationsExpanded)
+            }
+            if !hideIgnoreRules, enabled {
+                ignoreRulesView
             }
         }
         .padding(4)
