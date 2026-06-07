@@ -22,7 +22,10 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Images")
 /// Resolve the effective image compression for an encode pass. An explicit `aggressiveOptimisation`
 /// override (from a pipeline EncoderQuality, the aggressive button, CLI, or Shortcuts) maps onto the
 /// legacy normal/aggressive factor anchors; otherwise the unified `imageCompression` setting is used.
-func effectiveImageCompression(_ aggressiveOptimisation: Bool?) -> CompressionQuality {
+func effectiveImageCompression(_ aggressiveOptimisation: Bool?, override: CompressionQuality? = nil) -> CompressionQuality {
+    if let override {
+        return override
+    }
     if let aggressiveOptimisation {
         return CompressionQuality(tier: .custom, factor: aggressiveOptimisation ? COMPRESSION_FACTOR_AGGRESSIVE : COMPRESSION_FACTOR_NORMAL)
     }
@@ -562,7 +565,7 @@ class Image: CustomStringConvertible {
             }
         }
 
-        let cq = effectiveImageCompression(aggressiveOptimisation)
+        let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
         mainActor { optimiser.aggressive = cq.imageIsAggressive }
 
         let backup = path.backup(path: path.clopBackupPath, operation: .copy)
@@ -599,7 +602,7 @@ class Image: CustomStringConvertible {
         let backupPath = path.clopBackupPath
         var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
 
-        let cq = effectiveImageCompression(aggressiveOptimisation)
+        let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
         let aggressive = cq.imageIsAggressive
         mainActor { optimiser.aggressive = aggressive }
 
@@ -734,7 +737,7 @@ class Image: CustomStringConvertible {
             try? tempFile.delete()
         }
 
-        let cq = effectiveImageCompression(aggressiveOptimisation)
+        let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
         let aggressive = cq.imageIsAggressive
         mainActor { optimiser.aggressive = aggressive }
 
