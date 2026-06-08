@@ -341,17 +341,23 @@ enum CompressionScale {
     static let imageAdaptive = 0.0
     static let imageFactorStart = 0.15
 
+    /// Snap a raw 5...100 factor to the nearest multiple of 5 so the slider exposes round
+    /// increments (5, 10, 15, …) instead of arbitrary values like 81 or 54.
+    static func snapFactor(_ f: Double) -> Int {
+        Int((max(5, min(100, f)) / 5).rounded()) * 5
+    }
+
     static func quality(forPosition position: Double, type: ItemType) -> CompressionQuality {
         let p = max(0, min(1, position))
         if type.isVideo {
             if p < (videoLossless + videoFast) / 2 { return CompressionQuality(tier: .lossless, factor: 5) }
             if p < (videoFast + videoSmallerStart) / 2 { return CompressionQuality(tier: .fast, factor: 50) }
             let f = 5 + (p - videoSmallerStart) / (1 - videoSmallerStart) * 95
-            return CompressionQuality(tier: .smaller, factor: Int(max(5, min(100, f)).rounded()))
+            return CompressionQuality(tier: .smaller, factor: snapFactor(f))
         }
         if p < imageFactorStart / 2 { return CompressionQuality(tier: .adaptive, factor: 5) }
         let f = 5 + (p - imageFactorStart) / (1 - imageFactorStart) * 95
-        return CompressionQuality(tier: .custom, factor: Int(max(5, min(100, f)).rounded()))
+        return CompressionQuality(tier: .custom, factor: snapFactor(f))
     }
 
     static func position(for cq: CompressionQuality, type: ItemType) -> Double {
@@ -419,10 +425,9 @@ struct CompressionButton: View {
 
 struct CompressionSlider: View {
     @ObservedObject var optimiser: Optimiser
+
     @Default(.floatingResultsCorner) var floatingResultsCorner
     var size: CGFloat
-
-    @State private var dragPosition: Double?
 
     var displayPosition: Double {
         dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
@@ -506,13 +511,15 @@ struct CompressionSlider: View {
     func yPosition(for position: Double, trackTop: CGFloat, trackHeight: CGFloat) -> CGFloat {
         trackTop + position * trackHeight
     }
+
+    @State private var dragPosition: Double?
+
 }
 
 struct HorizontalCompressionSlider: View {
     @ObservedObject var optimiser: Optimiser
-    var size: CGFloat
 
-    @State private var dragPosition: Double?
+    var size: CGFloat
 
     var displayPosition: Double {
         dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
@@ -595,6 +602,9 @@ struct HorizontalCompressionSlider: View {
     func xPosition(for position: Double, trackLeft: CGFloat, trackWidth: CGFloat) -> CGFloat {
         trackLeft + position * trackWidth
     }
+
+    @State private var dragPosition: Double?
+
 }
 
 // MARK: - BitrateSlider (vertical)
@@ -1096,7 +1106,7 @@ private struct SliderEventOverlay: NSViewRepresentable {
                     return nil
                 }
 
-                guard !self.directTracking else { return event }
+                guard !directTracking else { return event }
 
                 let location = convert(event.locationInWindow, from: nil)
                 let f = factorForLocation(location)
