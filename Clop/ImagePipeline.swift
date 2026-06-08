@@ -300,8 +300,19 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                             adaptiveSize: adaptiveOptimisation ?? (effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride).tier == .adaptive)
                         )
                         if currentImage!.type == img.type {
-                            currentImage = try currentImage?.copyWithPath(currentImage!.path.copy(to: img.path, force: true))
+                            // Place the optimised result at the requested destination, not back onto the source.
+                            // In the temp pipeline the source is the pristine original/backup, so copying to
+                            // `img.path` would clobber the original and make a later pass (e.g. downscale)
+                            // re-encode an already-compressed file. Mirror the downscale case below.
+                            let dest = (id == Optimiser.IDs.clipboardImage ? nil : savePath) ?? img.path
+                            currentImage = try currentImage?.copyWithPath(currentImage!.path.copy(to: dest, force: true))
                         } else {
+                            // Adaptive optimisation converted the format (e.g. PNG→JPEG). The encoder saved it
+                            // next to the source; in the temp pipeline that source dir is the backup/cache, so
+                            // relocate the converted file to the destination where the user expects it.
+                            if id != Optimiser.IDs.clipboardImage, let savePath, let ext = currentImage!.path.extension {
+                                currentImage = try currentImage?.copyWithPath(currentImage!.path.copy(to: savePath.withExtension(ext), force: true))
+                            }
                             mainActor {
                                 optimiser.url = currentImage!.path.url
                                 optimiser.type = .image(currentImage!.type)
