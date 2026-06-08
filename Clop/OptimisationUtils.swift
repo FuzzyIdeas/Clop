@@ -1452,16 +1452,17 @@ enum TempPipelineSegment {
     func reoptimise(compression cq: CompressionQuality) {
         guard !inRemoval else { return }
         compressionOverride = cq
-        try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
+        // Compile the per-result operations into the temp pipeline so they always re-run from the
+        // pristine original in a single pass (optimise [+ downscale]) instead of stacking encodes on
+        // top of the previous result. The image/video pipelines read `compressionOverride` for the
+        // factor; the downscale step carries the current resize.
+        updateTempPipeline(with: .optimise())
         if downscaleFactor < 1 {
-            downscale(toFactor: downscaleFactor)
-            return
+            updateTempPipeline(with: .downscale(factor: downscaleFactor))
+        } else {
+            removeTempPipelineStep(named: "downscale")
         }
-        if !tempPipeline.isEmpty {
-            executeTempPipeline()
-            return
-        }
-        optimise(fromOriginal: true)
+        executeTempPipeline()
     }
 
     func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
