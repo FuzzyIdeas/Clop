@@ -498,7 +498,12 @@ class Image: CustomStringConvertible {
         }
 
         if outImg.canBeOptimised {
-            outImg = (try? outImg.optimise(optimiser: optimiser, allowLarger: allowLarger, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride).tier == .adaptive)) ?? outImg
+            outImg = (try? outImg.optimise(
+                optimiser: optimiser,
+                allowLarger: allowLarger,
+                aggressiveOptimisation: aggressiveOptimisation,
+                adaptiveSize: effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride).tier == .adaptive
+            )) ?? outImg
         }
 
         if outImg.path != path, outImg.type == type {
@@ -631,6 +636,7 @@ class Image: CustomStringConvertible {
             }
             let pngProc = Proc(cmd: PNGQUANT.string, args: [
                 "--force",
+                "--speed", "\(cq.pngQuantSpeed)",
                 "--quality", cq.pngQuantQuality,
             ] + (pngOutFile == png.path ? ["--ext", ".png"] : ["--output", pngOutFile!.string]) + [png.path.string])
 
@@ -743,6 +749,7 @@ class Image: CustomStringConvertible {
 
         let pngProc = Proc(cmd: PNGQUANT.string, args: [
             "--force",
+            "--speed", "\(cq.pngQuantSpeed)",
             "--quality", cq.pngQuantQuality,
         ] + (tempFile == path ? ["--ext", ".png"] : ["--output", tempFile.string]) + [path.string])
         var procs = [pngProc]
