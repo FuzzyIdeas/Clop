@@ -248,19 +248,16 @@ private func cqClamp(_ v: Int, _ lo: Int, _ hi: Int) -> Int { Swift.max(lo, Swif
 /// Named per-format compression anchor. Not every case is valid for every format; the
 /// format-specific helpers only ever produce/consume the cases relevant to that format.
 enum CompressionTier: String, Codable, CaseIterable, Hashable {
-    case adaptive   // image: PNG↔JPEG cross-format test; pdf: adaptive DPI
-    case lossless   // video: CRF 17; pdf: 300 DPI (no downsample)
-    case fast       // video only: hardware VideoToolbox encoder
-    case smaller    // video only: efficient software encoder
-    case custom     // pure-factor mode (no named anchor)
+    case adaptive // image: PNG↔JPEG cross-format test; pdf: adaptive DPI
+    case lossless // video: CRF 17; pdf: 300 DPI (no downsample)
+    case fast // video only: hardware VideoToolbox encoder
+    case smaller // video only: efficient software encoder
+    case custom // pure-factor mode (no named anchor)
 }
 
 /// Single per-format "how hard do we compress" value: a named `tier` plus a continuous
 /// `factor` from 5 (least compression / best quality) to 100 (most compression / smallest file).
 struct CompressionQuality: Codable, Hashable {
-    var tier: CompressionTier
-    var factor: Int
-
     init(tier: CompressionTier = .custom, factor: Int = 50) {
         self.tier = tier
         // 0 is a valid sentinel for "Auto" (video software encoder: let ffmpeg pick the CRF).
@@ -274,6 +271,10 @@ struct CompressionQuality: Codable, Hashable {
         let f = (try? c.decode(Int.self, forKey: .factor)) ?? 50
         self.init(tier: t, factor: f)
     }
+
+    var tier: CompressionTier
+    var factor: Int
+
 }
 
 // Factor anchors that reproduce the legacy presets exactly, so migration keeps behaviour identical:
@@ -282,20 +283,32 @@ let COMPRESSION_FACTOR_NORMAL = 30
 let COMPRESSION_FACTOR_AGGRESSIVE = 64
 
 // MARK: Image translation (factor 5..100, higher = more compression)
+
 // jpegoptim --max / pngquant --quality ceiling / cwebp,heif,jxl -q are QUALITY scales (inverted);
 // gifsicle -O/--lossy is a compression scale (direct).
 extension CompressionQuality {
     /// Whether this resolves to the legacy "aggressive" preset (drives UI labels + adaptive thresholds).
     var imageIsAggressive: Bool { tier != .adaptive && factor >= 50 }
 
-    /// jpegoptim --max quality ceiling. factor 30 -> 85 (legacy normal), 64 -> 68 (legacy aggressive).
-    var jpegMaxQuality: Int { cqClamp(85 - (factor - 30) / 2, 40, 95) }
+    /// jpegoptim --max quality ceiling. factor 30 -> 85 (legacy normal), ramping to 30 at max compression.
+    var jpegMaxQuality: Int { cqClamp(Int((85.0 - Double(factor - 30) * (55.0 / 70.0)).rounded()), 25, 95) }
 
-    /// jpegoptim --max for the old-binary fallback and the adaptive cross-test. factor 30 -> 90, 64 -> 70.
-    var jpegSecondaryMaxQuality: Int { cqClamp(Int((90.0 - Double(factor - 30) * (20.0 / 34.0)).rounded()), 40, 97) }
+    /// jpegoptim --max for the old-binary fallback and the adaptive cross-test. factor 30 -> 90, 100 -> 30.
+    var jpegSecondaryMaxQuality: Int { cqClamp(Int((90.0 - Double(factor - 30) * (60.0 / 70.0)).rounded()), 25, 97) }
 
-    /// pngquant --quality string "0-MAX". factor 30 -> "0-100", 64 -> "0-85".
-    var pngQuantQuality: String { "0-\(cqClamp(Int((100.0 - Double(factor - 30) * (15.0 / 34.0)).rounded()), 40, 100))" }
+    /// pngquant --quality string "0-MAX". factor 30 -> "0-100" (legacy normal), ramping to "0-25" at 100.
+    var pngQuantQuality: String { "0-\(cqClamp(Int((100.0 - Double(factor - 30) * (75.0 / 70.0)).rounded()), 25, 100))" }
+
+    /// pngquant --speed (1 = slowest/best quality+compression, 11 = fastest). Spend more effort the
+    /// harder we compress: the default 4 at low factors, ramping down to 1 at maximum compression.
+    var pngQuantSpeed: Int {
+        switch factor {
+        case ..<40: 4
+        case 40 ..< 60: 3
+        case 60 ..< 85: 2
+        default: 1
+        }
+    }
 
     /// gifsicle args. factor 30 -> -O2 --lossy=30 (normal); 64 -> -O3 --lossy=80 --colors=N (aggressive).
     var gifsicleArgs: [String] {
@@ -318,6 +331,7 @@ extension CompressionQuality {
 }
 
 // MARK: Video translation (default H.264 optimise path; factor 5..100, higher = more compression)
+
 // Only H.264 uses the compression factor; explicit codec conversions (hevc/x265/av1/vp9) keep
 // their own fixed args. The named tiers map to the legacy VideoEncoder presets.
 extension CompressionQuality {
