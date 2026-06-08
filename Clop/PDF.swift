@@ -497,7 +497,10 @@ class PDF: Optimisable {
     return true
 }
 
-let GHOSTSCRIPT_ENV = ["GS_LIB": BIN_DIR.appending(path: "share/ghostscript/10.06.0/Resource/Init").path]
+// gs is now a static build with all resources (fonts, ICC profiles, init files)
+// embedded via its %rom% filesystem, so it needs neither GS_LIB nor the on-disk
+// share/ghostscript Resource tree.
+let GHOSTSCRIPT_ENV: [String: String] = [:]
 
 // MARK: - Parallel PDF optimisation
 
