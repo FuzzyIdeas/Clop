@@ -153,8 +153,8 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                     .video: ["fast": "hardware encoder, quick and battery efficient", "slowHighQuality": "slow software encoder, smaller files", "visuallyLossless": "no perceptible quality loss (CRF 17)"],
                     .pdf: [
                         "aggressive": "lossy + downsample images to 100 DPI",
-                        "medium": "adaptive downsampling — picks DPI per PDF based on embedded image resolutions",
-                        "lossless": "no downsampling — preserves embedded image resolution",
+                        "medium": "adaptive downsampling, picks DPI per PDF based on embedded image resolutions",
+                        "lossless": "no downsampling, preserves embedded image resolution",
                     ],
                 ],
                 suggestionsForType: [
@@ -171,15 +171,15 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ),
             ParamTemplate(
                 name: "dpi",
-                description: "PDF only — image resolution, overrides encoder choice (300 = no downsampling)",
+                description: "PDF only: image resolution, overrides encoder choice (300 = no downsampling)",
                 suggestions: ["300", "250", "200", "150", "100", "72", "48"],
                 freeText: true,
                 valueDescriptions: [
-                    "300": "no downsampling — preserves embedded image resolution",
+                    "300": "no downsampling, preserves embedded image resolution",
                     "250": "lightly downsample, near print quality",
-                    "200": "lightly downsample — good for screen reading",
+                    "200": "lightly downsample, good for screen reading",
                     "150": "downsample for screen reading",
-                    "100": "smaller — readable but visibly degraded",
+                    "100": "smaller, readable but visibly degraded",
                     "72": "screen quality",
                     "48": "smallest, very low quality",
                 ],

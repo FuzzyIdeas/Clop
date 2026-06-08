@@ -277,7 +277,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         // Lets users write "%P/optimised/%f" without knowing the post-optimisation extension
         // (e.g. .mov gets converted to .mp4).
         if let last = destPath.lastComponent?.string, !last.contains("."),
-           let ext = resultFile.extension ?? original.extension, !ext.isEmpty {
+           let ext = resultFile.extension ?? original.extension, !ext.isEmpty
+        {
             destPath = destPath.removingLastComponent().appending("\(last).\(ext)")
         }
 
