@@ -477,9 +477,14 @@ enum TempPipelineSegment {
         }
     }
 
+    /// Memoised animated-GIF check, keyed by the url it was computed for. Cleared whenever url changes
+    /// (e.g. after a video->gif conversion) so a freshly produced GIF is re-probed.
+    private var animatedGIFCache: (url: URL, value: Bool)?
+
     @Published var url: URL? {
         didSet {
             log.debug("URL set to \(self.url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
+            animatedGIFCache = nil
             if startingURL == nil {
                 startingURL = url
             }
@@ -782,8 +787,10 @@ enum TempPipelineSegment {
         let typeStr = type.preferredFilenameExtension ?? type.identifier
 
         // Use temp pipeline when initial optimisation has completed, to always
-        // convert from the original file and avoid double-encoding quality loss
-        if !tempPipeline.isEmpty, !(self.type.isVideo && type == .gif) {
+        // convert from the original file and avoid double-encoding quality loss.
+        // Animated GIF -> video conversions bypass it: the temp pipeline routes a GIF
+        // (type.isImage) through the image pipeline, which cannot emit video.
+        if !tempPipeline.isEmpty, !(self.type.isVideo && type == .gif), !(isAnimatedGIF && convertibleTypes.contains(type)) {
             // If converting back to the original format, drop convert and restore optimise
             let originalExt = originalURL?.pathExtension.lowercased() ?? startingURL?.pathExtension.lowercased()
             if let originalExt, originalExt == typeStr.lowercased() {
@@ -828,6 +835,14 @@ enum TempPipelineSegment {
         running = true
         isOriginal = false
 
+        // Animated GIFs convert to real video formats via ffmpeg, preserving every frame.
+        // They stay typed as .image(.gif), so route them explicitly instead of through the
+        // image branch below (Image.convert cannot produce video).
+        if isAnimatedGIF, convertibleTypes.contains(type), let url {
+            convertToVideoFormat(Video(path: FilePath(url.path)), to: type)
+            return
+        }
+
         switch self.type {
         case .image:
             guard let image = self.image else {
@@ -865,23 +880,11 @@ enum TempPipelineSegment {
             executeTempPipeline()
         case .video:
             guard let url else { return }
-            let path = FilePath(url.path)
-            let video = Video(path: path)
-            let isCodecConversion = type == .hevcVideo || type == .av1Video || type == .webm
+            let video = Video(path: FilePath(url.path))
 
-            let encoderOverride: [String]? = if type == .hevcVideo {
-                ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]
-            } else if type == .av1Video {
-                ["-vcodec", "libsvtav1"]
-            } else if type == .webm {
-                ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]
-            } else {
-                nil
-            }
-
-            DispatchQueue.global().async { [weak self] in
-                guard let self else { return }
-                if type == .gif {
+            if type == .gif {
+                DispatchQueue.global().async { [weak self] in
+                    guard let self else { return }
                     guard let result = try? video.convertToGIF(optimiser: self, maxWidth: 960, fps: 15) else {
                         mainActor { self.finish(error: "GIF conversion failed") }
                         return
@@ -896,35 +899,56 @@ enum TempPipelineSegment {
                         self.automationPipeline = nil
                         self.finish(oldBytes: self.oldBytes, newBytes: result.data.count, removeAfterMs: self.lastRemoveAfterMs)
                     }
-                } else {
-                    let forceMP4 = type == .hevcVideo || type == .mpeg4Movie
-                    let outputExt: String? = if type == .av1Video {
-                        "mkv"
-                    } else if type == .webm {
-                        "webm"
-                    } else {
-                        nil
-                    }
-                    guard let result = try? video.optimise(
-                        optimiser: self, forceMP4: forceMP4, outputExtension: outputExt, backup: false,
-                        encoderOverride: encoderOverride
-                    ) else {
-                        let label = type.preferredFilenameExtension ?? "video"
-                        mainActor { self.finish(error: "\(label) conversion failed") }
-                        return
-                    }
-                    mainActor {
-                        if self.convertedFromURL == nil { self.convertedFromURL = self.url }
-                        self.type = isCodecConversion ? .video(type) : .video(UTType(filenameExtension: result.path.extension ?? "mp4") ?? .mpeg4Movie)
-                        self.url = result.path.url
-                        self.error = nil
-                        self.notice = nil
-                        self.finish(oldBytes: self.oldBytes, newBytes: result.fileSize, removeAfterMs: self.lastRemoveAfterMs)
-                    }
                 }
+            } else {
+                convertToVideoFormat(video, to: type)
             }
         default:
             break
+        }
+    }
+
+    /// Re-encode `video` into a different video container/codec via ffmpeg. Works for real videos and
+    /// for animated GIFs used as video input (ffmpeg preserves every frame). Runs off the main thread,
+    /// updates the optimiser on completion, and records the source url so "Restore original" can revert.
+    private func convertToVideoFormat(_ video: Video, to type: UTType) {
+        let isCodecConversion = type == .hevcVideo || type == .av1Video || type == .webm
+        let encoderOverride: [String]? = if type == .hevcVideo {
+            ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]
+        } else if type == .av1Video {
+            ["-vcodec", "libsvtav1"]
+        } else if type == .webm {
+            ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]
+        } else {
+            nil
+        }
+        let forceMP4 = type == .hevcVideo || type == .mpeg4Movie
+        let outputExt: String? = if type == .av1Video {
+            "mkv"
+        } else if type == .webm {
+            "webm"
+        } else {
+            nil
+        }
+
+        DispatchQueue.global().async { [weak self] in
+            guard let self else { return }
+            guard let result = try? video.optimise(
+                optimiser: self, forceMP4: forceMP4, outputExtension: outputExt, backup: false,
+                encoderOverride: encoderOverride
+            ) else {
+                let label = type.preferredFilenameExtension ?? "video"
+                mainActor { self.finish(error: "\(label) conversion failed") }
+                return
+            }
+            mainActor {
+                if self.convertedFromURL == nil { self.convertedFromURL = self.url }
+                self.type = isCodecConversion ? .video(type) : .video(UTType(filenameExtension: result.path.extension ?? "mp4") ?? .mpeg4Movie)
+                self.url = result.path.url
+                self.error = nil
+                self.notice = nil
+                self.finish(oldBytes: self.oldBytes, newBytes: result.fileSize, removeAfterMs: self.lastRemoveAfterMs)
+            }
         }
     }
 
@@ -1069,8 +1093,33 @@ enum TempPipelineSegment {
         OM.quicklook(optimiser: self)
     }
 
+    /// True only for a multi-frame GIF still typed as an image. Memoised by url so it isn't re-probed
+    /// on every SwiftUI render; the cache is cleared in url.didSet.
+    var isAnimatedGIF: Bool {
+        guard type == .image(.gif), let url, let path else { return false }
+        if let cache = animatedGIFCache, cache.url == url { return cache.value }
+        let value = path.isAnimatedGIF
+        animatedGIFCache = (url, value)
+        return value
+    }
+
+    /// True when this is a GIF that was produced from a video and still remembers the source, so
+    /// "Restore original" can take the user back to that video.
+    var convertedFromVideo: Bool {
+        type == .image(.gif) && (convertedFromURL?.filePath?.isVideo ?? false)
+    }
+
+    /// Formats this item can be converted to. Animated GIFs offer video targets (so all frames are
+    /// preserved) instead of image targets; everything else uses the type's default list.
+    var convertibleTypes: [UTType] {
+        if isAnimatedGIF {
+            return [.mpeg4Movie, .quickTimeMovie, .webm, .hevcVideo, .av1Video].compactMap { $0 }
+        }
+        return type.convertibleTypes
+    }
+
     func canChangeFormat() -> Bool {
-        type.convertibleTypes.isNotEmpty
+        convertibleTypes.isNotEmpty
     }
 
     func canReoptimise() -> Bool {
@@ -1564,15 +1613,21 @@ enum TempPipelineSegment {
         self.oldBytes = path.fileSize() ?? self.oldBytes
         self.newBytes = -1
         self.newSize = nil
-        if type == .image(.gif), path.isVideo, let utType = path.url.utType() {
-            self.type = .video(utType)
-        }
-
+        // Re-derive the type from the RESTORED file's own extension rather than preserving the prior
+        // category, so a cross-media conversion reverts correctly in both directions: a GIF produced
+        // from a video comes back as .video, and a video produced from an animated GIF comes back as
+        // .image(.gif).
         if let utType = path.url.utType() {
-            self.type = switch self.type {
-            case .image: .image(utType)
-            case .video: .video(utType)
-            default: self.type
+            self.type = if path.isVideo {
+                .video(utType)
+            } else if path.isAudio {
+                .audio(utType)
+            } else if path.isPDF {
+                .pdf
+            } else if path.isImage {
+                .image(utType)
+            } else {
+                self.type
             }
         }
         if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled), id == IDs.clipboardImage {

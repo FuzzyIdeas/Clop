@@ -219,6 +219,24 @@ struct CompareView: View {
     @ObservedObject var optimiser: Optimiser
     @ObservedObject var km = KM
 
+    /// Pick the renderer from the actual file at this pane's URL, not `optimiser.type`. After a
+    /// cross-media conversion the two panes can differ (e.g. a GIF made from a video: the optimised
+    /// pane is the GIF image while the original pane is the source video), so each side must choose
+    /// its player from its own file.
+    @ViewBuilder
+    func renderer(for url: URL, otherVideoURL: URL? = nil) -> some View {
+        if url.filePath?.isVideo == true {
+            let other = otherVideoURL?.filePath?.isVideo == true ? otherVideoURL : nil
+            LoopingVideoPlayer(videoURL: url, otherVideoURL: other, playing: $videoPlaying)
+        } else if url.filePath?.isPDF == true {
+            PDFKitView(url: url)
+                .allowsHitTesting(false)
+                .aspectRatio(contentMode: fitOrFill)
+        } else {
+            PannableImage(url: url, fitOrFill: $fitOrFill)
+        }
+    }
+
     var previewStack: some View {
         GeometryReader { proxy in
             HStack {
@@ -230,18 +248,7 @@ struct CompareView: View {
                         size: optimiser.oldSize,
                         aspectRatio: (optimiser.newSize == nil || optimiser.oldSize?.aspectRatio == optimiser.newSize?.aspectRatio) ? (optimiser.oldSize?.aspectRatio ?? 1) : 1
                     ) {
-                        switch optimiser.type {
-                        case .video:
-                            LoopingVideoPlayer(videoURL: originalURL, otherVideoURL: url, playing: $videoPlaying)
-                        case .image:
-                            PannableImage(url: originalURL, fitOrFill: $fitOrFill)
-                        case .pdf:
-                            PDFKitView(url: originalURL)
-                                .allowsHitTesting(false)
-                                .aspectRatio(contentMode: fitOrFill)
-                        default:
-                            EmptyView()
-                        }
+                        renderer(for: originalURL, otherVideoURL: url)
                     }
                     preview(
                         url: url,
@@ -250,18 +257,7 @@ struct CompareView: View {
                         size: optimiser.newSize ?? optimiser.oldSize,
                         aspectRatio: (optimiser.newSize == nil || optimiser.oldSize?.aspectRatio == optimiser.newSize?.aspectRatio) ? (optimiser.oldSize?.aspectRatio ?? 1) : 1
                     ) {
-                        switch optimiser.type {
-                        case .video:
-                            LoopingVideoPlayer(videoURL: url, playing: $videoPlaying)
-                        case .image:
-                            PannableImage(url: url, fitOrFill: $fitOrFill)
-                        case .pdf:
-                            PDFKitView(url: url)
-                                .allowsHitTesting(false)
-                                .aspectRatio(contentMode: fitOrFill)
-                        default:
-                            EmptyView()
-                        }
+                        renderer(for: url)
                     }
                 }
             }

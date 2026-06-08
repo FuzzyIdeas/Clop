@@ -140,6 +140,12 @@ class Video: Optimisable {
         }
 
         mainActor {
+            // Record the originating video BEFORE overwriting url, so "Restore original" can revert
+            // the GIF back to the source video. Covers both callers (convert button and right-click
+            // "Convert to GIF"), which previously captured the GIF path because they set this afterwards.
+            if optimiser.convertedFromURL == nil {
+                optimiser.convertedFromURL = optimiser.url
+            }
             optimiser.url = image.path.url
             optimiser.type = .image(.gif)
         }
