@@ -158,9 +158,10 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
 
     let hasDownscale = actions.contains(where: \.isDownscale)
 
-    // Auto-detect conversion from settings (unless explicit .convert action exists)
+    // Auto-detect conversion from settings (unless explicit .convert action exists).
+    // Never auto-convert an animated GIF to a still image format; it would drop every frame but one.
     let hasExplicitConvert = actions.contains(where: \.isConvert)
-    let autoConversionFormat: UTType? = if hasExplicitConvert {
+    let autoConversionFormat: UTType? = if hasExplicitConvert || img.path.isAnimatedGIF {
         nil
     } else {
         Defaults[.formatsToConvertToJPEG].contains(img.type)

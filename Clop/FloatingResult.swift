@@ -412,7 +412,7 @@ struct OnboardingFloatingPreview: View {
             .contentShape(Rectangle())
         } else if !optimiser.running, optimiser.canChangeFormat() {
             HStack(spacing: 1) {
-                ForEach(optimiser.type.convertibleTypes) { format in
+                ForEach(optimiser.convertibleTypes) { format in
                     let ext = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
                     if !ext.isEmpty {
                         button(format: format, ext: ext)
@@ -434,7 +434,8 @@ struct OnboardingFloatingPreview: View {
         let onValue: ItemType = switch optimiser.type {
         case .audio: .audio(format)
         case .video: .video(format)
-        default: .image(format)
+        // Animated GIFs offer video conversion targets while still typed .image(.gif).
+        default: optimiser.isAnimatedGIF ? .video(format) : .image(format)
         }
         return Button(label) {
             guard !preview, optimiser.type.utType != format else { return }

@@ -94,7 +94,7 @@ struct RightClickMenuView: View {
             Divider()
         }
 
-        Button("Restore original") {
+        Button(optimiser.convertedFromVideo ? "Restore original video" : "Restore original") {
             optimiser.restoreOriginal()
         }
         .keyboardShortcut("z")
@@ -235,7 +235,7 @@ struct RightClickMenuView: View {
                 }
             }
 
-            if optimiser.type.convertibleTypes.isNotEmpty {
+            if optimiser.convertibleTypes.isNotEmpty {
                 Menu("Convert to…") {
                     ConvertMenu(optimiser: optimiser)
                 }
@@ -255,7 +255,7 @@ struct ConvertMenu: View {
     @ObservedObject var optimiser: Optimiser
 
     var body: some View {
-        ForEach(optimiser.type.convertibleTypes) { type in
+        ForEach(optimiser.convertibleTypes) { type in
             Button(type.preferredFilenameExtension ?? type.identifier) {
                 optimiser.convert(to: type)
             }.disabled(optimiser.type.utType == type)

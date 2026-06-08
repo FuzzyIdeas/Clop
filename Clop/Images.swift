@@ -1318,6 +1318,16 @@ extension FilePath {
     var fileContentsHash: String? {
         fm.contents(atPath: string)?.sha256
     }
+
+    /// True when the file is a GIF with more than one frame (animated). Static GIFs and
+    /// non-GIF/unreadable files return false. Reads only the container index, not pixel data.
+    var isAnimatedGIF: Bool {
+        guard `extension`?.lowercased() == "gif" else { return false }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else {
+            return false
+        }
+        return CGImageSourceGetCount(source) > 1
+    }
 }
 
 @MainActor func getCachedOptimisedImage(img: Image, id: String?, retinaDownscaled: Bool) throws -> Image? {
