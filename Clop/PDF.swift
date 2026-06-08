@@ -37,7 +37,7 @@ func gsLosslessArgs(downsample: Bool) -> [String] {
         "-dDownsampleGrayImages=\(downsample)",
         "-dDownsampleMonoImages=\(downsample)",
         "-dGrayImageFilter=/DCTEncode",
-        // PassThrough only works when not downsampling — preserves originals byte-for-byte.
+        // PassThrough only works when not downsampling; preserves originals byte-for-byte.
         "-dPassThroughJPEGImages=\(!downsample)",
         "-dPassThroughJPXImages=\(!downsample)",
         "-dShowAcroForm=true",
@@ -202,7 +202,7 @@ private func collectPDFImageDimensions(at path: FilePath) -> [PDFImageDimensions
     return collector.images
 }
 
-/// Lower Tukey fence — drops abnormally low DPI values that come from small
+/// Lower Tukey fence that drops abnormally low DPI values that come from small
 /// partial-page images mis-counted as low-DPI by the full-page heuristic.
 private func dropLowDPIOutliers(_ values: [Double]) -> [Double] {
     guard values.count >= 4 else { return values }
@@ -240,7 +240,7 @@ func scanPDFMaxImageDPI(at path: FilePath) -> Int? {
 
 /// Pick the highest stop ≤ `cap` where the cumulative count of images at-or-above
 /// that stop exceeds `MIN_IMAGES_AT_DPI_STOP`. Returns `cap` when the PDF has no
-/// images or no stop qualifies — preserves the existing user setting in those cases.
+/// images or no stop qualifies; preserves the existing user setting in those cases.
 /// Also reports the max image DPI in the source (after low-outlier filtering).
 func analyseAggressivePDFDPI(at path: FilePath, cap: Int) -> PDFDPIAnalysis {
     let images = collectPDFImageDimensions(at: path)

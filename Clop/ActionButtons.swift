@@ -908,7 +908,7 @@ struct PDFDPISlider: View {
     func yPosition(for index: Int, trackTop: CGFloat, trackHeight: CGFloat) -> CGFloat {
         let count = stops.count
         guard count > 1 else { return trackTop }
-        // stops[0] is the highest DPI (300) — top of the vertical track.
+        // stops[0] is the highest DPI (300), at the top of the vertical track.
         return trackTop + CGFloat(index) / CGFloat(count - 1) * trackHeight
     }
 
@@ -1017,7 +1017,7 @@ struct HorizontalPDFDPISlider: View {
     func xPosition(for index: Int, trackLeft: CGFloat, trackWidth: CGFloat) -> CGFloat {
         let count = stops.count
         guard count > 1 else { return trackLeft }
-        // Highest DPI on the LEFT (factor 1.0), lowest DPI on the RIGHT — matches "minus button" UX.
+        // Highest DPI on the LEFT (factor 1.0), lowest DPI on the RIGHT, matching "minus button" UX.
         return trackLeft + CGFloat(index) / CGFloat(count - 1) * trackWidth
     }
 

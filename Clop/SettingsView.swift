@@ -349,23 +349,6 @@ struct PDFSettingsView: View {
     @Default(.optimisedPDFBehaviour) var optimisedPDFBehaviour
     @Default(.sameFolderNameTemplatePDF) var sameFolderNameTemplatePDF
     @Default(.specificFolderNameTemplatePDF) var specificFolderNameTemplatePDF
-    @State private var lastPDFDPI = 150
-
-    private func pdfStopIndex(_ dpi: Int) -> Int {
-        PDF_DPI_STOPS.firstIndex(of: dpi)
-            ?? PDF_DPI_STOPS.enumerated().min(by: { abs($0.element - dpi) < abs($1.element - dpi) })?.offset
-            ?? 0
-    }
-
-    private var pdfCompressionSubtitle: String {
-        if pdfDPI == PDF_DPI_ADAPTIVE {
-            return "Clop automatically picks a per-PDF DPI from the source image density and downscales images above it"
-        }
-        if pdfDPI >= PDF_DPI_NO_DOWNSAMPLE {
-            return "Lossless compression, tries to save space on metadata and reencoding. May not yield significant size reductions."
-        }
-        return "Downscales high resolution images to \(pdfDPI) DPI; lower-resolution images are left untouched"
-    }
 
     var body: some View {
         Form {
@@ -415,6 +398,25 @@ struct PDFSettingsView: View {
         .scrollContentBackground(.hidden)
         .padding(4)
     }
+
+    @State private var lastPDFDPI = 150
+
+    private var pdfCompressionSubtitle: String {
+        if pdfDPI == PDF_DPI_ADAPTIVE {
+            return "Clop automatically picks a per-PDF DPI from the source image density and downscales images above it"
+        }
+        if pdfDPI >= PDF_DPI_NO_DOWNSAMPLE {
+            return "Lossless compression, tries to save space on metadata and reencoding. May not yield significant size reductions."
+        }
+        return "Downscales high resolution images to \(pdfDPI) DPI; lower-resolution images are left untouched"
+    }
+
+    private func pdfStopIndex(_ dpi: Int) -> Int {
+        PDF_DPI_STOPS.firstIndex(of: dpi)
+            ?? PDF_DPI_STOPS.enumerated().min(by: { abs($0.element - dpi) < abs($1.element - dpi) })?.offset
+            ?? 0
+    }
+
 }
 
 struct VideoSettingsView: View {
@@ -2108,11 +2110,8 @@ struct SkipSliderKnob: View {
 struct DualKnobSlider: View {
     @Binding var low: Double
     @Binding var high: Double
-    var onChanged: () -> Void = {}
 
-    private let thumb: CGFloat = 16
-    private let track: CGFloat = 4
-    private let space = "dualKnobSlider"
+    var onChanged: () -> Void = {}
 
     var body: some View {
         GeometryReader { geo in
@@ -2136,6 +2135,10 @@ struct DualKnobSlider: View {
         .frame(height: thumb)
     }
 
+    private let thumb: CGFloat = 16
+    private let track: CGFloat = 4
+    private let space = "dualKnobSlider"
+
     private func knobDrag(usable: CGFloat, lower: Bool) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
             .onChanged { v in
@@ -2153,11 +2156,8 @@ struct DualKnobSlider: View {
 /// One-knob slider on normalised fractions (0...1); click or drag anywhere on the track.
 struct SingleKnobSlider: View {
     @Binding var value: Double
-    var onChanged: () -> Void = {}
 
-    private let thumb: CGFloat = 16
-    private let track: CGFloat = 4
-    private let space = "singleKnobSlider"
+    var onChanged: () -> Void = {}
 
     var body: some View {
         GeometryReader { geo in
@@ -2184,6 +2184,11 @@ struct SingleKnobSlider: View {
         }
         .frame(height: thumb)
     }
+
+    private let thumb: CGFloat = 16
+    private let track: CGFloat = 4
+    private let space = "singleKnobSlider"
+
 }
 
 /// File size skip range. min is stored in KB, max in MB; 0 disables that bound. Log-scaled.
@@ -2200,7 +2205,7 @@ struct FileSizeRangeRow: View {
             HStack {
                 Text(label).regular(13)
                 Spacer()
-                Text("\(minKB == 0 ? "0" : formatSkipFileSize(Double(minKB) * 1000)) – \(maxMB == 0 ? "∞" : formatSkipFileSize(Double(maxMB) * 1_000_000))")
+                Text("\(minKB == 0 ? "0" : formatSkipFileSize(Double(minKB) * 1000)) - \(maxMB == 0 ? "∞" : formatSkipFileSize(Double(maxMB) * 1_000_000))")
                     .mono(11).foregroundColor(.secondary)
             }
             DualKnobSlider(
@@ -2246,7 +2251,7 @@ struct ResolutionRangeRow: View {
             HStack {
                 Text(label).regular(13)
                 Spacer()
-                Text("\(minRes == 0 ? "0" : "\(minRes)") – \(maxRes == 0 ? "∞" : "\(maxRes)") px")
+                Text("\(minRes == 0 ? "0" : "\(minRes)") - \(maxRes == 0 ? "∞" : "\(maxRes)") px")
                     .mono(11).foregroundColor(.secondary)
             }
             DualKnobSlider(

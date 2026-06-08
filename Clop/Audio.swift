@@ -19,7 +19,7 @@ extension CompressionQuality {
     /// factor 100 -> lowest (most compressed). Mapped continuously over the format's
     /// quality-aware range so the percentage yields finely-stepped bitrates; the actual kbps
     /// differs per codec (Opus needs the fewest for the same quality, then AAC, then MP3).
-    /// Returns nil for lossless/empty formats (WAV) — those have no bitrate axis.
+    /// Returns nil for lossless/empty formats (WAV); those have no bitrate axis.
     func audioBitrate(for format: AudioFormat) -> Int? {
         guard let (lo, hi) = format.bitrateRange, hi > lo else { return nil }
         let t = Double(min(100, max(5, factor)) - 5) / 95.0
@@ -28,8 +28,8 @@ extension CompressionQuality {
     }
 }
 
-/// Round a raw kbps figure to the nearest 16 so the slider surfaces familiar bitrates —
-/// the common ones (96, 128, 160, 192, 224, 256, 320) are all multiples of 16 — while
+/// Round a raw kbps figure to the nearest 16 so the slider surfaces familiar bitrates.
+/// The common ones (96, 128, 160, 192, 224, 256, 320) are all multiples of 16, while
 /// still allowing in-between values (144, 176, 208, …) nudged to the closest round number.
 func roundedAudioBitrate(_ raw: Double) -> Int {
     max(8, Int((raw / 16).rounded()) * 16)
