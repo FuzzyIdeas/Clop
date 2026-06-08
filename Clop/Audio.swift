@@ -23,8 +23,16 @@ extension CompressionQuality {
     func audioBitrate(for format: AudioFormat) -> Int? {
         guard let (lo, hi) = format.bitrateRange, hi > lo else { return nil }
         let t = Double(min(100, max(5, factor)) - 5) / 95.0
-        return Int((Double(hi) - t * Double(hi - lo)).rounded())
+        let raw = Double(hi) - t * Double(hi - lo)
+        return min(hi, max(lo, roundedAudioBitrate(raw)))
     }
+}
+
+/// Round a raw kbps figure to the nearest 16 so the slider surfaces familiar bitrates —
+/// the common ones (96, 128, 160, 192, 224, 256, 320) are all multiples of 16 — while
+/// still allowing in-between values (144, 176, 208, …) nudged to the closest round number.
+func roundedAudioBitrate(_ raw: Double) -> Int {
+    max(8, Int((raw / 16).rounded()) * 16)
 }
 
 /// Inverse of `CompressionQuality.audioBitrate(for:)`: the nearest 5..100 factor for a bitrate.
