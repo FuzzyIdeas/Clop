@@ -297,7 +297,7 @@ class AppDelegate: AppDelegateParent {
 
             syncSettings()
             _ = LastFocusedAppTracker.shared
-            Defaults[.cliInstalled] = fm.fileExists(atPath: CLOP_CLI_BIN_LINK)
+            Defaults[.cliInstalled] = cliSymlinkValid()
             Migrations.run()
             createFileCleaner()
         }

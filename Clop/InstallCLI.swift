@@ -38,19 +38,24 @@ func installCLIBinary() throws {
         }
     }
 
-    if fm.fileExists(atPath: CLOP_CLI_BIN_LINK) {
-        do {
-            try fm.removeItem(atPath: CLOP_CLI_BIN_LINK)
-        } catch {
-            log.error("Error on removing \(CLOP_CLI_BIN_LINK): \(error)")
-            throw InstallCLIError(
-                message: "Already existing \(CLOP_CLI_BIN_LINK)",
-                info: "Error on removing the existing '\(CLOP_CLI_BIN_LINK)' file: \(error)"
-            )
+    // Recreate the symlink only if it isn't already pointing at this bundle's CLI.
+    // `attributesOfItem` uses lstat, so it also catches broken/stale symlinks that
+    // `fileExists` (which follows the link) would silently miss and then fail to replace.
+    if !cliSymlinkValid() {
+        if (try? fm.attributesOfItem(atPath: CLOP_CLI_BIN_LINK)) != nil {
+            do {
+                try fm.removeItem(atPath: CLOP_CLI_BIN_LINK)
+            } catch {
+                log.error("Error on removing \(CLOP_CLI_BIN_LINK): \(error)")
+                throw InstallCLIError(
+                    message: "Already existing \(CLOP_CLI_BIN_LINK)",
+                    info: "Error on removing the existing '\(CLOP_CLI_BIN_LINK)' file: \(error)"
+                )
+            }
         }
-    }
 
-    try fm.createSymbolicLink(atPath: CLOP_CLI_BIN_LINK, withDestinationPath: CLOP_CLI_BIN)
+        try fm.createSymbolicLink(atPath: CLOP_CLI_BIN_LINK, withDestinationPath: CLOP_CLI_BIN)
+    }
 
     for config in [BASHRC, ZSHRC, FISHRC] {
         let contents = fm.contents(atPath: config)?.s ?? ""
@@ -59,13 +64,34 @@ func installCLIBinary() throws {
         }
 
         fm.createFile(
-            atPath: config,
+            atPath: shellConfigWriteTarget(config),
             contents: (contents + PATH_EXPORT).data(using: .utf8),
             attributes: [.posixPermissions: 0o644]
         )
     }
 
     Defaults[.cliInstalled] = true
+}
+
+/// Whether the `clop` CLI symlink exists and points at this bundle's CLI binary.
+/// A stale link (the app was moved or updated to a new path) or a broken link reads
+/// as not installed, so the UI can offer a reinstall that repairs it.
+func cliSymlinkValid() -> Bool {
+    guard let attrs = try? fm.attributesOfItem(atPath: CLOP_CLI_BIN_LINK),
+          (attrs[.type] as? FileAttributeType) == .typeSymbolicLink,
+          let dest = try? fm.destinationOfSymbolicLink(atPath: CLOP_CLI_BIN_LINK)
+    else { return false }
+    return dest == CLOP_CLI_BIN && fm.fileExists(atPath: CLOP_CLI_BIN)
+}
+
+/// If a shell config file is itself a symlink (e.g. managed dotfiles), return its
+/// real target so we write through it instead of replacing the symlink with a plain file.
+func shellConfigWriteTarget(_ config: String) -> String {
+    guard let attrs = try? fm.attributesOfItem(atPath: config),
+          (attrs[.type] as? FileAttributeType) == .typeSymbolicLink,
+          let dest = try? fm.destinationOfSymbolicLink(atPath: config)
+    else { return config }
+    return URL(fileURLWithPath: dest, relativeTo: URL(fileURLWithPath: config).deletingLastPathComponent()).path
 }
 
 func handleCLIInstall() {
