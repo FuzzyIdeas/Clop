@@ -186,6 +186,26 @@ struct CropSize: Codable, Hashable, Identifiable {
 
 }
 
+/// A set of devices or paper sizes sharing the same aspect ratio.
+/// Only the ratio matters when cropping, so any member yields the same result.
+struct CropSizeGroup: Identifiable, Hashable {
+    let name: String
+    let width: Int
+    let height: Int
+    let members: [String]
+    var summary: String? = nil
+
+    var id: String { name }
+    var size: NSSize { NSSize(width: width, height: height) }
+    var cropSize: CropSize { CropSize(width: width, height: height, name: name, isAspectRatio: true) }
+    var subtitle: String { summary ?? members.joined(separator: ", ") }
+
+    func matches(_ name: String) -> Bool {
+        let needle = name.lowercased()
+        return self.name.lowercased() == needle || members.contains { $0.lowercased() == needle }
+    }
+}
+
 func < (_ cropSize: CropSize, _ size: NSSize) -> Bool {
     // a sub-region rect is always a real crop; a full-frame rect is a plain resize,
     // judged by the target size below
