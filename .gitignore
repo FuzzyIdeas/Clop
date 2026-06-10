@@ -9,3 +9,4 @@ required.swift
 Releases/old_updates/
 *.tmp
 build/
+test/
