@@ -930,16 +930,23 @@ enum TempPipelineSegment {
     }
 
     func compare() {
+        if let window = comparisonWindowController?.window {
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            focus()
+            return
+        }
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: COMPARISON_VIEW_SIZE * 2 + 100, height: COMPARISON_VIEW_SIZE + 200),
             styleMask: [.fullSizeContentView, .titled, .closable, .resizable],
             backing: .buffered, defer: false
         )
-        window.title = "Comparison"
-        window.isReleasedWhenClosed = true
+        window.title = "Comparison: \(filename)"
+        // The window controller owns the window; releasing on close too would double-release.
+        window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = true
-        window.center()
-        window.setFrameAutosaveName("Compare Window")
+        window.contentMinSize = NSSize(width: COMPARISON_VIEW_SIZE + 100, height: COMPARISON_VIEW_SIZE / 2 + 200)
 
         window.contentView = NSHostingView(
             rootView: CompareView(optimiser: self)
@@ -950,12 +957,15 @@ enum TempPipelineSegment {
                 .padding()
                 .background(.regularMaterial)
         )
-        window.titlebarAppearsTransparent = true
         window.backgroundColor = .clear
+
+        window.setFrameAutosaveName("Compare Window")
+        if !window.setFrameUsingName("Compare Window") {
+            window.center()
+        }
 
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
-        window.center()
         focus()
 
         NotificationCenter.default.addObserver(self, selector: #selector(windowWillClose), name: NSWindow.willCloseNotification, object: window)
@@ -965,6 +975,7 @@ enum TempPipelineSegment {
     }
 
     @objc func windowWillClose(_ notification: Notification) {
+        NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: notification.object)
         isComparing = false
         let cachedURLs = [url, startingURL, originalURL, convertedFromURL].compactMap { $0 }
         PDFKitView.clearCache(for: cachedURLs)
