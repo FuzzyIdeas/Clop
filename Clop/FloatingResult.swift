@@ -946,7 +946,12 @@ struct FloatingResult: View {
         }
         .opacity(optimiser.inRemoval ? 0 : 1)
         .offset(x: optimiser.inRemoval ? (floatingResultsCorner.isTrailing ? 500 : -500) : 0)
-        .animation(.easeOut(duration: 0.5), value: optimiser.inRemoval)
+        // A dismissed result should not react to the cursor: its hit area follows the slide-out
+        // offset and could steal hover from the remaining results. The layout slot is kept
+        // intact during the slide-out; the gap closes afterwards via the animated removal
+        // from `OM.optimisers`, so the two motions don't fight each other.
+        .allowsHitTesting(!optimiser.inRemoval)
+        .animation(.easeOut(duration: 0.3), value: optimiser.inRemoval)
         .onAppear {
             if optimiser.editingFilename {
                 editingFilename = true
