@@ -119,7 +119,8 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
             let ext = file.extension ?? ""
             let fileUTType = UTType(filenameExtension: ext)
             let matchesType = types.contains { typeStr in
-                guard let uttype = UTType(typeStr) else { return false }
+                // Accept both UTType identifiers ("public.png") and extensions ("png")
+                guard let uttype = UTType(typeStr) ?? UTType(filenameExtension: typeStr) else { return false }
                 return fileUTType?.conforms(to: uttype) ?? false
             }
             if !matchesType { return (false, []) }
@@ -377,6 +378,19 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         switch self {
         case .optimise, .downscale, .lowerBitrate, .convert, .crop, .extractPagesAsImages: true
         default: false
+        }
+    }
+
+    /// The `location` parameter of processing steps. nil for steps without one.
+    var location: String? {
+        switch self {
+        case let .optimise(_, _, _, _, location): location
+        case let .downscale(_, location): location
+        case let .lowerBitrate(_, location): location
+        case let .convert(_, location): location
+        case let .crop(_, _, _, location): location
+        case let .extractPagesAsImages(_, _, location): location
+        default: nil
         }
     }
 

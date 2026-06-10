@@ -18,7 +18,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     hideFloatingResult: Bool = false,
     source: OptimisationSource? = nil,
     bitrateOverride: Int? = nil,
-    aggressiveOptimisation: Bool? = nil
+    aggressiveOptimisation: Bool? = nil,
+    formatOverride: AudioFormat? = nil
 ) async throws -> Audio? {
     let path = audio.path
     let pathString = path.string
@@ -69,7 +70,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                 }
 
                 log.debug("Running audio pipeline \(actions) for \(pathString)")
-                optimisedAudio = try audio.optimise(optimiser: optimiser, bitrateOverride: bitrateOverride, aggressive: aggressive)
+                optimisedAudio = try audio.optimise(optimiser: optimiser, bitrateOverride: bitrateOverride, aggressive: aggressive, formatOverride: formatOverride)
 
                 if !allowLarger, optimisedAudio!.fileSize >= fileSize {
                     audio.path.restore(backupPath: audio.path.clopBackupPath, force: true)
@@ -105,10 +106,12 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
 
             guard var optimisedAudio else { return }
 
-            // Move optimised file to the correct location based on user preference
+            // Move optimised file to the correct location based on user preference.
+            // Pipeline conversion steps (formatOverride) manage placement themselves via
+            // applyLocation, so leave the result in the temp folder for those.
             let behaviour = Defaults[.optimisedAudioBehaviour]
-            let resolvedFormat = Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
-            if optimisedAudio.path.dir == FilePath.audios {
+            let resolvedFormat = formatOverride ?? Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
+            if formatOverride == nil, optimisedAudio.path.dir == FilePath.audios {
                 let destPath: FilePath? = switch behaviour {
                 case .inPlace:
                     path.dir.appending("\(path.stem!).\(resolvedFormat.fileExtension)")

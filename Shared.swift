@@ -445,6 +445,10 @@ struct OptimisationRequest: Codable, Identifiable {
     /// PDF aggressive DPI override: nil = use the user setting, 0 = adaptive,
     /// positive = a specific stop from `PDF_DPI_STOPS`.
     var pdfDPI: Int?
+    /// Pipeline to run on each file: a saved pipeline name, or inline pipeline DSL
+    /// (e.g. "crop(width: 1600) -> convert(to: webp)"). When set, the app executes
+    /// this pipeline instead of looking up source-configured automations.
+    var pipeline: String? = nil
 }
 
 func runningClopApp() -> NSRunningApplication? {

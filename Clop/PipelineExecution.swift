@@ -90,9 +90,9 @@ final class PipelineExecution {
 
         let actions = optimiser.compilePipelineActions(from: batch)
 
-        let location: String = batch.compactMap { s in
-            if case let .optimise(_, _, _, _, loc) = s { return loc }; return nil
-        }.last ?? "inPlace"
+        // The batch result goes where the last located step says. Convert defaults to
+        // sameFolder (keep the original), the other processing steps to inPlace.
+        let location: String = batch.compactMap(\.location).last(where: { $0 != "inPlace" }) ?? "inPlace"
         let inputFile = tempCopyIfNeeded(currentFile, location: location)
         let usedTempCopy = inputFile != currentFile
 
@@ -394,11 +394,31 @@ final class PipelineExecution {
         let inputFile = tempCopyIfNeeded(currentFile, location: location)
         let usedTempCopy = inputFile != currentFile
 
+        // GIF conversion uses gifski, not ffmpeg, so it has its own path.
+        if formatStr == "gif", fileType == .video {
+            let vid = await (try? Video.byFetchingMetadata(path: inputFile)) ?? Video(inputFile)
+            let optimiser = optimiser
+            let gif: Image? = await withCheckedContinuation { continuation in
+                videoOptimisationQueue.addOperation {
+                    continuation.resume(returning: try? vid.convertToGIF(optimiser: optimiser, maxWidth: 960, fps: 15))
+                }
+            }
+            if let gif {
+                currentFile = applyLocation(location, to: gif.path, original: currentFile, context: context)
+                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
+                if !hide { shownVisibleResult = true }
+            } else {
+                log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video GIF conversion \(inputFile.string)")
+            }
+            return
+        }
+
         // Video codec targets (not file extensions) need special handling
         let videoCodecArgs: (encoder: [String], ext: String)? = switch formatStr {
         case "hevc": (["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"], "mp4")
         case "x265": (["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"], "mp4")
         case "av1": (["-vcodec", "libsvtav1"], "mkv")
+        case "webm": (["-vcodec", "libvpx-vp9", "-crf", "32", "-b:v", "0"], "webm")
         default: nil
         }
 
@@ -447,6 +467,23 @@ final class PipelineExecution {
                     if !hide { shownVisibleResult = true }
                 } else {
                     log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video conversion \(inputFile.string)")
+                }
+            case .audio:
+                guard let format = AudioFormat.from(conversionTarget: formatStr) else {
+                    log.warning("Pipeline: unknown audio format '\(formatStr)' for convert step")
+                    return
+                }
+                let audio = await (try? Audio.byFetchingMetadata(path: inputFile, thumb: !hide)) ?? Audio(path: inputFile, thumb: !hide)
+                if let result = try? await runAudioPipeline(
+                    audio, actions: [action],
+                    allowLarger: true, hideFloatingResult: hide,
+                    source: source, formatOverride: format
+                ) {
+                    currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
+                    if !hide { shownVisibleResult = true }
+                } else {
+                    log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio conversion \(inputFile.string)")
                 }
             default:
                 log.debug("Pipeline: convert not applicable for \(self.fileType)")
@@ -519,30 +556,27 @@ final class PipelineExecution {
         }
     }
 
-    // MARK: - File Operation Steps
-
     func handleCopy(to: String) throws {
-        let destPath = context.resolve(to)
-        if let dest = destPath.filePath {
-            let destDir = dest.removingLastComponent()
-            try? fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
+        if let dest = resolveFileDestination(to) {
             let copied = try currentFile.copy(to: dest, force: true)
             currentFile = copied
         }
     }
 
     func handleMove(to: String) throws {
-        let destPath = context.resolve(to)
-        if let dest = destPath.filePath {
-            let destDir = dest.removingLastComponent()
-            try? fm.createDirectory(atPath: destDir.string, withIntermediateDirectories: true)
+        if let dest = resolveFileDestination(to) {
             let moved = try currentFile.move(to: dest, force: true)
             currentFile = moved
         }
     }
 
     func handleRename(to: String) throws {
-        let newName = context.resolve(to)
+        var newName = context.resolve(to)
+        // Re-add the extension when the template resolves without one (e.g. "%y-%m-%d_%f")
+        let lastPart = newName.split(separator: "/").last.map(String.init) ?? newName
+        if !lastPart.contains("."), let ext = currentFile.extension, !ext.isEmpty {
+            newName += ".\(ext)"
+        }
         let dest = currentFile.removingLastComponent().appending(newName)
         let moved = try currentFile.move(to: dest, force: true)
         currentFile = moved
@@ -617,7 +651,15 @@ final class PipelineExecution {
         case .audio:
             let audio = Audio(currentFile)
             let changed = try audio.changeSpeed(factor: factor, optimiser: optimiser)
-            currentFile = changed.path
+            // The result lands in the temp audio folder: replace the original in place,
+            // matching how video speed changes behave.
+            if changed.path != currentFile, changed.path.dir == FilePath.audios,
+               let moved = try? changed.path.move(to: currentFile, force: true)
+            {
+                currentFile = moved
+            } else {
+                currentFile = changed.path
+            }
         default:
             log.debug("Pipeline: changeSpeed not applicable for \(self.fileType)")
         }
@@ -688,7 +730,8 @@ final class PipelineExecution {
             let errorMessage = String(parts[0])
             log.error("Pipeline: \(errorMessage)")
             optimiser.finish(error: errorMessage)
-            if parts.count > 1, let logFile = String(parts[1]).existingFilePath {
+            // Don't pop the error log in an editor for hidden runs (automations, CLI)
+            if !hide, parts.count > 1, let logFile = String(parts[1]).existingFilePath {
                 NSWorkspace.shared.open(logFile.url)
             }
             shouldStop = true
@@ -886,6 +929,36 @@ final class PipelineExecution {
         }
     }
 
+    // MARK: - File Operation Steps
+
+    /// Resolve a copy/move destination template into a concrete file path.
+    ///
+    /// - Templates ending in "/" (or resolving to an existing directory) are treated as
+    ///   directories: they are created and the current filename is appended.
+    /// - When the resolved name has no extension, the current file's extension is added
+    ///   (template tokens like "%f" resolve without one).
+    private func resolveFileDestination(_ to: String) -> FilePath? {
+        var resolved = context.resolve(to)
+        // Relative destinations (e.g. "copy-of-%f") are placed next to the current file
+        if !resolved.hasPrefix("/"), !resolved.hasPrefix("~") {
+            resolved = currentFile.dir.string + "/" + resolved
+        }
+        guard var dest = resolved.filePath else { return nil }
+
+        if to.hasSuffix("/") || resolved.hasSuffix("/") || dest.isDir {
+            try? fm.createDirectory(atPath: dest.string, withIntermediateDirectories: true)
+            return dest.appending(currentFile.lastComponent?.string ?? currentFile.name.string)
+        }
+
+        try? fm.createDirectory(atPath: dest.removingLastComponent().string, withIntermediateDirectories: true)
+        if let last = dest.lastComponent?.string, !last.contains("."),
+           let ext = currentFile.extension, !ext.isEmpty
+        {
+            dest = dest.removingLastComponent().appending("\(last).\(ext)")
+        }
+        return dest
+    }
+
     /// Shared path for audio bitrate reduction steps (downscale/lowerBitrate).
     /// Fetches metadata so the clamp helper can see the input bitrate, computes the
     /// target bitrate via `compute`, and runs the audio pipeline with that override.
@@ -931,6 +1004,7 @@ final class PipelineExecution {
                 case "hevc": ffmpegEncoder = ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]; outExt = "mp4"
                 case "x265": ffmpegEncoder = ["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"]; outExt = "mp4"
                 case "av1": ffmpegEncoder = ["-vcodec", "libsvtav1"]; outExt = "mkv"
+                case "webm": ffmpegEncoder = ["-vcodec", "libvpx-vp9", "-crf", "32", "-b:v", "0"]; outExt = "webm"
                 default: break
                 }
             }
@@ -999,6 +1073,7 @@ final class PipelineExecution {
         // duplicates. A nil result from the helper means "no-op" (would be upscaling), so
         // we simply skip applying a bitrate override in that case.
         var bitrateOverride: Int?
+        var formatOverride: AudioFormat?
         for step in batch {
             switch step {
             case let .lowerBitrate(kbps, _):
@@ -1009,6 +1084,8 @@ final class PipelineExecution {
                 if bitrateOverride == nil, let clamped = audio.loweredBitrate(factor: factor) {
                     bitrateOverride = clamped
                 }
+            case let .convert(fmt, _):
+                formatOverride = AudioFormat.from(conversionTarget: fmt)
             default:
                 break
             }
@@ -1016,10 +1093,11 @@ final class PipelineExecution {
 
         guard let result = try? await runAudioPipeline(
             audio, actions: actions,
-            allowLarger: false, hideFloatingResult: hide,
+            allowLarger: formatOverride != nil, hideFloatingResult: hide,
             source: source,
             bitrateOverride: bitrateOverride,
-            aggressiveOptimisation: aggressive ? true : nil
+            aggressiveOptimisation: aggressive ? true : nil,
+            formatOverride: formatOverride
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)

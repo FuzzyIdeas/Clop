@@ -7,6 +7,8 @@ enum AudioFormat: String, CaseIterable, Codable {
     case mp3
     case opus
     case wav
+    case flac
+    case aiff
 
     var name: String {
         switch self {
@@ -15,6 +17,8 @@ enum AudioFormat: String, CaseIterable, Codable {
         case .mp3: "MP3"
         case .opus: "Opus (OGG)"
         case .wav: "WAV"
+        case .flac: "FLAC"
+        case .aiff: "AIFF"
         }
     }
 
@@ -25,6 +29,8 @@ enum AudioFormat: String, CaseIterable, Codable {
         case .mp3: "mp3"
         case .opus: "ogg"
         case .wav: "wav"
+        case .flac: "flac"
+        case .aiff: "aiff"
         }
     }
 
@@ -35,11 +41,13 @@ enum AudioFormat: String, CaseIterable, Codable {
         case .mp3: "libmp3lame"
         case .opus: "libopus"
         case .wav: "pcm_s16le"
+        case .flac: "flac"
+        case .aiff: "pcm_s16be"
         }
     }
 
     var isLossless: Bool {
-        self == .wav
+        self == .wav || self == .flac || self == .aiff
     }
 
     var allowedBitrates: [Int] {
@@ -48,7 +56,7 @@ enum AudioFormat: String, CaseIterable, Codable {
         case .aac: [56, 64, 80, 96, 128, 160, 192, 256]
         case .mp3: [56, 64, 80, 96, 128, 160, 192, 256, 320]
         case .opus: [32, 48, 64, 80, 96, 128]
-        case .wav: []
+        case .wav, .flac, .aiff: []
         }
     }
 
@@ -58,7 +66,7 @@ enum AudioFormat: String, CaseIterable, Codable {
         case .aac: 192
         case .mp3: 192
         case .opus: 128
-        case .wav: 0
+        case .wav, .flac, .aiff: 0
         }
     }
 
@@ -73,7 +81,7 @@ enum AudioFormat: String, CaseIterable, Codable {
         case .opus: (32, 160)
         // Resolved to a concrete format before encoding; a generic lossy range for display.
         case .sameAsInput: (48, 256)
-        case .wav: nil
+        case .wav, .flac, .aiff: nil
         }
     }
 
@@ -84,7 +92,19 @@ enum AudioFormat: String, CaseIterable, Codable {
         case .mp3: .mp3
         case .opus: .oggAudio
         case .wav: .wav
+        case .flac: UTType(filenameExtension: "flac")
+        case .aiff: .aiff
         }
+    }
+
+    /// Map a pipeline `convert(to:)` format string (an extension like "m4a", "mp3",
+    /// "ogg", "flac") to an AudioFormat.
+    static func from(conversionTarget: String) -> AudioFormat? {
+        let target = conversionTarget.lowercased()
+        if let format = AudioFormat(rawValue: target), format != .sameAsInput {
+            return format
+        }
+        return allCases.first { $0 != .sameAsInput && $0.fileExtension == target }
     }
 
     /// Resolve `sameAsInput` to a concrete format based on the input file extension.
@@ -111,6 +131,15 @@ enum AudioFormat: String, CaseIterable, Codable {
             if aggressive {
                 return ["-c:a", "adpcm_ima_wav"]
             }
+            // 16-bit PCM, cap sample rate at 48kHz (avoid upsampling)
+            var args = ["-c:a", ffmpegCodec]
+            if let sr = inputSampleRate, sr > 48000 {
+                args += ["-ar", "48000"]
+            }
+            return args
+        case .flac:
+            return ["-c:a", ffmpegCodec, "-compression_level", aggressive ? "12" : "8"]
+        case .aiff:
             // 16-bit PCM, cap sample rate at 48kHz (avoid upsampling)
             var args = ["-c:a", ffmpegCodec]
             if let sr = inputSampleRate, sr > 48000 {

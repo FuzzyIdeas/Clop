@@ -19,6 +19,7 @@ extension Defaults.Keys {
     static let pipelinesMigrated = Key<Bool>("pipelinesMigrated", default: false)
     static let savedScriptPaths = Key<[String: String]>("savedScriptPaths", default: [:])
     static let savedPipelines = Key<[Pipeline]>("savedPipelines", default: [])
+    static let builtinPipelinesSeededVersion = Key<Int>("builtinPipelinesSeededVersion", default: 0)
 }
 
 extension Optimiser {
@@ -683,7 +684,7 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
 private func parseParams(_ str: String) -> [String: String] {
     guard !str.isEmpty else { return [:] }
     var result: [String: String] = [:]
-    for part in str.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+    for part in splitOutsideQuotes(str, on: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
         let kv = part.split(separator: ":", maxSplits: 1)
         guard kv.count == 2 else { continue }
         let key = kv[0].trimmingCharacters(in: .whitespaces)
@@ -691,6 +692,31 @@ private func parseParams(_ str: String) -> [String: String] {
         result[key] = value
     }
     return result
+}
+
+/// Split on a separator, ignoring separators inside single or double quotes so that
+/// values like `regex: "\d{2,4}"` survive parameter parsing.
+private func splitOutsideQuotes(_ str: String, on separator: Character) -> [String] {
+    var parts: [String] = []
+    var current = ""
+    var quoteChar: Character?
+    for ch in str {
+        if ch == "\"" || ch == "'" {
+            if quoteChar == ch {
+                quoteChar = nil
+            } else if quoteChar == nil {
+                quoteChar = ch
+            }
+            current.append(ch)
+        } else if ch == separator, quoteChar == nil {
+            parts.append(current)
+            current = ""
+        } else {
+            current.append(ch)
+        }
+    }
+    parts.append(current)
+    return parts
 }
 
 private func parseFilterCondition(_ params: [String: String]) -> FilterCondition {

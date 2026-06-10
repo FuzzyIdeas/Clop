@@ -477,10 +477,6 @@ enum TempPipelineSegment {
         }
     }
 
-    /// Memoised animated-GIF check, keyed by the url it was computed for. Cleared whenever url changes
-    /// (e.g. after a video->gif conversion) so a freshly produced GIF is re-probed.
-    private var animatedGIFCache: (url: URL, value: Bool)?
-
     @Published var url: URL? {
         didSet {
             log.debug("URL set to \(self.url?.path ?? "nil") from \(oldValue?.path ?? "nil")")
@@ -522,6 +518,31 @@ enum TempPipelineSegment {
     var effectiveBasePDFDPI: Int {
         let setting = Defaults[.pdfDPI]
         return setting == PDF_DPI_ADAPTIVE ? (newDPI ?? PDF_DPI_NO_DOWNSAMPLE) : setting
+    }
+
+    /// True only for a multi-frame GIF still typed as an image. Memoised by url so it isn't re-probed
+    /// on every SwiftUI render; the cache is cleared in url.didSet.
+    var isAnimatedGIF: Bool {
+        guard type == .image(.gif), let url, let path else { return false }
+        if let cache = animatedGIFCache, cache.url == url { return cache.value }
+        let value = path.isAnimatedGIF
+        animatedGIFCache = (url, value)
+        return value
+    }
+
+    /// True when this is a GIF that was produced from a video and still remembers the source, so
+    /// "Restore original" can take the user back to that video.
+    var convertedFromVideo: Bool {
+        type == .image(.gif) && (convertedFromURL?.filePath?.isVideo ?? false)
+    }
+
+    /// Formats this item can be converted to. Animated GIFs offer video targets (so all frames are
+    /// preserved) instead of image targets; everything else uses the type's default list.
+    var convertibleTypes: [UTType] {
+        if isAnimatedGIF {
+            return [.mpeg4Movie, .quickTimeMovie, .webm, .hevcVideo, .av1Video].compactMap { $0 }
+        }
+        return type.convertibleTypes
     }
 
     nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {
@@ -908,50 +929,6 @@ enum TempPipelineSegment {
         }
     }
 
-    /// Re-encode `video` into a different video container/codec via ffmpeg. Works for real videos and
-    /// for animated GIFs used as video input (ffmpeg preserves every frame). Runs off the main thread,
-    /// updates the optimiser on completion, and records the source url so "Restore original" can revert.
-    private func convertToVideoFormat(_ video: Video, to type: UTType) {
-        let isCodecConversion = type == .hevcVideo || type == .av1Video || type == .webm
-        let encoderOverride: [String]? = if type == .hevcVideo {
-            ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]
-        } else if type == .av1Video {
-            ["-vcodec", "libsvtav1"]
-        } else if type == .webm {
-            ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]
-        } else {
-            nil
-        }
-        let forceMP4 = type == .hevcVideo || type == .mpeg4Movie
-        let outputExt: String? = if type == .av1Video {
-            "mkv"
-        } else if type == .webm {
-            "webm"
-        } else {
-            nil
-        }
-
-        DispatchQueue.global().async { [weak self] in
-            guard let self else { return }
-            guard let result = try? video.optimise(
-                optimiser: self, forceMP4: forceMP4, outputExtension: outputExt, backup: false,
-                encoderOverride: encoderOverride
-            ) else {
-                let label = type.preferredFilenameExtension ?? "video"
-                mainActor { self.finish(error: "\(label) conversion failed") }
-                return
-            }
-            mainActor {
-                if self.convertedFromURL == nil { self.convertedFromURL = self.url }
-                self.type = isCodecConversion ? .video(type) : .video(UTType(filenameExtension: result.path.extension ?? "mp4") ?? .mpeg4Movie)
-                self.url = result.path.url
-                self.error = nil
-                self.notice = nil
-                self.finish(oldBytes: self.oldBytes, newBytes: result.fileSize, removeAfterMs: self.lastRemoveAfterMs)
-            }
-        }
-    }
-
     func compare() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: COMPARISON_VIEW_SIZE * 2 + 100, height: COMPARISON_VIEW_SIZE + 200),
@@ -1091,31 +1068,6 @@ enum TempPipelineSegment {
     func quicklook() {
         resetRemover()
         OM.quicklook(optimiser: self)
-    }
-
-    /// True only for a multi-frame GIF still typed as an image. Memoised by url so it isn't re-probed
-    /// on every SwiftUI render; the cache is cleared in url.didSet.
-    var isAnimatedGIF: Bool {
-        guard type == .image(.gif), let url, let path else { return false }
-        if let cache = animatedGIFCache, cache.url == url { return cache.value }
-        let value = path.isAnimatedGIF
-        animatedGIFCache = (url, value)
-        return value
-    }
-
-    /// True when this is a GIF that was produced from a video and still remembers the source, so
-    /// "Restore original" can take the user back to that video.
-    var convertedFromVideo: Bool {
-        type == .image(.gif) && (convertedFromURL?.filePath?.isVideo ?? false)
-    }
-
-    /// Formats this item can be converted to. Animated GIFs offer video targets (so all frames are
-    /// preserved) instead of image targets; everything else uses the type's default list.
-    var convertibleTypes: [UTType] {
-        if isAnimatedGIF {
-            return [.mpeg4Movie, .quickTimeMovie, .webm, .hevcVideo, .av1Video].compactMap { $0 }
-        }
-        return type.convertibleTypes
     }
 
     func canChangeFormat() -> Bool {
@@ -1851,6 +1803,54 @@ enum TempPipelineSegment {
 
         if withAnimation, hoveredOptimiserID == nil, !DM.dragging {
             self.inRemoval = true
+        }
+    }
+
+    /// Memoised animated-GIF check, keyed by the url it was computed for. Cleared whenever url changes
+    /// (e.g. after a video->gif conversion) so a freshly produced GIF is re-probed.
+    private var animatedGIFCache: (url: URL, value: Bool)?
+
+    /// Re-encode `video` into a different video container/codec via ffmpeg. Works for real videos and
+    /// for animated GIFs used as video input (ffmpeg preserves every frame). Runs off the main thread,
+    /// updates the optimiser on completion, and records the source url so "Restore original" can revert.
+    private func convertToVideoFormat(_ video: Video, to type: UTType) {
+        let isCodecConversion = type == .hevcVideo || type == .av1Video || type == .webm
+        let encoderOverride: [String]? = if type == .hevcVideo {
+            ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]
+        } else if type == .av1Video {
+            ["-vcodec", "libsvtav1"]
+        } else if type == .webm {
+            ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]
+        } else {
+            nil
+        }
+        let forceMP4 = type == .hevcVideo || type == .mpeg4Movie
+        let outputExt: String? = if type == .av1Video {
+            "mkv"
+        } else if type == .webm {
+            "webm"
+        } else {
+            nil
+        }
+
+        DispatchQueue.global().async { [weak self] in
+            guard let self else { return }
+            guard let result = try? video.optimise(
+                optimiser: self, forceMP4: forceMP4, outputExtension: outputExt, backup: false,
+                encoderOverride: encoderOverride
+            ) else {
+                let label = type.preferredFilenameExtension ?? "video"
+                mainActor { self.finish(error: "\(label) conversion failed") }
+                return
+            }
+            mainActor {
+                if self.convertedFromURL == nil { self.convertedFromURL = self.url }
+                self.type = isCodecConversion ? .video(type) : .video(UTType(filenameExtension: result.path.extension ?? "mp4") ?? .mpeg4Movie)
+                self.url = result.path.url
+                self.error = nil
+                self.notice = nil
+                self.finish(oldBytes: self.oldBytes, newBytes: result.fileSize, removeAfterMs: self.lastRemoveAfterMs)
+            }
         }
     }
 
@@ -2846,6 +2846,79 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
 
 var cliOptimisationCount = 0
 
+/// Resolve a request `pipeline` argument: saved pipeline name first, then inline pipeline DSL.
+@MainActor func resolveRequestPipeline(_ arg: String) -> Pipeline? {
+    if let saved = Defaults[.savedPipelines].first(where: { ($0.name ?? "").localizedCaseInsensitiveCompare(arg) == .orderedSame }) {
+        return saved.resolved
+    }
+    let steps = Pipeline.parseSteps(from: arg)
+    guard !steps.isEmpty else { return nil }
+    // Inline DSL runs exactly the steps written: no implicit optimisation pass.
+    return Pipeline(steps: steps, rawText: Pipeline.cleanupPipelineText(arg), skipOptimisation: true)
+}
+
+/// Handle a request that carries an explicit pipeline (CLI `clop pipeline run`).
+/// Mirrors the watched-folder automation flow: standard optimisation first unless the
+/// pipeline opts out via `skipOptimisation`, then the pipeline steps on the result.
+func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throws -> OptimisationResponse {
+    guard let path = url.existingFilePath else {
+        throw ClopError.fileNotFound(FilePath(url.path))
+    }
+    guard let pipelineArg = req.pipeline, let pipeline = await MainActor.run(body: { resolveRequestPipeline(pipelineArg) }) else {
+        throw ClopError.optimisationFailed("Invalid pipeline '\(req.pipeline ?? "")': no saved pipeline with that name and no valid steps")
+    }
+    let type = ItemType.from(filePath: path)
+    switch type {
+    case .image, .video, .audio, .pdf: break
+    default: throw ClopError.unknownType
+    }
+
+    let id = url.absoluteString
+    let source = req.source.optSource ?? .cli
+    let oldBytes = path.fileSize() ?? 0
+    var startPath = path
+
+    if !pipeline.skipOptimisation {
+        do {
+            let result = try await optimiseItem(
+                ClipboardType.fromURL(url),
+                id: id,
+                hideFloatingResult: req.hideFloatingResult,
+                aggressiveOptimisation: req.aggressiveOptimisation,
+                adaptiveOptimisation: req.adaptiveOptimisation,
+                pdfDPI: req.pdfDPI,
+                optimisationCount: &cliOptimisationCount,
+                copyToClipboard: req.copyToClipboard,
+                source: source,
+                optimisedFileBehaviour: .inPlace,
+                skipPipelineLookup: true
+            )
+            switch result {
+            case let .file(p): startPath = p
+            case let .image(img): startPath = img.path
+            default: break
+            }
+        } catch let ClopError.alreadyOptimised(p) {
+            startPath = p
+        }
+    }
+
+    let optimiser = await MainActor.run {
+        let o = OM.optimiser(id: id, type: type, operation: "Running pipeline", hidden: req.hideFloatingResult, source: source)
+        if o.url == nil { o.url = startPath.url }
+        return o
+    }
+    let resultFile = await runPipelinesAfterOptimisation(
+        file: startPath, type: type, source: source, optimiser: optimiser,
+        pipelines: [pipeline], forceHide: req.hideFloatingResult
+    )
+
+    return OptimisationResponse(
+        path: resultFile.string, forURL: url,
+        oldBytes: oldBytes, newBytes: resultFile.fileSize() ?? 0
+    )
+}
+
 func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [OptimisationResponse] {
     try await withThrowingTaskGroup(of: OptimisationResponse.self, returning: [OptimisationResponse].self) { group in
         THUMBNAIL_URLS.accessQueue.sync {
@@ -2856,6 +2929,9 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                 let clip = ClipboardType.fromURL(url)
 
                 do {
+                    if req.pipeline != nil {
+                        return try await processPipelineRequestURL(req, url: url)
+                    }
                     let result: ClipboardType?
                     do {
                         result = try await optimiseItem(

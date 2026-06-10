@@ -294,12 +294,21 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                             let base = Defaults[.showImages] ? "Optimising" : "Optimising \(optimiser.filename)"
                             optimiser.operation = base + (aggressive ? " (aggressive)" : "")
                         }
-                        currentImage = try ci.optimise(
-                            optimiser: optimiser,
-                            allowLarger: allowLarger,
-                            aggressiveOptimisation: aggressiveOptimisation,
-                            adaptiveSize: adaptiveOptimisation ?? (effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride).tier == .adaptive)
-                        )
+                        // A file that can't get smaller is not a failure of the whole pipeline:
+                        // keep the current image and let the remaining actions (e.g. a later
+                        // downscale in a compiled batch) still run.
+                        do {
+                            currentImage = try ci.optimise(
+                                optimiser: optimiser,
+                                allowLarger: allowLarger,
+                                aggressiveOptimisation: aggressiveOptimisation,
+                                adaptiveSize: adaptiveOptimisation ?? (effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride).tier == .adaptive)
+                            )
+                        } catch ClopError.imageSizeLarger, ClopError.alreadyOptimised {
+                            mainActor { optimiser.info = "File already fully compressed" }
+                            currentImage = ci
+                            continue
+                        }
                         if currentImage!.type == img.type {
                             // Place the optimised result at the requested destination, not back onto the source.
                             // In the temp pipeline the source is the pristine original/backup, so copying to
