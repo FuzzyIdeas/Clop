@@ -528,6 +528,16 @@ class Image: CustomStringConvertible {
         var size = newSize ?? .zero
         if let newSize {
             resizeArgs = ["--resize", "\(newSize.width.i)x\(newSize.height.i)"]
+        } else if let cropSize, let fromSize, let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
+            let rect = cropRect.pixelRect(in: fromSize)
+            resizeArgs = ["--crop", "\(rect.origin.x.i),\(rect.origin.y.i)+\(rect.width.i)x\(rect.height.i)"]
+            size = rect.size
+
+            let target = cropSize.ns
+            if target.width > 0, target.height > 0, target.width.i < rect.width.i || target.height.i < rect.height.i {
+                resizeArgs += ["--resize", "\(target.width.i)x\(target.height.i)"]
+                size = target
+            }
         } else if let cropSize, let fromSize {
             let s = cropSize.isAspectRatio ? cropSize.computedSize(from: fromSize) : cropSize.ns
             if s.width > 0, s.height > 0, !cropSize.longEdge || cropSize.isAspectRatio {
@@ -832,12 +842,19 @@ class Image: CustomStringConvertible {
 
     func resize(toSize cropSize: CropSize, optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
         let pathForResize = FilePath.forResize.appending(path.nameWithoutSize)
-        if path != pathForResize {
-            try path.copy(to: pathForResize, force: true)
+        // rect crops are relative, so they can start from the pristine original instead
+        // of cutting into an already cropped image
+        let source: FilePath = if cropSize.cropRect != nil, let backup = path.clopBackupPath, backup.exists {
+            backup
+        } else {
+            path
+        }
+        if source != pathForResize {
+            try source.copy(to: pathForResize, force: true)
         }
 
         if type == .gif, let gif = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
-            return try gif.optimiseGIF(optimiser: optimiser, cropTo: cropSize, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
+            return try gif.optimiseGIF(optimiser: optimiser, cropTo: cropSize, fromSize: gif.size, aggressiveOptimisation: aggressiveOptimisation)
         }
 
         let size = cropSize.computedSize(from: size)
@@ -845,20 +862,25 @@ class Image: CustomStringConvertible {
         let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)[Q=100]", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
         let resizedPath = pathForResize.withSize(size)
 
-        do {
-            let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
-                mainActor { optimiser.processes = [proc] }
+        if let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
+            // vipsthumbnail only supports centre/attention crops, arbitrary rects go through CoreGraphics
+            try cropWithCGImage(source: pathForResize, dest: resizedPath, cropRect: cropRect, targetSize: size)
+        } else {
+            do {
+                let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
+                    mainActor { optimiser.processes = [proc] }
+                }
+                guard proc.terminationStatus == 0 else {
+                    throw ClopProcError.processError(proc)
+                }
+                resizedPath.waitForFile(for: 2.0)
+                guard resizedPath.exists else {
+                    throw ClopError.downscaleFailed(pathForResize)
+                }
+            } catch {
+                log.warning("vipsthumbnail resize failed for \(pathForResize.string), falling back to NSImage: \(String(describing: error))")
+                try resizeWithNSImage(source: pathForResize, dest: resizedPath, targetSize: NSSize(width: size.width.evenInt.d, height: size.height.evenInt.d))
             }
-            guard proc.terminationStatus == 0 else {
-                throw ClopProcError.processError(proc)
-            }
-            resizedPath.waitForFile(for: 2.0)
-            guard resizedPath.exists else {
-                throw ClopError.downscaleFailed(pathForResize)
-            }
-        } catch {
-            log.warning("vipsthumbnail resize failed for \(pathForResize.string), falling back to NSImage: \(String(describing: error))")
-            try resizeWithNSImage(source: pathForResize, dest: resizedPath, targetSize: NSSize(width: size.width.evenInt.d, height: size.height.evenInt.d))
         }
 
         if resizedPath != pathForResize {
@@ -869,6 +891,51 @@ class Image: CustomStringConvertible {
             throw ClopError.downscaleFailed(pathForResize)
         }
         return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+    }
+
+    func cropWithCGImage(source: FilePath, dest: FilePath, cropRect: CropRect, targetSize: NSSize? = nil) throws {
+        guard let imgSource = CGImageSourceCreateWithURL(source.url as CFURL, nil) else {
+            throw ClopError.downscaleFailed(source)
+        }
+        let props = CGImageSourceCopyPropertiesAtIndex(imgSource, 0, nil) as? [CFString: Any]
+        let pixelWidth = (props?[kCGImagePropertyPixelWidth] as? Double) ?? size.width.d
+        let pixelHeight = (props?[kCGImagePropertyPixelHeight] as? Double) ?? size.height.d
+
+        // Render with the EXIF orientation applied so the rect (defined in displayed coordinates) lines up
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(pixelWidth, pixelHeight),
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+        guard let fullImage = CGImageSourceCreateThumbnailAtIndex(imgSource, 0, options as CFDictionary) else {
+            throw ClopError.downscaleFailed(source)
+        }
+
+        let rect = cropRect.pixelRect(in: NSSize(width: fullImage.width.d, height: fullImage.height.d))
+        guard !rect.isEmpty, var cropped = fullImage.cropping(to: rect) else {
+            throw ClopError.downscaleFailed(source)
+        }
+
+        if let targetSize, targetSize.width.i < cropped.width || targetSize.height.i < cropped.height {
+            let nsImage = NSImage(cgImage: cropped, size: .zero)
+            guard let resized = nsImage.resize(to: targetSize),
+                  let resizedCG = resized.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            else {
+                throw ClopError.downscaleFailed(source)
+            }
+            cropped = resizedCG
+        }
+
+        let utType = (dest.extension.flatMap { UTType(filenameExtension: $0) } ?? type).identifier as CFString
+        guard let destination = CGImageDestinationCreateWithURL(dest.url as CFURL, utType, 1, nil) else {
+            throw ClopError.downscaleFailed(source)
+        }
+        let destOptions: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
+        CGImageDestinationAddImage(destination, cropped, destOptions as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw ClopError.downscaleFailed(source)
+        }
     }
 
     func resizeWithNSImage(source: FilePath, dest: FilePath, targetSize: NSSize) throws {

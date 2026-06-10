@@ -6,6 +6,7 @@ import SwiftUI
 enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Identifiable {
     case downscale
     case compression
+    case crop
     case share
     case restoreOptimise
     case aggressiveOptimisation
@@ -18,8 +19,8 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
 
     static let maxFloatingButtons = 5
     static let maxCompactButtons = 9
-    static let defaultFloating: [FloatingAction] = [.downscale, .compression, .share, .restoreOptimise]
-    static let defaultCompact: [FloatingAction] = [.downscale, .compression, .quickLook, .restoreOptimise, .showInFinder, .saveAs, .copyToClipboard, .share]
+    static let defaultFloating: [FloatingAction] = [.downscale, .compression, .crop, .share, .restoreOptimise]
+    static let defaultCompact: [FloatingAction] = [.downscale, .compression, .crop, .quickLook, .restoreOptimise, .showInFinder, .saveAs, .copyToClipboard, .share]
 
     var id: String { rawValue }
 
@@ -27,6 +28,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         switch self {
         case .downscale: "Downscale"
         case .compression: "Compression"
+        case .crop: "Crop and resize"
         case .share: "Share"
         case .restoreOptimise: "Restore / Optimise"
         case .aggressiveOptimisation: "Aggressive optimisation"
@@ -43,6 +45,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         switch self {
         case .downscale: "minus"
         case .compression: "slider.horizontal.3"
+        case .crop: "crop"
         case .share: "square.and.arrow.up"
         case .restoreOptimise: "arrow.uturn.backward"
         case .aggressiveOptimisation: "bolt.horizontal"
@@ -1519,6 +1522,11 @@ struct ActionButton: View {
             }
         case .compression:
             CompressionButton(optimiser: optimiser)
+        case .crop:
+            Button(action: { if !preview { optimiser.showCropWindow() } }) {
+                SwiftUI.Image(systemName: "crop").font(.heavy(9))
+            }
+            .contentShape(Rectangle())
         case .share:
             ShareButton(optimiser: optimiser)
         case .restoreOptimise:
@@ -1569,6 +1577,7 @@ struct ActionButton: View {
         switch action {
         case .downscale: optimiser.canDownscale()
         case .compression: optimiser.canReoptimise() && (optimiser.type.isImage || optimiser.type.isVideo)
+        case .crop: optimiser.canCrop()
         case .aggressiveOptimisation: optimiser.canReoptimise()
         case .addToShelf: runningShelfApp() != nil
         default: true

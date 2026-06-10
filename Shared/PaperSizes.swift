@@ -26,6 +26,26 @@ extension PDFDocument {
             page.setBounds(page.bounds(for: .mediaBox), for: .cropBox)
         }
     }
+
+    /// `rect` is normalized to the *displayed* page (top-left origin, rotation applied),
+    /// so it has to be mapped back into media box space before flipping the y axis
+    /// into PDF bottom-left coordinates.
+    func cropTo(rect: CropRect) {
+        guard pageCount > 0 else { return }
+
+        for i in 0 ..< pageCount {
+            let page = page(at: i)!
+            let media = page.bounds(for: .mediaBox)
+            let r = rect.rotated(by: page.rotation).clamped()
+            let cropRect = CGRect(
+                x: media.minX + media.width * r.x,
+                y: media.minY + media.height * (1 - r.y - r.height),
+                width: media.width * r.width,
+                height: media.height * r.height
+            )
+            page.setBounds(cropRect, for: .cropBox)
+        }
+    }
 }
 
 let PAPER_SIZES_BY_CATEGORY = [

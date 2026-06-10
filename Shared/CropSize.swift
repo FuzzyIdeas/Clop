@@ -6,6 +6,61 @@ enum CropOrientation: String, CaseIterable, Codable {
     case adaptive
 }
 
+/// Normalized (0...1) crop region with the origin in the top-left corner of the source.
+/// Being relative, it can be applied to any source size (pipeline runs operate on the
+/// original file, whose pixel size can differ from the displayed file).
+struct CropRect: Codable, Hashable {
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+
+    static let full = CropRect(x: 0, y: 0, width: 1, height: 1)
+
+    var isFullFrame: Bool {
+        x <= 0.005 && y <= 0.005 && width >= 0.995 && height >= 0.995
+    }
+
+    func clamped() -> CropRect {
+        let w = min(max(width, 0.001), 1)
+        let h = min(max(height, 0.001), 1)
+        return CropRect(
+            x: min(max(x, 0), 1 - w),
+            y: min(max(y, 0), 1 - h),
+            width: w, height: h
+        )
+    }
+
+    func pixelRect(in size: NSSize) -> CGRect {
+        let r = clamped()
+        let x = min(max((r.x * size.width).rounded(), 0), max(size.width - 1, 0))
+        let y = min(max((r.y * size.height).rounded(), 0), max(size.height - 1, 0))
+        let w = min(max((r.width * size.width).rounded(), 1), size.width - x)
+        let h = min(max((r.height * size.height).rounded(), 1), size.height - y)
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+
+    func computedSize(from size: NSSize) -> NSSize {
+        pixelRect(in: size).size
+    }
+
+    /// Maps a rect from *displayed* (rotated) page space into *media box* (unrotated) space
+    /// for PDF pages with a /Rotate entry of 90, 180 or 270 degrees (clockwise).
+    /// The inverse mapping (media to displayed) is `rotated(by: 360 - degrees)`.
+    func rotated(by degrees: Int) -> CropRect {
+        switch ((degrees % 360) + 360) % 360 {
+        case 90:
+            CropRect(x: y, y: 1 - x - width, width: height, height: width)
+        case 180:
+            CropRect(x: 1 - x - width, y: 1 - y - height, width: width, height: height)
+        case 270:
+            CropRect(x: 1 - y - height, y: x, width: height, height: width)
+        default:
+            self
+        }
+    }
+}
+
 struct CropSize: Codable, Hashable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -15,25 +70,28 @@ struct CropSize: Codable, Hashable, Identifiable {
         let longEdge = try container.decode(Bool.self, forKey: .longEdge)
         let smartCrop = try container.decode(Bool.self, forKey: .smartCrop)
         let isAspectRatio = try container.decodeIfPresent(Bool.self, forKey: .isAspectRatio) ?? false
-        self.init(width: width, height: height, name: name, longEdge: longEdge, smartCrop: smartCrop, isAspectRatio: isAspectRatio)
+        let cropRect = try container.decodeIfPresent(CropRect.self, forKey: .cropRect)
+        self.init(width: width, height: height, name: name, longEdge: longEdge, smartCrop: smartCrop, isAspectRatio: isAspectRatio, cropRect: cropRect)
     }
 
-    init(width: Int, height: Int, name: String = "", longEdge: Bool = false, smartCrop: Bool = false, isAspectRatio: Bool = false) {
+    init(width: Int, height: Int, name: String = "", longEdge: Bool = false, smartCrop: Bool = false, isAspectRatio: Bool = false, cropRect: CropRect? = nil) {
         self.width = width
         self.height = height
         self.name = name
         self.longEdge = longEdge
         self.smartCrop = smartCrop
         self.isAspectRatio = isAspectRatio
+        self.cropRect = cropRect
     }
 
-    init(width: Double, height: Double, name: String = "", longEdge: Bool = false, smartCrop: Bool = false, isAspectRatio: Bool = false) {
+    init(width: Double, height: Double, name: String = "", longEdge: Bool = false, smartCrop: Bool = false, isAspectRatio: Bool = false, cropRect: CropRect? = nil) {
         self.width = width.evenInt
         self.height = height.evenInt
         self.name = name
         self.longEdge = longEdge
         self.smartCrop = smartCrop
         self.isAspectRatio = isAspectRatio
+        self.cropRect = cropRect
     }
 
     enum CodingKeys: String, CodingKey {
@@ -43,6 +101,7 @@ struct CropSize: Codable, Hashable, Identifiable {
         case longEdge
         case smartCrop
         case isAspectRatio
+        case cropRect
     }
 
     static let zero = CropSize(width: 0, height: 0)
@@ -53,6 +112,7 @@ struct CropSize: Codable, Hashable, Identifiable {
     var longEdge = false
     var smartCrop = false
     var isAspectRatio = false
+    var cropRect: CropRect? = nil
 
     var flipped: CropSize {
         var flippedName = name
@@ -127,7 +187,10 @@ struct CropSize: Codable, Hashable, Identifiable {
 }
 
 func < (_ cropSize: CropSize, _ size: NSSize) -> Bool {
-    cropSize.longEdge
+    if let rect = cropSize.cropRect {
+        return !rect.isFullFrame
+    }
+    return cropSize.longEdge
         ? (cropSize.width == 0 ? cropSize.height : cropSize.width).d < max(size.width, size.height)
         : (cropSize.width.d < size.width && cropSize.height.d <= size.height) || (cropSize.width.d <= size.width && cropSize.height.d < size.height)
 }

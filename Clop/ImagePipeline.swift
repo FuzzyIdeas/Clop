@@ -423,9 +423,17 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                 if !hideFloatingResult {
                     OM.current = optimiser
                 }
+                // rect crops run from the pristine original, so keep reporting the original
+                // bytes/size instead of the working (already optimised/cropped) file's
+                let rectCrop = effectiveActions.contains {
+                    if case let .downscale(_, cropSize) = $0, cropSize?.cropRect?.isFullFrame == false { return true }
+                    return false
+                }
                 optimiser.finish(
-                    oldBytes: img.data.count, newBytes: optimisedImage.data.count,
-                    oldSize: img.size, newSize: optimisedImage.size,
+                    oldBytes: rectCrop && optimiser.oldBytes > 0 ? optimiser.oldBytes : img.data.count,
+                    newBytes: optimisedImage.data.count,
+                    oldSize: rectCrop ? (optimiser.oldSize ?? img.size) : img.size,
+                    newSize: optimisedImage.size,
                     removeAfterMs: id == Optimiser.IDs.clipboardImage ? hideClipboardAfter : hideFilesAfter
                 )
 

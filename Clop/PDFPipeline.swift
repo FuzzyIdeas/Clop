@@ -96,7 +96,11 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
                 let backupPath = pdf.path.clopBackupPath
                 optimisedPDF = try pdf.optimise(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, dpi: dpiOverride)
                 if let cropSize {
-                    optimisedPDF!.cropTo(aspectRatio: cropSize.longEdge ? cropSize.fractionalAspectRatio : cropSize.aspectRatio)
+                    if let rect = cropSize.cropRect, !rect.isFullFrame {
+                        optimisedPDF!.cropTo(rect: rect)
+                    } else {
+                        optimisedPDF!.cropTo(aspectRatio: cropSize.longEdge ? cropSize.fractionalAspectRatio : cropSize.aspectRatio)
+                    }
                 }
                 if !allowLarger, cropSize == nil, optimisedPDF!.fileSize >= fileSize {
                     pdf.path.restore(backupPath: backupPath ?? pdf.path.clopBackupPath, force: true)

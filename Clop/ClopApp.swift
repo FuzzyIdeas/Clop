@@ -357,14 +357,6 @@ class AppDelegate: AppDelegateParent {
 
         guard !SWIFTUI_PREVIEW else { return }
 
-        #if DEBUG
-            settingsViewManager.tab = .automation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                WM.open("settings")
-                focus()
-            }
-        #endif
-
         floatingResultsWindow.animateOnResize = false
         pub(.allowClopToAppearInScreenshots)
             .sink {
@@ -572,6 +564,8 @@ class AppDelegate: AppDelegateParent {
             opt.editingFilename = true
         case .d where !opt.type.isAudio && opt.url != nil && opt.comparisonOriginalURL != nil:
             opt.compare()
+        case .k where opt.canCrop() && !opt.running:
+            opt.showCropWindow()
         case .c:
             opt.copyToClipboard()
             opt.overlayMessage = "Copied"
@@ -628,6 +622,10 @@ class AppDelegate: AppDelegateParent {
         case .r:
             if let opt = OM.current, !opt.running {
                 opt.editingFilename = true
+            }
+        case .k:
+            if let opt = OM.current, opt.canCrop(), !opt.running {
+                opt.showCropWindow()
             }
         case .delete:
             if let opt = OM.optimisers.filter({ !$0.inRemoval && !$0.hidden }).max(by: \.startedAt) {

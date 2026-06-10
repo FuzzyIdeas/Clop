@@ -373,6 +373,27 @@ enum TempPipelineSegment {
     lazy var audio: Audio? = fetchAudio()
 
     var comparisonWindowController: NSWindowController?
+    var cropWindowController: NSWindowController?
+    /// Last applied rect crop (with its preset name and target size), so the crop window
+    /// can re-open on the uncropped source with the current crop pre-selected
+    var lastCropSize: CropSize?
+
+    /// The pristine uncropped file that rect crops should start from. The backup name
+    /// hashes the file's timestamp, so in-place changes (like a previous crop) can make
+    /// it unresolvable: fall back to the URLs tracked at optimisation time.
+    var cropOriginalURL: URL? {
+        guard let url, let path = url.filePath else { return nil }
+        if let backup = path.clopBackupPath, backup.exists {
+            return backup.url
+        }
+        let ext = path.extension?.lowercased()
+        for candidate in [originalURL, startingURL] {
+            if let p = candidate?.existingFilePath, p.url != url, p.extension?.lowercased() == ext {
+                return p.url
+            }
+        }
+        return nil
+    }
 
     var isComparing = false
 
@@ -662,7 +683,9 @@ enum TempPipelineSegment {
         notice = nil
         info = nil
 
-        guard let originalFilePath = originalURL?.filePath ?? path else { return }
+        // originalURL can point at the backup, which "Restore original" moves back
+        // over the working file, so only trust it if the file still exists
+        guard let originalFilePath = originalURL?.existingFilePath ?? path else { return }
         let backupPath = (originalFilePath.clopBackupPath?.exists ?? false)
             ? originalFilePath.clopBackupPath
             : convertedFromURL?.existingFilePath
@@ -1433,7 +1456,9 @@ enum TempPipelineSegment {
             }
         }
         if remove {
-            self.remove(after: (animateRemoval && !OM.compactResults) ? 500 : 0, withAnimation: !OM.compactResults)
+            // stop() is always an explicit termination (swipe, close button, cancellation),
+            // so the removal must go through even while another result is hovered.
+            self.remove(after: (animateRemoval && !OM.compactResults) ? 300 : 0, withAnimation: !OM.compactResults, force: true)
         }
     }
 
@@ -1533,6 +1558,7 @@ enum TempPipelineSegment {
         scalingFactor = 1.0
         downscaleFactor = 1.0
         changePlaybackSpeedFactor = 1.0
+        lastCropSize = nil
         aggressive = false
         resetRemover()
 
@@ -1723,8 +1749,10 @@ enum TempPipelineSegment {
 
     func crop(to size: CropSize) {
         guard let url, url.isFileURL, url.filePath?.exists ?? false else { return }
+        lastCropSize = size.cropRect == nil ? nil : size
 
-        if !tempPipeline.isEmpty {
+        // pipeline crop steps can't represent arbitrary rects, those go through optimiseItem directly
+        if !tempPipeline.isEmpty, size.cropRect == nil {
             updateTempPipeline(with: .crop(
                 width: size.width.i, height: size.height.i,
                 longEdge: size.longEdge ? max(size.width.i, size.height.i) : nil
@@ -1736,6 +1764,13 @@ enum TempPipelineSegment {
         let clip = ClipboardType.fromURL(url)
 
         Task.init {
+            // re-crops run from the pristine original: make sure it's reachable at the
+            // backup path the pipelines resolve, even after in-place changes renamed it
+            if size.cropRect != nil, let path = self.url?.filePath, let backup = path.clopBackupPath, !backup.exists,
+               let original = self.cropOriginalURL?.filePath
+            {
+                try? original.copy(to: backup)
+            }
             try await optimiseItem(
                 clip,
                 id: id,
@@ -1776,7 +1811,7 @@ enum TempPipelineSegment {
         }
     }
 
-    func remove(after ms: Int, withAnimation: Bool = false) {
+    func remove(after ms: Int, withAnimation: Bool = false, force: Bool = false) {
         guard !inRemoval, !SWIFTUI_PREVIEW, !SM.selecting, !SHARING_MANAGER.isShowingPicker, !sharing else { return }
 
         self.lastRemoveAfterMs = ms
@@ -1789,7 +1824,11 @@ enum TempPipelineSegment {
                 return
             }
 
-            guard hoveredOptimiserID == nil, !DM.dragging, !editingFilename, !SM.selecting, !SHARING_MANAGER.isShowingPicker, !sharing else {
+            // The hover deferral below is meant for auto-hide timers, where removal should wait
+            // while the user interacts with the results. Explicit dismissals (swipe, stop/close
+            // button) pass force=true: deferring those would set inRemoval=false and slide the
+            // already-dismissed result back into view when another result is hovered.
+            guard force || (hoveredOptimiserID == nil && !DM.dragging && !editingFilename && !SM.selecting && !SHARING_MANAGER.isShowingPicker && !sharing) else {
                 if editingFilename, let lastRemoveAfterMs = self.lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
                     self.lastRemoveAfterMs = 1000 * 120
                 }
@@ -1798,7 +1837,9 @@ enum TempPipelineSegment {
                 return
             }
             self.editingFilename = false
-            OM.optimisers = OM.optimisers.filter { $0.id != self.id }
+            SwiftUI.withAnimation(.easeOut(duration: 0.2)) {
+                OM.optimisers = OM.optimisers.filter { $0.id != self.id }
+            }
             if url != nil {
                 OM.removedOptimisers = OM.removedOptimisers.without(self).with(self).filter { !$0.hidden && !$0.isPreview }
 
@@ -1812,7 +1853,7 @@ enum TempPipelineSegment {
             }
         }
 
-        if withAnimation, hoveredOptimiserID == nil, !DM.dragging {
+        if withAnimation, force || (hoveredOptimiserID == nil && !DM.dragging) {
             self.inRemoval = true
         }
     }
