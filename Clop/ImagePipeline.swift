@@ -208,6 +208,17 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     if let previousPipeline = imagePipelineInFlight[pipelineId] {
         opt(pipelineId)?.stop(remove: false)
         await previousPipeline.value
+
+        // A duplicate plain-optimise request (e.g. several file-watcher events for one download)
+        // queues up here behind the first pass. The cache checks above ran before the await, so
+        // re-check now instead of re-optimising content the awaited pass just finished.
+        if !skipCache, !copyToClipboard, aggressiveOptimisation == nil, actions.allSatisfy(\.isOptimise),
+           let cachedPath = OM.optimisedFilesByHash[img.hash], cachedPath.exists,
+           let optImg = Image(path: cachedPath, optimised: true, retinaDownscaled: img.retinaDownscaled)
+        {
+            log.debug("Image \(pathString) was already optimised by the in-flight pipeline, using cached result \(cachedPath.string)")
+            return optImg
+        }
     }
 
     // Set up optimiser

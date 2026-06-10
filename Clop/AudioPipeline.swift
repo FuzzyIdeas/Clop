@@ -38,7 +38,21 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     // Serialize per id: terminate the in-flight pipeline's running process and wait for it to unwind.
     if let previousPipeline = audioPipelineInFlight[pipelineId] {
         opt(pipelineId)?.stop(remove: false)
+        // Hash off the main actor while the in-flight pass unwinds: the lazy `audio.hash`
+        // would only read the file after the awaited pass has already replaced it.
+        let contentHash = Task.detached { path.fileContentsHash }
         await previousPipeline.value
+
+        // A duplicate plain-optimise request (e.g. several file-watcher events for one download)
+        // queues up here behind the first pass: re-check the cache instead of re-encoding
+        // content the awaited pass just finished.
+        if actions.allSatisfy(\.isOptimise), !copyToClipboard, aggressiveOptimisation == nil,
+           bitrateOverride == nil, formatOverride == nil, loudnormTarget == nil,
+           let hash = await contentHash.value, let cachedPath = OM.optimisedFilesByHash[hash], cachedPath.exists
+        {
+            log.debug("Audio \(pathString) was already optimised by the in-flight pipeline, using cached result \(cachedPath.string)")
+            return Audio(path: cachedPath, thumb: false, id: id)
+        }
     }
 
     let optimiser = OM.optimiser(id: pipelineId, type: .audio(audioType), operation: opLabel, hidden: hideFloatingResult, source: source)
