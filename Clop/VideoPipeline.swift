@@ -105,7 +105,21 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     // Prevents concurrent downscale/speed-change passes from racing on the same file paths.
     if let previousPipeline = videoPipelineInFlight[pipelineId] {
         opt(pipelineId)?.stop(remove: false)
+        // Hash off the main actor while the in-flight pass unwinds: the lazy `video.hash`
+        // would only read the file after the awaited pass has already replaced it.
+        let contentHash = Task.detached { path.fileContentsHash }
         await previousPipeline.value
+
+        // A duplicate plain-optimise request (e.g. several file-watcher events for one download)
+        // queues up here behind the first pass: re-check the cache instead of re-encoding
+        // content the awaited pass just finished.
+        if actions.allSatisfy(\.isOptimise), !copyToClipboard, aggressiveOptimisation == nil,
+           videoEncoderOverride == nil, ffmpegEncoderOverride == nil, outputExtension == nil, fpsOverride == nil,
+           let hash = await contentHash.value, let cachedPath = OM.optimisedFilesByHash[hash], cachedPath.exists
+        {
+            log.debug("Video \(pathString) was already optimised by the in-flight pipeline, using cached result \(cachedPath.string)")
+            return Video(path: cachedPath, thumb: false, id: id)
+        }
     }
 
     // Set up optimiser

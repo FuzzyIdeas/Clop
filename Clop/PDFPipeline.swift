@@ -38,7 +38,20 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
     // Serialize per id: terminate the in-flight pipeline's running process and wait for it to unwind.
     if let previousPipeline = pdfPipelineInFlight[pipelineId] {
         opt(pipelineId)?.stop(remove: false)
+        // Hash off the main actor while the in-flight pass unwinds: the lazy `pdf.hash`
+        // would only read the file after the awaited pass has already replaced it.
+        let contentHash = Task.detached { path.fileContentsHash }
         await previousPipeline.value
+
+        // A duplicate plain-optimise request (e.g. several file-watcher events for one download)
+        // queues up here behind the first pass: re-check the cache instead of re-optimising
+        // content the awaited pass just finished.
+        if actions.allSatisfy(\.isOptimise), !copyToClipboard, aggressiveOptimisation == nil, dpiOverride == nil,
+           let hash = await contentHash.value, let cachedPath = OM.optimisedFilesByHash[hash], cachedPath.exists
+        {
+            log.debug("PDF \(pathString) was already optimised by the in-flight pipeline, using cached result \(cachedPath.string)")
+            return PDF(cachedPath, thumb: false, id: id)
+        }
     }
 
     let optimiser = OM.optimiser(id: pipelineId, type: .pdf, operation: opLabel, hidden: hideFloatingResult, source: source)

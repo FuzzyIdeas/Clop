@@ -220,10 +220,7 @@ class FileOptimisationWatcher {
                 else { return }
 
                 let typeName = fileType.description
-                addedFilesCleaner = nil
-                log.debug("Added \(path.string) to justAddedFiles in the \(typeName) watcher")
-                justAddedFiles.insert(event)
-                cancelledFiles.remove(path)
+                let isNewFile = justAddedFiles.insert(event).inserted
 
                 if !withinSafeMeasureTime {
                     addedFileRemovers[path]?.cancel()
@@ -233,6 +230,17 @@ class FileOptimisationWatcher {
                         self?.addedFileRemovers.removeValue(forKey: path)
                     }
                 }
+
+                // A single download/save produces several FSEvents for the same path (rename into
+                // place, then quarantine/metadata writes); only the first one should start a
+                // processing task, the settle-wait inside it handles the follow-up writes.
+                guard isNewFile else {
+                    log.debug("Skipping duplicate event for \(path.string) in the \(typeName) watcher")
+                    return
+                }
+                addedFilesCleaner = nil
+                log.debug("Added \(path.string) to justAddedFiles in the \(typeName) watcher")
+                cancelledFiles.remove(path)
 
                 Task.init { [weak self] in await self?.checkEventAndProcess(event) }
             }
