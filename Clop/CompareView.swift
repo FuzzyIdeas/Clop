@@ -219,24 +219,6 @@ struct CompareView: View {
     @ObservedObject var optimiser: Optimiser
     @ObservedObject var km = KM
 
-    /// Pick the renderer from the actual file at this pane's URL, not `optimiser.type`. After a
-    /// cross-media conversion the two panes can differ (e.g. a GIF made from a video: the optimised
-    /// pane is the GIF image while the original pane is the source video), so each side must choose
-    /// its player from its own file.
-    @ViewBuilder
-    func renderer(for url: URL, otherVideoURL: URL? = nil) -> some View {
-        if url.filePath?.isVideo == true {
-            let other = otherVideoURL?.filePath?.isVideo == true ? otherVideoURL : nil
-            LoopingVideoPlayer(videoURL: url, otherVideoURL: other, playing: $videoPlaying)
-        } else if url.filePath?.isPDF == true {
-            PDFKitView(url: url)
-                .allowsHitTesting(false)
-                .aspectRatio(contentMode: fitOrFill)
-        } else {
-            PannableImage(url: url, fitOrFill: $fitOrFill)
-        }
-    }
-
     var previewStack: some View {
         GeometryReader { proxy in
             HStack {
@@ -361,6 +343,24 @@ struct CompareView: View {
         .onChange(of: km.ralt) { _ in flagsChanged(Set(km.flags)) }
         .onChange(of: km.lalt) { _ in flagsChanged(Set(km.flags)) }
         .focusable(false)
+    }
+
+    /// Pick the renderer from the actual file at this pane's URL, not `optimiser.type`. After a
+    /// cross-media conversion the two panes can differ (e.g. a GIF made from a video: the optimised
+    /// pane is the GIF image while the original pane is the source video), so each side must choose
+    /// its player from its own file.
+    @ViewBuilder
+    func renderer(for url: URL, otherVideoURL: URL? = nil) -> some View {
+        if url.filePath?.isVideo == true {
+            let other = otherVideoURL?.filePath?.isVideo == true ? otherVideoURL : nil
+            LoopingVideoPlayer(videoURL: url, otherVideoURL: other, playing: $videoPlaying)
+        } else if url.filePath?.isPDF == true {
+            PDFKitView(url: url)
+                .allowsHitTesting(false)
+                .aspectRatio(contentMode: fitOrFill)
+        } else {
+            PannableImage(url: url, fitOrFill: $fitOrFill)
+        }
     }
 
     func preview(url: URL, title: String, bytes: Int? = nil, size: CGSize? = nil, aspectRatio: Double = 1, @ViewBuilder content: () -> some View) -> some View {

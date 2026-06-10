@@ -102,6 +102,97 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
 
 }
 
+// MARK: - Built-in Pipeline Library
+
+/// Pipelines shipped with the app, distilled from the most common real-world workflows:
+/// web/blog publishing, chat and email size limits, note attachments, screencast demos,
+/// document filing and audio conversion. Seeded into the saved pipeline library once per
+/// `version`, so user deletions stick and app updates can add new entries.
+private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFileType, rawText: String, skipOptimisation: Bool, version: Int)] = [
+    (
+        id: "builtin-image-web-1920-webp", name: "Web image (1920px WebP)", fileType: .image,
+        rawText: "crop(width: 1920) -> convert(to: webp)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-image-email", name: "Email-friendly image", fileType: .image,
+        rawText: "crop(width: 2048) -> optimise(encoder: aggressive)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-image-social-preview", name: "Social preview (1200×630)", fileType: .image,
+        rawText: "crop(width: 1200, height: 630) -> convert(to: jpeg)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-image-markdown-attachment", name: "Markdown attachment", fileType: .image,
+        rawText: "crop(width: 1600) -> convert(to: webp, location: inPlace) -> copyToClipboard(format: markdown)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-image-file-screenshots", name: "File screenshots by month", fileType: .image,
+        rawText: "if(regex: \"^(Screenshot|Screen Shot|CleanShot)\") -> optimise() -> move(to: \"~/Pictures/Screenshots/%y/%m/\")", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-video-chat-demo", name: "Chat-sized demo (720p, silent)", fileType: .video,
+        rawText: "crop(width: 1280) -> optimise(encoder: fast) -> removeAudio", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-video-youtube-1080p", name: "YouTube 1080p", fileType: .video,
+        rawText: "crop(width: 1920) -> optimise(encoder: slowHighQuality)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-video-gif-demo", name: "GIF demo", fileType: .video,
+        rawText: "crop(width: 800) -> convert(to: gif)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-video-2x-silent", name: "2× silent screencast", fileType: .video,
+        rawText: "changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-pdf-email-portal", name: "Email/portal PDF (150 DPI)", fileType: .pdf,
+        rawText: "optimise(dpi: 150)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-pdf-scanned-doc", name: "Scanned document (200 DPI)", fileType: .pdf,
+        rawText: "optimise(dpi: 200)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-pdf-pages-to-images", name: "PDF pages to images", fileType: .pdf,
+        rawText: "extractPagesAsImages(format: jpeg, quality: high)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-audio-voice-memo-mp3", name: "Voice memo to MP3", fileType: .audio,
+        rawText: "convert(to: mp3)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-audio-podcast-128", name: "Podcast bitrate (128 kbps)", fileType: .audio,
+        rawText: "lowerBitrate(kbps: 128)", skipOptimisation: true, version: 1
+    ),
+]
+
+let BUILTIN_PIPELINES_VERSION = 1
+
+/// Append new built-in pipelines to the saved library, once per builtin version.
+/// Dedupes by stable id so re-seeding never duplicates and user deletions are final
+/// (a deleted builtin only reappears if a future version ships a new id).
+func seedBuiltinPipelines() {
+    let seeded = Defaults[.builtinPipelinesSeededVersion]
+    guard seeded < BUILTIN_PIPELINES_VERSION else { return }
+
+    var saved = Defaults[.savedPipelines]
+    let existingIDs = Set(saved.map(\.id))
+    for def in BUILTIN_PIPELINE_DEFS where def.version > seeded && !existingIDs.contains(def.id) {
+        saved.append(Pipeline(
+            id: def.id,
+            steps: Pipeline.parseSteps(from: def.rawText),
+            name: def.name,
+            rawText: def.rawText,
+            skipOptimisation: def.skipOptimisation,
+            fileType: def.fileType
+        ))
+    }
+    Defaults[.savedPipelines] = saved
+    Defaults[.builtinPipelinesSeededVersion] = BUILTIN_PIPELINES_VERSION
+    log.debug("Seeded built-in pipelines up to version \(BUILTIN_PIPELINES_VERSION)")
+}
+
 // MARK: - TemplateContext
 
 struct TemplateContext {
@@ -299,9 +390,10 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     file: FilePath,
     source: OptimisationSource,
     optimiser: Optimiser,
-    fileType: ClopFileType
+    fileType: ClopFileType,
+    forceHide: Bool = false
 ) async throws -> (file: FilePath, shownVisibleResult: Bool) {
-    let exec = PipelineExecution(file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: pipeline.hideResult)
+    let exec = PipelineExecution(file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: pipeline.hideResult || forceHide)
 
     log.debug("Pipeline: executing \(pipeline.steps.count) steps on \(file.string)")
 
@@ -315,14 +407,25 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             break
         }
 
-        // Collect consecutive processing/media steps for compiled execution
-        let isEncodable = step.isProcessingStep || step.category == .mediaSpecific
-        if isEncodable {
+        // Collect consecutive processing/media steps for compiled execution.
+        // A step with a non-inPlace location ends its batch: the location names that
+        // step's output file, so later steps must run as separate passes (this is what
+        // makes multi-output pipelines like `crop(location: "%f@2x") -> crop(location:
+        // "%f@1x")` produce both files). Steps before the batch terminator are virtual
+        // intermediates: only the final output of the batch is written to disk.
+        // GIF conversion uses a dedicated encoder (gifski) that can't be compiled into
+        // an ffmpeg pass, so it never batches.
+        func isCompilable(_ s: PipelineStep) -> Bool {
+            guard s.isProcessingStep || s.category == .mediaSpecific else { return false }
+            if case let .convert(format, _) = s, format == "gif", fileType == .video { return false }
+            return true
+        }
+        if isCompilable(step) {
             var batch: [PipelineStep] = [step]
             var peekIdx = stepIndex + 1
-            while peekIdx < pipeline.steps.count {
+            while peekIdx < pipeline.steps.count, (batch.last!.location ?? "inPlace") == "inPlace" {
                 let next = pipeline.steps[peekIdx]
-                if next.isProcessingStep || next.category == .mediaSpecific {
+                if isCompilable(next) {
                     batch.append(next)
                     peekIdx += 1
                 } else {
@@ -397,14 +500,20 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 }
 
 /// Run all configured pipelines for a file type and source after optimisation.
+///
+/// When `pipelines` is passed explicitly (e.g. a CLI `pipeline run` request), source lookup
+/// is skipped and exactly those pipelines run. Returns the final file path after all pipelines.
+@discardableResult
 @MainActor func runPipelinesAfterOptimisation(
     file: FilePath,
     type: ItemType,
     source: OptimisationSource,
-    optimiser: Optimiser
-) async {
+    optimiser: Optimiser,
+    pipelines explicitPipelines: [Pipeline]? = nil,
+    forceHide: Bool = false
+) async -> FilePath {
     log.debug("Pipeline: checking pipelines for file=\(file.string) type=\(String(describing: type)) source=\(source.string)")
-    let pipelines = pipelinesFor(type: type, source: source)
+    let pipelines = explicitPipelines?.map(\.resolved) ?? pipelinesFor(type: type, source: source)
 
     // Seed the temp pipeline
     if let first = pipelines.first {
@@ -420,7 +529,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
     guard !pipelines.isEmpty else {
         log.debug("Pipeline: no pipelines configured, skipping")
-        return
+        return file
     }
 
     let fileType: ClopFileType?
@@ -431,20 +540,22 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     case .pdf: fileType = .pdf
     default:
         log.debug("Pipeline: unknown file type \(String(describing: type)), skipping")
-        return
+        return file
     }
 
-    guard let fileType else { return }
+    guard let fileType else { return file }
 
     var anyVisibleResult = false
+    var finalFile = file
 
     for (i, pipeline) in pipelines.enumerated() {
         let name = pipeline.name ?? "pipeline[\(i)]"
         let stepsDesc = pipeline.steps.map(\.displayString).joined(separator: " -> ")
         log.debug("Pipeline: running '\(name)': \(stepsDesc)")
         do {
-            let (resultFile, shownVisible) = try await executePipeline(pipeline, file: file, source: source, optimiser: optimiser, fileType: fileType)
+            let (resultFile, shownVisible) = try await executePipeline(pipeline, file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: forceHide)
             if shownVisible { anyVisibleResult = true }
+            finalFile = resultFile
             log.debug("Pipeline: '\(name)' completed, result file: \(resultFile.string), visible: \(shownVisible)")
 
             // If no step showed a visible result, show one via the parent optimiser.
@@ -453,7 +564,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
                 let resultSize = resultFile.fileSize() ?? 0
                 let originalSize = file.fileSize() ?? 0
                 optimiser.url = resultFile.url
-                optimiser.hidden = pipeline.hideResult
+                optimiser.hidden = pipeline.hideResult || forceHide
                 optimiser.thumbnail = NSImage(contentsOf: resultFile.url)
                 optimiser.finish(oldBytes: originalSize, newBytes: resultSize)
                 anyVisibleResult = true
@@ -470,4 +581,5 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     } else if optimiser.operation == "Running pipeline" {
         optimiser.finish(notice: "Pipeline completed")
     }
+    return finalFile
 }

@@ -1227,6 +1227,277 @@ struct Clop: ParsableCommand {
         }
     }
 
+    struct PipelineCommand: ParsableCommand {
+        struct List: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "List saved pipelines and folder automations."
+            )
+
+            @Flag(name: .shortAndLong, help: "Output as JSON")
+            var json = false
+
+            mutating func run() throws {
+                let saved = readSavedPipelines()
+
+                guard !json else {
+                    var result: [String: Any] = ["saved": saved.map(\.rawDict)]
+                    var automations: [String: Any] = [:]
+                    for (key, label) in PIPELINE_AUTOMATION_KEYS {
+                        guard let dict = UserDefaults.app?.dictionary(forKey: key) as? [String: [String]], !dict.isEmpty else { continue }
+                        automations[label] = dict.mapValues { $0.compactMap { CLIPipeline.from(json: $0)?.rawDict } }
+                    }
+                    result["automations"] = automations
+                    let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+                    print(String(data: data, encoding: .utf8) ?? "{}")
+                    return
+                }
+
+                if saved.isEmpty {
+                    print("No saved pipelines".dim())
+                } else {
+                    print("Saved pipelines:".bold())
+                    for p in saved {
+                        let type = (p.fileType ?? "any").yellow()
+                        let skip = (p.skipOptimisation ?? false) ? " [steps only]".dim() : ""
+                        print("  \((p.name ?? p.id).green()) (\(type))\(skip)")
+                        print("    \(p.displayText)")
+                    }
+                }
+
+                for (key, label) in PIPELINE_AUTOMATION_KEYS {
+                    guard let dict = UserDefaults.app?.dictionary(forKey: key) as? [String: [String]], !dict.isEmpty else { continue }
+                    print("\nAutomations for \(label.bold()):")
+                    for (source, pipelines) in dict.sorted(by: { $0.key < $1.key }) {
+                        for pJSON in pipelines {
+                            guard let p = CLIPipeline.from(json: pJSON) else { continue }
+                            let resolved = p.resolve(in: saved)
+                            let name = resolved.name.map { " -> \($0.green())" } ?? ""
+                            print("  \(source.shellString.yellow())\(name)")
+                            print("    \(resolved.displayText)")
+                        }
+                    }
+                }
+            }
+        }
+
+        struct Show: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Show the steps of a saved pipeline."
+            )
+
+            @Flag(name: .shortAndLong, help: "Output the raw pipeline JSON")
+            var json = false
+
+            @Argument(help: "Name of the saved pipeline")
+            var name: String
+
+            mutating func run() throws {
+                guard let p = readSavedPipelines().first(where: { ($0.name ?? "").localizedCaseInsensitiveCompare(name) == .orderedSame }) else {
+                    throw ValidationError("No saved pipeline named '\(name)'. Use `clop pipeline list` to see available pipelines.")
+                }
+                if json {
+                    let data = try JSONSerialization.data(withJSONObject: p.rawDict, options: [.prettyPrinted, .sortedKeys])
+                    print(String(data: data, encoding: .utf8) ?? "{}")
+                } else {
+                    print(p.displayText)
+                }
+            }
+        }
+
+        struct Run: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Run a pipeline on files: a saved pipeline name or inline steps.",
+                discussion: """
+                The pipeline argument can be the name of a saved pipeline, or inline steps like:
+
+                    clop pipeline run 'crop(width: 1600) -> convert(to: webp)' image.png
+
+                Inline pipelines run exactly the steps written (no implicit optimisation pass).
+                Add an explicit `optimise` step if you want one. Saved pipelines keep their
+                "skip optimisation" setting: when off, files are optimised before the steps run.
+
+                Steps: optimise, downscale, lowerBitrate, convert, crop, extractPagesAsImages,
+                copy, move, rename, delete, if, ifNot, removeAudio, changeSpeed, runScript,
+                runShortcut, copyToClipboard, copyLinkForSending, shelveWith, uploadWith, openWith
+                """
+            )
+
+            @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
+            var gui = false
+
+            @Flag(name: .shortAndLong, help: "Don't print progress to stderr")
+            var noProgress = false
+
+            @Flag(name: .long, help: "Process files and items in the background")
+            var async = false
+
+            @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
+            var recursive = false
+
+            @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
+            var skipErrors = false
+
+            @Flag(name: .shortAndLong, help: "Output results as a JSON")
+            var json = false
+
+            @Option(name: .long, help: "Types of files to process (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`)")
+            var types: [UTType] = []
+
+            @Argument(help: "Saved pipeline name or inline pipeline steps")
+            var pipeline: String
+
+            @Argument(help: "Files to run the pipeline on (can be a file, folder, or list of files)")
+            var items: [String] = []
+
+            var urls: [URL] = []
+
+            mutating func validate() throws {
+                let savedNames = readSavedPipelines().compactMap(\.name)
+                let isSavedName = savedNames.contains { $0.localizedCaseInsensitiveCompare(pipeline) == .orderedSame }
+                if !isSavedName {
+                    let invalid = invalidPipelineSteps(pipeline)
+                    guard invalid.isEmpty else {
+                        throw ValidationError("""
+                        '\(pipeline)' is not a saved pipeline name and contains unknown steps: \(invalid.joined(separator: ", "))
+                        Known steps: \(KNOWN_PIPELINE_STEPS.joined(separator: ", "))
+                        Saved pipelines: \(savedNames.isEmpty ? "none" : savedNames.joined(separator: ", "))
+                        """)
+                    }
+                }
+
+                if types.isEmpty {
+                    types = ALL_FORMATS
+                }
+                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types)
+                guard !urls.isEmpty else {
+                    throw ValidationError("At least one file or folder must be specified")
+                }
+            }
+
+            mutating func run() throws {
+                try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "pipeline") {
+                    OptimisationRequest(
+                        id: String(Int.random(in: 1000 ... 100_000)),
+                        urls: urls,
+                        size: nil,
+                        downscaleFactor: nil,
+                        changePlaybackSpeedFactor: nil,
+                        hideFloatingResult: !gui,
+                        copyToClipboard: false,
+                        aggressiveOptimisation: false,
+                        adaptiveOptimisation: nil,
+                        source: "cli",
+                        pipeline: pipeline
+                    )
+                }
+            }
+        }
+
+        struct Add: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Save a pipeline to the library so it can be run by name and used in the app."
+            )
+
+            @Option(name: .long, help: "File type this pipeline applies to (image, video, pdf, audio). Omit for any type.")
+            var fileType: String?
+
+            @Flag(name: .long, help: "Run only the pipeline steps, skipping the implicit optimisation pass")
+            var skipOptimisation = false
+
+            @Flag(name: .long, help: "Don't show floating results when this pipeline runs")
+            var hideResult = false
+
+            @Flag(name: .long, help: "Replace an existing pipeline with the same name")
+            var force = false
+
+            @Argument(help: "Name for the pipeline")
+            var name: String
+
+            @Argument(help: "Pipeline steps, e.g. 'crop(width: 1600) -> convert(to: webp)'")
+            var steps: String
+
+            mutating func validate() throws {
+                if let fileType, !["image", "video", "pdf", "audio"].contains(fileType) {
+                    throw ValidationError("Invalid file type '\(fileType)': must be image, video, pdf or audio")
+                }
+                let invalid = invalidPipelineSteps(steps)
+                guard invalid.isEmpty else {
+                    throw ValidationError("Unknown steps: \(invalid.joined(separator: ", "))\nKnown steps: \(KNOWN_PIPELINE_STEPS.joined(separator: ", "))")
+                }
+            }
+
+            mutating func run() throws {
+                guard let defaults = UserDefaults.app else {
+                    throw ValidationError("Can't access Clop defaults")
+                }
+                var pipelines = defaults.array(forKey: "savedPipelines") as? [String] ?? []
+                let existingIdx = pipelines.firstIndex {
+                    (CLIPipeline.from(json: $0)?.name ?? "").localizedCaseInsensitiveCompare(name) == .orderedSame
+                }
+                if existingIdx != nil, !force {
+                    throw ValidationError("A pipeline named '\(name)' already exists, use `--force` to replace it")
+                }
+
+                // Steps are left empty on purpose: the app re-parses `rawText` on decode,
+                // which keeps the CLI free of the full step model.
+                var dict: [String: Any] = [
+                    "id": UUID().uuidString,
+                    "name": name,
+                    "rawText": steps,
+                    "steps": [Any](),
+                    "skipOptimisation": skipOptimisation,
+                    "hideResult": hideResult,
+                ]
+                if let fileType {
+                    dict["fileType"] = fileType
+                }
+                let data = try JSONSerialization.data(withJSONObject: dict)
+                let json = String(data: data, encoding: .utf8)!
+
+                if let existingIdx {
+                    pipelines[existingIdx] = json
+                } else {
+                    pipelines.append(json)
+                }
+                defaults.set(pipelines, forKey: "savedPipelines")
+                print("\(CHECKMARK) Saved pipeline \(name.green()): \(steps)")
+            }
+        }
+
+        struct Delete: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Delete a saved pipeline."
+            )
+
+            @Argument(help: "Name of the saved pipeline to delete")
+            var name: String
+
+            mutating func run() throws {
+                guard let defaults = UserDefaults.app else {
+                    throw ValidationError("Can't access Clop defaults")
+                }
+                var pipelines = defaults.array(forKey: "savedPipelines") as? [String] ?? []
+                let countBefore = pipelines.count
+                let name = name
+                pipelines.removeAll {
+                    (CLIPipeline.from(json: $0)?.name ?? "").localizedCaseInsensitiveCompare(name) == .orderedSame
+                }
+                guard pipelines.count < countBefore else {
+                    throw ValidationError("No saved pipeline named '\(name)'")
+                }
+                defaults.set(pipelines, forKey: "savedPipelines")
+                print("\(CHECKMARK) Deleted pipeline \(name.green())")
+            }
+        }
+
+        static let configuration = CommandConfiguration(
+            commandName: "pipeline",
+            abstract: "Manage and run Clop pipelines (saved presets and inline step sequences).",
+            subcommands: [List.self, Show.self, Run.self, Add.self, Delete.self]
+        )
+
+    }
+
     static let configuration = CommandConfiguration(
         abstract: "Clop: optimise, crop and downscale images, videos, audio files and PDFs",
         subcommands: [
@@ -1237,8 +1508,100 @@ struct Clop: ParsableCommand {
             CropPdf.self,
             UncropPdf.self,
             StripExif.self,
+            PipelineCommand.self,
         ]
     )
+}
+
+// MARK: - Pipeline CLI helpers
+
+/// Step names supported by the app's pipeline DSL. Used only for early CLI-side
+/// validation; the app's `parsePipelineStep` in Automation.swift is the source of truth.
+let KNOWN_PIPELINE_STEPS = [
+    "optimise", "downscale", "lowerBitrate", "convert", "crop", "extractPagesAsImages",
+    "copy", "move", "rename", "delete", "if", "ifNot", "removeAudio", "changeSpeed",
+    "runScript", "runShortcut", "copyToClipboard", "copyLinkForSending",
+    "shelveWith", "uploadWith", "openWith",
+]
+
+let PIPELINE_AUTOMATION_KEYS = [
+    ("pipelinesToRunOnImage", "images"),
+    ("pipelinesToRunOnVideo", "videos"),
+    ("pipelinesToRunOnPdf", "PDFs"),
+    ("pipelinesToRunOnAudio", "audio"),
+]
+
+/// Return step names from an inline pipeline that are not known DSL steps.
+func invalidPipelineSteps(_ text: String) -> [String] {
+    text.components(separatedBy: "->")
+        .flatMap { $0.components(separatedBy: "\n") }
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
+        .compactMap { step in
+            guard let parenIdx = step.firstIndex(of: "(") else {
+                return KNOWN_PIPELINE_STEPS.contains(step) ? nil : step
+            }
+            let name = String(step[..<parenIdx]).trimmingCharacters(in: .whitespaces)
+            return KNOWN_PIPELINE_STEPS.contains(name) ? nil : name
+        }
+}
+
+/// Lightweight mirror of the app's `Pipeline` model, enough for listing and editing
+/// the JSON strings stored in the `savedPipelines` default.
+struct CLIPipeline: Codable {
+    var id: String
+    var name: String?
+    var rawText: String?
+    var skipOptimisation: Bool?
+    var hideResult: Bool?
+    var libraryID: String?
+    var fileType: String?
+
+    var rawJSON = "{}"
+
+    var rawDict: [String: Any] {
+        (try? JSONSerialization.jsonObject(with: rawJSON.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
+    }
+
+    var displayText: String {
+        if let rawText, !rawText.isEmpty {
+            return rawText
+        }
+        // Visually-built pipelines may have no rawText: reconstruct a compact
+        // description from the encoded step objects.
+        guard let steps = rawDict["steps"] as? [[String: Any]], !steps.isEmpty else {
+            return "(no steps)"
+        }
+        return steps.compactMap { step -> String? in
+            guard let (name, params) = step.first else { return nil }
+            guard let paramDict = params as? [String: Any], !paramDict.isEmpty else { return name }
+            let paramStr = paramDict.sorted(by: { $0.key < $1.key }).map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+            return "\(name)(\(paramStr))"
+        }.joined(separator: " -> ")
+    }
+
+    static func from(json: String) -> CLIPipeline? {
+        guard let data = json.data(using: .utf8),
+              var pipeline = try? JSONDecoder().decode(CLIPipeline.self, from: data)
+        else { return nil }
+        pipeline.rawJSON = json
+        return pipeline
+    }
+
+    /// Follow a library reference to the saved pipeline it points at.
+    func resolve(in saved: [CLIPipeline]) -> CLIPipeline {
+        guard let libraryID else { return self }
+        return saved.first(where: { $0.id == libraryID }) ?? self
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, rawText, skipOptimisation, hideResult, libraryID, fileType
+    }
+
+}
+
+func readSavedPipelines() -> [CLIPipeline] {
+    (UserDefaults.app?.array(forKey: "savedPipelines") as? [String])?.compactMap { CLIPipeline.from(json: $0) } ?? []
 }
 
 let CHECKMARK = "✓".green()

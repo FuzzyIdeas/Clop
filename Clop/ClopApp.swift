@@ -351,6 +351,7 @@ class AppDelegate: AppDelegateParent {
         Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
         migrateShortcutsToPipelines()
         migrateToUnifiedCompression()
+        seedBuiltinPipelines()
 
         BetaLicenseChecker.start()
 
