@@ -267,6 +267,40 @@ func analyseAggressivePDFDPI(at path: FilePath, cap: Int) -> PDFDPIAnalysis {
     return PDFDPIAnalysis(chosen: cap, maxSourceDPI: maxSourceDPI)
 }
 
+/// The next stop below `dpi`; stays at the lowest stop once reached.
+func nextPDFDPIStepDown(from dpi: Int) -> Int {
+    PDF_DPI_STOPS.first(where: { $0 < dpi }) ?? PDF_DPI_STOPS.last ?? dpi
+}
+
+/// Resolves the DPI a gs pass should render at. An explicit `dpi` override
+/// (DPI stepper, CLI, Shortcuts) is used verbatim, otherwise the stored setting
+/// decides: the adaptive analysis or a fixed stop. Aggressive has no DPI setting
+/// of its own: it goes one stop below the resolved setting, so an aggressive
+/// pass always produces a smaller file than a normal pass over the same input.
+func resolvePDFDPI(at inputPath: FilePath, dpi: Int?, aggressive: Bool) -> PDFDPIAnalysis {
+    let resolvedSetting = dpi ?? Defaults[.pdfDPI]
+
+    var effectiveDPI: Int
+    var sourceMaxDPI: Int?
+    if resolvedSetting == PDF_DPI_ADAPTIVE {
+        let analysis = analyseAggressivePDFDPI(at: inputPath, cap: PDF_DPI_NO_DOWNSAMPLE)
+        effectiveDPI = analysis.chosen
+        sourceMaxDPI = analysis.maxSourceDPI
+        if let sourceMax = analysis.maxSourceDPI {
+            log.debug("Adaptive PDF DPI for \(inputPath.string): chose \(analysis.chosen) (source max \(sourceMax))")
+        }
+    } else {
+        effectiveDPI = resolvedSetting
+    }
+    if aggressive, dpi == nil {
+        effectiveDPI = nextPDFDPIStepDown(from: effectiveDPI)
+    }
+    if resolvedSetting != PDF_DPI_ADAPTIVE, dpi != nil || effectiveDPI < PDF_DPI_NO_DOWNSAMPLE {
+        sourceMaxDPI = scanPDFMaxImageDPI(at: inputPath)
+    }
+    return PDFDPIAnalysis(chosen: effectiveDPI, maxSourceDPI: sourceMaxDPI)
+}
+
 let FONT_PATH: String = [
     "\(NSHomeDirectory())/Library/Fonts",
     "/Library/Fonts/",
@@ -378,7 +412,7 @@ class PDF: Optimisable {
         try? path.setOptimisationStatusXattr("pending")
         let tempFile = FilePath.pdfs.appending(path.lastComponent?.string ?? "clop.pdf")
 
-        let aggressiveOptimisation = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPDF]
+        let aggressiveOptimisation = aggressiveOptimisation ?? false
         mainActor { optimiser.aggressive = aggressiveOptimisation }
 
         // Always run gs from the original (backed up on first optimisation) so
@@ -390,23 +424,9 @@ class PDF: Optimisable {
         }
         let inputPath: FilePath = (backupPath?.exists ?? false) ? backupPath! : path
 
-        let resolvedSetting = dpi ?? Defaults[.pdfDPI]
-
-        let effectiveDPI: Int
-        var sourceMaxDPI: Int?
-        if resolvedSetting == PDF_DPI_ADAPTIVE {
-            let analysis = analyseAggressivePDFDPI(at: inputPath, cap: PDF_DPI_NO_DOWNSAMPLE)
-            effectiveDPI = analysis.chosen
-            sourceMaxDPI = analysis.maxSourceDPI
-            if let sourceMax = analysis.maxSourceDPI {
-                log.debug("Adaptive PDF DPI for \(inputPath.string): chose \(analysis.chosen) (source max \(sourceMax))")
-            }
-        } else {
-            effectiveDPI = resolvedSetting
-            if dpi != nil || effectiveDPI < PDF_DPI_NO_DOWNSAMPLE {
-                sourceMaxDPI = scanPDFMaxImageDPI(at: inputPath)
-            }
-        }
+        let resolved = resolvePDFDPI(at: inputPath, dpi: dpi, aggressive: aggressiveOptimisation)
+        let effectiveDPI = resolved.chosen
+        let sourceMaxDPI = resolved.maxSourceDPI
 
         if let sourceMaxDPI {
             mainActor {
@@ -557,7 +577,7 @@ extension PDF {
         try? path.setOptimisationStatusXattr("pending")
         let tempFile = FilePath.pdfs.appending(path.lastComponent?.string ?? "clop.pdf")
 
-        let aggressive = aggressiveOptimisation ?? Defaults[.useAggressiveOptimisationPDF]
+        let aggressive = aggressiveOptimisation ?? false
         mainActor { optimiser.aggressive = aggressive }
 
         let backupPath = path.clopBackupPath
@@ -566,23 +586,9 @@ extension PDF {
         }
         let inputPath: FilePath = (backupPath?.exists ?? false) ? backupPath! : path
 
-        let resolvedSetting = dpi ?? Defaults[.pdfDPI]
-
-        let effectiveDPI: Int
-        var sourceMaxDPI: Int?
-        if resolvedSetting == PDF_DPI_ADAPTIVE {
-            let analysis = analyseAggressivePDFDPI(at: inputPath, cap: PDF_DPI_NO_DOWNSAMPLE)
-            effectiveDPI = analysis.chosen
-            sourceMaxDPI = analysis.maxSourceDPI
-            if let sourceMax = analysis.maxSourceDPI {
-                log.debug("Adaptive PDF DPI for \(inputPath.string): chose \(analysis.chosen) (source max \(sourceMax))")
-            }
-        } else {
-            effectiveDPI = resolvedSetting
-            if dpi != nil || effectiveDPI < PDF_DPI_NO_DOWNSAMPLE {
-                sourceMaxDPI = scanPDFMaxImageDPI(at: inputPath)
-            }
-        }
+        let resolved = resolvePDFDPI(at: inputPath, dpi: dpi, aggressive: aggressive)
+        let effectiveDPI = resolved.chosen
+        let sourceMaxDPI = resolved.maxSourceDPI
 
         if let sourceMaxDPI {
             mainActor {

@@ -538,7 +538,8 @@ enum TempPipelineSegment {
     /// no-downsample stop if no optimisation has run yet.
     var effectiveBasePDFDPI: Int {
         let setting = Defaults[.pdfDPI]
-        return setting == PDF_DPI_ADAPTIVE ? (newDPI ?? PDF_DPI_NO_DOWNSAMPLE) : setting
+        // aggressive renders one stop below the setting, so the actual DPI lives in newDPI
+        return setting == PDF_DPI_ADAPTIVE || aggressive ? (newDPI ?? PDF_DPI_NO_DOWNSAMPLE) : setting
     }
 
     /// True only for a multi-frame GIF still typed as an image. Memoised by url so it isn't re-probed
