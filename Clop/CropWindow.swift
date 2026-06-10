@@ -584,6 +584,7 @@ struct CropView: View {
     @State private var paperSize: CropSize? = nil
     @State private var deviceSize: CropSize? = nil
     @State private var ratioSize: CropSize? = nil
+    @State private var extendPage = false
 
     @State private var preview: NSImage? = nil
     @State private var pageIndex = 0
@@ -603,7 +604,7 @@ struct CropView: View {
 
             Divider()
             sidebar
-                .frame(width: 250)
+                .frame(width: 280)
                 .frame(maxHeight: .infinity)
                 .background(Color.bg.warm.opacity(colorScheme == .dark ? 0.4 : 0.8))
         }
@@ -634,26 +635,30 @@ struct CropView: View {
             let fit = fittedSize(in: geo.size)
             ZStack {
                 if let preview {
-                    SwiftUI.Image(nsImage: preview)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: fit.width, height: fit.height)
-                        .overlay(
-                            CropSelectionOverlay(
-                                rect: $rect,
-                                viewSize: fit,
-                                sourceSize: sourceSize,
-                                aspect: lockedAspect,
-                                frameStyle: frameStyle,
-                                label: presetName,
-                                unit: unit,
-                                outputSize: effectiveTargetSize(),
-                                previewImage: preview,
-                                onEdit: { rectEdited = true },
-                                onReset: { reset() }
+                    if extending, let aspect = adaptiveAspect {
+                        extendedPreview(preview, aspect: aspect, container: geo.size)
+                    } else {
+                        SwiftUI.Image(nsImage: preview)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: fit.width, height: fit.height)
+                            .overlay(
+                                CropSelectionOverlay(
+                                    rect: $rect,
+                                    viewSize: fit,
+                                    sourceSize: sourceSize,
+                                    aspect: lockedAspect,
+                                    frameStyle: frameStyle,
+                                    label: presetName,
+                                    unit: unit,
+                                    outputSize: effectiveTargetSize(),
+                                    previewImage: preview,
+                                    onEdit: { rectEdited = true },
+                                    onReset: { reset() }
+                                )
                             )
-                        )
-                        .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+                            .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
+                    }
                 } else {
                     ProgressView().controlSize(.large)
                 }
@@ -662,6 +667,65 @@ struct CropView: View {
         }
         .padding([.horizontal, .top])
         .padding(.top, 14)
+    }
+
+    /// True when applying the preset will grow the page canvas instead of cropping it.
+    var extending: Bool {
+        optimiser.type.isPDF && extendPage && adaptiveAspect != nil
+    }
+
+    /// The space the selection rect is normalized to: the extended canvas when
+    /// extending, the source page/image otherwise.
+    var cropSpaceSize: NSSize {
+        if extending, let aspect = adaptiveAspect {
+            return extendedCanvasSize(aspect: aspect)
+        }
+        return sourceSize
+    }
+
+    func extendedCanvasSize(aspect: CropSize) -> NSSize {
+        sourceSize.extendTo(
+            aspectRatio: aspect.fractionalAspectRatio,
+            alwaysPortrait: cropOrientation == .portrait,
+            alwaysLandscape: cropOrientation == .landscape
+        ).size
+    }
+
+    /// Page rendered at its real proportion inside the extended white canvas,
+    /// previewing what the saved pages will look like. The selection rect stays
+    /// interactive so the view can be zoomed/panned within the extended space.
+    @ViewBuilder
+    func extendedPreview(_ image: NSImage, aspect: CropSize, container: CGSize) -> some View {
+        let canvas = extendedCanvasSize(aspect: aspect)
+        let scale = min(container.width / canvas.width, container.height / canvas.height)
+        let canvasFit = CGSize(width: canvas.width * scale, height: canvas.height * scale)
+        ZStack {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(.white)
+            SwiftUI.Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: sourceSize.width * scale, height: sourceSize.height * scale)
+        }
+        .frame(width: canvasFit.width, height: canvasFit.height)
+        .overlay(
+            CropSelectionOverlay(
+                rect: $rect,
+                viewSize: canvasFit,
+                sourceSize: canvas,
+                aspect: lockedAspect,
+                frameStyle: frameStyle,
+                label: presetName,
+                unit: unit,
+                outputSize: effectiveTargetSize(),
+                onEdit: { rectEdited = true },
+                onReset: { reset() }
+            )
+        )
+        // flatten canvas + page into one layer, otherwise .shadow is applied to
+        // each subview separately and the page gets its own shadow on the canvas
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
     }
 
     @ViewBuilder var previewBar: some View {
@@ -882,6 +946,18 @@ struct CropView: View {
                 .fixedSize()
                 .padding(.top, 4)
 
+            Toggle("Extend instead of clipping", isOn: $extendPage)
+                .toggleStyle(.checkbox)
+                .font(.round(10))
+                .padding(.top, 4)
+                .help("Grows pages with empty paper instead of cutting content away. Useful for fitting a book page on a phone screen without losing text at the edges.")
+                .onChange(of: extendPage) { extend in
+                    guard adaptiveAspect != nil else { return }
+                    // the selection space switches between page and extended canvas
+                    rectEdited = false
+                    rect = extend ? .full : (lockedAspect.map { centeredMaxRect(aspect: $0) } ?? initialRect)
+                }
+
             uncropButton
         }
         .onChange(of: paperSize) { size in
@@ -958,7 +1034,11 @@ struct CropView: View {
 
             Spacer()
 
-            Button(cropButtonTitle) { applyCrop() }
+            Button(action: { applyCrop() }, label: {
+                Text(cropButtonTitle)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            })
                 .buttonStyle(.borderedProminent)
                 .fontDesign(.rounded)
                 .monospacedDigit()
@@ -978,11 +1058,21 @@ struct CropView: View {
     }
 
     var cropButtonTitle: String {
-        if optimiser.type.isPDF, let aspect = adaptiveAspect, !rectEdited {
-            return "Crop all pages to \(aspect.name)"
+        if optimiser.type.isPDF, adaptiveAspect != nil, extendPage || !rectEdited {
+            return "\(extendPage ? "Extend" : "Crop") PDF to \(presetShortName)"
         }
         let out = effectiveTargetSize()
         return "Crop to \(out.width.i)×\(out.height.i)"
+    }
+
+    /// Compact preset name for the apply button: the device category for device
+    /// groups, the paper/ratio name without its ratio suffix otherwise.
+    var presetShortName: String {
+        guard let aspect = adaptiveAspect else { return "" }
+        if let category = DEVICE_SIZE_GROUPS.first(where: { $0.groups.contains { $0.name == aspect.name } })?.category {
+            return category
+        }
+        return aspect.name.components(separatedBy: " (").first ?? aspect.name
     }
 
     // the size of the file that will be produced (selection size, or the preset
@@ -1048,10 +1138,11 @@ struct CropView: View {
     }
 
     func centeredMaxRect(aspect: Double) -> CropRect {
-        let w = min(sourceSize.width, sourceSize.height * aspect)
+        let space = cropSpaceSize
+        let w = min(space.width, space.height * aspect)
         let h = w / aspect
-        let rw = w / sourceSize.width
-        let rh = h / sourceSize.height
+        let rw = w / space.width
+        let rh = h / space.height
         return CropRect(x: (1 - rw) / 2, y: (1 - rh) / 2, width: rw, height: rh).clamped()
     }
 
@@ -1097,15 +1188,16 @@ struct CropView: View {
                 w = h * aspect
             }
         }
-        w = min(max(w, 8), sourceSize.width)
-        h = min(max(h, 8), sourceSize.height)
+        let space = cropSpaceSize
+        w = min(max(w, 8), space.width)
+        h = min(max(h, 8), space.height)
 
         let center = CGPoint(x: rect.x + rect.width / 2, y: rect.y + rect.height / 2)
         rect = CropRect(
-            x: center.x - (w / sourceSize.width) / 2,
-            y: center.y - (h / sourceSize.height) / 2,
-            width: w / sourceSize.width,
-            height: h / sourceSize.height
+            x: center.x - (w / space.width) / 2,
+            y: center.y - (h / space.height) / 2,
+            width: w / space.width,
+            height: h / space.height
         ).clamped()
         rectEdited = true
         targetSize = nil
@@ -1113,7 +1205,7 @@ struct CropView: View {
     }
 
     func effectiveTargetSize() -> NSSize {
-        let rectPixels = rect.computedSize(from: sourceSize)
+        let rectPixels = rect.computedSize(from: cropSpaceSize)
         if let target = targetSize, target.width <= rectPixels.width, target.height <= rectPixels.height {
             return target
         }
@@ -1124,7 +1216,15 @@ struct CropView: View {
         defer { optimiser.cropWindowController?.close() }
 
         if optimiser.type.isPDF, let pdf = optimiser.pdf {
-            if let aspect = adaptiveAspect, !rectEdited {
+            if let aspect = adaptiveAspect, extendPage {
+                // an edited selection is normalized to each page's extended canvas
+                pdf.extendTo(
+                    aspectRatio: aspect.fractionalAspectRatio,
+                    alwaysPortrait: cropOrientation == .portrait,
+                    alwaysLandscape: cropOrientation == .landscape,
+                    rect: rectEdited ? rect.clamped() : nil
+                )
+            } else if let aspect = adaptiveAspect, !rectEdited {
                 // aspect-based crop adapts to each page's size and orientation,
                 // a shared rect would distort on mixed-orientation documents
                 pdf.cropTo(
@@ -1136,7 +1236,8 @@ struct CropView: View {
                 pdf.cropTo(rect: rect)
             }
             optimiser.refetch()
-            optimiser.oldSize = optimiser.pdf?.originalSize ?? sourceSize
+            // extending rewrites the media box, so the pre-extend size is the reference
+            optimiser.oldSize = extendPage ? sourceSize : (optimiser.pdf?.originalSize ?? sourceSize)
             optimiser.newSize = optimiser.pdf?.size
             return
         }
@@ -1247,7 +1348,19 @@ struct CropView: View {
 
             let scale = 2200 / max(sourceSize.width, sourceSize.height)
             let thumbSize = CGSize(width: sourceSize.width * scale, height: sourceSize.height * scale)
-            preview = page.thumbnail(of: thumbSize, for: .mediaBox)
+            // PDFPage.thumbnail draws a bezel border around the page, which shows as
+            // a seam when the page sits inside the extended white canvas, so the page
+            // is rendered manually on plain white
+            let img = NSImage(size: thumbSize)
+            img.lockFocus()
+            if let ctx = NSGraphicsContext.current?.cgContext {
+                NSColor.white.setFill()
+                CGRect(origin: .zero, size: thumbSize).fill()
+                ctx.scaleBy(x: scale, y: scale)
+                page.draw(with: .mediaBox, to: ctx)
+            }
+            img.unlockFocus()
+            preview = img
         default:
             break
         }

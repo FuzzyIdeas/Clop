@@ -594,6 +594,45 @@ extension NSSize {
 
     }
 
+    /// The smallest rect of the given aspect ratio that fully *contains* this size,
+    /// centered on it (the outward complement of `cropTo`). The origin can go
+    /// negative; the extra area is meant to become empty space around the content.
+    func extendToPortrait(aspectRatio: Double) -> NSRect {
+        let selfAspectRatio = width / height
+        if selfAspectRatio > aspectRatio {
+            let height = width / aspectRatio
+            let y = (self.height - height) / 2
+            return NSRect(x: 0, y: y, width: width, height: height)
+        } else {
+            let width = height * aspectRatio
+            let x = (self.width - width) / 2
+            return NSRect(x: x, y: 0, width: width, height: height)
+        }
+    }
+
+    func extendToLandscape(aspectRatio: Double) -> NSRect {
+        let selfAspectRatio = height / width
+        if selfAspectRatio > aspectRatio {
+            let width = height / aspectRatio
+            let x = (self.width - width) / 2
+            return NSRect(x: x, y: 0, width: width, height: height)
+        } else {
+            let height = width * aspectRatio
+            let y = (self.height - height) / 2
+            return NSRect(x: 0, y: y, width: width, height: height)
+        }
+    }
+
+    func extendTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false) -> NSRect {
+        if alwaysPortrait {
+            extendToPortrait(aspectRatio: aspectRatio)
+        } else if alwaysLandscape {
+            extendToLandscape(aspectRatio: aspectRatio)
+        } else {
+            isLandscape ? extendToLandscape(aspectRatio: aspectRatio) : extendToPortrait(aspectRatio: aspectRatio)
+        }
+    }
+
     var evenSize: NSSize {
         var w = Int(width.rounded())
         w = w + w % 2
