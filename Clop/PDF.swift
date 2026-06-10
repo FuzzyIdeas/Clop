@@ -353,6 +353,16 @@ class PDF: Optimisable {
         return document.write(to: newPath?.url ?? path.url)
     }
 
+    @discardableResult
+    func cropTo(rect: CropRect, saveTo newPath: FilePath? = nil) -> Bool {
+        guard let document, !document.isEncrypted else {
+            return false
+        }
+
+        document.cropTo(rect: rect)
+        return document.write(to: newPath?.url ?? path.url)
+    }
+
     func optimise(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, dpi: Int? = nil) throws -> PDF {
         guard let document else {
             throw ClopError.invalidPDF(path)

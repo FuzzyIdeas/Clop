@@ -121,6 +121,13 @@ struct RightClickMenuView: View {
             {
                 Divider()
             }
+            if optimiser.canCrop() {
+                Button("Crop and resize...") {
+                    optimiser.showCropWindow()
+                }
+                .keyboardShortcut("k")
+            }
+
             if optimiser.canDownscale() {
                 if optimiser.type.isAudio, optimiser.type.utType != .wav {
                     Menu("Change bitrate") {

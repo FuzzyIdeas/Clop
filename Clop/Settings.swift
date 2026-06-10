@@ -28,8 +28,8 @@ let IMAGE_PASTEBOARD_TYPES = IMAGE_FORMATS.compactMap { NSPasteboard.PasteboardT
 let AUDIO_PASTEBOARD_TYPES = AUDIO_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
 let IMAGE_VIDEO_PASTEBOARD_TYPES: Set<NSPasteboard.PasteboardType> = (IMAGE_PASTEBOARD_TYPES + VIDEO_PASTEBOARD_TYPES + AUDIO_PASTEBOARD_TYPES + [.fileContents]).set
 
-let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x, .r, .f, .o, .comma, .u, .d, .w]
-let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x, .r, .escape]
+let DEFAULT_HOVER_KEYS: [SauceKey] = [.minus, .delete, .space, .z, .c, .a, .s, .x, .r, .f, .o, .comma, .u, .d, .w, .k]
+let DEFAULT_GLOBAL_KEYS: [SauceKey] = [.minus, .equal, .delete, .space, .z, .p, .c, .a, .x, .r, .k, .escape]
 
 enum CleanupInterval: TimeInterval, Codable, Defaults.Serializable {
     case every10Minutes = 600

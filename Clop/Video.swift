@@ -159,6 +159,22 @@ class Video: Optimisable {
             return ["scale=w=\(size.width.i.s):h=\(size.height.i.s)"] // resize to specific size
         }
 
+        if let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
+            // relative expressions let ffmpeg crop the backup original, whose pixel size can
+            // differ from the displayed file; even dimensions are required by most encoders
+            let r = cropRect.clamped()
+            var filters = [String(
+                format: "crop=floor(in_w*%.6f/2)*2:floor(in_h*%.6f/2)*2:in_w*%.6f:in_h*%.6f",
+                r.width, r.height, r.x, r.y
+            )]
+
+            let target = cropSize.ns
+            if target.width > 0, target.height > 0 {
+                filters.append("scale=w=\(target.width.evenInt):h=\(target.height.evenInt)")
+            }
+            return filters
+        }
+
         let s = cropSize.isAspectRatio ? cropSize.computedSize(from: fromSize) : cropSize.ns
         guard s.width > 0, s.height > 0, !cropSize.longEdge || cropSize.isAspectRatio else {
             // crop by specifying only one size, keeping aspect ratio
