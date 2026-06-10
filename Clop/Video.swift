@@ -218,7 +218,8 @@ class Video: Optimisable {
         aggressiveOptimisation: Bool? = nil,
         removeAudio: Bool? = nil,
         encoderOverride: [String]? = nil,
-        videoEncoderOverride: VideoEncoder? = nil
+        videoEncoderOverride: VideoEncoder? = nil,
+        fpsOverride: Int? = nil
     ) throws -> Video {
         log.debug("Optimising video \(self.path.string)")
         guard let name = path.lastComponent else {
@@ -240,7 +241,10 @@ class Video: Optimisable {
         var additionalArgs = [String]()
 
         var newFPS = fps
-        if Defaults[.capVideoFPS] {
+        if let fpsOverride {
+            newFPS = Float(fpsOverride)
+            additionalArgs += ["-fpsmax", "\(fpsOverride)"]
+        } else if Defaults[.capVideoFPS] {
             newFPS = Defaults[.targetVideoFPS]
             if newFPS == -2, let fps {
                 newFPS = max(fps / 2, Defaults[.minVideoFPS])

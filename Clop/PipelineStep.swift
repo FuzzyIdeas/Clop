@@ -242,6 +242,9 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     case convert(to: String, location: String = "sameFolder")
     case crop(width: Int? = nil, height: Int? = nil, longEdge: Int? = nil, location: String = "inPlace")
     case extractPagesAsImages(format: String = "jpeg", quality: String = "medium", location: String = "sameFolder")
+    case targetSize(bytes: Int, location: String = "inPlace")
+    case stripExif
+    case watermark(image: String, position: String = "bottomRight", opacity: Double = 1.0, scale: Double = 0.15, location: String = "inPlace")
 
     // File path operations (template vars supported)
     case copy(to: String)
@@ -256,6 +259,8 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     // Media-specific
     case removeAudio
     case changeSpeed(factor: Double)
+    case capFps(fps: Int)
+    case normalize(lufs: Double = -16)
 
     // Generic actions
     case runScript(path: String)
@@ -276,6 +281,11 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .convert(to, location): "convert-\(to)-\(location)"
         case let .crop(width, height, longEdge, location): "crop-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(location)"
         case let .extractPagesAsImages(format, quality, location): "extractPagesAsImages-\(format)-\(quality)-\(location)"
+        case let .targetSize(bytes, location): "targetSize-\(bytes)-\(location)"
+        case .stripExif: "stripExif"
+        case let .watermark(image, position, opacity, scale, location): "watermark-\(image)-\(position)-\(opacity)-\(scale)-\(location)"
+        case let .capFps(fps): "capFps-\(fps)"
+        case let .normalize(lufs): "normalize-\(lufs)"
         case let .copy(to): "copy-\(to)"
         case let .move(to): "move-\(to)"
         case let .rename(to): "rename-\(to)"
@@ -302,6 +312,11 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case .convert: "convert"
         case .crop: "crop"
         case .extractPagesAsImages: "extractPagesAsImages"
+        case .targetSize: "targetSize"
+        case .stripExif: "stripExif"
+        case .watermark: "watermark"
+        case .capFps: "capFps"
+        case .normalize: "normalize"
         case .copy: "copy"
         case .move: "move"
         case .rename: "rename"
@@ -353,6 +368,20 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
             if quality != "medium" { params.append("quality: \(quality)") }
             if location != "sameFolder" { params.append("location: \(location)") }
             return params.isEmpty ? "extractPagesAsImages" : "extractPagesAsImages(\(params.joined(separator: ", ")))"
+        case let .targetSize(bytes, location):
+            var params = ["size: \(bytes.humanSize)"]
+            if location != "inPlace" { params.append("location: \(location)") }
+            return "targetSize(\(params.joined(separator: ", ")))"
+        case .stripExif: return "stripExif"
+        case let .watermark(image, position, opacity, scale, location):
+            var params = ["image: \"\(image)\""]
+            if position != "bottomRight" { params.append("position: \(position)") }
+            if opacity != 1.0 { params.append("opacity: \(opacity)") }
+            if scale != 0.15 { params.append("scale: \(scale)") }
+            if location != "inPlace" { params.append("location: \(location)") }
+            return "watermark(\(params.joined(separator: ", ")))"
+        case let .capFps(fps): return "capFps(fps: \(fps))"
+        case let .normalize(lufs): return "normalize(lufs: \(lufs))"
         case let .copy(to): return "copy(to: \(to))"
         case let .move(to): return "move(to: \(to))"
         case let .rename(to): return "rename(to: \(to))"
@@ -376,7 +405,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var isProcessingStep: Bool {
         switch self {
-        case .optimise, .downscale, .lowerBitrate, .convert, .crop, .extractPagesAsImages: true
+        case .optimise, .downscale, .lowerBitrate, .convert, .crop, .extractPagesAsImages, .targetSize, .stripExif, .watermark: true
         default: false
         }
     }
@@ -390,6 +419,8 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .convert(_, location): location
         case let .crop(_, _, _, location): location
         case let .extractPagesAsImages(_, _, location): location
+        case let .targetSize(_, location): location
+        case let .watermark(_, _, _, _, location): location
         default: nil
         }
     }
@@ -410,10 +441,10 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var category: StepCategory {
         switch self {
-        case .optimise, .downscale, .lowerBitrate, .convert, .crop, .extractPagesAsImages: .processing
+        case .optimise, .downscale, .lowerBitrate, .convert, .crop, .extractPagesAsImages, .targetSize, .stripExif, .watermark: .processing
         case .copy, .move, .rename, .delete: .fileOperation
         case .filterIf, .filterIfNot: .filter
-        case .removeAudio, .changeSpeed: .mediaSpecific
+        case .removeAudio, .changeSpeed, .capFps, .normalize: .mediaSpecific
         case .runScript, .runShortcut, .copyToClipboard, .copyLinkForSending, .shelveWith, .uploadWith, .openWith: .action
         }
     }
@@ -499,6 +530,29 @@ extension PipelineStep: Decodable {
                 quality: c.decodeIfPresent(String.self, forKey: DynKey("quality")) ?? "medium",
                 location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "sameFolder"
             )
+        } else if container.contains(DynKey("targetSize")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("targetSize"))
+            self = try .targetSize(
+                bytes: c.decode(Int.self, forKey: DynKey("bytes")),
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
+            )
+        } else if container.contains(DynKey("stripExif")) {
+            self = .stripExif
+        } else if container.contains(DynKey("watermark")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("watermark"))
+            self = try .watermark(
+                image: c.decode(String.self, forKey: DynKey("image")),
+                position: c.decodeIfPresent(String.self, forKey: DynKey("position")) ?? "bottomRight",
+                opacity: c.decodeIfPresent(Double.self, forKey: DynKey("opacity")) ?? 1.0,
+                scale: c.decodeIfPresent(Double.self, forKey: DynKey("scale")) ?? 0.15,
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
+            )
+        } else if container.contains(DynKey("capFps")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("capFps"))
+            self = try .capFps(fps: c.decode(Int.self, forKey: DynKey("fps")))
+        } else if container.contains(DynKey("normalize")) {
+            let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("normalize"))
+            self = try .normalize(lufs: c.decodeIfPresent(Double.self, forKey: DynKey("lufs")) ?? -16)
         } else if container.contains(DynKey("copy")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("copy"))
             self = try .copy(to: c.decode(String.self, forKey: DynKey("to")))

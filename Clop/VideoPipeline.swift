@@ -28,7 +28,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     videoEncoderOverride: VideoEncoder? = nil,
     ffmpegEncoderOverride: [String]? = nil,
     outputExtension: String? = nil,
-    source: OptimisationSource? = nil
+    source: OptimisationSource? = nil,
+    fpsOverride: Int? = nil
 ) async throws -> Video? {
     let path = video.path
     let pathString = path.string
@@ -191,7 +192,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
                     aggressiveOptimisation: aggressive,
                     removeAudio: removeAudio,
                     encoderOverride: ffmpegEncoderOverride,
-                    videoEncoderOverride: videoEncoderOverride
+                    videoEncoderOverride: videoEncoderOverride,
+                    fpsOverride: fpsOverride
                 )
 
                 // Move result to original location if same extension but different path

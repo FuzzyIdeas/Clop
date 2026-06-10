@@ -355,6 +355,106 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         create: { .extractPagesAsImages() }
     ),
     StepTemplate(
+        name: "targetSize", description: "Compress until the file fits under a size limit (Discord 10MB, email 25MB, etc.)",
+        mandatoryParams: [
+            ParamTemplate(
+                name: "size",
+                description: "size limit, e.g. 10MB, 500KB",
+                suggestions: ["240KB", "1MB", "5MB", "8MB", "10MB", "16MB", "25MB"],
+                freeText: true,
+                valueDescriptions: [
+                    "240KB": "US visa photo limit",
+                    "5MB": "Notion free plan",
+                    "8MB": "Google Play screenshots",
+                    "10MB": "Discord free, GitHub attachments",
+                    "16MB": "WhatsApp media",
+                    "25MB": "Gmail attachments",
+                ]
+            ),
+        ],
+        optionalParams: [
+            ParamTemplate(
+                name: "location",
+                description: "where to save the result",
+                suggestions: ["inPlace", "sameFolder", "temporaryFolder", "template"],
+                freeText: true,
+                valueDescriptions: [
+                    "inPlace": "replace original file",
+                    "sameFolder": "save next to original",
+                    "temporaryFolder": "save in temp directory",
+                    "template": "custom path with %f (filename), %y (year), etc. Output extension is added automatically",
+                ]
+            ),
+        ],
+        applicableTypes: [.image, .video, .pdf, .audio],
+        create: { .targetSize(bytes: 10_000_000) }
+    ),
+    StepTemplate(
+        name: "stripExif", description: "Remove EXIF and GPS metadata (privacy before sharing)",
+        mandatoryParams: [],
+        optionalParams: [],
+        applicableTypes: [.image, .video],
+        create: { .stripExif }
+    ),
+    StepTemplate(
+        name: "watermark", description: "Overlay a watermark image",
+        mandatoryParams: [
+            ParamTemplate(name: "image", description: "path to the watermark image (PNG with transparency works best)", suggestions: [], freeText: true, needsQuotes: true),
+        ],
+        optionalParams: [
+            ParamTemplate(
+                name: "position",
+                description: "corner or center placement",
+                suggestions: ["bottomRight", "bottomLeft", "topRight", "topLeft", "center"],
+                freeText: false
+            ),
+            ParamTemplate(name: "opacity", description: "0.0 to 1.0", suggestions: ["1.0", "0.5", "0.3"], freeText: true),
+            ParamTemplate(name: "scale", description: "watermark width as a fraction of the file width", suggestions: ["0.15", "0.1", "0.25", "0.5"], freeText: true),
+            ParamTemplate(
+                name: "location",
+                description: "where to save the result",
+                suggestions: ["inPlace", "sameFolder", "temporaryFolder", "template"],
+                freeText: true,
+                valueDescriptions: [
+                    "inPlace": "replace original file",
+                    "sameFolder": "save next to original",
+                    "temporaryFolder": "save in temp directory",
+                    "template": "custom path with %f (filename), %y (year), etc. Output extension is added automatically",
+                ]
+            ),
+        ],
+        applicableTypes: [.image, .video],
+        create: { .watermark(image: "") }
+    ),
+    StepTemplate(
+        name: "capFps", description: "Cap the video frame rate",
+        mandatoryParams: [
+            ParamTemplate(name: "fps", description: "maximum frames per second", suggestions: ["60", "30", "24", "15", "10"], freeText: true),
+        ],
+        optionalParams: [],
+        applicableTypes: [.video],
+        create: { .capFps(fps: 30) }
+    ),
+    StepTemplate(
+        name: "normalize", description: "Normalize audio loudness",
+        mandatoryParams: [],
+        optionalParams: [
+            ParamTemplate(
+                name: "lufs",
+                description: "target integrated loudness",
+                suggestions: ["-14", "-16", "-23"],
+                freeText: true,
+                valueDescriptions: [
+                    "-14": "Spotify / YouTube",
+                    "-16": "Apple Podcasts",
+                    "-23": "EBU broadcast",
+                ]
+            ),
+        ],
+        applicableTypes: [.audio],
+        create: { .normalize() }
+    ),
+    StepTemplate(
         name: "copy", description: "Copy file to a path",
         mandatoryParams: [
             ParamTemplate(name: "to", description: "destination path, supports sourceFolder, sourceFileName, $1, $2", suggestions: [], freeText: true, needsQuotes: true),
@@ -559,6 +659,8 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
     if trimmed == "removeAudio" { return .removeAudio }
     if trimmed == "copyLinkForSending" { return .copyLinkForSending }
     if trimmed == "copyToClipboard" { return .copyToClipboard() }
+    if trimmed == "stripExif" { return .stripExif }
+    if trimmed == "normalize" { return .normalize() }
 
     // Parse name(params) format
     guard let nameRegex = try? NSRegularExpression(pattern: #"^(\w+)(?:\((.*)\))?$"#),
@@ -631,6 +733,30 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         let quality = params["quality"] ?? "medium"
         let location = params["location"] ?? "sameFolder"
         return .extractPagesAsImages(format: format, quality: quality, location: location)
+
+    case "targetSize":
+        guard let sizeStr = params["size"], let bytes = parseByteSize(sizeStr), bytes > 0 else { return nil }
+        return .targetSize(bytes: bytes, location: params["location"] ?? "inPlace")
+
+    case "stripExif":
+        return .stripExif
+
+    case "watermark":
+        guard let image = params["image"], !image.isEmpty else { return nil }
+        return .watermark(
+            image: image,
+            position: params["position"] ?? "bottomRight",
+            opacity: params["opacity"].flatMap { Double($0) } ?? 1.0,
+            scale: params["scale"].flatMap { Double($0) } ?? 0.15,
+            location: params["location"] ?? "inPlace"
+        )
+
+    case "capFps":
+        guard let fps = params["fps"].flatMap({ Int($0) }), fps > 0 else { return nil }
+        return .capFps(fps: fps)
+
+    case "normalize":
+        return .normalize(lufs: params["lufs"].flatMap { Double($0) } ?? -16)
 
     case "if":
         let condition = parseFilterCondition(params)
