@@ -123,11 +123,10 @@ extension Defaults.Keys {
     static let videoCompression = Key<CompressionQuality>("videoCompression", default: CompressionQuality(tier: .fast, factor: 50))
     // Versioned guard so the legacy→unified migration runs exactly once.
     static let compressionModelMigratedVersion = Key<Int>("compressionModelMigratedVersion", default: 0)
-    static let useAggressiveOptimisationPDF = Key<Bool>("useAggressiveOptimisationPDF", default: true)
     /// PDF target DPI. 0 = Adaptive (target chosen per-PDF from source image density),
     /// positive = a fixed stop from `PDF_DPI_STOPS`. Default Adaptive so it compresses out of the box.
+    /// Aggressive optimisation has no setting of its own: it renders one stop below this.
     static let pdfDPI = Key<Int>("pdfDPI", default: PDF_DPI_ADAPTIVE)
-    static let pdfDPIAggressive = Key<Int>("pdfDPIAggressive", default: 0)
 
     static let imageDirs = Key<[String]>("imageDirs", default: [URL.desktopDirectory.path])
     static let videoDirs = Key<[String]>("videoDirs", default: [URL.desktopDirectory.path])
@@ -359,9 +358,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .useAggressiveOptimisationGIF,
     .useAggressiveOptimisationJPEG,
     .useAggressiveOptimisationMP4,
-    .useAggressiveOptimisationPDF,
     .pdfDPI,
-    .pdfDPIAggressive,
     .useAggressiveOptimisationPNG,
     .videoEncoder,
     .useCustomNameTemplateForClipboardImages,
