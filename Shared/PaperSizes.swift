@@ -169,9 +169,109 @@ let PAPER_SIZES_BY_CATEGORY = [
 let PAPER_SIZES: [String: NSSize] = PAPER_SIZES_BY_CATEGORY.reduce(into: [:]) { result, category in
     category.value.forEach { result[$0.key] = $0.value }
 }
-let PAPER_CROP_SIZES: [String: [String: CropSize]] = PAPER_SIZES_BY_CATEGORY.reduce(into: [:]) { result, category in
-    let paperCropSizes = category.value.map { k, v in (k, CropSize(width: v.width.intround, height: v.height.intround, name: k, isAspectRatio: true)) }
-    result[category.key] = [String: CropSize](uniqueKeysWithValues: paperCropSizes)
+
+/// Paper sizes that share the same aspect ratio (computed from their exact inch/mm
+/// definitions, not the rounded mm values above). Cropping to any member of a group
+/// gives the same result, so the UI and CLI present one entry per group.
+let ISO_PAPER_GROUPS: [CropSizeGroup] = [
+    CropSizeGroup(
+        name: "A & B series (1:\u{221A}2)", width: 1000, height: 1414,
+        members: [
+            "4A0", "2A0", "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13",
+            "B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13",
+            ],
+        summary: "A0\u{2013}A13, 2A0, 4A0, B0\u{2013}B13"
+    ),
+    CropSizeGroup(name: "A0+", width: 914, height: 1292, members: ["A0+"]),
+    CropSizeGroup(name: "A1+", width: 609, height: 914, members: ["A1+"]),
+    CropSizeGroup(name: "A3+", width: 329, height: 483, members: ["A3+"]),
+    CropSizeGroup(name: "B0+", width: 1118, height: 1580, members: ["B0+"]),
+    CropSizeGroup(name: "B1+", width: 720, height: 1020, members: ["B1+"]),
+    CropSizeGroup(name: "B2+", width: 520, height: 720, members: ["B2+"]),
+]
+let US_PAPER_GROUPS: [CropSizeGroup] = [
+    CropSizeGroup(
+        name: "Letter & ANSI A/C/E (17:22)", width: 170, height: 220,
+        members: ["Letter", "ANSI A", "ANSI C", "ANSI E"]
+    ),
+    CropSizeGroup(
+        name: "Tabloid & Ledger & ANSI B/D (11:17)", width: 110, height: 170,
+        members: ["Tabloid", "Ledger", "Half Letter", "ANSI B", "ANSI D"]
+    ),
+    CropSizeGroup(name: "Legal", width: 216, height: 356, members: ["Legal"]),
+    CropSizeGroup(name: "Government Letter", width: 203, height: 267, members: ["Government Letter"]),
+    CropSizeGroup(name: "Government Legal", width: 216, height: 330, members: ["Government Legal"]),
+    CropSizeGroup(name: "Junior Legal", width: 127, height: 203, members: ["Junior Legal"]),
+    CropSizeGroup(name: "Arch A/C/E (3:4)", width: 300, height: 400, members: ["Arch A", "Arch C", "Arch E"]),
+    CropSizeGroup(name: "Arch B/D (2:3)", width: 200, height: 300, members: ["Arch B", "Arch D"]),
+    CropSizeGroup(name: "Arch E1", width: 762, height: 1067, members: ["Arch E1"]),
+    CropSizeGroup(name: "Arch E2", width: 660, height: 965, members: ["Arch E2"]),
+    CropSizeGroup(name: "Arch E3", width: 686, height: 991, members: ["Arch E3"]),
+]
+let PHOTO_PAPER_GROUPS: [CropSizeGroup] = [
+    CropSizeGroup(name: "Photo 2:3", width: 200, height: 300, members: ["4R, KG", "LW", "2LW", "S8R, 6PW"]),
+    CropSizeGroup(name: "Photo 3:4", width: 300, height: 400, members: ["KGD", "6R", "LD, DSC", "2LD, DSCW"]),
+    CropSizeGroup(name: "Photo 5:7", width: 500, height: 700, members: ["5R, 2L", "2R"]),
+    CropSizeGroup(name: "3R, L (7:10)", width: 700, height: 1000, members: ["3R, L"]),
+    CropSizeGroup(name: "8R, 6P (4:5)", width: 400, height: 500, members: ["8R, 6P"]),
+    CropSizeGroup(name: "11R (11:14)", width: 1100, height: 1400, members: ["11R"]),
+    CropSizeGroup(name: "Passport (7:9)", width: 350, height: 450, members: ["Passport"]),
+    CropSizeGroup(name: "A3+ Super B", width: 330, height: 483, members: ["A3+ Super B"]),
+]
+let NEWSPAPER_PAPER_GROUPS: [CropSizeGroup] = [
+    CropSizeGroup(name: "Compact & Tabloid", width: 280, height: 430, members: ["Compact", "Newspaper Tabloid"]),
+    CropSizeGroup(name: "Ciner & Norwegian Tabloid (7:10)", width: 350, height: 500, members: ["Ciner", "Norwegian Tabloid"]),
+    CropSizeGroup(name: "Berliner", width: 315, height: 470, members: ["Berliner"]),
+    CropSizeGroup(name: "Broadsheet", width: 597, height: 749, members: ["Broadsheet"]),
+    CropSizeGroup(name: "US Broadsheet", width: 381, height: 578, members: ["US Broadsheet"]),
+    CropSizeGroup(name: "British Broadsheet", width: 375, height: 597, members: ["British Broadsheet"]),
+    CropSizeGroup(name: "South African Broadsheet", width: 410, height: 578, members: ["South African Broadsheet"]),
+    CropSizeGroup(name: "Nordisch", width: 400, height: 570, members: ["Nordisch"]),
+    CropSizeGroup(name: "Rhenish", width: 350, height: 520, members: ["Rhenish"]),
+    CropSizeGroup(name: "Swiss", width: 320, height: 475, members: ["Swiss"]),
+    CropSizeGroup(name: "Canadian Tabloid", width: 260, height: 368, members: ["Canadian Tabloid"]),
+    CropSizeGroup(name: "New York Times", width: 305, height: 559, members: ["New York Times"]),
+    CropSizeGroup(name: "Wall Street Journal", width: 305, height: 578, members: ["Wall Street Journal"]),
+]
+let BOOK_PAPER_GROUPS: [CropSizeGroup] = [
+    CropSizeGroup(name: "Octavo & 64mo (2:3)", width: 200, height: 300, members: ["Octavo", "64mo"]),
+    CropSizeGroup(name: "Super Octavo & 32mo (7:11)", width: 700, height: 1100, members: ["Super Octavo", "32mo"]),
+    CropSizeGroup(name: "48mo & C Format (5:8)", width: 500, height: 800, members: ["48mo", "C Format"]),
+    CropSizeGroup(name: "Folio", width: 305, height: 483, members: ["Folio"]),
+    CropSizeGroup(name: "Quarto", width: 241, height: 305, members: ["Quarto"]),
+    CropSizeGroup(name: "Imperial Octavo", width: 210, height: 292, members: ["Imperial Octavo"]),
+    CropSizeGroup(name: "Royal Octavo", width: 165, height: 254, members: ["Royal Octavo"]),
+    CropSizeGroup(name: "Medium Octavo", width: 165, height: 235, members: ["Medium Octavo"]),
+    CropSizeGroup(name: "Crown Octavo", width: 137, height: 203, members: ["Crown Octavo"]),
+    CropSizeGroup(name: "12mo", width: 127, height: 187, members: ["12mo"]),
+    CropSizeGroup(name: "16mo", width: 102, height: 171, members: ["16mo"]),
+    CropSizeGroup(name: "18mo", width: 102, height: 165, members: ["18mo"]),
+    CropSizeGroup(name: "A Format", width: 110, height: 178, members: ["A Format"]),
+    CropSizeGroup(name: "B Format", width: 129, height: 198, members: ["B Format"]),
+]
+
+let PAPER_SIZE_GROUPS: [(category: String, groups: [CropSizeGroup])] = [
+    ("ISO", ISO_PAPER_GROUPS),
+    ("US", US_PAPER_GROUPS),
+    ("Photography", PHOTO_PAPER_GROUPS),
+    ("Newspaper", NEWSPAPER_PAPER_GROUPS),
+    ("Books", BOOK_PAPER_GROUPS),
+]
+
+func paperSizeGroup(named name: String) -> CropSizeGroup? {
+    PAPER_SIZE_GROUPS.flatMap(\.groups).first { $0.matches(name) }
+}
+
+/// Resolves a paper size name or paper group name to its dimensions, case-insensitively.
+func findPaperSize(named name: String) -> NSSize? {
+    if let size = PAPER_SIZES[name] {
+        return size
+    }
+    let needle = name.lowercased()
+    if let size = PAPER_SIZES.first(where: { $0.key.lowercased() == needle })?.value {
+        return size
+    }
+    return paperSizeGroup(named: name)?.size
 }
 
 enum PaperSize: String, Codable, Sendable, CaseIterable {

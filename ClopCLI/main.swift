@@ -168,64 +168,28 @@ extension CropSize: ExpressibleByArgument {
     }
 }
 
+func groupListing(_ categories: [(category: String, groups: [CropSizeGroup])]) -> String {
+    categories.map { category in
+        "\(category.category):\n" + category.groups.map { group in
+            let members = group.members.map { "\"\($0)\"" }.joined(separator: ", ")
+            return group.members.count > 1 ? "  \(group.name)\n      \(members)" : "  \(group.name)"
+        }.joined(separator: "\n")
+    }.joined(separator: "\n\n")
+}
+
 let DEVICES_STR = """
-Devices:
-  iPad:        "iPad 3"  "iPad 4"  "iPad 5"  "iPad 6"
-               "iPad 7"  "iPad 8"  "iPad 9"  "iPad 10"
+Devices, grouped by screen aspect ratio.
+Devices in a group share the same exact ratio, so cropping for any of them gives the same result.
+Both group names and device names are accepted.
 
-  iPad Air:    "iPad Air 1"  "iPad Air 2"    "iPad Air 3"
-               "iPad Air 4"  "iPad Air 5"
-
-  iPad mini:   "iPad mini 1"   "iPad mini 2"   "iPad mini 3"
-               "iPad mini 4"   "iPad mini 5"   "iPad mini 6"
-
-  iPad Pro:    "iPad Pro 1 12.9inch"   "iPad Pro 1 9.7inch"
-               "iPad Pro 2 10.5inch"   "iPad Pro 2 12.9inch"
-               "iPad Pro 3 11inch"     "iPad Pro 3 12.9inch"
-               "iPad Pro 4 11inch"     "iPad Pro 4 12.9inch"
-               "iPad Pro 5 11inch"     "iPad Pro 5 12.9inch"
-               "iPad Pro 6 11inch"     "iPad Pro 6 12.9inch"
-
-  iPhone:      "iPhone 15"    "iPhone 15 Plus"  "iPhone 15 Pro"      "iPhone 15 Pro Max"
-               "iPhone 14"    "iPhone 14 Plus"  "iPhone 14 Pro"      "iPhone 14 Pro Max"
-               "iPhone 13"    "iPhone 13 mini"  "iPhone 13 Pro"      "iPhone 13 Pro Max"
-               "iPhone 12"    "iPhone 12 mini"  "iPhone 12 Pro"      "iPhone 12 Pro Max"
-               "iPhone 11"    "iPhone 11 Pro"   "iPhone 11 Pro Max"
-               "iPhone X"     "iPhone XR"       "iPhone XS"          "iPhone XS Max"
-               "iPhone SE 1"  "iPhone SE 2"     "iPhone SE 3"
-               "iPhone 7"     "iPhone 7 Plus"   "iPhone 8"           "iPhone 8 Plus"
-               "iPhone 6"     "iPhone 6 Plus"   "iPhone 6s"          "iPhone 6s Plus"
-               "iPhone 4"     "iPhone 4S"       "iPhone 5"           "iPhone 5S"
-
-  iPod touch:  "iPod touch 4" "iPod touch 5" "iPod touch 6" "iPod touch 7"
-"""
+""" + groupListing(DEVICE_SIZE_GROUPS)
 
 let PAPER_SIZES_STR = """
-Paper sizes:
-  A:              "2A0"  "4A0"  "A0"   "A0+"  "A1"   "A1+"  "A10"  "A11"  "A12"  "A13"
-                  "A2"   "A3"   "A3+"  "A4"   "A5"   "A6"   "A7"   "A8"   "A9"
+Paper sizes, grouped by aspect ratio.
+Sizes in a group share the same ratio, so cropping to any of them gives the same result.
+Both group names and paper size names are accepted.
 
-  B:              "B0"   "B0+"  "B1"   "B1+"  "B10"  "B11"  "B12"  "B13"  "B2"   "B2+"
-                  "B3"   "B4"   "B5"   "B6"   "B7"   "B8"   "B9"
-
-  US:             "ANSI A"  "ANSI B"  "ANSI C"  "ANSI D"  "ANSI E"
-                  "Arch A"  "Arch B"  "Arch C"  "Arch D"  "Arch E"  "Arch E1"  "Arch E2"  "Arch E3"
-                  "Letter"  "Government Letter" "Half Letter"
-                  "Government Legal"  "Junior Legal"  "Ledger"  "Legal"  "Tabloid"
-
-  Photography:    "2LD, DSCW"    "2LW"  "2R"  "3R, L"    "4R, KG"    "5R, 2L"    "6R"
-                  "A3+ Super B"  "KGD"  "LW"  "LD, DSC"  "Passport"  "S8R, 6PW"  "8R, 6P"
-
-  Newspaper:      "British Broadsheet"  "South African Broadsheet"  "Broadsheet"   "US Broadsheet"
-                  "Canadian Tabloid"    "Norwegian Tabloid"    "Newspaper Tabloid"
-                  "Berliner"  "Ciner"   "Compact"     "Nordisch"         "Rhenish"
-                  "Swiss"     "Wall Street Journal"   "New York Times"
-
-  Books:          "12mo"  "16mo"  "18mo"  "32mo"  "48mo"  "64mo"
-                  "A Format"  "B Format"  "C Format" "Folio"  "Quarto"
-                  "Octavo"        "Royal Octavo"     "Medium Octavo"
-                  "Crown Octavo"  "Imperial Octavo"  "Super Octavo"
-"""
+""" + groupListing(PAPER_SIZE_GROUPS)
 
 func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool, types: [UTType]) throws -> [URL] {
     var dirs: [URL] = []
@@ -691,7 +655,15 @@ struct Clop: ParsableCommand {
                 throw ExitCode.success
             }
 
-            ratio = DEVICE_SIZES[forDevice ?? ""]?.fractionalAspectRatio ?? PAPER_SIZES[paperSize ?? ""]?.fractionalAspectRatio ?? aspectRatio?.fractionalAspectRatio
+            if let forDevice, findDeviceSize(named: forDevice) == nil {
+                throw ValidationError("Unknown device \"\(forDevice)\", use --list-devices to see possible values")
+            }
+            if let paperSize, findPaperSize(named: paperSize) == nil {
+                throw ValidationError("Unknown paper size \"\(paperSize)\", use --list-paper-sizes to see possible values")
+            }
+            ratio = forDevice.flatMap { findDeviceSize(named: $0)?.fractionalAspectRatio }
+                ?? paperSize.flatMap { findPaperSize(named: $0)?.fractionalAspectRatio }
+                ?? aspectRatio?.fractionalAspectRatio
             guard let ratio else {
                 throw ValidationError("Invalid aspect ratio, at least one of --for-device, --paper-size or --aspect-ratio must be specified")
             }

@@ -898,6 +898,15 @@ extension Device: AppEnum {
 
     static var caseDisplayRepresentations: [Device: DisplayRepresentation] {
         [
+            .iPhone17ProMax: "iPhone 17 Pro Max", .iPhone17Pro: "iPhone 17 Pro", .iPhone17: "iPhone 17", .iPhone17e: "iPhone 17e",
+            .iPhoneAir: "iPhone Air",
+            .iPadProM513Inch: "iPad Pro M5 13inch", .iPadProM511Inch: "iPad Pro M5 11inch",
+            .iPadProM413Inch: "iPad Pro M4 13inch", .iPadProM411Inch: "iPad Pro M4 11inch",
+            .iPadAirM413Inch: "iPad Air M4 13inch", .iPadAirM411Inch: "iPad Air M4 11inch",
+            .iPadAirM313Inch: "iPad Air M3 13inch", .iPadAirM311Inch: "iPad Air M3 11inch",
+            .iPadAirM213Inch: "iPad Air M2 13inch", .iPadAirM211Inch: "iPad Air M2 11inch",
+            .iPad11: "iPad 11", .iPadMini7: "iPad mini 7", .iPadMini1: "iPad mini 1",
+            .iPhone16e: "iPhone 16e",
             .iPhone16ProMax: "iPhone 16 Pro Max", .iPhone16Pro: "iPhone 16 Pro", .iPhone16Plus: "iPhone 16 Plus", .iPhone16: "iPhone 16",
             .iPhone15ProMax: "iPhone 15 Pro Max", .iPhone15Pro: "iPhone 15 Pro", .iPhone15Plus: "iPhone 15 Plus", .iPhone15: "iPhone 15",
             .iPadPro: "iPad Pro", .iPadPro6129Inch: "iPad Pro 6 12.9inch", .iPadPro611Inch: "iPad Pro 6 11inch",

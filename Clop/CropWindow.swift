@@ -476,6 +476,90 @@ struct SizePresetRow: View {
     }
 }
 
+/// Popup listing crop size groups with the member devices/papers as a native
+/// menu item subtitle. SwiftUI's menu Picker flattens item views to plain
+/// titles on macOS, so this drops down to NSPopUpButton.
+struct CropSizeGroupPicker: NSViewRepresentable {
+    final class Coordinator: NSObject {
+        init(_ binding: Binding<CropSize?>) {
+            selectionBinding = binding
+        }
+
+        var selectionBinding: Binding<CropSize?>
+
+        @objc func selectionChanged(_ sender: NSPopUpButton) {
+            selectionBinding.wrappedValue = sender.selectedItem?.representedObject as? CropSize
+        }
+    }
+
+    @Binding var selection: CropSize?
+    let categories: [(category: String, groups: [CropSizeGroup])]
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator($selection)
+    }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.controlSize = .small
+        button.font = .menuFont(ofSize: 11)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.selectionChanged(_:))
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.addItem(withTitle: "No selection", action: nil, keyEquivalent: "")
+        menu.addItem(.separator())
+        for (category, groups) in categories {
+            if #available(macOS 14.0, *) {
+                menu.addItem(.sectionHeader(title: category))
+            } else {
+                let header = NSMenuItem(title: category, action: nil, keyEquivalent: "")
+                header.isEnabled = false
+                menu.addItem(header)
+            }
+            for group in groups {
+                let item = NSMenuItem(title: group.name, action: nil, keyEquivalent: "")
+                item.representedObject = group.cropSize
+                item.indentationLevel = 1
+                if group.members.count > 1 {
+                    if #available(macOS 14.4, *) {
+                        item.subtitle = wrapped(group.subtitle)
+                    }
+                    item.toolTip = group.subtitle
+                }
+                menu.addItem(item)
+            }
+        }
+        button.menu = menu
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        context.coordinator.selectionBinding = $selection
+        let index = button.menu?.items.firstIndex { ($0.representedObject as? CropSize) == selection }
+        button.selectItem(at: index ?? 0)
+    }
+
+    /// Breaks a long member list into lines so the menu doesn't grow overly wide.
+    private func wrapped(_ text: String, width: Int = 48) -> String {
+        var lines = [""]
+        for member in text.components(separatedBy: ", ") {
+            let line = lines[lines.count - 1]
+            if line.isEmpty {
+                lines[lines.count - 1] = member
+            } else if line.count + member.count + 2 <= width {
+                lines[lines.count - 1] = "\(line), \(member)"
+            } else {
+                lines.append(member)
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+}
+
 struct CropView: View {
     enum Field: Hashable {
         case width
@@ -782,29 +866,9 @@ struct CropView: View {
     var pdfPresets: some View {
         VStack(alignment: .leading) {
             sectionHeader("Paper size")
-            Picker("", selection: $paperSize) {
-                Text("No selection").tag(nil as CropSize?)
-                Divider()
-                ForEach(Array(PAPER_CROP_SIZES.keys.sorted()), id: \.self) { paperType in
-                    Section(paperType) {
-                        ForEach(Array(PAPER_CROP_SIZES[paperType]!.keys.sorted()), id: \.self) { paper in
-                            Text(paper).tag(PAPER_CROP_SIZES[paperType]![paper])
-                        }
-                    }
-                }
-            }.font(.medium(10))
+            CropSizeGroupPicker(selection: $paperSize, categories: PAPER_SIZE_GROUPS)
             sectionHeader("Device size")
-            Picker("", selection: $deviceSize) {
-                Text("No selection").tag(nil as CropSize?)
-                Divider()
-                ForEach(Array(DEVICE_CROP_SIZES.keys.sorted()), id: \.self) { deviceType in
-                    Section(deviceType) {
-                        ForEach(Array(DEVICE_CROP_SIZES[deviceType]!.keys.sorted()), id: \.self) { device in
-                            Text(device).tag(DEVICE_CROP_SIZES[deviceType]![device])
-                        }
-                    }
-                }
-            }.font(.medium(10))
+            CropSizeGroupPicker(selection: $deviceSize, categories: DEVICE_SIZE_GROUPS)
             sectionHeader("Aspect ratio")
             Picker("", selection: $ratioSize) {
                 Text("No selection").tag(nil as CropSize?)
