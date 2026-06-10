@@ -220,8 +220,51 @@ enum CompareMode: String, Defaults.Serializable {
     case split
 }
 
+enum ComparePane: String {
+    case original
+    case optimised
+    case split
+}
+
 extension Defaults.Keys {
-    static let compareMode = Key<CompareMode>("compareMode", default: .sideBySide)
+    static let compareMode = Key<CompareMode>("compareMode", default: .split)
+}
+
+@ViewBuilder
+func fileActions(for url: URL) -> some View {
+    Button("Open") {
+        NSWorkspace.shared.open(url)
+    }
+    Button("Show in Finder") {
+        NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "")
+    }
+    Button("Copy Path") {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.path, forType: .string)
+    }
+}
+
+struct PathFieldMenu: View {
+    let url: URL
+
+    @State private var hovering = false
+
+    var body: some View {
+        Menu(url.shellString) {
+            fileActions(for: url)
+        }
+        .menuStyle(.button)
+        .buttonStyle(FlatButton(
+            color: .bg.warm.opacity(hovering ? 0.9 : 0.5),
+            textColor: hovering ? .primary : .secondary
+        ))
+        .font(.mono(10)).lineLimit(1)
+        .truncationMode(.middle)
+        .frame(maxWidth: COMPARISON_VIEW_SIZE)
+        .onHover { hover in
+            withAnimation(.fastTransition) { hovering = hover }
+        }
+    }
 }
 
 /// A view that allows the user to preview a comparison of the optimised and original image/video/PDF.
@@ -238,13 +281,13 @@ struct CompareView: View {
     }
 
     var previewStack: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             HStack {
                 if let url = optimiser.url, let originalURL = optimiser.comparisonOriginalURL {
-                    preview(url: originalURL, title: "Original", bytes: optimiser.oldBytes, size: optimiser.oldSize) {
+                    preview(url: originalURL, pane: .original, title: "Original", bytes: optimiser.oldBytes, size: optimiser.oldSize) {
                         renderer(for: originalURL, otherVideoURL: url)
                     }
-                    preview(url: url, title: "Optimised", bytes: optimiser.newBytes ?! optimiser.oldBytes, size: optimiser.newSize ?? optimiser.oldSize) {
+                    preview(url: url, pane: .optimised, title: "Optimised", bytes: optimiser.newBytes ?! optimiser.oldBytes, size: optimiser.newSize ?? optimiser.oldSize) {
                         renderer(for: url)
                     }
                 }
@@ -252,22 +295,13 @@ struct CompareView: View {
             .hfill()
             .padding(.vertical)
             .overlay(savingsBadge.allowsHitTesting(false))
-            .onContinuousHover { hoverPhase in
-                guard zoomed else { return }
-
-                guard case let .active(location) = hoverPhase else { return }
-
-                let frame = proxy.frame(in: .local)
-                let x = (location.x - frame.minX) / frame.width
-                let y = (location.y - frame.minY) / frame.height
-
-                zoomOffset = UnitPoint(x: x, y: y)
-            }
+            .coordinateSpace(name: "compareArea")
+            .onContinuousHover(perform: trackHover(_:))
         }
     }
 
     var splitStack: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             VStack {
                 if let url = optimiser.url, let originalURL = optimiser.comparisonOriginalURL {
                     HStack {
@@ -281,17 +315,8 @@ struct CompareView: View {
             }
             .hfill()
             .padding(.vertical)
-            .onContinuousHover { hoverPhase in
-                guard zoomed else { return }
-
-                guard case let .active(location) = hoverPhase else { return }
-
-                let frame = proxy.frame(in: .local)
-                let x = (location.x - frame.minX) / frame.width
-                let y = (location.y - frame.minY) / frame.height
-
-                zoomOffset = UnitPoint(x: x, y: y)
-            }
+            .coordinateSpace(name: "compareArea")
+            .onContinuousHover(perform: trackHover(_:))
         }
     }
 
@@ -299,9 +324,14 @@ struct CompareView: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             ZStack(alignment: .leading) {
+                // Frame each renderer to the full pane so fitted content stays centered;
+                // the ZStack's `.leading` alignment would otherwise hug it to the left edge,
+                // leaving the divider stranded relative to the visible image.
                 renderer(for: optimisedURL)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
                     .scaleEffect(zoom, anchor: zoomOffset)
                 renderer(for: originalURL, otherVideoURL: optimisedURL)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
                     .scaleEffect(zoom, anchor: zoomOffset)
                     .mask(alignment: .leading) {
                         Rectangle().frame(width: max(width * splitPosition, 0))
@@ -316,6 +346,10 @@ struct CompareView: View {
                     splitPosition = min(max(value.location.x / width, 0), 1)
                 }
             )
+            .contextMenu {
+                Section("Original") { fileActions(for: originalURL) }
+                Section("Optimised") { fileActions(for: optimisedURL) }
+            }
         }
         .frame(
             minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE * 2, maxWidth: .infinity,
@@ -323,6 +357,7 @@ struct CompareView: View {
         )
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(paneFrameReader(.split))
     }
 
     func splitDivider(height: CGFloat) -> some View {
@@ -419,6 +454,17 @@ struct CompareView: View {
         .onChange(of: km.lcmd) { _ in flagsChanged(Set(km.flags)) }
         .onChange(of: km.ralt) { _ in flagsChanged(Set(km.flags)) }
         .onChange(of: km.lalt) { _ in flagsChanged(Set(km.flags)) }
+        .onChange(of: compareMode) { _ in
+            paneFrames = [:]
+            activePane = nil
+        }
+        .background(
+            Button("") { optimiser.comparisonWindowController?.close() }
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        )
         .focusable(false)
     }
 
@@ -531,28 +577,24 @@ struct CompareView: View {
         }
     }
 
-    func paneHeader(title: String, url: URL) -> some View {
-        VStack {
-            Text(title).bold(12)
-            Menu(url.shellString) {
-                Button("Show in Finder") {
-                    NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "")
-                }
-                Button("Copy Path") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(url.path, forType: .string)
-                }
-            }
-            .menuStyle(.button)
-            .buttonStyle(FlatButton(color: .bg.warm.opacity(0.5), textColor: .secondary))
-            .font(.mono(10)).lineLimit(1)
-            .foregroundColor(.secondary)
-            .truncationMode(.middle)
-            .frame(maxWidth: COMPARISON_VIEW_SIZE)
+    /// Reports the pane's frame in the shared "compareArea" coordinate space, so hover
+    /// tracking can anchor the zoom to the pane the cursor was over when zooming started.
+    func paneFrameReader(_ pane: ComparePane) -> some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear { paneFrames[pane] = proxy.frame(in: .named("compareArea")) }
+                .onChange(of: proxy.frame(in: .named("compareArea"))) { paneFrames[pane] = $0 }
         }
     }
 
-    func preview(url: URL, title: String, bytes: Int? = nil, size: CGSize? = nil, @ViewBuilder content: () -> some View) -> some View {
+    func paneHeader(title: String, url: URL) -> some View {
+        VStack {
+            Text(title).bold(12)
+            PathFieldMenu(url: url)
+        }
+    }
+
+    func preview(url: URL, pane: ComparePane, title: String, bytes: Int? = nil, size: CGSize? = nil, @ViewBuilder content: () -> some View) -> some View {
         VStack {
             VStack {
                 paneHeader(title: title, url: url)
@@ -566,6 +608,8 @@ struct CompareView: View {
                     .background(.regularMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .clipped()
+                    .contextMenu { fileActions(for: url) }
+                    .background(paneFrameReader(pane))
             }.frame(minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE)
 
             VStack(alignment: .leading) {
@@ -584,12 +628,55 @@ struct CompareView: View {
         }
     }
 
+    func trackHover(_ hoverPhase: HoverPhase) {
+        switch hoverPhase {
+        case let .active(location):
+            hoverLocation = location
+            if zoomed {
+                updateZoomOffset(at: location)
+            }
+        case .ended:
+            hoverLocation = nil
+        }
+    }
+
+    /// Anchor the zoom inside the pane where it started: cursor positions are clamped to that
+    /// pane's bounds, so both panes mirror the same in-pane point instead of tracking the window.
+    func updateZoomOffset(at location: CGPoint) {
+        guard let pane = activePane ?? pane(at: location), let frame = paneFrames[pane],
+              frame.width > 0, frame.height > 0
+        else { return }
+        zoomOffset = UnitPoint(
+            x: min(max((location.x - frame.minX) / frame.width, 0), 1),
+            y: min(max((location.y - frame.minY) / frame.height, 0), 1)
+        )
+    }
+
+    func pane(at location: CGPoint) -> ComparePane? {
+        if let hit = paneFrames.first(where: { $0.value.contains(location) }) {
+            return hit.key
+        }
+        return paneFrames.min(by: {
+            abs($0.value.midX - location.x) < abs($1.value.midX - location.x)
+        })?.key
+    }
+
     func flagsChanged(_ flags: Set<TriggerKey>) {
         guard NSApp.isActive else { return }
         withAnimation(.fastSpring) {
             zoomed = flags.hasElements(from: [.lcmd, .rcmd, .cmd])
             zoom = zoomed ? (flags.hasElements(from: [.lalt, .ralt, .alt]) ? 8.0 : 3.0) : 1.0
-            if !zoomed {
+            if zoomed {
+                // Settle the anchor on key press so the zoom starts at the cursor
+                // instead of jumping there on the first mouse move.
+                if let hoverLocation {
+                    if activePane == nil {
+                        activePane = pane(at: hoverLocation)
+                    }
+                    updateZoomOffset(at: hoverLocation)
+                }
+            } else {
+                activePane = nil
                 zoomOffset = .center
             }
         }
@@ -604,6 +691,9 @@ struct CompareView: View {
     @State private var zoom = 1.0
     @State private var zoomOffset = UnitPoint.center
     @State private var splitPosition: CGFloat = 0.5
+    @State private var paneFrames: [ComparePane: CGRect] = [:]
+    @State private var hoverLocation: CGPoint?
+    @State private var activePane: ComparePane?
 }
 
 @MainActor
