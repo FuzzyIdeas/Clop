@@ -423,10 +423,11 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                 if !hideFloatingResult {
                     OM.current = optimiser
                 }
-                // rect crops run from the pristine original, so keep reporting the original
-                // bytes/size instead of the working (already optimised/cropped) file's
+                // rect crops (full-frame ones included, those are plain downscales) run from
+                // the pristine original, so keep reporting the original bytes/size instead of
+                // the working (already optimised/cropped) file's
                 let rectCrop = effectiveActions.contains {
-                    if case let .downscale(_, cropSize) = $0, cropSize?.cropRect?.isFullFrame == false { return true }
+                    if case let .downscale(_, cropSize) = $0, cropSize?.cropRect != nil { return true }
                     return false
                 }
                 optimiser.finish(

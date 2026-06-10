@@ -187,8 +187,10 @@ struct CropSize: Codable, Hashable, Identifiable {
 }
 
 func < (_ cropSize: CropSize, _ size: NSSize) -> Bool {
-    if let rect = cropSize.cropRect {
-        return !rect.isFullFrame
+    // a sub-region rect is always a real crop; a full-frame rect is a plain resize,
+    // judged by the target size below
+    if let rect = cropSize.cropRect, !rect.isFullFrame {
+        return true
     }
     return cropSize.longEdge
         ? (cropSize.width == 0 ? cropSize.height : cropSize.width).d < max(size.width, size.height)

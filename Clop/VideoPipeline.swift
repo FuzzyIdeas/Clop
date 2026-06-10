@@ -283,9 +283,10 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
                     OM.current = optimiser
                 }
 
-                // rect crops run from the pristine original (the backup), so keep reporting
-                // the original bytes/size instead of the working file's
-                let rectCrop = cropTo?.cropRect?.isFullFrame == false
+                // rect crops (full-frame ones included, those are plain downscales) run from
+                // the pristine original (the backup), so keep reporting the original
+                // bytes/size instead of the working file's
+                let rectCrop = cropTo?.cropRect != nil
                 if hasDownscale {
                     optimiser.finish(
                         oldBytes: rectCrop && optimiser.oldBytes > 0 ? optimiser.oldBytes : fileSize,
