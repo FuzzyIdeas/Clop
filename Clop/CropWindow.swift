@@ -942,14 +942,17 @@ struct CropView: View {
 
         // re-cropping starts from the uncropped original with the current crop pre-selected,
         // restoring the preset/ratio/target state it was applied with
-        if !optimiser.type.isPDF, cropSourceURL != optimiser.url,
-           let last = optimiser.lastCropSize, let lastRect = last.cropRect, !lastRect.isFullFrame
-        {
-            initialRect = lastRect.clamped()
-            rect = initialRect
+        if !optimiser.type.isPDF, cropSourceURL != optimiser.url, let last = optimiser.lastCropSize, let lastRect = last.cropRect {
+            if !lastRect.isFullFrame {
+                initialRect = lastRect.clamped()
+                rect = initialRect
+            }
             if last.name.isNotEmpty {
                 presetName = last.name
                 lockedAspect = last.aspectRatio
+                targetSize = last.ns
+            } else if lastRect.isFullFrame {
+                // a full-frame crop is a plain downscale: the target is the whole point
                 targetSize = last.ns
             }
         }
@@ -1075,10 +1078,12 @@ struct CropView: View {
         }
 
         let out = effectiveTargetSize()
+        // the rect is attached even when full-frame (a plain downscale) so the operation
+        // runs from the pristine original and can be re-opened with its state restored
         optimiser.crop(to: CropSize(
             width: out.width.evenInt, height: out.height.evenInt,
             name: presetName ?? "",
-            cropRect: rect.isFullFrame ? nil : rect.clamped()
+            cropRect: rect.clamped()
         ))
     }
 
