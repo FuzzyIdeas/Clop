@@ -27,6 +27,45 @@ extension PDFDocument {
         }
     }
 
+    /// Extends each page's canvas to `aspectRatio` instead of cropping content
+    /// away: the media box grows in the dimension a crop would clip, and viewers
+    /// render the added area as empty paper. No content is lost.
+    /// An optional `rect` (normalized to the displayed extended canvas) selects a
+    /// sub-region of it, allowing zoom/pan within the extended space.
+    func extendTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false, rect: CropRect? = nil) {
+        guard pageCount > 0 else { return }
+
+        for i in 0 ..< pageCount {
+            let page = page(at: i)!
+            let visible = page.bounds(for: .cropBox)
+            let rotated = page.rotation % 180 != 0
+
+            // the target orientation refers to the *displayed* page, so rotated pages
+            // get their extension computed in display space and mapped back
+            let displayedSize = rotated ? NSSize(width: visible.height, height: visible.width) : visible.size
+            let extendedSize = displayedSize.extendTo(aspectRatio: aspectRatio, alwaysPortrait: alwaysPortrait, alwaysLandscape: alwaysLandscape).size
+            let size = rotated ? NSSize(width: extendedSize.height, height: extendedSize.width) : extendedSize
+
+            var box = CGRect(
+                x: visible.midX - size.width / 2,
+                y: visible.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+            if let rect, !rect.isFullFrame {
+                let r = rect.rotated(by: page.rotation).clamped()
+                box = CGRect(
+                    x: box.minX + box.width * r.x,
+                    y: box.minY + box.height * (1 - r.y - r.height),
+                    width: box.width * r.width,
+                    height: box.height * r.height
+                )
+            }
+            page.setBounds(box, for: .mediaBox)
+            page.setBounds(box, for: .cropBox)
+        }
+    }
+
     /// `rect` is normalized to the *displayed* page (top-left origin, rotation applied),
     /// so it has to be mapped back into media box space before flipping the y axis
     /// into PDF bottom-left coordinates.

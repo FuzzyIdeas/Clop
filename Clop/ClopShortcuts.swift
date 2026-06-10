@@ -442,15 +442,15 @@ struct CropPDFIntent: AppIntent {
     static var parameterSummary: some ParameterSummary {
         When(\.$overwrite, .equalTo, true, {
             When(\.$usePaperSize, .equalTo, true, {
-                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite)") { \.$pageLayout }
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite)") { \.$pageLayout; \.$extend }
             }, otherwise: {
-                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite)") { \.$pageLayout }
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite)") { \.$pageLayout; \.$extend }
             })
         }, otherwise: {
             When(\.$usePaperSize, .equalTo, true, {
-                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite) \(\.$output)") { \.$pageLayout }
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite) \(\.$output)") { \.$pageLayout; \.$extend }
             }, otherwise: {
-                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite) \(\.$output)") { \.$pageLayout }
+                Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite) \(\.$output)") { \.$pageLayout; \.$extend }
             })
         })
     }
@@ -481,6 +481,13 @@ struct CropPDFIntent: AppIntent {
     @Parameter(title: "Overwrite original file", default: true, displayName: .init(true: "overwrite original file", false: "save to"))
     var overwrite: Bool
 
+    @Parameter(
+        title: "Extend instead of clipping",
+        description: "Grows pages with empty paper instead of cutting content away, so everything stays visible (e.g. fit a book to a phone screen without cutting off text).",
+        default: false
+    )
+    var extend: Bool
+
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
         guard let aspectRatio = usePaperSize ? paperSize?.aspectRatio : device?.aspectRatio else {
@@ -497,8 +504,12 @@ struct CropPDFIntent: AppIntent {
             outputURL = outputURL.appendingPathComponent(url.lastPathComponent)
         }
 
-        log.debug("Cropping \(pdf.documentURL?.path ?? "PDF") to aspect ratio \(aspectRatio)")
-        pdf.cropTo(aspectRatio: aspectRatio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
+        log.debug("\(extend ? "Extending" : "Cropping") \(pdf.documentURL?.path ?? "PDF") to aspect ratio \(aspectRatio)")
+        if extend {
+            pdf.extendTo(aspectRatio: aspectRatio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
+        } else {
+            pdf.cropTo(aspectRatio: aspectRatio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
+        }
 
         log.debug("Writing PDF to \(outputURL.path)")
         pdf.write(to: outputURL)

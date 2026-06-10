@@ -621,6 +621,9 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Crop all PDFs in subfolders (when using a folder as input)")
         var recursive = false
 
+        @Flag(name: .shortAndLong, help: "Extend pages with empty paper instead of clipping content, keeping everything visible (e.g. fit a book to a phone screen without cutting off text)")
+        var extend = false
+
         @Flag(name: .long, help: "List possible devices that can be passed to --for-device")
         var listDevices = false
 
@@ -689,8 +692,12 @@ struct Clop: ParsableCommand {
         mutating func run() throws {
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
                 let pdfPath = pdf.documentURL!.filePath!
-                print("Cropping \(pdfPath.string) to aspect ratio \(factorStr(ratio!))", terminator: "")
-                pdf.cropTo(aspectRatio: ratio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
+                print("\(extend ? "Extending" : "Cropping") \(pdfPath.string) to aspect ratio \(factorStr(ratio!))", terminator: "")
+                if extend {
+                    pdf.extendTo(aspectRatio: ratio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
+                } else {
+                    pdf.cropTo(aspectRatio: ratio, alwaysPortrait: pageLayout == .portrait, alwaysLandscape: pageLayout == .landscape)
+                }
 
                 let outFilePath: FilePath =
                     if let path = output?.filePath, path.string.contains("/"), path.string.starts(with: "/") {
