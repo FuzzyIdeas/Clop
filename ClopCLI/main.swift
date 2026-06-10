@@ -1519,6 +1519,7 @@ struct Clop: ParsableCommand {
 /// validation; the app's `parsePipelineStep` in Automation.swift is the source of truth.
 let KNOWN_PIPELINE_STEPS = [
     "optimise", "downscale", "lowerBitrate", "convert", "crop", "extractPagesAsImages",
+    "targetSize", "stripExif", "watermark", "capFps", "normalize",
     "copy", "move", "rename", "delete", "if", "ifNot", "removeAudio", "changeSpeed",
     "runScript", "runShortcut", "copyToClipboard", "copyLinkForSending",
     "shelveWith", "uploadWith", "openWith",

@@ -19,7 +19,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     source: OptimisationSource? = nil,
     bitrateOverride: Int? = nil,
     aggressiveOptimisation: Bool? = nil,
-    formatOverride: AudioFormat? = nil
+    formatOverride: AudioFormat? = nil,
+    loudnormTarget: Double? = nil
 ) async throws -> Audio? {
     let path = audio.path
     let pathString = path.string
@@ -70,7 +71,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                 }
 
                 log.debug("Running audio pipeline \(actions) for \(pathString)")
-                optimisedAudio = try audio.optimise(optimiser: optimiser, bitrateOverride: bitrateOverride, aggressive: aggressive, formatOverride: formatOverride)
+                optimisedAudio = try audio.optimise(optimiser: optimiser, bitrateOverride: bitrateOverride, aggressive: aggressive, formatOverride: formatOverride, loudnormTarget: loudnormTarget)
 
                 if !allowLarger, optimisedAudio!.fileSize >= fileSize {
                     audio.path.restore(backupPath: audio.path.clopBackupPath, force: true)

@@ -125,7 +125,7 @@ class Audio: Optimisable {
         return outputFormat.loweredBitrate(target: target, inputBitrate: input)
     }
 
-    func optimise(optimiser: Optimiser, bitrateOverride: Int? = nil, aggressive: Bool = false, formatOverride: AudioFormat? = nil) throws -> Audio {
+    func optimise(optimiser: Optimiser, bitrateOverride: Int? = nil, aggressive: Bool = false, formatOverride: AudioFormat? = nil, loudnormTarget: Double? = nil) throws -> Audio {
         log.debug("Optimising audio \(self.path.string)")
         guard let name = path.lastComponent else {
             log.error("No file name for path: \(self.path)")
@@ -142,6 +142,9 @@ class Audio: Optimisable {
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
         var args = ["-y", "-i", inputPath.string, "-vn"]
         args += format.encodingArgs(bitrate: bitrate, aggressive: aggressive, inputSampleRate: sampleRate)
+        if let loudnormTarget {
+            args += ["-af", "loudnorm=I=\(loudnormTarget):TP=-1.5:LRA=11"]
+        }
         args += [
             "-progress", "pipe:2",
             "-nostats", "-hide_banner", "-stats_period", "0.1",

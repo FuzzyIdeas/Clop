@@ -417,8 +417,12 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         // an ffmpeg pass, so it never batches.
         func isCompilable(_ s: PipelineStep) -> Bool {
             guard s.isProcessingStep || s.category == .mediaSpecific else { return false }
-            if case let .convert(format, _) = s, format == "gif", fileType == .video { return false }
-            return true
+            switch s {
+            // Iterative or external-tool steps run on their own, outside compiled passes
+            case .targetSize, .stripExif, .watermark, .capFps, .normalize: return false
+            case let .convert(format, _) where format == "gif" && fileType == .video: return false
+            default: return true
+            }
         }
         if isCompilable(step) {
             var batch: [PipelineStep] = [step]
@@ -450,6 +454,16 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             await exec.handleOptimise(encoder: encoder, adaptive: adaptive, videoEncoder: videoEncoder, dpi: dpi, location: location)
         case let .extractPagesAsImages(format, quality, location):
             await exec.handleExtractPagesAsImages(format: format, quality: quality, location: location)
+        case let .targetSize(bytes, location):
+            await exec.handleTargetSize(bytes: bytes, location: location)
+        case .stripExif:
+            await exec.handleStripExif()
+        case let .watermark(image, position, opacity, scale, location):
+            await exec.handleWatermark(image: image, position: position, opacity: opacity, scale: scale, location: location)
+        case let .capFps(fps):
+            await exec.handleCapFps(fps: fps)
+        case let .normalize(lufs):
+            await exec.handleNormalize(lufs: lufs)
         case let .downscale(factor, location):
             await exec.handleDownscale(factor: factor, location: location)
         case let .lowerBitrate(kbps, location):
