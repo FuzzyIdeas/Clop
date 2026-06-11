@@ -127,7 +127,11 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
         }
 
         if let regex, !regex.isEmpty {
-            guard let re = try? NSRegularExpression(pattern: regex) else { return (false, []) }
+            // Smart case: insensitive when the pattern is all lowercase, sensitive when
+            // it contains an uppercase literal. Escape sequences like \S or \W don't count.
+            let literals = regex.replacingOccurrences(of: #"\\."#, with: "", options: .regularExpression)
+            let options: NSRegularExpression.Options = literals.contains(where: \.isUppercase) ? [] : [.caseInsensitive]
+            guard let re = try? NSRegularExpression(pattern: regex, options: options) else { return (false, []) }
             let range = NSRange(name.startIndex..., in: name)
             guard let match = re.firstMatch(in: name, range: range) else { return (false, []) }
             for i in 1 ..< match.numberOfRanges {
