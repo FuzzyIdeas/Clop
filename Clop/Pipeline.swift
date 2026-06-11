@@ -121,6 +121,14 @@ private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFil
         rawText: "if(regex: \"^(screen\\s?shot|cleanshot)\") -> optimise() -> move(to: \"~/Pictures/Screenshots/%y/%m/\")", skipOptimisation: true, version: 1
     ),
     (
+        id: "builtin-image-half", name: "0.5×", fileType: .image,
+        rawText: "downscale(factor: 0.5)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-image-watermark", name: "Watermark", fileType: .image,
+        rawText: "watermark(image: \"%P/watermark.png\")", skipOptimisation: true, version: 1
+    ),
+    (
         id: "builtin-video-1080p", name: "1080p", fileType: .video,
         rawText: "crop(width: 1920) -> optimise(encoder: slowHighQuality)", skipOptimisation: true, version: 1
     ),
@@ -131,6 +139,14 @@ private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFil
     (
         id: "builtin-video-2x-silent", name: "2× silent", fileType: .video,
         rawText: "changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-video-half", name: "0.5×", fileType: .video,
+        rawText: "downscale(factor: 0.5)", skipOptimisation: true, version: 1
+    ),
+    (
+        id: "builtin-video-watermark", name: "Watermark", fileType: .video,
+        rawText: "watermark(image: \"%P/watermark.png\")", skipOptimisation: true, version: 1
     ),
     (
         id: "builtin-pdf-as-images", name: "as images", fileType: .pdf,
