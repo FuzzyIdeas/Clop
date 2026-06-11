@@ -29,7 +29,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     ffmpegEncoderOverride: [String]? = nil,
     outputExtension: String? = nil,
     source: OptimisationSource? = nil,
-    fpsOverride: Int? = nil
+    fpsOverride: Int? = nil,
+    compression: CompressionQuality? = nil
 ) async throws -> Video? {
     let path = video.path
     let pathString = path.string
@@ -124,6 +125,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
 
     // Set up optimiser
     let optimiser = OM.optimiser(id: pipelineId, type: itemType, operation: opLabel, hidden: hideFloatingResult, source: source)
+    if let compression {
+        optimiser.compressionOverride = compression
+    }
     if optimiser.oldBytes == 0 {
         optimiser.oldBytes = video.fileSize
     }

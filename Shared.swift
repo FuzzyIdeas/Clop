@@ -445,6 +445,11 @@ struct OptimisationRequest: Codable, Identifiable {
     /// PDF aggressive DPI override: nil = use the user setting, 0 = adaptive,
     /// positive = a specific stop from `PDF_DPI_STOPS`.
     var pdfDPI: Int?
+    /// Per-run compression override applied to images, videos and audio files
+    /// (tier + factor 5..100, factor 0 = auto CRF for video). nil = use the app settings.
+    var compression: CompressionQuality? = nil
+    /// Explicit audio bitrate override in kbps; takes priority over `compression` for audio files.
+    var audioBitrate: Int? = nil
     /// Pipeline to run on each file: a saved pipeline name, or inline pipeline DSL
     /// (e.g. "crop(width: 1600) -> convert(to: webp)"). When set, the app executes
     /// this pipeline instead of looking up source-configured automations.

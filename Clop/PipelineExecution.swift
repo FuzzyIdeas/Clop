@@ -529,18 +529,61 @@ final class PipelineExecution {
         }
 
         let input = currentFile
-        // Base width drives the watermark scale; ffmpeg overlays both images and videos
-        let baseWidth: Int? = if fileType == .video {
-            await (try? Video.byFetchingMetadata(path: input))?.size.map { Int($0.width) }
-        } else {
-            NSImage(contentsOf: input.url).map { Int($0.size.width) }
+
+        // Still images are watermarked natively (Core Graphics) to preserve quality and file
+        // size. Videos use ffmpeg; animated GIFs also use ffmpeg so every frame is overlaid
+        // rather than flattened to a single frame.
+        if fileType == .image {
+            guard let base = Image(path: input, retinaDownscaled: false) else {
+                optimiser.finish(error: "Can't read image for watermarking")
+                shouldStop = true
+                return
+            }
+
+            if base.type == .gif {
+                await watermarkWithFFmpeg(input: input, wm: wm, baseWidth: Int(base.size.width), position: position, opacity: opacity, scale: scale, location: location, isVideo: false)
+                return
+            }
+
+            optimiser.running = true
+            optimiser.operation = "Watermarking"
+            let resultPath: FilePath? = await withCheckedContinuation { continuation in
+                DispatchQueue.global().async {
+                    do {
+                        let result = try base.watermarked(watermark: wm, position: position, opacity: opacity, scale: scale, optimiser: self.optimiser)
+                        continuation.resume(returning: result.path)
+                    } catch {
+                        log.error("Pipeline: native watermark failed for \(input.string): \(String(describing: error))")
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+            optimiser.running = false
+
+            guard let resultPath else {
+                optimiser.finish(error: "Watermarking failed")
+                shouldStop = true
+                return
+            }
+            // Name the result like the input so applyLocation(inPlace) replaces the original
+            let named = (try? resultPath.move(to: resultPath.dir.appending(input.lastComponent?.string ?? resultPath.name.string), force: true)) ?? resultPath
+            currentFile = applyLocation(location, to: named, original: currentFile, context: context)
+            if !hide { shownVisibleResult = true }
+            return
         }
-        guard let baseWidth, baseWidth > 0 else {
+
+        // Video
+        guard let baseWidth = await (try? Video.byFetchingMetadata(path: input))?.size.map({ Int($0.width) }), baseWidth > 0 else {
             optimiser.finish(error: "Can't read dimensions for watermarking")
             shouldStop = true
             return
         }
+        await watermarkWithFFmpeg(input: input, wm: wm, baseWidth: baseWidth, position: position, opacity: opacity, scale: scale, location: location, isVideo: true)
+    }
 
+    /// ffmpeg-based watermarking, used for videos and animated GIFs (both need every frame
+    /// overlaid). Still images go through `Image.watermarked` instead.
+    private func watermarkWithFFmpeg(input: FilePath, wm: FilePath, baseWidth: Int, position: String, opacity: Double, scale: Double, location: String, isVideo: Bool) async {
         let targetWmWidth = max(16, Int(Double(baseWidth) * scale))
         let coords = switch position {
         case "topLeft": "20:20"
@@ -551,13 +594,11 @@ final class PipelineExecution {
         }
         let filter = "[1:v]scale=\(targetWmWidth):-1,format=rgba,colorchannelmixer=aa=\(opacity)[wm];[0:v][wm]overlay=\(coords)"
 
-        let tempDir: FilePath = fileType == .video ? .videos : .images
+        let tempDir: FilePath = isVideo ? .videos : .images
         let output = tempDir.appending("wm-\(UUID().uuidString.prefix(8))-\(input.lastComponent?.string ?? "file")")
         var args = ["-y", "-i", input.string, "-i", wm.string, "-filter_complex", filter]
-        if fileType == .video {
+        if isVideo {
             args += ["-c:a", "copy"]
-        } else {
-            args += ["-frames:v", "1", "-q:v", "2"]
         }
         args.append(output.string)
 
@@ -745,7 +786,8 @@ final class PipelineExecution {
                         copyToClipboard: copyResultToClipboard,
                         allowLarger: true,
                         hideFloatingResult: hide,
-                        source: source
+                        source: source,
+                        compression: optimiser.compressionOverride
                     ) {
                         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                         if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
@@ -756,7 +798,7 @@ final class PipelineExecution {
                 }
             case .video:
                 let vid = Video(inputFile)
-                if let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
+                if let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source, compression: optimiser.compressionOverride) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
@@ -772,7 +814,8 @@ final class PipelineExecution {
                 if let result = try? await runAudioPipeline(
                     audio, actions: [action],
                     allowLarger: true, hideFloatingResult: hide,
-                    source: source, formatOverride: format
+                    source: source, bitrateOverride: optimiser.audioBitrateOverride,
+                    formatOverride: format, compression: optimiser.compressionOverride
                 ) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }

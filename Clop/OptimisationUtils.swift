@@ -2593,6 +2593,8 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
     pdfDPI: Int? = nil,
+    compression: CompressionQuality? = nil,
+    audioBitrate: Int? = nil,
     optimisationCount: inout Int,
     copyToClipboard: Bool,
     source: OptimisationSource? = nil,
@@ -2635,6 +2637,20 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
             } else {
                 item
             }
+
+        // Per-run compression override (CLI/Shortcuts): set it on the optimiser before
+        // any pipeline runs, so the image/video/audio encode paths pick it up.
+        let forceReencode = compression != nil || audioBitrate != nil
+        if forceReencode, item.path.exists {
+            let type = ItemType.from(filePath: item.path)
+            if type.isImage || type.isVideo || type.isAudio || type.isPDF {
+                let optimiser = OM.optimiser(id: id, type: type, operation: "Optimising", hidden: hideFloatingResult, source: source)
+                optimiser.compressionOverride = compression
+                if let audioBitrate {
+                    optimiser.audioBitrateOverride = audioBitrate
+                }
+            }
+        }
 
         // When every pipeline for this source skips optimisation, don't run the
         // initial optimise pass: the pipeline's own steps decide what happens to
@@ -2699,7 +2715,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
             return .image(result)
         case var .file(path):
             if path.isImage, var img = Image(path: path, retinaDownscaled: false) {
-                guard aggressiveOptimisation == true || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
+                guard aggressiveOptimisation == true || forceReencode || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
                     let optimiser = OM.optimiser(id: id, type: .image(img.type), operation: "", hidden: hideFloatingResult, source: source)
                     optimiser.url = path.url
                     optimiser.image = img
@@ -2743,7 +2759,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 }
                 return .image(result)
             } else if path.isVideo {
-                guard aggressiveOptimisation == true || changePlaybackSpeedFactor != nil || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
+                guard aggressiveOptimisation == true || forceReencode || changePlaybackSpeedFactor != nil || scalingFactor != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
                     let optimiser = OM.optimiser(id: id, type: .video(path.url.utType() ?? .mpeg4Movie), operation: "", hidden: hideFloatingResult, source: source)
                     optimiser.url = path.url
 
@@ -2792,7 +2808,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 }
                 return .file(result.path)
             } else if path.isPDF {
-                guard aggressiveOptimisation == true || cropSize != nil || !path.hasOptimisationStatusXattr() else {
+                guard aggressiveOptimisation == true || pdfDPI != nil || cropSize != nil || !path.hasOptimisationStatusXattr() else {
                     let optimiser = OM.optimiser(id: id, type: .pdf, operation: "", hidden: hideFloatingResult, source: source)
                     optimiser.url = path.url
                     let pdf = PDF(path, thumb: !hideFloatingResult)
@@ -2831,7 +2847,7 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 }
                 return .file(result.path)
             } else if path.isAudio {
-                guard aggressiveOptimisation == true || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
+                guard aggressiveOptimisation == true || forceReencode || scalingFactor != nil || !path.hasOptimisationStatusXattr() else {
                     let audioType = path.url.utType() ?? .mp3
                     let optimiser = OM.optimiser(id: id, type: .audio(audioType), operation: "", hidden: hideFloatingResult, source: source)
                     optimiser.url = path.url
@@ -2844,7 +2860,9 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
 
                 let result: Audio? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                     let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hideFloatingResult)) ?? Audio(path: path, thumb: !hideFloatingResult)
-                    let bitrateOverride: Int? = if let factor = scalingFactor, factor > 0, factor < 1 {
+                    let bitrateOverride: Int? = if let audioBitrate {
+                        audioBitrate
+                    } else if let factor = scalingFactor, factor > 0, factor < 1 {
                         audio.loweredBitrate(factor: factor)
                     } else {
                         nil
@@ -2967,6 +2985,8 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
                 aggressiveOptimisation: req.aggressiveOptimisation,
                 adaptiveOptimisation: req.adaptiveOptimisation,
                 pdfDPI: req.pdfDPI,
+                compression: req.compression,
+                audioBitrate: req.audioBitrate,
                 optimisationCount: &cliOptimisationCount,
                 copyToClipboard: req.copyToClipboard,
                 source: source,
@@ -2986,6 +3006,10 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
     let optimiser = await MainActor.run {
         let o = OM.optimiser(id: id, type: type, operation: "Running pipeline", hidden: req.hideFloatingResult, source: source)
         if o.url == nil { o.url = startPath.url }
+        // Per-run compression overrides: pipeline steps that spawn child pipelines
+        // (convert, optimise) propagate these to the child optimisers.
+        if let compression = req.compression { o.compressionOverride = compression }
+        if let bitrate = req.audioBitrate { o.audioBitrateOverride = bitrate }
         return o
     }
     let (resultFile, _) = await runPipelinesAfterOptimisation(
@@ -3024,6 +3048,8 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             aggressiveOptimisation: req.aggressiveOptimisation,
                             adaptiveOptimisation: req.adaptiveOptimisation,
                             pdfDPI: req.pdfDPI,
+                            compression: req.compression,
+                            audioBitrate: req.audioBitrate,
                             optimisationCount: &cliOptimisationCount,
                             copyToClipboard: req.copyToClipboard,
                             source: req.source.optSource,
