@@ -959,6 +959,120 @@ class Image: CustomStringConvertible {
         }
     }
 
+    /// Overlay a still watermark image natively (no ffmpeg) using Core Graphics, then
+    /// re-encode to the original format via Clop's per-format optimisers so quality and
+    /// file size stay close to the original. Returns a temp-file `Image`; the caller places it.
+    /// Animated GIFs are handled on the ffmpeg path instead (single-frame CG compositing
+    /// would drop the animation).
+    func watermarked(watermark wmPath: FilePath, position: String, opacity: Double, scale: Double, optimiser: Optimiser) throws -> Image {
+        // Load the base orientation-aware so the watermark lands in the displayed corner.
+        // ImageIO handles png/jpeg/tiff/gif/heic/avif/webp; JXL (which ImageIO can't decode)
+        // falls back to the already-decoded NSImage.
+        var loadedBase: CGImage?
+        if let baseSource = CGImageSourceCreateWithURL(path.url as CFURL, nil) {
+            let baseProps = CGImageSourceCopyPropertiesAtIndex(baseSource, 0, nil) as? [CFString: Any]
+            let pixelWidth = (baseProps?[kCGImagePropertyPixelWidth] as? Double) ?? size.width.d
+            let pixelHeight = (baseProps?[kCGImagePropertyPixelHeight] as? Double) ?? size.height.d
+            let baseOptions: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: max(pixelWidth, pixelHeight),
+                kCGImageSourceShouldCacheImmediately: true,
+            ]
+            loadedBase = CGImageSourceCreateThumbnailAtIndex(baseSource, 0, baseOptions as CFDictionary)
+        }
+        guard let baseImage = loadedBase ?? image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            throw ClopError.conversionFailed(path)
+        }
+
+        guard let wmSource = CGImageSourceCreateWithURL(wmPath.url as CFURL, nil),
+              let wmImage = CGImageSourceCreateImageAtIndex(wmSource, 0, nil), wmImage.width > 0
+        else {
+            throw ClopError.conversionFailed(wmPath)
+        }
+
+        let W = baseImage.width
+        let H = baseImage.height
+        let wmW = max(16, Int((Double(W) * scale).rounded()))
+        let wmH = max(1, Int((Double(wmW) * Double(wmImage.height) / Double(wmImage.width)).rounded()))
+        let pad = 20
+
+        // Core Graphics' origin is bottom-left, so flip the ffmpeg (top-left) Y coordinates
+        let origin: (x: Int, y: Int) = switch position {
+        case "topLeft": (pad, H - wmH - pad)
+        case "topRight": (W - wmW - pad, H - wmH - pad)
+        case "bottomLeft": (pad, pad)
+        case "center": ((W - wmW) / 2, (H - wmH) / 2)
+        default: (W - wmW - pad, pad) // bottomRight
+        }
+
+        let colorSpace = (baseImage.colorSpace?.model == .rgb ? baseImage.colorSpace : nil)
+            ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        guard let ctx = CGContext(
+            data: nil, width: W, height: H, bitsPerComponent: 8, bytesPerRow: 0,
+            space: colorSpace, bitmapInfo: bitmapInfo
+        ) else {
+            throw ClopError.conversionFailed(path)
+        }
+        ctx.interpolationQuality = .high
+        ctx.draw(baseImage, in: CGRect(x: 0, y: 0, width: W, height: H))
+        ctx.setAlpha(opacity)
+        ctx.draw(wmImage, in: CGRect(x: origin.x, y: origin.y, width: wmW, height: wmH))
+        guard let composited = ctx.makeImage() else {
+            throw ClopError.conversionFailed(path)
+        }
+
+        // Re-encode to the original format, then optimise it the Clop way.
+        switch type {
+        case .png, .jpeg, .tiff:
+            let ext = type.preferredFilenameExtension ?? "png"
+            let interPath = path.tempFile(ext: ext)
+            try writeCGImage(composited, to: interPath, as: type)
+            guard let img = Image(path: interPath, type: type, optimised: false, retinaDownscaled: retinaDownscaled) else {
+                throw ClopError.conversionFailed(interPath)
+            }
+            return try img.optimise(optimiser: optimiser, allowLarger: true)
+        case .jxl, .avif, .webP, .heic:
+            // ImageIO can't reliably encode these. Composite to a lossless PNG intermediate
+            // and convert back to the original format, which applies that encoder's
+            // quality/compression (the "optimise" pass for those types).
+            let interPath = path.tempFile(ext: "png")
+            try writeCGImage(composited, to: interPath, as: .png)
+            guard let png = Image(path: interPath, type: .png, optimised: false, retinaDownscaled: retinaDownscaled) else {
+                throw ClopError.conversionFailed(interPath)
+            }
+            switch type {
+            case .jxl: return try png.convertToJXL(asTempFile: true)
+            case .avif: return try png.convertToAVIF(asTempFile: true)
+            case .webP: return try png.convertToWEBP(asTempFile: true)
+            default: return try png.convertToHEIC(asTempFile: true)
+            }
+        default:
+            // Any other ImageIO-encodable format (e.g. bmp): write it losslessly so the
+            // extension and contents stay consistent. Clop converts these to jpeg in its
+            // normal optimise flow anyway, so there's no dedicated optimiser to reuse here.
+            let ext = type.preferredFilenameExtension ?? "png"
+            let outPath = path.tempFile(ext: ext)
+            try writeCGImage(composited, to: outPath, as: type)
+            guard let img = Image(path: outPath, type: type, optimised: false, retinaDownscaled: retinaDownscaled) else {
+                throw ClopError.conversionFailed(outPath)
+            }
+            return img
+        }
+    }
+
+    private func writeCGImage(_ cgImage: CGImage, to dest: FilePath, as type: UTType) throws {
+        guard let destination = CGImageDestinationCreateWithURL(dest.url as CFURL, type.identifier as CFString, 1, nil) else {
+            throw ClopError.conversionFailed(dest)
+        }
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
+        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw ClopError.conversionFailed(dest)
+        }
+    }
+
     func optimise(optimiser: Optimiser, allowLarger: Bool = false, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
         guard !optimised else {
             throw ClopError.alreadyOptimised(path)
@@ -990,17 +1104,17 @@ class Image: CustomStringConvertible {
         return img
     }
 
-    func convertToAVIF(asTempFile: Bool) throws -> Image {
-        try convertWithProc(to: "avif", asTempFile: asTempFile)
+    func convertToAVIF(asTempFile: Bool, cq: CompressionQuality? = nil) throws -> Image {
+        try convertWithProc(to: "avif", asTempFile: asTempFile, cq: cq)
     }
-    func convertToHEIC(asTempFile: Bool) throws -> Image {
-        try convertWithProc(to: "heic", asTempFile: asTempFile)
+    func convertToHEIC(asTempFile: Bool, cq: CompressionQuality? = nil) throws -> Image {
+        try convertWithProc(to: "heic", asTempFile: asTempFile, cq: cq)
     }
-    func convertToWEBP(asTempFile: Bool) throws -> Image {
-        try convertWithProc(to: "webp", asTempFile: asTempFile)
+    func convertToWEBP(asTempFile: Bool, cq: CompressionQuality? = nil) throws -> Image {
+        try convertWithProc(to: "webp", asTempFile: asTempFile, cq: cq)
     }
-    func convertToJXL(asTempFile: Bool) throws -> Image {
-        let cq = Defaults[.imageCompression]
+    func convertToJXL(asTempFile: Bool, cq cqOverride: CompressionQuality? = nil) throws -> Image {
+        let cq = cqOverride ?? Defaults[.imageCompression]
         let jxlData = try JXLCoder.encode(image: image, effort: cq.jxlEffort, quality: cq.jxlQuality)
         let outPath = path.tempFile(ext: "jxl")
         fm.createFile(atPath: outPath.string, contents: jxlData)
@@ -1057,7 +1171,7 @@ class Image: CustomStringConvertible {
         return converted
     }
 
-    func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil) throws -> Image {
+    func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil, cq: CompressionQuality? = nil) throws -> Image {
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
         }
@@ -1069,23 +1183,23 @@ class Image: CustomStringConvertible {
         case .avif:
             guard self.type == .png || self.type == .jpeg else {
                 let png = try convert(to: .png, asTempFile: asTempFile)
-                return try png.convertToAVIF(asTempFile: asTempFile)
+                return try png.convertToAVIF(asTempFile: asTempFile, cq: cq)
             }
-            return try convertToAVIF(asTempFile: asTempFile)
+            return try convertToAVIF(asTempFile: asTempFile, cq: cq)
         case .webP:
             guard self.type == .png || self.type == .jpeg else {
                 let png = try convert(to: .png, asTempFile: asTempFile)
-                return try png.convertToWEBP(asTempFile: asTempFile)
+                return try png.convertToWEBP(asTempFile: asTempFile, cq: cq)
             }
-            return try convertToWEBP(asTempFile: asTempFile)
+            return try convertToWEBP(asTempFile: asTempFile, cq: cq)
         case .heic:
             guard self.type == .png || self.type == .jpeg else {
                 let png = try convert(to: .png, asTempFile: asTempFile)
-                return try png.convertToHEIC(asTempFile: asTempFile)
+                return try png.convertToHEIC(asTempFile: asTempFile, cq: cq)
             }
-            return try convertToHEIC(asTempFile: asTempFile)
+            return try convertToHEIC(asTempFile: asTempFile, cq: cq)
         case .jxl:
-            return try convertToJXL(asTempFile: asTempFile)
+            return try convertToJXL(asTempFile: asTempFile, cq: cq)
         default:
             if self.type == .heic, type == .jpeg, path.hasExifHDR() {
                 return try convertHDRHEICToJPEG(asTempFile: asTempFile, optimiser: optimiser)
@@ -1125,8 +1239,8 @@ class Image: CustomStringConvertible {
         pb.writeObjects([item])
     }
 
-    private func conversionArgs(to format: String, outPath: FilePath) -> [String] {
-        let q = "\(Defaults[.imageCompression].conversionQuality)"
+    private func conversionArgs(to format: String, outPath: FilePath, cq: CompressionQuality?) -> [String] {
+        let q = "\((cq ?? Defaults[.imageCompression]).conversionQuality)"
         return switch format {
         case "avif": ["--avif", "-q", q, "-o", outPath.string, path.string]
         case "heic": ["-q", q, "-o", outPath.string, path.string]
@@ -1163,17 +1277,17 @@ class Image: CustomStringConvertible {
         return Image(data: data, path: path, nsImage: img, type: conversionType(to: format), retinaDownscaled: retinaDownscaled)
     }
 
-    private func convertWithProc(to format: String, asTempFile: Bool) throws -> Image {
+    private func convertWithProc(to format: String, asTempFile: Bool, cq: CompressionQuality? = nil) throws -> Image {
         let tempFile = path.tempFile(ext: format)
-        let args = conversionArgs(to: format, outPath: tempFile)
+        let args = conversionArgs(to: format, outPath: tempFile, cq: cq)
         let executable = conversionExecutable(to: format)
 
         let proc = try tryProc(executable, args: args, tries: 2)
         return try conversionImage(to: format, from: proc, asTempFile: asTempFile, outPath: tempFile)
     }
-    private func convertWithProcAsync(to format: String, asTempFile: Bool) async throws -> Image {
+    private func convertWithProcAsync(to format: String, asTempFile: Bool, cq: CompressionQuality? = nil) async throws -> Image {
         let tempFile = path.tempFile(ext: format)
-        let args = conversionArgs(to: format, outPath: tempFile)
+        let args = conversionArgs(to: format, outPath: tempFile, cq: cq)
         let executable = conversionExecutable(to: format)
 
         let proc = try await tryProcAsync(executable, args: args, tries: 2)

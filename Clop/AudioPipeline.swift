@@ -20,7 +20,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     bitrateOverride: Int? = nil,
     aggressiveOptimisation: Bool? = nil,
     formatOverride: AudioFormat? = nil,
-    loudnormTarget: Double? = nil
+    loudnormTarget: Double? = nil,
+    compression: CompressionQuality? = nil
 ) async throws -> Audio? {
     let path = audio.path
     let pathString = path.string
@@ -57,6 +58,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
 
     let optimiser = OM.optimiser(id: pipelineId, type: .audio(audioType), operation: opLabel, hidden: hideFloatingResult, source: source)
     optimiser.aggressive = aggressive
+    if let compression {
+        optimiser.compressionOverride = compression
+    }
 
     var done = false
     var result: Audio?

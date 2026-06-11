@@ -129,7 +129,8 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
     source: OptimisationSource? = nil,
-    skipCache: Bool = false
+    skipCache: Bool = false,
+    compression: CompressionQuality? = nil
 ) async throws -> Image? {
     let path = img.path
     var img = img
@@ -227,6 +228,9 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
         operation: opLabel,
         hidden: hideFloatingResult, source: source, indeterminateProgress: true
     )
+    if let compression {
+        optimiser.compressionOverride = compression
+    }
     if !hideFloatingResult {
         optimiser.thumbnail = img.image
     }
@@ -292,7 +296,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
 
                     switch action {
                     case let .convert(format):
-                        let converted = try ci.convert(to: format, asTempFile: true)
+                        let converted = try ci.convert(to: format, asTempFile: true, cq: optimiser.compressionOverride)
                         currentImage = converted
                         mainActor {
                             optimiser.operation = "Converting to \(format.preferredFilenameExtension?.uppercased() ?? "?")"

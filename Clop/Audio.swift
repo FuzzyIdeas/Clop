@@ -136,7 +136,7 @@ class Audio: Optimisable {
         try? path.setOptimisationStatusXattr("pending")
 
         let format = formatOverride ?? Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
-        let rawBitrate = bitrateOverride ?? Defaults[.audioCompression].audioBitrate(for: format) ?? Defaults[.audioBitrate]
+        let rawBitrate = bitrateOverride ?? (optimiser.compressionOverride ?? Defaults[.audioCompression]).audioBitrate(for: format) ?? Defaults[.audioBitrate]
         let bitrate = format.resolveBitrate(rawBitrate, inputBitrate: bitrate)
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
