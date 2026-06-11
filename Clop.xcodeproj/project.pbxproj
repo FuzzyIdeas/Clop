@@ -81,6 +81,7 @@
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
 		C7DF1A2C2EAA000000000001 /* IgnoredAppsPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */; };
+		C7DEBD022F20000100000002 /* DebugDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DEBD012F20000100000001 /* DebugDump.swift */; };
 		C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EFD28B2B22577100A6D843 /* Onboarding.swift */; };
 		C8813EA945B535E55DF1EC87 /* PipelineEditorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64A079DB235BB295B5D2F9B /* PipelineEditorViews.swift */; };
 		DD17718179BD01F73E35E0F8 /* WarpDropManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */; };
@@ -202,6 +203,7 @@
 		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
 		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
 		C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IgnoredAppsPicker.swift; sourceTree = "<group>"; };
+		C7DEBD012F20000100000001 /* DebugDump.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugDump.swift; sourceTree = "<group>"; };
 		C7EFD28B2B22577100A6D843 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		CFE08CBF4972CC590D4F1A06 /* PDFPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFPipeline.swift; sourceTree = "<group>"; };
 		D534A2084C0E9F7184617531 /* PipelineStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStep.swift; sourceTree = "<group>"; };
@@ -319,6 +321,7 @@
 				C735DA012B021D6E001DCAA8 /* Migrations.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
 				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
+				C7DEBD012F20000100000001 /* DebugDump.swift */,
 				C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */,
 				C7BE7A012FA3D00100000001 /* BetaLicense.swift */,
 				C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */,
@@ -534,6 +537,7 @@
 				C7AB38DD2ACB059200F299CE /* CompactResult.swift in Sources */,
 				C7760AB62A5C4EE500851F8C /* Images.swift in Sources */,
 				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
+				C7DEBD022F20000100000002 /* DebugDump.swift in Sources */,
 				C7DF1A2C2EAA000000000001 /* IgnoredAppsPicker.swift in Sources */,
 				C7BE7A012FA3D00100000003 /* BetaLicense.swift in Sources */,
 				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
