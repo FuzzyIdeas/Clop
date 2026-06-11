@@ -494,7 +494,7 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         name: "if", description: "Continue pipeline only if condition matches",
         mandatoryParams: [],
         optionalParams: [
-            ParamTemplate(name: "regex", description: "pattern matched against filename, capture groups as $1, $2", suggestions: [], freeText: true, needsQuotes: true),
+            ParamTemplate(name: "regex", description: "pattern matched against filename (smart case), capture groups as $1, $2", suggestions: [], freeText: true, needsQuotes: true),
             ParamTemplate(name: "types", description: "space-separated UTTypes: jpeg png webp heic", suggestions: [], freeText: true),
             ParamTemplate(name: "nameContains", description: "case-insensitive substring match", suggestions: [], freeText: true, needsQuotes: true),
             ParamTemplate(name: "nameIs", description: "exact filename match", suggestions: [], freeText: true, needsQuotes: true),
@@ -517,7 +517,7 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         name: "ifNot", description: "Continue pipeline only if condition does NOT match",
         mandatoryParams: [],
         optionalParams: [
-            ParamTemplate(name: "regex", description: "pattern matched against filename", suggestions: [], freeText: true, needsQuotes: true),
+            ParamTemplate(name: "regex", description: "pattern matched against filename (smart case)", suggestions: [], freeText: true, needsQuotes: true),
             ParamTemplate(name: "types", description: "space-separated UTTypes to exclude", suggestions: [], freeText: true),
             ParamTemplate(name: "nameContains", description: "case-insensitive substring to exclude", suggestions: [], freeText: true, needsQuotes: true),
             ParamTemplate(name: "nameIs", description: "exact filename to exclude", suggestions: [], freeText: true, needsQuotes: true),
