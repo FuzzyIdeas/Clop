@@ -241,6 +241,7 @@ class FileOptimisationWatcher {
                 addedFilesCleaner = nil
                 log.debug("Added \(path.string) to justAddedFiles in the \(typeName) watcher")
                 cancelledFiles.remove(path)
+                DebugDump.record("[fsevent] >>> picked up by Clop \(typeName) watcher: \(path.string)")
 
                 Task.init { [weak self] in await self?.checkEventAndProcess(event) }
             }
@@ -375,6 +376,7 @@ class FileOptimisationWatcher {
             resolvedNewPath = newPath
         }
 
+        DebugDump.record("[fsevent] >>> optimising \(path.string) (\(fileType.description) watcher)")
         var count = optimisedCount
         try? await proGuard(count: &count, limit: 5, url: path.url) {
             self.handler(path)

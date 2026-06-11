@@ -1108,6 +1108,7 @@ class AppDelegate: AppDelegateParent {
                 scalingFactor = 1
                 // Capture the app that placed this clipboard content for the `copiedBy` pipeline filter.
                 OM.lastClipboardSourceApp = clipboardSourceApp(item: item)
+                DebugDump.record("[clipboard] >>> handled by Clop: change #\(newChangeCount)  types=[\(item.types.map(\.rawValue).joined(separator: " "))]")
 
                 if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo {
                     let ignore = Defaults[.videoFormatsToSkip]

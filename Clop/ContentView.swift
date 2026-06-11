@@ -199,6 +199,9 @@ struct MenuView: View {
             Button("Contact the developer") {
                 NSWorkspace.shared.open(contactURL())
             }
+            Button("Create debug dump") {
+                DebugDump.confirmAndRun()
+            }
             Button("Privacy policy") {
                 NSWorkspace.shared.open("https://lowtechguys.com/clop/privacy".url!)
             }
