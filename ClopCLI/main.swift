@@ -55,6 +55,26 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
+/// Whether the app's optimisation service port is registered and accepting requests.
+func optimisationServiceIsReady() -> Bool {
+    guard let port = CFMessagePortCreateRemote(nil, OPTIMISATION_PORT_ID as CFString) else {
+        return false
+    }
+    CFMessagePortInvalidate(port)
+    return true
+}
+
+/// Launch the app if needed and wait until its optimisation service is reachable.
+/// When the app is already running, the port probe succeeds on the first try and
+/// this adds no startup latency.
+func waitForOptimisationService(timeout: TimeInterval = 15) {
+    ensureAppIsRunning()
+    let deadline = Date().addingTimeInterval(timeout)
+    while !optimisationServiceIsReady(), Date() < deadline {
+        usleep(50000)
+    }
+}
+
 extension UTType: @retroactive ExpressibleByArgument {
     public init?(argument: String) {
         if argument == "video" || argument == "movie" {
@@ -213,8 +233,7 @@ func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool, types: 
     }.filter { isURLOptimisable($0, types: types) }
     urls += dirs.flatMap { getURLsFromFolder($0, recursive: recursive, types: types) }
 
-    ensureAppIsRunning()
-    sleep(1)
+    waitForOptimisationService()
 
     guard isClopRunning() else {
         Clop.exit(withError: CLIError.appNotRunning)
@@ -367,25 +386,183 @@ enum ImageFormat: String, CaseIterable, Equatable, Decodable, ExpressibleByArgum
     }
 }
 
-func parsePDFDPIArgument(_ value: String?) throws -> Int? {
+func parsePDFDPIArgument(_ value: String?, flag: String = "--pdf-dpi") throws -> Int? {
     guard let value, !value.isEmpty else { return nil }
     if value.lowercased() == "adaptive" {
         return PDF_DPI_ADAPTIVE
     }
     let allowed = PDF_DPI_STOPS.map(String.init).joined(separator: ", ")
     guard let int = Int(value) else {
-        throw ValidationError("Invalid --pdf-dpi value '\(value)': expected 'adaptive' or one of \(allowed)")
+        throw ValidationError("Invalid \(flag) value '\(value)': expected 'adaptive' or one of \(allowed)")
     }
     guard PDF_DPI_STOPS.contains(int) else {
-        throw ValidationError("--pdf-dpi must be 'adaptive' or one of \(allowed)")
+        throw ValidationError("\(flag) must be 'adaptive' or one of \(allowed)")
     }
     return int
+}
+
+/// Parse a `--compression` argument: a factor 5..100, plus the keywords each
+/// file type supports ('adaptive' for images, 'auto' for the video software encoder).
+func parseCompressionArgument(_ value: String?, allowAdaptive: Bool, allowAuto: Bool, flag: String = "--compression") throws -> CompressionQuality? {
+    guard let value, !value.isEmpty else { return nil }
+    switch value.lowercased() {
+    case "adaptive" where allowAdaptive:
+        return CompressionQuality(tier: .adaptive, factor: COMPRESSION_FACTOR_NORMAL)
+    case "auto" where allowAuto:
+        return CompressionQuality(tier: .custom, factor: 0)
+    default:
+        var allowed = ["a factor between 5 (best quality) and 100 (smallest file)"]
+        if allowAdaptive { allowed.append("'adaptive'") }
+        if allowAuto { allowed.append("'auto'") }
+        guard let factor = Int(value) else {
+            throw ValidationError("Invalid \(flag) value '\(value)': expected \(allowed.joined(separator: " or "))")
+        }
+        guard (5 ... 100).contains(factor) else {
+            throw ValidationError("\(flag) factor must be between 5 (best quality) and 100 (smallest file)")
+        }
+        return CompressionQuality(tier: .custom, factor: factor)
+    }
+}
+
+func parseVideoEncoderArgument(_ value: String?) throws -> CompressionTier? {
+    guard let value, !value.isEmpty else { return nil }
+    switch value.lowercased() {
+    case "hardware", "fast": return .fast
+    case "software", "smaller", "efficient": return .smaller
+    case "lossless", "visually-lossless": return .lossless
+    case "adaptive": return .adaptive
+    default: throw ValidationError("Invalid --encoder value '\(value)': expected 'hardware', 'software', 'lossless' or 'adaptive'")
+    }
+}
+
+let OUTPUT_TEMPLATE_HELP = """
+Output file path or template (defaults to modifying the file in place). In case of cropping multiple files, this needs to be a folder or a template.
+
+The template may contain the following tokens on the filename:
+          Date       |      Time
+---------------------|--------------
+Year              %y | Hour       %H
+Month (numeric)   %m | Minutes    %M
+Month (name)      %n | Seconds    %S
+Day               %d | AM/PM      %p
+Weekday           %w |
+
+Source file path (without name)        %P
+Source file name (without extension)   %f
+Source file extension                  %e
+
+Crop size                  %z
+Scale factor               %s
+Playback speed factor      %x
+Random characters          %r
+Auto-incrementing number   %i
+
+For example `--output "~/Desktop/%f_optimised.png" image.png` will generate the file `~/Desktop/image_optimised.png`.
+
+"""
+
+struct CommonOptimisationOptions: ParsableArguments {
+    @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
+    var gui = false
+
+    @Flag(name: .shortAndLong, help: "Don't print progress to stderr")
+    var noProgress = false
+
+    @Flag(name: .long, help: "Process files and items in the background")
+    var async = false
+
+    @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
+    var recursive = false
+
+    @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
+    var copy = false
+
+    @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
+    var skipErrors = false
+
+    @Flag(name: .shortAndLong, help: "Output results as a JSON")
+    var json = false
+
+    @Option(name: .shortAndLong, help: "\(OUTPUT_TEMPLATE_HELP)")
+    var output: String? = nil
+}
+
+/// Build and send the optimisation request shared by `optimise` and its type subcommands.
+func sendOptimisationCommand(
+    urls: [URL],
+    options: CommonOptimisationOptions,
+    crop: NSSize? = nil,
+    downscaleFactor: Double? = nil,
+    playbackSpeedFactor: Double? = nil,
+    aggressive: Bool = false,
+    adaptiveOptimisation: Bool? = nil,
+    removeAudio: Bool? = nil,
+    compression: CompressionQuality? = nil,
+    audioBitrate: Int? = nil,
+    pdfDPI: Int? = nil,
+    pipeline: String? = nil,
+    operation: String = "optimisation"
+) throws {
+    try sendRequest(urls: urls, showProgress: !options.noProgress, async: options.async, gui: options.gui, json: options.json, operation: operation) {
+        var out = normalizeRelativeOutput(options.output)
+        if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
+            out = out!.replacingFirstOccurrence(of: ".\(inExt)", with: "")
+        }
+        return OptimisationRequest(
+            id: String(Int.random(in: 1000 ... 100_000)),
+            urls: urls,
+            size: crop?.cropSize(),
+            downscaleFactor: downscaleFactor,
+            changePlaybackSpeedFactor: playbackSpeedFactor,
+            hideFloatingResult: !options.gui,
+            copyToClipboard: options.copy,
+            aggressiveOptimisation: aggressive,
+            adaptiveOptimisation: adaptiveOptimisation,
+            source: "cli",
+            output: out,
+            removeAudio: removeAudio,
+            pdfDPI: pdfDPI,
+            compression: compression,
+            audioBitrate: audioBitrate,
+            pipeline: pipeline
+        )
+    }
+}
+
+/// Build the inline pipeline DSL for a `convert` subcommand run. The optional
+/// output template becomes the convert step's `location` parameter.
+func convertPipelineDSL(to format: String, output: String?) -> String {
+    guard let output = normalizeRelativeOutput(output) else {
+        return "convert(to: \(format))"
+    }
+    return "convert(to: \(format), location: \"\(output)\")"
 }
 
 struct Clop: ParsableCommand {
     struct Convert: ParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Converts images to more efficient formats like HEIC, WebP, AVIF etc."
+            abstract: "Converts images, videos and audio files to other formats.",
+            discussion: """
+            Use a type subcommand for the full format list and compression controls:
+                clop convert image --to webp photo.png
+                clop convert video --to gif screencast.mov
+                clop convert audio --to mp3 --bitrate 128 recording.wav
+
+            The legacy direct conversion (`clop convert -f avif|heic|webp -q 60 <images>`)
+            keeps working and runs locally without the Clop app.
+            """,
+            subcommands: [ConvertImageCommand.self, ConvertVideoCommand.self, ConvertAudioCommand.self, ConvertLegacyCommand.self],
+            defaultSubcommand: ConvertLegacyCommand.self
+        )
+    }
+
+    /// The legacy `clop convert` behaviour: avif/heic/webp images converted locally
+    /// with the bundled binaries. Hidden default subcommand for backwards compatibility.
+    struct ConvertLegacyCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "legacy",
+            abstract: "Converts images to HEIC, WebP or AVIF locally, without the Clop app.",
+            shouldDisplay: false
         )
 
         @Option(name: .shortAndLong, help: "Output format (avif, heic, webp)")
@@ -434,24 +611,40 @@ struct Clop: ParsableCommand {
 
         static func convertToAVIF(path: FilePath, outFilePath: FilePath, quality: Int) throws {
             let args = ["--avif", "-q", "\(quality)", "-o", outFilePath.string, path.string]
-            try runConversionProcess(path: path, outFilePath: outFilePath, executable: HEIF_ENC.string, args: args)
+            try runConversionProcess(path: path, outFilePath: outFilePath, executable: "heif-enc", args: args)
         }
 
         static func convertToHEIC(path: FilePath, outFilePath: FilePath, quality: Int) throws {
             let args = ["-q", "\(quality)", "-o", outFilePath.string, path.string]
-            try runConversionProcess(path: path, outFilePath: outFilePath, executable: HEIF_ENC.string, args: args)
+            try runConversionProcess(path: path, outFilePath: outFilePath, executable: "heif-enc", args: args)
         }
 
         static func convertToWebP(path: FilePath, outFilePath: FilePath, quality: Int) throws {
             let args = ["-mt", "-q", "\(quality)", "-sharp_yuv", "-metadata", "all", path.string, "-o", outFilePath.string]
-            try runConversionProcess(path: path, outFilePath: outFilePath, executable: CWEBP.string, args: args)
+            try runConversionProcess(path: path, outFilePath: outFilePath, executable: "cwebp", args: args)
+        }
+
+        /// Resolve a bundled conversion binary. The CLI process resolves
+        /// `applicationScriptsDirectory` to its own (nonexistent) domain, so fall back
+        /// to the app's known bin locations.
+        static func conversionBinary(_ name: String) -> String? {
+            let candidates = [
+                BIN_DIR.appendingPathComponent(name).path,
+                "\(NSHomeDirectory())/Library/Application Scripts/com.lowtechguys.Clop/bin/\(ARCH)/\(name)",
+                "\(NSHomeDirectory())/Library/Application Scripts/com.lowtechguys.Clop-setapp/bin/\(ARCH)/\(name)",
+            ]
+            return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
         }
 
         static func runConversionProcess(path: FilePath, outFilePath: FilePath, executable: String, args: [String]) throws {
+            guard let launchPath = conversionBinary(executable) else {
+                printerr("\(ERROR_X) \(path.string.underline()) failed: `\(executable)` not found. Launch the Clop app once to install its binaries, or use `clop convert image` which runs through the app.")
+                return
+            }
             let errPipe = Pipe()
 
             let process = Process()
-            process.launchPath = executable
+            process.launchPath = launchPath
             process.arguments = args
             process.standardOutput = FileHandle.nullDevice
             process.standardError = errPipe
@@ -544,6 +737,139 @@ struct Clop: ParsableCommand {
                     printerr("\(ERROR_X) \(files[i].shellString.underline()) \(ARROW) \(error.localizedDescription)")
                 }
             }
+        }
+    }
+
+    struct ConvertImageCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "image",
+            abstract: "Convert images to another format through Clop."
+        )
+
+        static let allowedFormats = ["webp", "avif", "heic", "jxl", "jpeg", "jpg", "png"]
+
+        @OptionGroup var options: CommonOptimisationOptions
+
+        @Option(name: [.short, .long], help: "Target format: \(allowedFormats.joined(separator: ", "))")
+        var to: String
+
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Defaults to the app's image compression setting.")
+        var compression: String?
+
+        var urls: [URL] = []
+        var parsedCompression: CompressionQuality? = nil
+
+        @Argument(help: "Images, image folders or URLs to convert")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            to = to.lowercased()
+            guard Self.allowedFormats.contains(to) else {
+                throw ValidationError("Invalid --to format '\(to)': expected one of \(Self.allowedFormats.joined(separator: ", "))")
+            }
+            parsedCompression = try parseCompressionArgument(compression, allowAdaptive: false, allowAuto: false)
+            urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: IMAGE_FORMATS)
+            try checkOutputIsDir(options.output, itemCount: urls.count)
+        }
+
+        mutating func run() throws {
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                compression: parsedCompression,
+                pipeline: convertPipelineDSL(to: to, output: options.output),
+                operation: "conversion"
+            )
+        }
+    }
+
+    struct ConvertVideoCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "video",
+            abstract: "Convert videos to another format or codec through Clop."
+        )
+
+        static let allowedFormats = ["mp4", "gif", "webm", "hevc", "x265", "av1"]
+
+        @OptionGroup var options: CommonOptimisationOptions
+
+        @Option(name: [.short, .long], help: "Target format or codec: mp4 (H.264), gif (animated), webm (VP9), hevc (hardware H.265), x265 (software H.265), av1 (SVT-AV1 in MKV)")
+        var to: String
+
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), or 'auto'. Only applies to mp4 (H.264); the other codecs use tuned fixed settings.")
+        var compression: String?
+
+        var urls: [URL] = []
+        var parsedCompression: CompressionQuality? = nil
+
+        @Argument(help: "Videos, video folders or URLs to convert")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            to = to.lowercased()
+            guard Self.allowedFormats.contains(to) else {
+                throw ValidationError("Invalid --to format '\(to)': expected one of \(Self.allowedFormats.joined(separator: ", "))")
+            }
+            parsedCompression = try parseCompressionArgument(compression, allowAdaptive: false, allowAuto: true)
+            urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: VIDEO_FORMATS)
+            try checkOutputIsDir(options.output, itemCount: urls.count)
+        }
+
+        mutating func run() throws {
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                compression: parsedCompression,
+                pipeline: convertPipelineDSL(to: to, output: options.output),
+                operation: "conversion"
+            )
+        }
+    }
+
+    struct ConvertAudioCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "audio",
+            abstract: "Convert audio files to another format through Clop."
+        )
+
+        static let allowedFormats = ["mp3", "aac", "m4a", "opus", "ogg", "flac", "wav", "aiff"]
+
+        @OptionGroup var options: CommonOptimisationOptions
+
+        @Option(name: [.short, .long], help: "Target format: \(allowedFormats.joined(separator: ", "))")
+        var to: String
+
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), mapped to a bitrate for the target format")
+        var compression: String?
+
+        @Option(name: .shortAndLong, help: "Target bitrate in kbps (e.g. 128). Takes priority over --compression. Never upscales, snaps to the allowed bitrates of the target format.")
+        var bitrate: Int?
+
+        var urls: [URL] = []
+        var parsedCompression: CompressionQuality? = nil
+
+        @Argument(help: "Audio files, folders of audio files or URLs to convert")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            to = to.lowercased()
+            guard Self.allowedFormats.contains(to) else {
+                throw ValidationError("Invalid --to format '\(to)': expected one of \(Self.allowedFormats.joined(separator: ", "))")
+            }
+            if let bitrate, bitrate <= 0 {
+                throw ValidationError("Invalid --bitrate, must be greater than 0")
+            }
+            parsedCompression = try parseCompressionArgument(compression, allowAdaptive: false, allowAuto: false)
+            urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: AUDIO_FORMATS)
+            try checkOutputIsDir(options.output, itemCount: urls.count)
+        }
+
+        mutating func run() throws {
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                compression: parsedCompression,
+                audioBitrate: bitrate,
+                pipeline: convertPipelineDSL(to: to, output: options.output),
+                operation: "conversion"
+            )
         }
     }
 
@@ -1076,41 +1402,49 @@ struct Clop: ParsableCommand {
 
     struct Optimise: ParsableCommand {
         static let configuration = CommandConfiguration(
-            abstract: "Optimise images, videos, audio files and PDFs."
+            abstract: "Optimise images, videos, audio files and PDFs.",
+            discussion: """
+            Use a type subcommand for type-specific options:
+                clop optimise image --compression 70 photo.png
+                clop optimise video --encoder software screencast.mov
+                clop optimise pdf --dpi 96 document.pdf
+                clop optimise audio --bitrate 128 recording.wav
+
+            Or pass files and folders directly to optimise mixed types with shared options.
+            """,
+            subcommands: [ImageCommand.self, VideoCommand.self, PdfCommand.self, AudioCommand.self, FilesCommand.self],
+            defaultSubcommand: FilesCommand.self
+        )
+    }
+
+    /// The bare `clop optimise` behaviour: mixed file types, folders and the legacy
+    /// flag set. Hidden default subcommand so `clop optimise <files>` keeps working.
+    struct FilesCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "files",
+            abstract: "Optimise mixed file types and folders (default when no subcommand is given).",
+            shouldDisplay: false
         )
 
-        @Flag(name: .shortAndLong, help: "Whether to show or hide the floating result (the usual Clop UI)")
-        var gui = false
+        @OptionGroup var options: CommonOptimisationOptions
 
-        @Flag(name: .shortAndLong, help: "Don't print progress to stderr")
-        var noProgress = false
-
-        @Flag(name: .long, help: "Process files and items in the background")
-        var async = false
-
-        @Flag(name: .shortAndLong, help: "Use aggressive optimisation")
+        @Flag(name: .shortAndLong, help: "Use aggressive optimisation (legacy preset, same as --compression \(COMPRESSION_FACTOR_AGGRESSIVE))")
         var aggressive = false
+
+        @Option(name: .long, help: "How hard to compress images, videos and audio: a factor from 5 (best quality) to 100 (smallest file), 'adaptive' (best format per image) or 'auto' (let the video encoder pick). Takes priority over --aggressive.")
+        var compression: String?
 
         @Option(name: .long, help: "PDF aggressive DPI: 'adaptive' or one of \(PDF_DPI_STOPS.map(String.init).joined(separator: ", ")). Overrides the app's stored aggressive DPI setting for this run.")
         var pdfDpi: String?
 
-        @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression")
+        @Flag(name: .long, inversion: .prefixedNo, help: "Convert detail heavy images to JPEG and low-detail ones to PNG for better compression (legacy, same as --compression adaptive)")
         var adaptiveOptimisation: Bool = UserDefaults.app?.bool(forKey: "adaptiveImageSize") ?? false
-
-        @Flag(name: .shortAndLong, help: "Optimise all files in subfolders (when using a folder as input)")
-        var recursive = false
 
         @Option(name: .long, help: "Types of files to optimise (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`) (default: \(ALL_FORMATS.map(\.argDescription).joined(separator: ", ")))")
         var types: [UTType] = []
 
         @Option(name: .long, help: "Types of files to exclude from optimisation (e.g. generic types like `image`, `video`, `pdf` or specific ones like `jpeg`, `png`, `mp4`)")
         var excludeTypes: [UTType] = []
-
-        @Flag(name: .shortAndLong, help: "Copy file to clipboard after optimisation")
-        var copy = false
-
-        @Flag(name: .shortAndLong, help: "Skips missing files and unreachable URLs")
-        var skipErrors = false
 
         @Flag(name: .long, help: "Removes audio from optimised videos")
         var removeAudio = false
@@ -1124,37 +1458,8 @@ struct Clop: ParsableCommand {
         @Option(help: "Downscales and crops the image, video or PDF to a specific size (e.g. 1200x630)\nExample: cropping an image from 100x120 to 50x50 will first downscale it to 50x60 and then crop it to 50x50")
         var crop: NSSize? = nil
 
-        @Flag(name: .shortAndLong, help: "Output results as a JSON")
-        var json = false
-
-        @Option(name: .shortAndLong, help: """
-        Output file path or template (defaults to modifying the file in place). In case of cropping multiple files, this needs to be a folder or a template.
-
-        The template may contain the following tokens on the filename:
-                  Date       |      Time
-        ---------------------|--------------
-        Year              %y | Hour       %H
-        Month (numeric)   %m | Minutes    %M
-        Month (name)      %n | Seconds    %S
-        Day               %d | AM/PM      %p
-        Weekday           %w |
-
-        Source file path (without name)        %P
-        Source file name (without extension)   %f
-        Source file extension                  %e
-
-        Crop size                  %z
-        Scale factor               %s
-        Playback speed factor      %x
-        Random characters          %r
-        Auto-incrementing number   %i
-
-        For example `--output "~/Desktop/%f_optimised.png" image.png` will generate the file `~/Desktop/image_optimised.png`.
-
-        """)
-        var output: String? = nil
-
         var urls: [URL] = []
+        var parsedCompression: CompressionQuality? = nil
 
         @Argument(help: "Images, videos, audio files, PDFs or URLs to optimise (can be a file, folder, or list of files)")
         var items: [String] = []
@@ -1163,46 +1468,217 @@ struct Clop: ParsableCommand {
             if let size = crop, size == .zero {
                 throw ValidationError("Invalid size, must be greater than 0")
             }
-            if let factor = downscaleFactor, factor < 0.01, factor > 0.99 {
-                throw ValidationError("Invalid downscale factor, must be greater than 0 and less than 1")
+            if let factor = downscaleFactor, factor <= 0 || factor > 1 {
+                throw ValidationError("Invalid downscale factor, must be greater than 0 and at most 1")
             }
+            parsedCompression = try parseCompressionArgument(compression, allowAdaptive: true, allowAuto: true)
 
             if types.isEmpty {
                 types = ALL_FORMATS
             }
 
             if !excludeTypes.isEmpty {
-                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types.filter { !excludeTypes.contains($0) })
+                urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: types.filter { !excludeTypes.contains($0) })
             } else {
-                urls = try validateItems(items, recursive: recursive, skipErrors: skipErrors, types: types)
+                urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: types)
             }
 
-            try checkOutputIsDir(output, itemCount: urls.count)
+            try checkOutputIsDir(options.output, itemCount: urls.count)
         }
 
         mutating func run() throws {
-            let parsedPdfDpi = try parsePDFDPIArgument(pdfDpi)
-            try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: gui, json: json, operation: "optimisation") {
-                var out = normalizeRelativeOutput(output)
-                if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
-                    out = out!.replacingFirstOccurrence(of: ".\(inExt)", with: "")
-                }
-                return OptimisationRequest(
-                    id: String(Int.random(in: 1000 ... 100_000)),
-                    urls: urls,
-                    size: crop?.cropSize(),
-                    downscaleFactor: downscaleFactor,
-                    changePlaybackSpeedFactor: playbackSpeedFactor,
-                    hideFloatingResult: !gui,
-                    copyToClipboard: copy,
-                    aggressiveOptimisation: aggressive,
-                    adaptiveOptimisation: adaptiveOptimisation,
-                    source: "cli",
-                    output: out,
-                    removeAudio: removeAudio,
-                    pdfDPI: parsedPdfDpi
-                )
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                crop: crop,
+                downscaleFactor: downscaleFactor,
+                playbackSpeedFactor: playbackSpeedFactor,
+                aggressive: aggressive,
+                adaptiveOptimisation: adaptiveOptimisation,
+                removeAudio: removeAudio,
+                compression: parsedCompression,
+                pdfDPI: parsePDFDPIArgument(pdfDpi)
+            )
+        }
+    }
+
+    struct ImageCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "image",
+            abstract: "Optimise images with image-specific controls."
+        )
+
+        @OptionGroup var options: CommonOptimisationOptions
+
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), or 'adaptive' to let Clop pick the best format per image")
+        var compression: String?
+
+        @Option(help: "Makes the image smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
+        var downscaleFactor: Double? = nil
+
+        @Option(help: "Downscales and crops the image to a specific size (e.g. 1200x630)")
+        var crop: NSSize? = nil
+
+        var urls: [URL] = []
+        var parsedCompression: CompressionQuality? = nil
+
+        @Argument(help: "Images, image folders or URLs to optimise")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            if let size = crop, size == .zero {
+                throw ValidationError("Invalid size, must be greater than 0")
             }
+            if let factor = downscaleFactor, factor <= 0 || factor > 1 {
+                throw ValidationError("Invalid downscale factor, must be greater than 0 and at most 1")
+            }
+            parsedCompression = try parseCompressionArgument(compression, allowAdaptive: true, allowAuto: false)
+            urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: IMAGE_FORMATS)
+            try checkOutputIsDir(options.output, itemCount: urls.count)
+        }
+
+        mutating func run() throws {
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                crop: crop,
+                downscaleFactor: downscaleFactor,
+                compression: parsedCompression
+            )
+        }
+    }
+
+    struct VideoCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "video",
+            abstract: "Optimise videos with video-specific controls."
+        )
+
+        @OptionGroup var options: CommonOptimisationOptions
+
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), or 'auto' to let the software encoder pick the quality")
+        var compression: String?
+
+        @Option(name: .long, help: "Which encoder to use: 'hardware' (fast, larger files), 'software' (slow, smaller files), 'lossless' (no perceptible quality loss) or 'adaptive' (best encoder per file)")
+        var encoder: String?
+
+        @Flag(name: .long, help: "Removes audio from optimised videos")
+        var removeAudio = false
+
+        @Option(help: "Speeds up or slow down the video by a certain amount (1 means no change, 2 means twice as fast, 0.5 means 2x slower)")
+        var playbackSpeedFactor: Double? = nil
+
+        @Option(help: "Makes the video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
+        var downscaleFactor: Double? = nil
+
+        @Option(help: "Downscales and crops the video to a specific size (e.g. 1280x720)")
+        var crop: NSSize? = nil
+
+        var urls: [URL] = []
+        var parsedCompression: CompressionQuality? = nil
+
+        @Argument(help: "Videos, video folders or URLs to optimise")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            if let size = crop, size == .zero {
+                throw ValidationError("Invalid size, must be greater than 0")
+            }
+            if let factor = downscaleFactor, factor <= 0 || factor > 1 {
+                throw ValidationError("Invalid downscale factor, must be greater than 0 and at most 1")
+            }
+            let tier = try parseVideoEncoderArgument(encoder)
+            let cq = try parseCompressionArgument(compression, allowAdaptive: false, allowAuto: true)
+            if tier != nil || cq != nil {
+                parsedCompression = CompressionQuality(tier: tier ?? cq?.tier ?? .custom, factor: cq?.factor ?? 50)
+            }
+            urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: VIDEO_FORMATS)
+            try checkOutputIsDir(options.output, itemCount: urls.count)
+        }
+
+        mutating func run() throws {
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                crop: crop,
+                downscaleFactor: downscaleFactor,
+                playbackSpeedFactor: playbackSpeedFactor,
+                removeAudio: removeAudio,
+                compression: parsedCompression
+            )
+        }
+    }
+
+    struct PdfCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "pdf",
+            abstract: "Optimise PDFs with PDF-specific controls."
+        )
+
+        @OptionGroup var options: CommonOptimisationOptions
+
+        @Option(name: .long, help: "Rendering DPI: 'adaptive' (pick per document) or one of \(PDF_DPI_STOPS.map(String.init).joined(separator: ", ")). Lower DPI means smaller files.")
+        var dpi: String?
+
+        @Option(help: "Downscales and crops the PDF pages to a specific size (e.g. 1200x630)")
+        var crop: NSSize? = nil
+
+        var urls: [URL] = []
+        var parsedDPI: Int? = nil
+
+        @Argument(help: "PDFs, folders of PDFs or URLs to optimise")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            if let size = crop, size == .zero {
+                throw ValidationError("Invalid size, must be greater than 0")
+            }
+            parsedDPI = try parsePDFDPIArgument(dpi, flag: "--dpi")
+            urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: [.pdf])
+            try checkOutputIsDir(options.output, itemCount: urls.count)
+        }
+
+        mutating func run() throws {
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                crop: crop,
+                pdfDPI: parsedDPI
+            )
+        }
+    }
+
+    struct AudioCommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "audio",
+            abstract: "Optimise audio files with audio-specific controls."
+        )
+
+        @OptionGroup var options: CommonOptimisationOptions
+
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), mapped to a bitrate for the output format")
+        var compression: String?
+
+        @Option(name: .shortAndLong, help: "Target bitrate in kbps (e.g. 128). Takes priority over --compression. Never upscales, snaps to the allowed bitrates of the output format.")
+        var bitrate: Int?
+
+        var urls: [URL] = []
+        var parsedCompression: CompressionQuality? = nil
+
+        @Argument(help: "Audio files, folders of audio files or URLs to optimise")
+        var items: [String] = []
+
+        mutating func validate() throws {
+            if let bitrate, bitrate <= 0 {
+                throw ValidationError("Invalid --bitrate, must be greater than 0")
+            }
+            parsedCompression = try parseCompressionArgument(compression, allowAdaptive: false, allowAuto: false)
+            urls = try validateItems(items, recursive: options.recursive, skipErrors: options.skipErrors, types: AUDIO_FORMATS)
+            try checkOutputIsDir(options.output, itemCount: urls.count)
+        }
+
+        mutating func run() throws {
+            try sendOptimisationCommand(
+                urls: urls, options: options,
+                compression: parsedCompression,
+                audioBitrate: bitrate
+            )
         }
     }
 
