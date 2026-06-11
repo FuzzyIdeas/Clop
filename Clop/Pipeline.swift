@@ -105,65 +105,40 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
 // MARK: - Built-in Pipeline Library
 
 /// Pipelines shipped with the app, distilled from the most common real-world workflows:
-/// web/blog publishing, chat and email size limits, note attachments, screencast demos,
-/// document filing and audio conversion. Seeded into the saved pipeline library once per
-/// `version`, so user deletions stick and app updates can add new entries.
+/// web/blog publishing, social cards, screencast demos, document shrinking and audio
+/// conversion. Seeded into the saved pipeline library once per `version`, so user
+/// deletions stick and app updates can add new entries.
+///
+/// Names must stay short: preset zone labels get ~75pt at 10pt font (2 lines max),
+/// so aim for ≤16 chars that wrap into short words.
 private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFileType, rawText: String, skipOptimisation: Bool, version: Int)] = [
     (
-        id: "builtin-image-web-1920-webp", name: "Web image (1920px WebP)", fileType: .image,
-        rawText: "crop(width: 1920) -> convert(to: webp)", skipOptimisation: true, version: 1
+        id: "builtin-image-webp", name: "to WebP", fileType: .image,
+        rawText: "convert(to: webp)", skipOptimisation: true, version: 1
     ),
     (
-        id: "builtin-image-email", name: "Email-friendly image", fileType: .image,
-        rawText: "crop(width: 2048) -> optimise(encoder: aggressive)", skipOptimisation: true, version: 1
+        id: "builtin-image-sort-screenshots", name: "Sort screenshots", fileType: .image,
+        rawText: "if(regex: \"^(screen\\s?shot|cleanshot)\") -> optimise() -> move(to: \"~/Pictures/Screenshots/%y/%m/\")", skipOptimisation: true, version: 1
     ),
     (
-        id: "builtin-image-social-preview", name: "Social preview (1200×630)", fileType: .image,
-        rawText: "crop(width: 1200, height: 630) -> convert(to: jpeg)", skipOptimisation: true, version: 1
-    ),
-    (
-        id: "builtin-image-markdown-attachment", name: "Markdown attachment", fileType: .image,
-        rawText: "crop(width: 1600) -> convert(to: webp, location: inPlace) -> copyToClipboard(format: markdown)", skipOptimisation: true, version: 1
-    ),
-    (
-        id: "builtin-image-file-screenshots", name: "File screenshots by month", fileType: .image,
-        rawText: "if(regex: \"^(Screenshot|Screen Shot|CleanShot)\") -> optimise() -> move(to: \"~/Pictures/Screenshots/%y/%m/\")", skipOptimisation: true, version: 1
-    ),
-    (
-        id: "builtin-video-chat-demo", name: "Chat-sized demo (720p, silent)", fileType: .video,
-        rawText: "crop(width: 1280) -> optimise(encoder: fast) -> removeAudio", skipOptimisation: true, version: 1
-    ),
-    (
-        id: "builtin-video-youtube-1080p", name: "YouTube 1080p", fileType: .video,
+        id: "builtin-video-1080p", name: "1080p", fileType: .video,
         rawText: "crop(width: 1920) -> optimise(encoder: slowHighQuality)", skipOptimisation: true, version: 1
     ),
     (
-        id: "builtin-video-gif-demo", name: "GIF demo", fileType: .video,
-        rawText: "crop(width: 800) -> convert(to: gif)", skipOptimisation: true, version: 1
+        id: "builtin-video-to-gif", name: "to GIF", fileType: .video,
+        rawText: "crop(longEdge: 800) -> convert(to: gif)", skipOptimisation: true, version: 1
     ),
     (
-        id: "builtin-video-2x-silent", name: "2× silent screencast", fileType: .video,
+        id: "builtin-video-2x-silent", name: "2× silent", fileType: .video,
         rawText: "changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)", skipOptimisation: true, version: 1
     ),
     (
-        id: "builtin-pdf-email-portal", name: "Email/portal PDF (150 DPI)", fileType: .pdf,
-        rawText: "optimise(dpi: 150)", skipOptimisation: true, version: 1
-    ),
-    (
-        id: "builtin-pdf-scanned-doc", name: "Scanned document (200 DPI)", fileType: .pdf,
-        rawText: "optimise(dpi: 200)", skipOptimisation: true, version: 1
-    ),
-    (
-        id: "builtin-pdf-pages-to-images", name: "PDF pages to images", fileType: .pdf,
+        id: "builtin-pdf-as-images", name: "as images", fileType: .pdf,
         rawText: "extractPagesAsImages(format: jpeg, quality: high)", skipOptimisation: true, version: 1
     ),
     (
-        id: "builtin-audio-voice-memo-mp3", name: "Voice memo to MP3", fileType: .audio,
+        id: "builtin-audio-to-mp3", name: "to MP3", fileType: .audio,
         rawText: "convert(to: mp3)", skipOptimisation: true, version: 1
-    ),
-    (
-        id: "builtin-audio-podcast-128", name: "Podcast bitrate (128 kbps)", fileType: .audio,
-        rawText: "lowerBitrate(kbps: 128)", skipOptimisation: true, version: 1
     ),
 ]
 
