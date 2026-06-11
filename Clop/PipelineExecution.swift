@@ -35,6 +35,10 @@ final class PipelineExecution {
     var currentFile: FilePath
     var context: TemplateContext
     var shownVisibleResult = false
+    /// Whether any non-filter step actually executed. Stays false when a leading
+    /// filter condition stops the pipeline before it does anything, letting callers
+    /// fall back to a normal optimisation pass.
+    var didWork = false
     var shouldStop = false
     var stepIndex = 0
     var stepDesc = ""
@@ -856,8 +860,12 @@ final class PipelineExecution {
 
     func handleMove(to: String) throws {
         if let dest = resolveFileDestination(to) {
+            let pointsAtCurrent = optimiser.path == currentFile
             let moved = try currentFile.move(to: dest, force: true)
             currentFile = moved
+            if pointsAtCurrent {
+                optimiser.url = moved.url
+            }
         }
     }
 
@@ -869,8 +877,12 @@ final class PipelineExecution {
             newName += ".\(ext)"
         }
         let dest = currentFile.removingLastComponent().appending(newName)
+        let pointsAtCurrent = optimiser.path == currentFile
         let moved = try currentFile.move(to: dest, force: true)
         currentFile = moved
+        if pointsAtCurrent {
+            optimiser.url = moved.url
+        }
     }
 
     func handleDelete(path: String) async {

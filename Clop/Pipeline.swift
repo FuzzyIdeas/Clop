@@ -367,7 +367,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     optimiser: Optimiser,
     fileType: ClopFileType,
     forceHide: Bool = false
-) async throws -> (file: FilePath, shownVisibleResult: Bool) {
+) async throws -> (file: FilePath, shownVisibleResult: Bool, didWork: Bool) {
     let exec = PipelineExecution(file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: pipeline.hideResult || forceHide)
 
     log.debug("Pipeline: executing \(pipeline.steps.count) steps on \(file.string)")
@@ -414,6 +414,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
             if batch.count > 1 {
                 let consumed = await exec.handleCompiledBatch(batch, startIndex: stepIndex)
+                exec.didWork = true
                 stepIndex += consumed
                 continue
             }
@@ -481,17 +482,20 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
         if exec.shouldStop { break }
 
+        if !step.isFilter { exec.didWork = true }
         log.debug("Pipeline: step[\(stepIndex)] \(stepDesc) completed, file: \(exec.currentFile.string)")
         stepIndex += 1
     }
 
-    return (exec.currentFile, exec.shownVisibleResult)
+    return (exec.currentFile, exec.shownVisibleResult, exec.didWork)
 }
 
 /// Run all configured pipelines for a file type and source after optimisation.
 ///
 /// When `pipelines` is passed explicitly (e.g. a CLI `pipeline run` request), source lookup
-/// is skipped and exactly those pipelines run. Returns the final file path after all pipelines.
+/// is skipped and exactly those pipelines run. Returns the final file path after all pipelines,
+/// plus whether any pipeline actually executed steps (false when every pipeline was stopped
+/// by an unmet filter condition, so callers can fall back to a normal optimisation pass).
 @discardableResult
 @MainActor func runPipelinesAfterOptimisation(
     file: FilePath,
@@ -500,7 +504,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     optimiser: Optimiser,
     pipelines explicitPipelines: [Pipeline]? = nil,
     forceHide: Bool = false
-) async -> FilePath {
+) async -> (file: FilePath, anyRan: Bool) {
     log.debug("Pipeline: checking pipelines for file=\(file.string) type=\(String(describing: type)) source=\(source.string)")
     let pipelines = explicitPipelines?.map(\.resolved) ?? pipelinesFor(type: type, source: source)
 
@@ -518,7 +522,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
     guard !pipelines.isEmpty else {
         log.debug("Pipeline: no pipelines configured, skipping")
-        return file
+        return (file, false)
     }
 
     let fileType: ClopFileType?
@@ -529,12 +533,13 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     case .pdf: fileType = .pdf
     default:
         log.debug("Pipeline: unknown file type \(String(describing: type)), skipping")
-        return file
+        return (file, false)
     }
 
-    guard let fileType else { return file }
+    guard let fileType else { return (file, false) }
 
     var anyVisibleResult = false
+    var anyRan = false
     var finalFile = file
 
     for (i, pipeline) in pipelines.enumerated() {
@@ -542,14 +547,16 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         let stepsDesc = pipeline.steps.map(\.displayString).joined(separator: " -> ")
         log.debug("Pipeline: running '\(name)': \(stepsDesc)")
         do {
-            let (resultFile, shownVisible) = try await executePipeline(pipeline, file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: forceHide)
+            let (resultFile, shownVisible, didWork) = try await executePipeline(pipeline, file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: forceHide)
             if shownVisible { anyVisibleResult = true }
+            if didWork { anyRan = true }
             finalFile = resultFile
-            log.debug("Pipeline: '\(name)' completed, result file: \(resultFile.string), visible: \(shownVisible)")
+            log.debug("Pipeline: '\(name)' completed, result file: \(resultFile.string), visible: \(shownVisible), didWork: \(didWork)")
 
             // If no step showed a visible result, show one via the parent optimiser.
             // Respect the pipeline's hideResult toggle: keep the optimiser hidden when set.
-            if !shownVisible {
+            // A pipeline stopped by an unmet filter did nothing: leave the optimiser alone.
+            if !shownVisible, didWork {
                 let resultSize = resultFile.fileSize() ?? 0
                 let originalSize = file.fileSize() ?? 0
                 optimiser.url = resultFile.url
@@ -565,10 +572,17 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
     // If the optimiser was created just for pipeline execution (skipOptimisation case),
     // and some step already showed a visible result, just remove the parent silently.
-    if optimiser.operation == "Running pipeline", anyVisibleResult {
-        optimiser.remove(after: 0)
-    } else if optimiser.operation == "Running pipeline" {
-        optimiser.finish(notice: "Pipeline completed")
+    if optimiser.operation == "Running pipeline" {
+        if anyVisibleResult {
+            optimiser.remove(after: 0)
+        } else if anyRan {
+            optimiser.finish(notice: "Pipeline completed")
+        } else {
+            // Nothing matched: remove the parent synchronously so a fallback
+            // optimisation pass can reuse the same id without racing the
+            // deferred removal in `remove(after:)`.
+            OM.optimisers = OM.optimisers.filter { $0.id != optimiser.id }
+        }
     }
-    return finalFile
+    return (finalFile, anyRan)
 }

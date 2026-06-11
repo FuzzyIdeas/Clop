@@ -428,7 +428,7 @@ struct RunPipelineMenu: View {
             optimiser.running = true
             optimiser.operation = "Pipeline: \(pipeline.name ?? "unnamed")"
             do {
-                let (resultFile, _) = try await executePipeline(
+                let (resultFile, _, _) = try await executePipeline(
                     pipeline, file: path,
                     source: optimiser.source ?? .cli,
                     optimiser: optimiser,

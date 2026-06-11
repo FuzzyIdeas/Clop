@@ -814,7 +814,7 @@ enum TempPipelineSegment {
 
                 case let .singleStep(step):
                     let singlePipeline = Pipeline(steps: [step])
-                    if let (resultFile, _) = try? await executePipeline(
+                    if let (resultFile, _, _) = try? await executePipeline(
                         singlePipeline, file: currentFile,
                         source: optimiserSource,
                         optimiser: self,
@@ -2636,6 +2636,33 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
                 item
             }
 
+        // When every pipeline for this source skips optimisation, don't run the
+        // initial optimise pass: the pipeline's own steps decide what happens to
+        // the file, and a separate pass would double-process it and show its own
+        // floating result. Mirror the clipboard and file-watcher `allSkip` paths
+        // and let the pipeline produce the single result on a hidden parent.
+        // Explicit transformations (downscale, crop, speed-up, Cmd-drop aggressive)
+        // keep the normal flow: the user asked for that exact operation.
+        if !skipPipelineLookup, let source, aggressiveOptimisation != true,
+           scalingFactor == nil, cropSize == nil, changePlaybackSpeedFactor == nil, removeAudio == nil,
+           item.path.exists
+        {
+            let type = ItemType.from(filePath: item.path)
+            let pipelines = pipelinesFor(type: type, source: source)
+            let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+            if allSkip, type.isImage || type.isVideo || type.isAudio || type.isPDF {
+                let optimiser = OM.optimiser(id: id, type: type, operation: "Running pipeline", hidden: true, source: source)
+                optimiser.url = item.path.url
+                optimiser.startingURL = item.path.url
+                let (finalFile, anyRan) = await runPipelinesAfterOptimisation(file: item.path, type: type, source: source, optimiser: optimiser, forceHide: hideFloatingResult)
+                if anyRan {
+                    return .file(finalFile)
+                }
+                // No pipeline condition matched. A drop is a strong optimisation
+                // intent (unlike file watching), so fall through to the normal pass.
+            }
+        }
+
         switch item {
         case var .image(img):
             if outFilePath == nil, let newPath = try getTemplatedPath(type: .image, path: img.path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != img.path {
@@ -2961,7 +2988,7 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
         if o.url == nil { o.url = startPath.url }
         return o
     }
-    let resultFile = await runPipelinesAfterOptimisation(
+    let (resultFile, _) = await runPipelinesAfterOptimisation(
         file: startPath, type: type, source: source, optimiser: optimiser,
         pipelines: [pipeline], forceHide: req.hideFloatingResult
     )

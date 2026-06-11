@@ -1308,19 +1308,26 @@ class Image: CustomStringConvertible {
         // pipeline), don't run a separate visible optimise pass: it would show its own
         // floating result alongside the pipeline's final result. Mirror the file-watcher
         // `allSkip` path and let the pipeline produce the single result on a hidden parent.
+        // When no pipeline condition matches, fall back to the normal optimise pass:
+        // copying to clipboard is a strong optimisation intent, unlike file watching.
         let pipelines = pipelinesFor(type: type, source: .clipboard)
         let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+        var handledByPipelines = false
         if allSkip {
             let optimiser = OM.optimiser(id: clipboardID, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
             optimiser.url = imgPath.url
             optimiser.startingURL = imgPath.url
-            await runPipelinesAfterOptimisation(file: imgPath, type: type, source: .clipboard, optimiser: optimiser)
-        } else if let result = try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) {
-            if let optimiser = opt(clipboardID) {
-                await runPipelinesAfterOptimisation(file: result.path, type: type, source: .clipboard, optimiser: optimiser)
+            let (_, anyRan) = await runPipelinesAfterOptimisation(file: imgPath, type: type, source: .clipboard, optimiser: optimiser)
+            handledByPipelines = anyRan
+        }
+        if !handledByPipelines {
+            if let result = try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) {
+                if let optimiser = opt(clipboardID) {
+                    await runPipelinesAfterOptimisation(file: result.path, type: type, source: .clipboard, optimiser: optimiser)
+                }
+            } else if let optimiser = opt(clipboardID) {
+                await runPipelinesAfterOptimisation(file: imgPath, type: type, source: .clipboard, optimiser: optimiser)
             }
-        } else if let optimiser = opt(clipboardID) {
-            await runPipelinesAfterOptimisation(file: imgPath, type: type, source: .clipboard, optimiser: optimiser)
         }
     }
 }

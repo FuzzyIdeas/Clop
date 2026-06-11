@@ -582,7 +582,7 @@ private func runPresetPipeline(_ pipeline: Pipeline?, result: ClipboardType?, id
     let path = result.path
     let fileType: ClopFileType = path.isImage ? .image : path.isVideo ? .video : path.isPDF ? .pdf : .audio
     do {
-        let (resultFile, _) = try await executePipeline(pipeline, file: path, source: .dropZone, optimiser: optimiser, fileType: fileType)
+        let (resultFile, _, _) = try await executePipeline(pipeline, file: path, source: .dropZone, optimiser: optimiser, fileType: fileType)
         if resultFile != path {
             optimiser.url = resultFile.url
             optimiser.type = .from(filePath: resultFile)
@@ -637,7 +637,7 @@ private func skipOptimiseAndRunPipelineIfEncoding(
     await prepare(optimiser)
 
     do {
-        let (resultFile, _) = try await executePipeline(
+        let (resultFile, _, _) = try await executePipeline(
             pipeline, file: path, source: source, optimiser: optimiser, fileType: fileType
         )
         if resultFile != path {
@@ -958,7 +958,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
             let resultPath = result?.path ?? path
             let fileType: ClopFileType = path.isImage ? .image : path.isVideo ? .video : path.isPDF ? .pdf : .audio
             do {
-                let (resultFile, _) = try await executePipeline(pipeline, file: resultPath, source: source, optimiser: optimiser, fileType: fileType)
+                let (resultFile, _, _) = try await executePipeline(pipeline, file: resultPath, source: source, optimiser: optimiser, fileType: fileType)
                 if resultFile != resultPath {
                     optimiser.url = resultFile.url
                     optimiser.type = .from(filePath: resultFile)
