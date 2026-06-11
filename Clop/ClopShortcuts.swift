@@ -43,11 +43,17 @@ enum IntentError: Swift.Error, CustomLocalizedStringResourceConvertible {
 
 var shortcutsOptimisationCount = 0
 
+/// Map a Shortcuts compression factor parameter to the unified per-run compression override.
+func shortcutCompression(_ factor: Int?) -> CompressionQuality? {
+    guard let factor else { return nil }
+    return CompressionQuality(tier: .custom, factor: max(5, min(100, factor)))
+}
+
 struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
     init() {}
 
     static var title: LocalizedStringResource = "Change video playback speed"
-    static var description = IntentDescription("Optimises a video received as input and changes its playback speed by the specific factor.")
+    static var description = IntentDescription("Optimises a video received as input and changes its playback speed by the specific factor.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
         When(\.$playbackSpeedFactor, ComparableComparisonOperator.greaterThanOrEqualTo, 1.0, {
@@ -55,6 +61,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 \.$output
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$compressionFactor
                 \.$removeAudio
             }
         }, otherwise: {
@@ -62,6 +69,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 \.$output
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$compressionFactor
                 \.$removeAudio
             }
         })
@@ -75,6 +83,9 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
 
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Takes priority over aggressive optimisation. Leave empty to use the app's compression settings.")
+    var compressionFactor: Int?
 
     @Parameter(title: "Playback speed factor", default: 1.5)
     var playbackSpeedFactor: Double
@@ -123,6 +134,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 hideFloatingResult: hideFloatingResult,
                 changePlaybackSpeedBy: playbackSpeedFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
+                compression: shortcutCompression(compressionFactor),
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: false, source: .shortcuts,
                 output: output,
@@ -159,7 +171,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
 }
 
 enum ImageFormat: String, CaseIterable, Equatable, AppEnum {
-    case avif, heic, jpeg, png, webp
+    case avif, heic, jpeg, jxl, png, webp
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
         "Image Format"
@@ -167,7 +179,7 @@ enum ImageFormat: String, CaseIterable, Equatable, AppEnum {
 
     static var caseDisplayRepresentations: [ImageFormat: DisplayRepresentation] {
         [
-            .avif: "avif", .heic: "heic", .jpeg: "jpeg", .png: "png", .webp: "webp",
+            .avif: "avif", .heic: "heic", .jpeg: "jpeg", .jxl: "jxl", .png: "png", .webp: "webp",
         ]
     }
 
@@ -176,6 +188,7 @@ enum ImageFormat: String, CaseIterable, Equatable, AppEnum {
         case .avif: .avif
         case .heic: .heic
         case .jpeg: .jpeg
+        case .jxl: .jxl
         case .png: .png
         case .webp: .webP
         }
@@ -186,12 +199,13 @@ struct ConvertImageIntent: AppIntent {
     init() {}
 
     static var title: LocalizedStringResource = "Convert image to…"
-    static var description = IntentDescription("Convert an image received as input to a different format such as WEBP or AVIF.")
+    static var description = IntentDescription("Convert an image received as input to a different format such as WEBP, AVIF or JPEG XL.", categoryName: "Conversion")
 
     static var parameterSummary: some ParameterSummary {
         Summary("Convert \(\.$image) to \(\.$format)") {
             \.$output
             \.$aggressiveOptimisation
+            \.$compressionFactor
             \.$hideFloatingResult
         }
     }
@@ -201,6 +215,9 @@ struct ConvertImageIntent: AppIntent {
 
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Leave empty to use the app's image compression setting.")
+    var compressionFactor: Int?
 
     @Parameter(title: "Hide floating result")
     var hideFloatingResult: Bool
@@ -253,7 +270,7 @@ struct ConvertImageIntent: AppIntent {
         guard type != img.type else {
             return .result(value: image)
         }
-        var convertedImage = try img.convert(to: type, asTempFile: true)
+        var convertedImage = try img.convert(to: type, asTempFile: true, cq: shortcutCompression(compressionFactor))
         if type == .png || type == .jpeg {
             convertedImage = await (try? runImagePipeline(convertedImage, actions: [.optimise], hideFloatingResult: hideFloatingResult, aggressiveOptimisation: aggressiveOptimisation, source: .shortcuts)) ?? convertedImage
         }
@@ -285,7 +302,7 @@ struct CropOptimiseFileIntent: AppIntent {
     init() {}
 
     static var title: LocalizedStringResource = "Crop image or video"
-    static var description = IntentDescription("Resizes and does a smart crop on an image or video received as input. Use 0 for width or height to have it calculated automatically while keeping the original aspect ratio.")
+    static var description = IntentDescription("Resizes and does a smart crop on an image or video received as input. Use 0 for width or height to have it calculated automatically while keeping the original aspect ratio.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
         When(\.$longEdge, .equalTo, true, {
@@ -293,6 +310,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 \.$output
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$compressionFactor
                 \.$copyToClipboard
                 \.$longEdge
                 \.$removeAudio
@@ -303,6 +321,7 @@ struct CropOptimiseFileIntent: AppIntent {
                     \.$output
                     \.$hideFloatingResult
                     \.$aggressiveOptimisation
+                    \.$compressionFactor
                     \.$copyToClipboard
                     \.$longEdge
                     \.$removeAudio
@@ -312,6 +331,7 @@ struct CropOptimiseFileIntent: AppIntent {
                     \.$output
                     \.$hideFloatingResult
                     \.$aggressiveOptimisation
+                    \.$compressionFactor
                     \.$copyToClipboard
                     \.$longEdge
                     \.$removeAudio
@@ -328,6 +348,9 @@ struct CropOptimiseFileIntent: AppIntent {
 
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Takes priority over aggressive optimisation. Leave empty to use the app's compression settings.")
+    var compressionFactor: Int?
 
     @Parameter(title: "Size or aspect ratio toggle", default: false, displayName: .init(true: "aspect ratio", false: "size"))
     var isAspectRatio: Bool
@@ -397,6 +420,7 @@ struct CropOptimiseFileIntent: AppIntent {
                 hideFloatingResult: hideFloatingResult,
                 cropTo: CropSize(width: (longEdge ? size : width) ?? 0, height: (longEdge ? size : height) ?? 0, longEdge: longEdge, isAspectRatio: isAspectRatio),
                 aggressiveOptimisation: aggressiveOptimisation,
+                compression: shortcutCompression(compressionFactor),
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
                 source: .shortcuts,
@@ -437,7 +461,7 @@ struct CropPDFIntent: AppIntent {
     init() {}
 
     static var title: LocalizedStringResource = "Crop PDF"
-    static var description = IntentDescription("Crops a PDF for a specific device, paper size or aspect ratio.")
+    static var description = IntentDescription("Crops a PDF for a specific device, paper size or aspect ratio.", categoryName: "PDF")
 
     static var parameterSummary: some ParameterSummary {
         When(\.$overwrite, .equalTo, true, {
@@ -522,14 +546,17 @@ struct CropPDFIntent: AppIntent {
 struct OptimiseFileIntent: AppIntent {
     init() {}
 
-    static var title: LocalizedStringResource = "Optimise file (image, video or PDF)"
-    static var description = IntentDescription("Optimises an image, video or PDF received as input.")
+    static var title: LocalizedStringResource = "Optimise file (image, video, PDF or audio)"
+    static var description = IntentDescription("Optimises an image, video, PDF or audio file received as input.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
         When(\.$overwrite, .equalTo, true, {
             Summary("Optimise \(\.$item) and \(\.$overwrite)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$compressionFactor
+                \.$audioBitrate
+                \.$pdfDpi
                 \.$downscaleFactor
                 \.$copyToClipboard
                 \.$removeAudio
@@ -538,6 +565,9 @@ struct OptimiseFileIntent: AppIntent {
             Summary("Optimise \(\.$item) and \(\.$overwrite) \(\.$output)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$compressionFactor
+                \.$audioBitrate
+                \.$pdfDpi
                 \.$downscaleFactor
                 \.$copyToClipboard
                 \.$removeAudio
@@ -545,7 +575,7 @@ struct OptimiseFileIntent: AppIntent {
         })
     }
 
-    @Parameter(title: "Video, image or PDF file")
+    @Parameter(title: "Video, image, PDF or audio file")
     var item: IntentFile
 
     @Parameter(title: "Hide floating result")
@@ -556,6 +586,15 @@ struct OptimiseFileIntent: AppIntent {
 
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Takes priority over aggressive optimisation. Leave empty to use the app's compression settings.")
+    var compressionFactor: Int?
+
+    @Parameter(title: "Audio bitrate (kbps)", description: "Target bitrate in kbps for audio files (e.g. 128). Takes priority over the compression factor. Never upscales, snaps to the allowed bitrates of the output format.")
+    var audioBitrate: Int?
+
+    @Parameter(title: "PDF DPI", description: "Rendering DPI for PDF optimisation: adaptive picks the best DPI per document, lower DPI means smaller files. Leave empty to use the app's setting.")
+    var pdfDpi: PDFDPIOption?
 
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
@@ -597,6 +636,9 @@ struct OptimiseFileIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        if let audioBitrate, audioBitrate <= 0 {
+            throw IntentError.message("Invalid audio bitrate, must be greater than 0")
+        }
         let clip = ClipboardType.fromURL(item.url)
 
         let result: ClipboardType?
@@ -607,6 +649,9 @@ struct OptimiseFileIntent: AppIntent {
                 hideFloatingResult: hideFloatingResult,
                 downscaleTo: downscaleFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
+                pdfDPI: pdfDpi?.dpi,
+                compression: shortcutCompression(compressionFactor),
+                audioBitrate: audioBitrate,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
                 source: .shortcuts,
@@ -646,14 +691,15 @@ struct OptimiseFileIntent: AppIntent {
 struct DownscaleFileIntent: AppIntent {
     init() {}
 
-    static var title: LocalizedStringResource = "Downscale image or video"
-    static var description = IntentDescription("Downscales an image or video received as input.")
+    static var title: LocalizedStringResource = "Downscale image, video or audio"
+    static var description = IntentDescription("Downscales an image or video received as input. For audio files, lowers the bitrate by the same factor.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
         When(\.$overwrite, .equalTo, true, {
             Summary("Downscale \(\.$item) to \(\.$downscaleFactor)x and \(\.$overwrite)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$compressionFactor
                 \.$copyToClipboard
                 \.$removeAudio
             }
@@ -661,13 +707,14 @@ struct DownscaleFileIntent: AppIntent {
             Summary("Downscale \(\.$item) to \(\.$downscaleFactor)x and \(\.$overwrite) \(\.$output)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
+                \.$compressionFactor
                 \.$copyToClipboard
                 \.$removeAudio
             }
         })
     }
 
-    @Parameter(title: "Video or image")
+    @Parameter(title: "Video, image or audio file")
     var item: IntentFile
 
     @Parameter(title: "Hide floating result")
@@ -679,13 +726,16 @@ struct DownscaleFileIntent: AppIntent {
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
 
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Takes priority over aggressive optimisation. Leave empty to use the app's compression settings.")
+    var compressionFactor: Int?
+
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
 
     @Parameter(title: "Remove audio from video")
     var removeAudio: Bool
 
-    @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)", default: 0.5, controlStyle: .field, inclusiveRange: (0.1, 1.0))
+    @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no change, 0.5 means half the size, or half the bitrate for audio)", default: 0.5, controlStyle: .field, inclusiveRange: (0.1, 1.0))
     var downscaleFactor: Double
 
     @Parameter(title: "Output path", description: """
@@ -729,6 +779,7 @@ struct DownscaleFileIntent: AppIntent {
                 hideFloatingResult: hideFloatingResult,
                 downscaleTo: downscaleFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
+                compression: shortcutCompression(compressionFactor),
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
                 source: .shortcuts,
@@ -768,13 +819,15 @@ struct DownscaleFileIntent: AppIntent {
 struct OptimiseURLIntent: AppIntent {
     init() {}
 
-    static var title: LocalizedStringResource = "Download and optimise file (image, video or PDF)"
-    static var description = IntentDescription("Optimises an image, video or PDF that can be downloaded from a provided URL.")
+    static var title: LocalizedStringResource = "Download and optimise file (image, video, PDF or audio)"
+    static var description = IntentDescription("Optimises an image, video, PDF or audio file that can be downloaded from a provided URL.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
         Summary("Optimise \(\.$item) and save to \(\.$output)") {
             \.$hideFloatingResult
             \.$aggressiveOptimisation
+            \.$compressionFactor
+            \.$audioBitrate
             \.$downscaleFactor
             \.$copyToClipboard
             \.$removeAudio
@@ -789,6 +842,12 @@ struct OptimiseURLIntent: AppIntent {
 
     @Parameter(title: "Use aggressive optimisation")
     var aggressiveOptimisation: Bool
+
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Takes priority over aggressive optimisation. Leave empty to use the app's compression settings.")
+    var compressionFactor: Int?
+
+    @Parameter(title: "Audio bitrate (kbps)", description: "Target bitrate in kbps for audio files (e.g. 128). Takes priority over the compression factor. Never upscales, snaps to the allowed bitrates of the output format.")
+    var audioBitrate: Int?
 
     @Parameter(title: "Copy to clipboard")
     var copyToClipboard: Bool
@@ -830,6 +889,9 @@ struct OptimiseURLIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        if let audioBitrate, audioBitrate <= 0 {
+            throw IntentError.message("Invalid audio bitrate, must be greater than 0")
+        }
         let clip = ClipboardType.fromURL(item)
 
         let result: ClipboardType?
@@ -840,6 +902,8 @@ struct OptimiseURLIntent: AppIntent {
                 hideFloatingResult: hideFloatingResult,
                 downscaleTo: downscaleFactor,
                 aggressiveOptimisation: aggressiveOptimisation,
+                compression: shortcutCompression(compressionFactor),
+                audioBitrate: audioBitrate,
                 optimisationCount: &shortcutsOptimisationCount,
                 copyToClipboard: copyToClipboard,
                 source: .shortcuts,
@@ -873,6 +937,294 @@ struct OptimiseURLIntent: AppIntent {
         default:
             throw IntentError.message("Bad optimisation result")
         }
+    }
+}
+
+enum PDFDPIOption: String, CaseIterable, AppEnum {
+    case adaptive
+    case dpi300, dpi250, dpi200, dpi150, dpi100, dpi72, dpi48
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "PDF DPI"
+    }
+
+    static var caseDisplayRepresentations: [PDFDPIOption: DisplayRepresentation] {
+        [
+            .adaptive: DisplayRepresentation(title: "Adaptive", subtitle: "Pick the best DPI per document"),
+            .dpi300: "300", .dpi250: "250", .dpi200: "200", .dpi150: "150", .dpi100: "100", .dpi72: "72", .dpi48: "48",
+        ]
+    }
+
+    var dpi: Int {
+        switch self {
+        case .adaptive: PDF_DPI_ADAPTIVE
+        case .dpi300: 300
+        case .dpi250: 250
+        case .dpi200: 200
+        case .dpi150: 150
+        case .dpi100: 100
+        case .dpi72: 72
+        case .dpi48: 48
+        }
+    }
+}
+
+/// Run a pipeline (saved name or inline DSL) on a file through the same code path
+/// as the CLI `clop pipeline run` and `clop convert` commands.
+@MainActor func runShortcutsPipeline(
+    url: URL,
+    pipeline: String,
+    hideFloatingResult: Bool,
+    compression: CompressionQuality? = nil,
+    audioBitrate: Int? = nil
+) async throws -> IntentFile {
+    let req = OptimisationRequest(
+        id: url.absoluteString,
+        urls: [url],
+        size: nil,
+        downscaleFactor: nil,
+        changePlaybackSpeedFactor: nil,
+        hideFloatingResult: hideFloatingResult,
+        copyToClipboard: false,
+        aggressiveOptimisation: false,
+        adaptiveOptimisation: nil,
+        source: "shortcuts",
+        compression: compression,
+        audioBitrate: audioBitrate,
+        pipeline: pipeline
+    )
+
+    do {
+        let response = try await processPipelineRequestURL(req, url: url)
+        let path = FilePath(response.path)
+        guard path.exists else {
+            throw IntentError.message("Couldn't find file at \(path)")
+        }
+        return IntentFile(fileURL: path.url, filename: path.name.string)
+    } catch let error as ClopError {
+        throw IntentError.message(error.description)
+    } catch let error as IntentError {
+        throw error
+    } catch {
+        log.error("\(error.localizedDescription)")
+        throw IntentError.message(error.localizedDescription)
+    }
+}
+
+enum VideoConversionFormat: String, CaseIterable, AppEnum {
+    case mp4, gif, webm, hevc, x265, av1
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Video Format"
+    }
+
+    static var caseDisplayRepresentations: [VideoConversionFormat: DisplayRepresentation] {
+        [
+            .mp4: DisplayRepresentation(title: "mp4", subtitle: "H.264"),
+            .gif: DisplayRepresentation(title: "gif", subtitle: "Animated GIF"),
+            .webm: DisplayRepresentation(title: "webm", subtitle: "VP9"),
+            .hevc: DisplayRepresentation(title: "hevc", subtitle: "Hardware H.265"),
+            .x265: DisplayRepresentation(title: "x265", subtitle: "Software H.265"),
+            .av1: DisplayRepresentation(title: "av1", subtitle: "SVT-AV1 in MKV"),
+        ]
+    }
+}
+
+struct ConvertVideoIntent: AppIntent {
+    init() {}
+
+    static var title: LocalizedStringResource = "Convert video to…"
+    static var description = IntentDescription("Convert a video received as input to a different format or codec such as GIF, WEBM (VP9), H.265 or AV1.", categoryName: "Conversion")
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Convert \(\.$video) to \(\.$format)") {
+            \.$compressionFactor
+            \.$hideFloatingResult
+        }
+    }
+
+    @Parameter(title: "Video")
+    var video: IntentFile
+
+    @Parameter(title: "Format", default: .mp4)
+    var format: VideoConversionFormat
+
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Only applies to mp4 (H.264); the other codecs use tuned fixed settings.")
+    var compressionFactor: Int?
+
+    @Parameter(title: "Hide floating result")
+    var hideFloatingResult: Bool
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        let file = try await runShortcutsPipeline(
+            url: video.url,
+            pipeline: "convert(to: \(format.rawValue))",
+            hideFloatingResult: hideFloatingResult,
+            compression: shortcutCompression(compressionFactor)
+        )
+        return .result(value: file)
+    }
+}
+
+enum AudioConversionFormat: String, CaseIterable, AppEnum {
+    case aac, mp3, opus, flac, wav, aiff
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Audio Format"
+    }
+
+    static var caseDisplayRepresentations: [AudioConversionFormat: DisplayRepresentation] {
+        [
+            .aac: DisplayRepresentation(title: "aac", subtitle: "AAC (M4A)"),
+            .mp3: DisplayRepresentation(title: "mp3", subtitle: "MP3"),
+            .opus: DisplayRepresentation(title: "opus", subtitle: "Opus (OGG)"),
+            .flac: DisplayRepresentation(title: "flac", subtitle: "FLAC (lossless)"),
+            .wav: DisplayRepresentation(title: "wav", subtitle: "WAV (uncompressed)"),
+            .aiff: DisplayRepresentation(title: "aiff", subtitle: "AIFF (uncompressed)"),
+        ]
+    }
+}
+
+struct ConvertAudioIntent: AppIntent {
+    init() {}
+
+    static var title: LocalizedStringResource = "Convert audio to…"
+    static var description = IntentDescription("Convert an audio file received as input to a different format such as AAC, MP3 or Opus.", categoryName: "Conversion")
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Convert \(\.$audio) to \(\.$format)") {
+            \.$compressionFactor
+            \.$bitrate
+            \.$hideFloatingResult
+        }
+    }
+
+    @Parameter(title: "Audio")
+    var audio: IntentFile
+
+    @Parameter(title: "Format", default: .aac)
+    var format: AudioConversionFormat
+
+    @Parameter(title: "Compression factor", description: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), mapped to a bitrate for the target format. Leave empty to use the app's audio compression setting.")
+    var compressionFactor: Int?
+
+    @Parameter(title: "Audio bitrate (kbps)", description: "Target bitrate in kbps (e.g. 128). Takes priority over the compression factor. Never upscales, snaps to the allowed bitrates of the target format.")
+    var bitrate: Int?
+
+    @Parameter(title: "Hide floating result")
+    var hideFloatingResult: Bool
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        if let bitrate, bitrate <= 0 {
+            throw IntentError.message("Invalid audio bitrate, must be greater than 0")
+        }
+        let file = try await runShortcutsPipeline(
+            url: audio.url,
+            pipeline: "convert(to: \(format.rawValue))",
+            hideFloatingResult: hideFloatingResult,
+            compression: shortcutCompression(compressionFactor),
+            audioBitrate: bitrate
+        )
+        return .result(value: file)
+    }
+}
+
+struct PipelineEntity: AppEntity {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Clop Pipeline"
+    static var defaultQuery = PipelineEntityQuery()
+
+    let id: String
+    let name: String
+    let steps: String
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(name)", subtitle: "\(steps)")
+    }
+}
+
+extension Pipeline {
+    var shortcutsEntity: PipelineEntity? {
+        guard let name, !name.isEmpty else { return nil }
+        return PipelineEntity(id: id, name: name, steps: displayText)
+    }
+}
+
+struct PipelineEntityQuery: EntityStringQuery {
+    func entities(for identifiers: [String]) async throws -> [PipelineEntity] {
+        Defaults[.savedPipelines].filter { identifiers.contains($0.id) }.compactMap(\.shortcutsEntity)
+    }
+
+    func entities(matching string: String) async throws -> [PipelineEntity] {
+        Defaults[.savedPipelines].compactMap(\.shortcutsEntity).filter { $0.name.localizedCaseInsensitiveContains(string) }
+    }
+
+    func suggestedEntities() async throws -> [PipelineEntity] {
+        Defaults[.savedPipelines].compactMap(\.shortcutsEntity)
+    }
+}
+
+struct RunPipelineIntent: AppIntent {
+    init() {}
+
+    static var title: LocalizedStringResource = "Run pipeline on file"
+    static var description = IntentDescription("""
+    Runs a pipeline on an image, video, PDF or audio file: either a pipeline saved in the Clop app, or custom inline steps like `crop(width: 1600) -> convert(to: webp)`.
+
+    Inline steps run exactly as written (no implicit optimisation pass); add an explicit `optimise` step if you want one. Saved pipelines keep their "skip optimisation" setting: when off, the file is optimised before the steps run.
+    """, categoryName: "Pipelines")
+
+    static var parameterSummary: some ParameterSummary {
+        When(\.$useCustomSteps, .equalTo, true, {
+            Summary("Run \(\.$useCustomSteps) \(\.$steps) on \(\.$item)") {
+                \.$hideFloatingResult
+            }
+        }, otherwise: {
+            Summary("Run \(\.$useCustomSteps) \(\.$pipeline) on \(\.$item)") {
+                \.$hideFloatingResult
+            }
+        })
+    }
+
+    @Parameter(title: "Image, video, PDF or audio file")
+    var item: IntentFile
+
+    @Parameter(title: "Pipeline type", default: false, displayName: .init(true: "custom steps", false: "saved pipeline"))
+    var useCustomSteps: Bool
+
+    @Parameter(title: "Pipeline")
+    var pipeline: PipelineEntity?
+
+    @Parameter(title: "Steps", description: """
+    Inline pipeline steps separated by `->`, e.g. `crop(width: 1600) -> convert(to: webp)`.
+
+    Steps: optimise, downscale, lowerBitrate, convert, crop, extractPagesAsImages,
+    copy, move, rename, delete, if, ifNot, removeAudio, changeSpeed, runScript,
+    runShortcut, copyToClipboard, copyLinkForSending, shelveWith, uploadWith, openWith
+    """)
+    var steps: String?
+
+    @Parameter(title: "Hide floating result")
+    var hideFloatingResult: Bool
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<IntentFile> {
+        let pipelineArg: String
+        if useCustomSteps {
+            guard let steps, !steps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw $steps.needsValueError()
+            }
+            pipelineArg = steps
+        } else {
+            guard let pipeline else {
+                throw $pipeline.needsValueError()
+            }
+            pipelineArg = pipeline.name
+        }
+
+        let file = try await runShortcutsPipeline(url: item.url, pipeline: pipelineArg, hideFloatingResult: hideFloatingResult)
+        return .result(value: file)
     }
 }
 
