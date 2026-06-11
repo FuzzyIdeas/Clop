@@ -44,6 +44,12 @@ class WarpDropManager: ObservableObject {
 
     @Published var sessions: [WarpDropSession] = []
 
+    /// Paths of files whose transfer has been started but whose room hasn't been
+    /// created yet. A live session only appears in `sessions` once the server
+    /// returns a room ID (up to 30s later), so this tracks the in-between window
+    /// to stop a second trigger from creating a duplicate link for the same file.
+    @Published private(set) var connectingPaths: Set<String> = []
+
     var hasSessions: Bool { sessions.isNotEmpty }
 
     func session(forPath path: String) -> WarpDropSession? {
@@ -55,7 +61,33 @@ class WarpDropManager: ObservableObject {
         return session(forPath: path)
     }
 
+    func isConnecting(path: String?) -> Bool {
+        guard let path else { return false }
+        return connectingPaths.contains(path)
+    }
+
+    /// A file is "active" if it already has a live session or a send in flight.
+    func isActive(path: String) -> Bool {
+        connectingPaths.contains(path) || session(forPath: path) != nil
+    }
+
+    /// Reserve the given files for sending and return only the subset that wasn't
+    /// already active. Files already covered by a session or an in-flight send are
+    /// dropped so we never start a second transfer (and second link) for them.
+    /// Returns an empty array when every file is already active — the caller
+    /// should then copy the existing link(s) instead of starting a new transfer.
+    func reserveForSending(_ urls: [URL]) -> [URL] {
+        let fresh = urls.filter { !isActive(path: $0.path) }
+        connectingPaths.formUnion(fresh.map(\.path))
+        return fresh
+    }
+
+    func releaseConnecting(_ urls: [URL]) {
+        connectingPaths.subtract(urls.map(\.path))
+    }
+
     func addSession(roomID: String, files: [URL], task: Task<String, Error>) {
+        connectingPaths.subtract(files.map(\.path))
         let session = WarpDropSession(id: roomID, files: files, task: task)
         sessions.append(session)
         log.debug("WarpDrop room created: \(roomID)")
@@ -85,19 +117,49 @@ class WarpDropManager: ObservableObject {
 @MainActor
 func warpDropSend(optimiser: Optimiser) {
     guard let url = optimiser.url else { return }
+
+    // Already shared: copy the existing link instead of creating a second one.
+    if let session = WDM.session(forOptimiser: optimiser) {
+        session.copyLink()
+        optimiser.overlayMessage = "Copied link"
+        return
+    }
+    // Already connecting (room not created yet): don't start a second transfer.
+    // The link is copied to the pasteboard automatically once the room is ready.
+    guard WDM.reserveForSending([url]).isNotEmpty else { return }
+
     optimiser.warpDropConnecting = true
-    warpDropSendFiles([url], overlayOptimiser: optimiser)
+    warpDropSendFiles([url], overlayOptimisers: [optimiser])
 }
 
 @MainActor
 func warpDropSend(optimisers: [Optimiser]) {
     let urls = optimisers.compactMap(\.url)
     guard urls.isNotEmpty else { return }
-    warpDropSendFiles(urls, overlayOptimiser: optimisers.first)
+
+    // Only send files that aren't already shared or in flight, so re-pressing
+    // "Send files securely" on the same selection can't create duplicate links.
+    let fresh = WDM.reserveForSending(urls)
+    guard fresh.isNotEmpty else {
+        let links = optimisers.compactMap { WDM.session(forOptimiser: $0)?.shareURL }
+        if links.isNotEmpty {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setString(links.joined(separator: "\n"), forType: .string)
+        }
+        return
+    }
+
+    let freshPaths = Set(fresh.map(\.path))
+    let freshOptimisers = optimisers.filter { freshPaths.contains($0.url?.path ?? "") }
+    for optimiser in freshOptimisers {
+        optimiser.warpDropConnecting = true
+    }
+    warpDropSendFiles(fresh, overlayOptimisers: freshOptimisers)
 }
 
 @MainActor
-private func warpDropSendFiles(_ files: [URL], overlayOptimiser: Optimiser?) {
+private func warpDropSendFiles(_ files: [URL], overlayOptimisers: [Optimiser]) {
     let client = WarpDropClient()
     let roomIDRef = Ref<String?>(nil)
 
@@ -115,8 +177,10 @@ private func warpDropSendFiles(_ files: [URL], overlayOptimiser: Optimiser?) {
                     pb.clearContents()
                     pb.setString(shareURL, forType: .string)
 
-                    overlayOptimiser?.warpDropConnecting = false
-                    overlayOptimiser?.overlayMessage = "Copied link"
+                    for optimiser in overlayOptimisers {
+                        optimiser.warpDropConnecting = false
+                    }
+                    overlayOptimisers.first?.overlayMessage = "Copied link"
                 }
             },
             onDownloadCompleted: { [roomIDRef] count in
@@ -129,7 +193,14 @@ private func warpDropSendFiles(_ files: [URL], overlayOptimiser: Optimiser?) {
     }
 
     Task {
-        defer { overlayOptimiser?.warpDropConnecting = false }
+        defer {
+            for optimiser in overlayOptimisers {
+                optimiser.warpDropConnecting = false
+            }
+            // Clear the in-flight reservation if the room never got created
+            // (timeout/cancel). On success addSession already cleared it.
+            WDM.releaseConnecting(files)
+        }
         for _ in 0 ..< 300 {
             try? await Task.sleep(for: .milliseconds(100))
             if let roomID = roomIDRef.value {
@@ -145,6 +216,16 @@ private func warpDropSendFiles(_ files: [URL], overlayOptimiser: Optimiser?) {
 /// Returns the share URL on success, nil on failure or timeout.
 @MainActor
 func warpDropSendAndWait(url: URL, optimiser: Optimiser) async -> String? {
+    // Already shared: return the existing link instead of opening another room.
+    if let session = WDM.session(forPath: url.path) {
+        return session.shareURL
+    }
+    // Already connecting from another trigger: don't start a duplicate transfer.
+    guard WDM.reserveForSending([url]).isNotEmpty else {
+        return WDM.session(forPath: url.path)?.shareURL
+    }
+    defer { WDM.releaseConnecting([url]) }
+
     let client = WarpDropClient()
     let roomIDRef = Ref<String?>(nil)
 
