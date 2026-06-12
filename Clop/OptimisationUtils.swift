@@ -686,12 +686,19 @@ enum TempPipelineSegment {
 
         // originalURL can point at the backup, which "Restore original" moves back
         // over the working file, so only trust it if the file still exists
-        guard let originalFilePath = originalURL?.existingFilePath ?? path else { return }
+        guard var originalFilePath = originalURL?.existingFilePath ?? path else { return }
         let backupPath = (originalFilePath.clopBackupPath?.exists ?? false)
             ? originalFilePath.clopBackupPath
             : convertedFromURL?.existingFilePath
         if !originalFilePath.exists, let backupPath {
             let _ = try? backupPath.copy(to: originalFilePath)
+        }
+        if let templatedPath = templatedPathForManualOptimisation(originalFilePath) {
+            originalFilePath = templatedPath
+            url = templatedPath.url
+            if type.isPDF, pdf != nil {
+                pdf = PDF(templatedPath, thumb: !hidden)
+            }
         }
 
         let segments = segmentTempPipeline()
@@ -1503,6 +1510,20 @@ enum TempPipelineSegment {
         executeTempPipeline()
     }
 
+    /// Copy `path` to the location dictated by the optimised-file location setting
+    /// (e.g. "Same folder" with `%f-opt`) so manual re-optimisations land in the same
+    /// place as first-time ones. Returns nil for files already at the templated
+    /// location, converted results and Clop-internal files, which stay where they are.
+    func templatedPathForManualOptimisation(_ path: FilePath) -> FilePath? {
+        guard let fileType, convertedFromURL == nil,
+              !path.starts(with: FilePath.workdir),
+              !isAlreadyTemplatedPath(type: fileType, path: path),
+              let templatedPath = try? getTemplatedPath(type: fileType, path: path),
+              templatedPath != path
+        else { return nil }
+        return try? path.copy(to: templatedPath, force: true)
+    }
+
     func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
         guard let url, var path = url.filePath else { return }
         stopRemover()
@@ -1519,6 +1540,10 @@ enum TempPipelineSegment {
         }
         if path.starts(with: FilePath.clopBackups) {
             path = (try? path.copy(to: type.isImage ? FilePath.images : FilePath.videos, force: true)) ?? path
+        }
+        if let templatedPath = templatedPathForManualOptimisation(path) {
+            path = templatedPath
+            self.url = path.url
         }
 
         isOriginal = false
@@ -2579,6 +2604,26 @@ func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour
         path.dir / generateFileName(template: Defaults[type.sameFolderNameTemplateKey], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     case .specificFolder:
         try generateFilePath(template: Defaults[type.specificFolderNameTemplateKey], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber], mkdir: true)
+    }
+}
+
+/// Whether `path` already sits at the location produced by the optimised-file
+/// location setting, so re-optimisations don't apply the template a second time
+/// (e.g. `%f-opt` turning `kitty-opt.mp4` into `kitty-opt-opt.mp4`).
+func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
+    switch type.optimisedFileBehaviour {
+    case .temporary, .inPlace:
+        return true
+    case .sameFolder:
+        let template = Defaults[type.sameFolderNameTemplateKey]
+        guard !template.isEmpty else { return true }
+        return nameMatchesTemplate(path.stem ?? path.name.string, template: template)
+    case .specificFolder:
+        let template = Defaults[type.specificFolderNameTemplateKey]
+        guard !template.isEmpty else { return true }
+        let pathWithoutExtension = (path.dir / (path.stem ?? path.name.string)).string
+        let isAbsoluteTemplate = template.hasPrefix("/") || template.hasPrefix("%P") || template.hasPrefix("%F")
+        return nameMatchesTemplate(pathWithoutExtension, template: template, allowPathPrefix: !isAbsoluteTemplate)
     }
 }
 
