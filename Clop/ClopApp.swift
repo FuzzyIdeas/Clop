@@ -353,8 +353,6 @@ class AppDelegate: AppDelegateParent {
         migrateToUnifiedCompression()
         seedBuiltinPipelines()
 
-        BetaLicenseChecker.start()
-
         guard !SWIFTUI_PREVIEW else { return }
 
         floatingResultsWindow.animateOnResize = false

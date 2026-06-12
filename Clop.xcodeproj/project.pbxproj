@@ -72,7 +72,6 @@
 		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */ = {isa = PBXBuildFile; productRef = C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */; };
-		C7BE7A012FA3D00100000003 /* BetaLicense.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7BE7A012FA3D00100000001 /* BetaLicense.swift */; };
 		C7CC9E242E57299900EAFCA1 /* InternetAccessPolicy.plist in Resources */ = {isa = PBXBuildFile; fileRef = C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */; };
 		C7CC9E282E57299900EAFCA1 /* Pipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CC9E262E57299900EAFCA1 /* Pipeline.swift */; };
 		C7D697172F837AD000FAFD3A /* LowtechProSentry in Frameworks */ = {isa = PBXBuildFile; productRef = C7D697162F837AD000FAFD3A /* LowtechProSentry */; };
@@ -196,7 +195,6 @@
 		C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		C7BE7A012FA3D00100000001 /* BetaLicense.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BetaLicense.swift; sourceTree = "<group>"; };
 		C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = InternetAccessPolicy.plist; sourceTree = "<group>"; };
 		C7CC9E262E57299900EAFCA1 /* Pipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pipeline.swift; sourceTree = "<group>"; };
 		C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingResult.swift; sourceTree = "<group>"; };
@@ -323,7 +321,6 @@
 				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
 				C7DEBD012F20000100000001 /* DebugDump.swift */,
 				C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */,
-				C7BE7A012FA3D00100000001 /* BetaLicense.swift */,
 				C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */,
 				C7AB6624288301590041BEC8 /* ClopApp.swift */,
 				C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */,
@@ -539,7 +536,6 @@
 				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
 				C7DEBD022F20000100000002 /* DebugDump.swift in Sources */,
 				C7DF1A2C2EAA000000000001 /* IgnoredAppsPicker.swift in Sources */,
-				C7BE7A012FA3D00100000003 /* BetaLicense.swift in Sources */,
 				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
 				C7AB38D12AC8320B00F299CE /* FileNameField.swift in Sources */,
 				C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */,
