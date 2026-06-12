@@ -31,69 +31,18 @@ var hoveredOptimiserID: String? {
                 guard hoveredOptimiserID != nil, !SM.selecting else {
                     log.debug("Hovered optimiser ID is nil, stopping hover hotkeys")
                     KM.secondaryKeys = []
+                    KM.bareKeys = []
                     KM.reinitHotkeys()
-                    hoverKeyGlobalMonitor.stop()
-                    hoverKeyLocalMonitor.stop()
                     return
                 }
 
                 log.debug("Hovered optimiser ID is \(hoveredOptimiserID!), starting hover hotkeys")
                 KM.secondaryKeys = DEFAULT_HOVER_KEYS
+                KM.bareKeys = [.space]
                 KM.reinitHotkeys()
-                hoverKeyGlobalMonitor.start()
-                hoverKeyLocalMonitor.start()
             }
         }
     }
-}
-
-@MainActor var lastQuicklookModifierFlags: NSEvent.ModifierFlags = []
-@MainActor var possibleShiftQuickLook = true
-@MainActor var hoverKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-    guard !SM.selecting else { return }
-    let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-    defer {
-        lastQuicklookModifierFlags = flags
-        if flags.isEmpty {
-            possibleShiftQuickLook = true
-        }
-    }
-
-    if flags.isNotEmpty, flags != [.shift] {
-        possibleShiftQuickLook = false
-    }
-
-    if possibleShiftQuickLook, lastQuicklookModifierFlags == [.shift], flags == [] {
-        if QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared(), ql.isVisible {
-            QLPreviewPanel.shared().close()
-        } else if let opt = OM.hovered, !opt.editingFilename {
-            opt.quicklook()
-        }
-    }
-}
-@MainActor var hoverKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
-    guard !SM.selecting else { return event }
-    let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-    defer {
-        lastQuicklookModifierFlags = flags
-        if flags.isEmpty {
-            possibleShiftQuickLook = true
-        }
-    }
-
-    if flags.isNotEmpty, flags != [.shift] {
-        possibleShiftQuickLook = false
-    }
-
-    if possibleShiftQuickLook, lastQuicklookModifierFlags == [.shift], flags == [] {
-        if QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared(), ql.isVisible {
-            QLPreviewPanel.shared().close()
-        } else if let opt = OM.hovered, !opt.editingFilename {
-            opt.quicklook()
-        }
-        return nil
-    }
-    return event
 }
 
 @MainActor var lastDropzoneModifierFlags: NSEvent.ModifierFlags = []
@@ -429,11 +378,13 @@ enum TempPipelineSegment {
 
             if editing {
                 KM.secondaryKeys = []
+                KM.bareKeys = []
                 KM.reinitHotkeys()
             } else {
                 floatingResultsWindow.allowToBecomeKey = false
                 if hoveredOptimiserID != nil {
                     KM.secondaryKeys = DEFAULT_HOVER_KEYS
+                    KM.bareKeys = [.space]
                     KM.reinitHotkeys()
                 }
             }
