@@ -59,8 +59,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
       "state" : {
-        "revision" : "45cadc3e5f95d33bddea532886370d09257af45d",
-        "version" : "4.1.2"
+        "revision" : "b39cadbeb201410be333db2373d3be2bd7c27a69",
+        "version" : "4.1.3"
       }
     },
     {

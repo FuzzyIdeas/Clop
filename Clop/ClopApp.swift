@@ -18,6 +18,7 @@ import LowtechIndie
 import LowtechPro
 import LowtechProSentry
 import os
+import QuickLookUI
 import Sentry
 import ServiceManagement
 import System
@@ -331,6 +332,10 @@ class AppDelegate: AppDelegateParent {
                 self.handleCommandHotkey(key)
                 let _ = invalidReq3(PRODUCTS, nil)
             }
+
+            KM.onBareHotkey = { key in
+                self.handleBareHotkey(key)
+            }
         }
         super.applicationDidFinishLaunching(_: notification)
         UM.updater = updateController.updater
@@ -554,8 +559,6 @@ class AppDelegate: AppDelegateParent {
         case .delete:
             hoveredOptimiserID = nil
             opt.stop(animateRemoval: true)
-        case .space:
-            opt.quicklook()
         case .z where !opt.isOriginal:
             opt.restoreOriginal()
         case .r where !opt.running:
@@ -592,6 +595,23 @@ class AppDelegate: AppDelegateParent {
         default:
             return
         }
+    }
+
+    /// Plain Space pressed while hovering a floating result: toggle QuickLook.
+    /// Returns false to forward the keypress to the focused app instead.
+    func handleBareHotkey(_ key: SauceKey) -> Bool {
+        guard key == .space, finishedOnboarding, !SM.selecting,
+              let opt = OM.hovered, !opt.editingFilename
+        else {
+            return false
+        }
+
+        if QLPreviewPanel.sharedPreviewPanelExists(), let ql = QLPreviewPanel.shared(), ql.isVisible {
+            ql.close()
+        } else {
+            opt.quicklook()
+        }
+        return true
     }
 
     @MainActor
