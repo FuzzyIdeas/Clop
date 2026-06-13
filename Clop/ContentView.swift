@@ -24,6 +24,7 @@ struct MenuView: View {
     @Environment(\.openWindow) var openWindow
 
     @Default(.keyComboModifiers) var keyComboModifiers
+    @Default(.enabledKeys) var enabledKeys
     @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
     @Default(.useAggressiveOptimisationJPEG) var useAggressiveOptimisationJPEG
     @Default(.useAggressiveOptimisationPNG) var useAggressiveOptimisationPNG
@@ -66,7 +67,7 @@ struct MenuView: View {
         Section("Clipboard actions") {
             Button("Optimise") {
                 Task.init { try? await optimiseLastClipboardItem() }
-            }.keyboardShortcut("c", modifiers: keyComboModifiers.eventModifiers)
+            }.hotkeyHint(.c, "c", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
 
             if !useAggressiveOptimisationGIF ||
                 !useAggressiveOptimisationJPEG ||
@@ -75,16 +76,16 @@ struct MenuView: View {
             {
                 Button("Optimise (aggressive)") {
                     Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
-                }.keyboardShortcut("a", modifiers: keyComboModifiers.eventModifiers)
+                }.hotkeyHint(.a, "a", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
             }
 
             Button("Downscale") {
                 scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
                 Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
-            }.keyboardShortcut("-", modifiers: keyComboModifiers.eventModifiers)
+            }.hotkeyHint(.minus, "-", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
             Button("Quicklook") {
                 Task.init { try? await quickLookLastClipboardItem() }
-            }.keyboardShortcut(" ", modifiers: keyComboModifiers.eventModifiers)
+            }.hotkeyHint(.space, " ", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
 
             if let bundleID = lastApp.bundleId {
                 let appName = lastApp.name ?? bundleID
@@ -129,7 +130,7 @@ struct MenuView: View {
             Button("Revert last optimisations") {
                 om.clipboardImageOptimiser?.restoreOriginal()
             }
-            .keyboardShortcut("z", modifiers: keyComboModifiers.eventModifiers)
+            .hotkeyHint(.z, "z", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
             .disabled(om.clipboardImageOptimiser?.isOriginal ?? true)
             Button("Bring back last result") {
                 guard let last = om.removedOptimisers.popLast() else {
@@ -137,7 +138,7 @@ struct MenuView: View {
                 }
                 om.optimisers = om.optimisers.without(last).with(last)
             }
-            .keyboardShortcut("=", modifiers: keyComboModifiers.eventModifiers)
+            .hotkeyHint(.equal, "=", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
             .disabled(om.removedOptimisers.isEmpty)
         }
 
@@ -254,4 +255,18 @@ func contactURL() -> URL {
     }
 
     return urlBuilder.url ?? "https://lowtechguys.com/contact".url!
+}
+
+extension View {
+    /// Attach a menu item's keyboard-shortcut hint only when the matching global hotkey is still
+    /// enabled in settings, so disabling a hotkey also drops its (now non-functional) hint from the
+    /// menubar menu.
+    @ViewBuilder
+    func hotkeyHint(_ key: SauceKey, _ equivalent: KeyEquivalent, enabled: [SauceKey], modifiers: EventModifiers) -> some View {
+        if enabled.contains(key) {
+            keyboardShortcut(equivalent, modifiers: modifiers)
+        } else {
+            self
+        }
+    }
 }
