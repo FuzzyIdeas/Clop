@@ -141,6 +141,14 @@ struct RightClickMenuView: View {
                 }
             }
 
+            // Mirrors the floating card's compression slider. Audio keeps "Change bitrate" above
+            // (the bitrate is its compression axis), so this is image/video only.
+            if optimiser.canCompress(), !optimiser.type.isAudio {
+                Menu("Compression") {
+                    CompressionMenu(optimiser: optimiser)
+                }
+            }
+
             if optimiser.canChangePlaybackSpeed() {
                 Menu("Change playback speed") {
                     ChangePlaybackSpeedMenu(optimiser: optimiser)
@@ -536,6 +544,42 @@ struct DownscaleMenu: View {
                 Button("\((factor * 100).intround)%") {
                     optimiser.downscale(toFactor: factor)
                 }.disabled(factor == optimiser.downscaleFactor)
+            }
+        }
+    }
+}
+
+struct CompressionMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    // Same round factor steps the compression slider snaps to, as discrete menu entries.
+    // Higher factor = more compression = smaller file.
+    let factors = Array(stride(from: 10, through: 90, by: 10))
+
+    var body: some View {
+        let current = currentCompressionQuality(for: optimiser)
+
+        if optimiser.type.isImage {
+            Button("Adaptive (best size and quality)") {
+                optimiser.reoptimise(compression: CompressionQuality(tier: .adaptive, factor: 5))
+            }.disabled(current.tier == .adaptive)
+            Section("Compression factor") {
+                ForEach(factors, id: \.self) { factor in
+                    Button("\(factor)%") {
+                        optimiser.reoptimise(compression: CompressionQuality(tier: .custom, factor: factor))
+                    }.disabled(current.tier == .custom && current.factor == factor)
+                }
+            }
+        } else if optimiser.type.isVideo {
+            Button("Lossless") {
+                optimiser.reoptimise(compression: CompressionQuality(tier: .lossless, factor: 5))
+            }.disabled(current.tier == .lossless)
+            Section("Compression factor") {
+                ForEach(factors, id: \.self) { factor in
+                    Button("\(factor)%") {
+                        optimiser.reoptimise(compression: CompressionQuality(tier: .smaller, factor: factor))
+                    }.disabled(current.tier == .smaller && current.factor == factor)
+                }
             }
         }
     }

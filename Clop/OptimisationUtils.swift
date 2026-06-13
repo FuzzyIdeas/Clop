@@ -1112,6 +1112,15 @@ enum TempPipelineSegment {
         }
     }
 
+    /// Compression applies to any image/video (a re-encode), and to audio only when the output
+    /// format has a bitrate axis (lossless WAV/FLAC/AIFF have none, so it would be a no-op).
+    func canCompress() -> Bool {
+        if type.isImage || type.isVideo { return true }
+        guard type.isAudio else { return false }
+        let ext = (url ?? originalURL)?.filePath?.extension ?? ""
+        return Defaults[.audioFormat].resolved(forInputExtension: ext).bitrateRange != nil
+    }
+
     func canCrop() -> Bool {
         switch type {
         case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
@@ -3022,7 +3031,7 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
                 compression: req.compression,
                 audioBitrate: req.audioBitrate,
                 optimisationCount: &cliOptimisationCount,
-                copyToClipboard: req.copyToClipboard,
+                copyToClipboard: false, // batched at the end of processOptimisationRequest
                 source: source,
                 optimisedFileBehaviour: .inPlace,
                 skipPipelineLookup: true
@@ -3049,7 +3058,7 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
     let (resultFile, _) = await runPipelinesAfterOptimisation(
         file: startPath, type: type, source: source, optimiser: optimiser,
         pipelines: [pipeline], forceHide: req.hideFloatingResult,
-        copyToClipboard: req.copyToClipboard
+        copyToClipboard: false // batched at the end of processOptimisationRequest
     )
 
     return OptimisationResponse(
@@ -3086,7 +3095,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             compression: req.compression,
                             audioBitrate: req.audioBitrate,
                             optimisationCount: &cliOptimisationCount,
-                            copyToClipboard: req.copyToClipboard,
+                            copyToClipboard: false, // batched at the end so every input copies, even failures
                             source: req.source.optSource,
                             output: req.output,
                             removeAudio: req.removeAudio,
@@ -3151,12 +3160,16 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
         }
 
         var responses = [OptimisationResponse]()
+        // For --copy: one file per input ends up on the clipboard, the optimised result on success
+        // or the original file on failure, so the count always matches the inputs.
+        var copiedFiles = [URL]()
         while !group.isEmpty {
             do {
                 guard let resp = try await group.next() else {
                     continue
                 }
                 responses.append(resp)
+                copiedFiles.append(URL(fileURLWithPath: resp.path))
                 if req.source == "cli" {
                     try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: resp.jsonData)
                 } else {
@@ -3166,6 +3179,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                 log.error("BatchOptimisation cancelled")
                 continue
             } catch let BatchOptimisationError.wrappedClopError(error, url) {
+                copiedFiles.append(req.originalUrls[url] ?? url)
                 if req.source == "cli" {
                     try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.description, forURL: url).jsonData)
                 } else {
@@ -3173,12 +3187,21 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                 }
                 log.error("BatchOptimisation ClopError \(error.description) for \(url)")
             } catch let BatchOptimisationError.wrappedError(error, url) {
+                copiedFiles.append(req.originalUrls[url] ?? url)
                 if req.source == "cli" {
                     try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
                 } else {
                     try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
                 }
                 log.error("BatchOptimisation Error \(error.localizedDescription) for \(url)")
+            }
+        }
+
+        if req.copyToClipboard, !copiedFiles.isEmpty {
+            await MainActor.run {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.writeObjects(copiedFiles.map { $0 as NSURL })
             }
         }
 

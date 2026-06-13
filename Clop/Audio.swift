@@ -138,7 +138,12 @@ class Audio: Optimisable {
 
         let format = formatOverride ?? Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
         let rawBitrate = bitrateOverride ?? (optimiser.compressionOverride ?? Defaults[.audioCompression]).audioBitrate(for: format) ?? Defaults[.audioBitrate]
-        let bitrate = format.resolveBitrate(rawBitrate, inputBitrate: bitrate)
+        var bitrate = format.resolveBitrate(rawBitrate, inputBitrate: self.bitrate)
+        // Aggressive must actually shrink: for lossy formats force at least one allowed step below the
+        // source bitrate, otherwise re-encoding at the same (or capped) bitrate would be a no-op.
+        if aggressive, !format.allowedBitrates.isEmpty {
+            bitrate = min(bitrate, format.resolveBitrate(-1, inputBitrate: self.bitrate))
+        }
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
         var args = ["-y", "-i", inputPath.string, "-vn"]
