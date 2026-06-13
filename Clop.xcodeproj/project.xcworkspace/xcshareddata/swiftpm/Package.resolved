@@ -1,4 +1,5 @@
 {
+  "originHash" : "53ab27e2aa36fe5d1228d593d0c9fa0ec2f87b33a13c137a1e35ff924ba88a00",
   "pins" : [
     {
       "identity" : "appreceiptvalidator",
@@ -55,6 +56,15 @@
       }
     },
     {
+      "identity" : "lowtech",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FuzzyIdeas/Lowtech",
+      "state" : {
+        "branch" : "ventura",
+        "revision" : "278c849abc72490da3112c1a44bf8351ce8bd54e"
+      }
+    },
+    {
       "identity" : "magnet",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/Magnet",
@@ -86,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "64c9c5cc401aefde0eda46a9192b36082533a79d",
-        "version" : "9.13.0"
+        "revision" : "2c420d31d0c31b525fa9e7c552ef0fc9d924befc",
+        "version" : "9.17.1"
       }
     },
     {
@@ -95,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "066e75a8b3e99962685d6a90cdd5293ebffd9261",
-        "version" : "2.9.1"
+        "revision" : "d46d456107feacc80711b21847b82b07bd9fb46e",
+        "version" : "2.9.3"
       }
     },
     {
@@ -172,5 +182,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

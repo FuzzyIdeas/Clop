@@ -260,7 +260,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
             scalingFactor = 1.0
         }
         optimiser.stop(remove: false)
-        optimiser.operation = opLabel
+        optimiser.operation = optimiser.manualAdjustmentOperation ?? opLabel
         if optimiser.originalURL == nil {
             optimiser.originalURL = img.path.backup(path: img.path.clopBackupPath, force: false, operation: .copy)?.url ?? img.path.url
         }
@@ -307,7 +307,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                     case .optimise:
                         mainActor {
                             let base = Defaults[.showImages] ? "Optimising" : "Optimising \(optimiser.filename)"
-                            optimiser.operation = base + (aggressive ? " (aggressive)" : "")
+                            optimiser.operation = optimiser.manualAdjustmentOperation ?? (base + (aggressive ? " (aggressive)" : ""))
                         }
                         // A file that can't get smaller is not a failure of the whole pipeline:
                         // keep the current image and let the remaining actions (e.g. a later

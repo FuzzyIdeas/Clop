@@ -68,6 +68,56 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
 
 }
 
+// MARK: - Overlay card button styles
+
+extension View {
+    /// Slightly warm-tinted material used by every control on the floating card (corner buttons,
+    /// grid buttons, name·format pill). Deliberately NOT Liquid Glass: glass picks up the colours
+    /// of whatever thumbnail sits under it, while a tinted material stays consistent. `stroke`
+    /// (not `strokeBorder`) because the shape is a generic `some Shape`, not `InsettableShape`.
+    @ViewBuilder func warmControlBackground(in shape: some Shape) -> some View {
+        background {
+            shape.fill(.regularMaterial)
+            shape.fill(Color.bg.warm.opacity(0.4))
+        }
+        .overlay { shape.stroke(Color.primary.opacity(0.12), lineWidth: 0.5) }
+    }
+}
+
+/// Small round button shared by the three floating-card corner controls (close, menu, crop).
+/// Warm-tinted material; cheap opacity/scale hover (no geometry change).
+struct FloatingCornerButtonStyle: ButtonStyle {
+    var size: CGFloat = 23
+    @State private var hovering = false
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.heavy(10)).foregroundStyle(.primary)
+            .frame(width: size, height: size)
+            .warmControlBackground(in: Circle())
+            .contentShape(Circle())
+            .brightness(hovering ? 0.08 : 0)
+            .scaleEffect(configuration.isPressed ? 0.9 : (hovering ? 1.08 : 1))
+            .onHover { h in withAnimation(.fastTransition) { hovering = h } }
+    }
+}
+
+/// Larger squircle button for the floating-card action grid (r≈15, almost-but-not-quite round).
+struct FloatingGridButtonStyle: ButtonStyle {
+    var size: CGFloat = 34
+    @State private var hovering = false
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
+        configuration.label
+            .font(.heavy(11)).foregroundStyle(.primary)
+            .frame(width: size, height: size)
+            .warmControlBackground(in: shape)
+            .contentShape(shape)
+            .brightness(hovering ? 0.08 : 0)
+            .scaleEffect(configuration.isPressed ? 0.92 : (hovering ? 1.06 : 1))
+            .onHover { h in withAnimation(.fastTransition) { hovering = h } }
+    }
+}
+
 struct CloseStopButton: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
@@ -77,13 +127,18 @@ struct CloseStopButton: View {
             action: {
                 guard !preview else { return }
 
+                // Drop the expensive glass/thumbnail render immediately so the result visually
+                // vanishes on the click instead of paying for a full re-render during removal.
+                optimiser.dismissing = true
                 hoveredOptimiserID = nil
-                optimiser.stop(remove: !OM.compactResults || !optimiser.running, animateRemoval: true)
+                // animateRemoval: false skips the slide-out animation used for swipe gestures, so a
+                // button press dismisses on the next tick instead of sliding off-screen first.
+                optimiser.stop(remove: !OM.compactResults || !optimiser.running, animateRemoval: false)
                 optimiser.uiStop()
             },
-            label: { SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(9)) }
-        ).contentShape(Rectangle())
-
+            label: { SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark") }
+        )
+        .buttonStyle(FloatingCornerButtonStyle())
     }
 }
 
@@ -100,7 +155,7 @@ struct RestoreOptimiseButton: View {
             .contentShape(Rectangle())
         } else {
             Button(
-                action: { if !preview { optimiser.restoreOriginal() } },
+                action: { if !preview { optimiser.restoreOriginal(); optimiser.overlayMessage = "Restored original" } },
                 label: { SwiftUI.Image(systemName: "arrow.uturn.left").font(.semibold(9)) }
             )
             .contentShape(Rectangle())
@@ -818,6 +873,188 @@ struct HorizontalBitrateSlider: View {
     }
 
     @State private var dragBitrate: Int?
+}
+
+// MARK: - Thin card sliders (overlay-grid floating result)
+
+/// Hairline horizontal slider for the in-thumbnail card: a value hint on top (the same descriptive
+/// label the old external slider showed) and a thin track + small knob below — no thick capsule,
+/// no on-knob tooltip. Reuses SliderEventOverlay so a press-and-drag from the grid button is one
+/// continuous gesture. Position/anchors are normalised 0(left)…1(right); the overlay reports the
+/// shared downscale-style factor (0.1…1.0) which each wrapper maps to its own domain.
+struct CardSlider: View {
+    let hint: String
+    let position: Double
+    let anchors: [Double]
+    let onDrag: (Double) -> Void
+    let onRelease: (Double) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 5) {
+            // Same look as the step-hint label (OverlayMessageView): white text on a dark
+            // .hudWindow vibrantDark blur pill, so it reads clearly over the blurred thumbnail.
+            Text(hint)
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+                .roundbg(radius: 12, padding: 6, color: .black)
+                .background(
+                    VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark).scaleEffect(1.1)
+                )
+                .fixedSize()
+            GeometryReader { geo in
+                let knob: CGFloat = 11
+                let left = knob / 2
+                let w = max(geo.size.width - knob, 1)
+                let cy = geo.size.height / 2
+                let p = min(max(position, 0), 1)
+                ZStack {
+                    Capsule().fill(.primary.opacity(0.25)).frame(height: 2.5).position(x: geo.size.width / 2, y: cy)
+                    ForEach(anchors, id: \.self) { a in
+                        Capsule().fill(.primary.opacity(0.4)).frame(width: 1.5, height: 6).position(x: left + min(max(a, 0), 1) * w, y: cy)
+                    }
+                    Circle().fill(.white).frame(width: knob, height: knob)
+                        .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
+                        .position(x: left + p * w, y: cy)
+                }
+            }
+            .frame(height: 12)
+        }
+        .overlay(SliderEventOverlay(buttonSize: 11, isHorizontal: true, onDrag: onDrag, onRelease: onRelease, onCancel: onCancel))
+        // Escape bails out without committing. The floating panel is non-activating, so it has to
+        // be made key first for the keyboard shortcut (and the overlay's keyDown monitor) to fire.
+        .background {
+            Button("") { onCancel() }
+                .keyboardShortcut(.escape, modifiers: [])
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
+        .onAppear {
+            guard !SWIFTUI_PREVIEW else { return }
+            floatingResultsWindow.allowToBecomeKey = true
+            floatingResultsWindow.makeKeyAndOrderFront(nil)
+            floatingResultsWindow.orderFrontRegardless()
+        }
+    }
+}
+
+struct CardDownscaleSlider: View {
+    @ObservedObject var optimiser: Optimiser
+    @State private var dragFactor: Double?
+    var factor: Double { dragFactor ?? optimiser.downscaleFactor }
+    var body: some View {
+        CardSlider(
+            hint: "\((factor * 100).intround)% scale",
+            position: (1.0 - factor) / 0.9,
+            anchors: [1.0, 0.75, 0.5, 0.25, 0.1].map { (1.0 - $0) / 0.9 },
+            onDrag: { f in dragFactor = f },
+            onRelease: { f in
+                let start = optimiser.downscaleFactor
+                dragFactor = nil
+                optimiser.showDownscaleSlider = false
+                if abs(f - start) > 0.01 { optimiser.downscale(toFactor: f) }
+            },
+            onCancel: { dragFactor = nil; optimiser.showDownscaleSlider = false }
+        )
+    }
+}
+
+struct CardCompressionSlider: View {
+    @ObservedObject var optimiser: Optimiser
+    @State private var dragPosition: Double?
+    var pos: Double { dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type) }
+    var hint: String {
+        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) } ?? currentCompressionQuality(for: optimiser)
+        return CompressionScale.stepLabel(for: cq, type: optimiser.type)
+    }
+    var body: some View {
+        CardSlider(
+            hint: hint,
+            position: pos,
+            anchors: CompressionScale.anchors(for: optimiser.type),
+            onDrag: { v in dragPosition = (1.0 - v) / 0.9 },
+            onRelease: { v in
+                let p = (1.0 - v) / 0.9
+                let start = currentCompressionQuality(for: optimiser)
+                dragPosition = nil
+                optimiser.showCompressionSlider = false
+                let cq = CompressionScale.quality(forPosition: p, type: optimiser.type)
+                if cq != start { optimiser.reoptimise(compression: cq) }
+            },
+            onCancel: { dragPosition = nil; optimiser.showCompressionSlider = false }
+        )
+    }
+}
+
+struct CardBitrateSlider: View {
+    @ObservedObject var optimiser: Optimiser
+    @Default(.audioFormat) var audioFormat
+    @Default(.audioBitrate) var defaultBitrate
+    @State private var dragBitrate: Int?
+    var bitrates: [Int] { audioFormat.allowedBitrates }
+    var current: Int { dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate }
+    func position(forIndex idx: Int) -> Double {
+        bitrates.count > 1 ? Double(bitrates.count - 1 - idx) / Double(bitrates.count - 1) : 0
+    }
+    func index(forFactor factor: Double) -> Int {
+        let c = bitrates.count
+        guard c > 1 else { return 0 }
+        let n = (factor - 0.1) / 0.9
+        return max(0, min(c - 1, Int(round(n * Double(c - 1)))))
+    }
+    var body: some View {
+        CardSlider(
+            hint: "\(current) kbps",
+            position: bitrates.firstIndex(of: current).map { position(forIndex: $0) } ?? 0,
+            anchors: bitrates.indices.map { position(forIndex: $0) },
+            onDrag: { f in dragBitrate = bitrates[index(forFactor: f)] },
+            onRelease: { f in
+                let nb = bitrates[index(forFactor: f)]
+                let start = optimiser.audioBitrateOverride ?? defaultBitrate
+                dragBitrate = nil
+                optimiser.showDownscaleSlider = false
+                if nb != start { optimiser.lowerBitrate(to: nb) }
+            },
+            onCancel: { dragBitrate = nil; optimiser.showDownscaleSlider = false }
+        )
+    }
+}
+
+struct CardPDFDPISlider: View {
+    @ObservedObject var optimiser: Optimiser
+    @State private var dragDPI: Int?
+    var stops: [Int] { PDF_DPI_STOPS }
+    var current: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
+    func position(forIndex idx: Int) -> Double {
+        stops.count > 1 ? Double(idx) / Double(stops.count - 1) : 0
+    }
+    func index(forFactor factor: Double) -> Int {
+        let c = stops.count
+        guard c > 1 else { return 0 }
+        let n = (1.0 - factor) / 0.9
+        return max(0, min(c - 1, Int(round(n * Double(c - 1)))))
+    }
+    func nearestIndex(for dpi: Int) -> Int? {
+        guard !stops.isEmpty else { return nil }
+        return stops.indices.min(by: { abs(stops[$0] - dpi) < abs(stops[$1] - dpi) })
+    }
+    var body: some View {
+        CardSlider(
+            hint: "\(current) DPI",
+            position: nearestIndex(for: current).map { position(forIndex: $0) } ?? 0,
+            anchors: stops.indices.map { position(forIndex: $0) },
+            onDrag: { f in dragDPI = stops[index(forFactor: f)] },
+            onRelease: { f in
+                let newDPI = stops[index(forFactor: f)]
+                let start = optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI
+                dragDPI = nil
+                optimiser.showDownscaleSlider = false
+                if newDPI != start { optimiser.lowerPDFDPI(to: newDPI) }
+            },
+            onCancel: { dragDPI = nil; optimiser.showDownscaleSlider = false }
+        )
+    }
 }
 
 // MARK: - PDFDPISlider (vertical)

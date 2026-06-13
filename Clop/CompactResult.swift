@@ -357,7 +357,7 @@ struct OverlayMessageView: View {
     @State var opacity = 1.0
 
     var body: some View {
-        if optimiser.stepIndicator.isNotEmpty, !optimiser.showDownscaleSlider {
+        if optimiser.stepIndicator.isNotEmpty, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider {
             Text(optimiser.stepIndicator)
                 .foregroundColor(color == .black ? .white : .primary)
                 .roundbg(radius: 12, padding: 6, color: color)
@@ -859,39 +859,26 @@ struct ToggleCompactResultListButton: View {
                         }
                     },
                     label: {
-                        ZStack(alignment: floatingResultsCorner.isTrailing ? .topLeading : .topTrailing) {
-                            if progress == nil || showList {
-                                SwiftUI.Image("clop")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 32, height: 32, alignment: .center)
-                                    .opacity(hovering ? 1 : 0.5)
-                            }
-                            if !showList {
-                                if let progress {
-                                    ZStack {
-                                        ProgressView(value: progress.fractionCompleted, total: 1)
-                                            .progressViewStyle(.circular)
-                                            .controlSize(.regular)
-                                            .font(.regular(1))
-                                            .background(.thinMaterial)
-                                            .clipShape(Circle())
-                                        Text((progress.totalUnitCount - progress.completedUnitCount).s)
-                                            .round(13, weight: .semibold)
-                                            .foregroundColor(.primary)
-                                    }
-                                    .opacity(hovering ? 1 : 0.6)
-                                } else {
-                                    Text(badge)
-                                        .round(10)
-                                        .foregroundColor(.white)
-                                        .padding(3)
-                                        .background(Circle().fill(Color.darkGray))
-                                        .opacity(0.75)
-
-                                }
+                        ZStack {
+                            if !showList, let progress {
+                                ProgressView(value: progress.fractionCompleted, total: 1)
+                                    .progressViewStyle(.circular)
+                                    .controlSize(.regular)
+                                    .font(.regular(1))
+                                    .background(.thinMaterial)
+                                    .clipShape(Circle())
+                                Text((progress.totalUnitCount - progress.completedUnitCount).s)
+                                    .round(13, weight: .semibold)
+                                    .foregroundColor(.primary)
+                            } else {
+                                Text(badge)
+                                    .round(13, weight: .semibold)
+                                    .foregroundColor(.white)
+                                    .frame(width: 32, height: 32)
+                                    .background(Circle().fill(Color.darkGray))
                             }
                         }
+                        .opacity(hovering ? 1 : 0.6)
                     }
                 )
                 .buttonStyle(FlatButton(color: .clear, textColor: .primary, radius: 7, verticalPadding: 2))

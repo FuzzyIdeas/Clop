@@ -302,6 +302,10 @@ enum TempPipelineSegment {
     var lastRemoveAfterMs: Int? = nil
 
     @Published var inRemoval = false
+    /// Set the instant the close button is pressed so the floating result drops its expensive
+    /// content (Liquid Glass, thumbnail) and renders nothing while the actual removal completes.
+    /// Avoids paying for a full glass re-render during dismissal, making the click feel instant.
+    @Published var dismissing = false
 
     @Atomic var retinaDownscaled = false
 
@@ -471,6 +475,22 @@ enum TempPipelineSegment {
             progress.localizedDescription = operation
         }
     }}
+
+    /// While a manual scale and/or compression change is applied, describe both dimensions so the
+    /// operation text reads e.g. "Scale: 50% | Compression: 80%" instead of hiding the one you
+    /// didn't just touch (changing compression after a downscale shouldn't read "Scaling to 50%").
+    /// Returns nil when neither was manually changed, so callers fall back to their own label.
+    var manualAdjustmentOperation: String? {
+        var parts: [String] = []
+        if downscaleFactor < 0.99 {
+            parts.append("Scale: \((downscaleFactor * 100).intround)%")
+        }
+        if let cq = compressionOverride {
+            parts.append("Compression: \(CompressionScale.label(for: cq, type: type))")
+        }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " | ") + (aggressive ? " (aggressive)" : "")
+    }
 
     var description: String {
         "\(operation) \(id) [\(running ? "RUNNING" : "FINISHED")]"
@@ -1417,7 +1437,12 @@ enum TempPipelineSegment {
         if remove {
             // stop() is always an explicit termination (swipe, close button, cancellation),
             // so the removal must go through even while another result is hovered.
-            self.remove(after: (animateRemoval && !OM.compactResults) ? 300 : 0, withAnimation: !OM.compactResults, force: true)
+            // animateRemoval gates BOTH the 300ms slide-out delay and the inRemoval slide
+            // itself: with it off the result is dropped on the next tick (just the 0.2s fade
+            // from the list removal), so a close-button press feels instant instead of
+            // sliding 500px off-screen first.
+            let animate = animateRemoval && !OM.compactResults
+            self.remove(after: animate ? 300 : 0, withAnimation: animate, force: true)
         }
     }
 
@@ -1721,6 +1746,7 @@ enum TempPipelineSegment {
 
     func bringBack() {
         self.stopRemover()
+        self.dismissing = false
         OM.optimisers = OM.optimisers.with(self)
     }
 
@@ -1814,7 +1840,13 @@ enum TempPipelineSegment {
                 return
             }
             self.editingFilename = false
-            SwiftUI.withAnimation(.easeOut(duration: 0.2)) {
+            // Honour the withAnimation flag: a forced button dismissal (withAnimation: false)
+            // drops the result on the spot; swipe/clear-all (withAnimation: true) keep the fade.
+            if withAnimation {
+                SwiftUI.withAnimation(.easeOut(duration: 0.2)) {
+                    OM.optimisers = OM.optimisers.filter { $0.id != self.id }
+                }
+            } else {
                 OM.optimisers = OM.optimisers.filter { $0.id != self.id }
             }
             if url != nil {
@@ -2666,7 +2698,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 let optimiser = OM.optimiser(id: id, type: type, operation: "Running pipeline", hidden: true, source: source)
                 optimiser.url = item.path.url
                 optimiser.startingURL = item.path.url
-                let (finalFile, anyRan) = await runPipelinesAfterOptimisation(file: item.path, type: type, source: source, optimiser: optimiser, forceHide: hideFloatingResult)
+                let (finalFile, anyRan) = await runPipelinesAfterOptimisation(file: item.path, type: type, source: source, optimiser: optimiser, forceHide: hideFloatingResult, copyToClipboard: copyToClipboard)
                 if anyRan {
                     return .file(finalFile)
                 }
@@ -2706,7 +2738,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
             }
             guard let result else { return nil }
             if !skipPipelineLookup, let source, let optimiser = opt(id) {
-                await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser)
+                await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser, copyToClipboard: copyToClipboard)
             }
             return .image(result)
         case var .file(path):
@@ -2751,7 +2783,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 }
                 guard let result else { return nil }
                 if !skipPipelineLookup, let source, let optimiser = opt(id) {
-                    await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser)
+                    await runPipelinesAfterOptimisation(file: result.path, type: .image(result.type), source: source, optimiser: optimiser, copyToClipboard: copyToClipboard)
                 }
                 return .image(result)
             } else if path.isVideo {
@@ -2800,7 +2832,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 }
                 guard let result else { return nil }
                 if !skipPipelineLookup, let source, let optimiser = opt(id) {
-                    await runPipelinesAfterOptimisation(file: result.path, type: .video(UTType.from(filePath: result.path) ?? .mpeg4Movie), source: source, optimiser: optimiser)
+                    await runPipelinesAfterOptimisation(file: result.path, type: .video(UTType.from(filePath: result.path) ?? .mpeg4Movie), source: source, optimiser: optimiser, copyToClipboard: copyToClipboard)
                 }
                 return .file(result.path)
             } else if path.isPDF {
@@ -2839,7 +2871,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 }
                 guard let result else { return nil }
                 if !skipPipelineLookup, let source, let optimiser = opt(id) {
-                    await runPipelinesAfterOptimisation(file: result.path, type: .pdf, source: source, optimiser: optimiser)
+                    await runPipelinesAfterOptimisation(file: result.path, type: .pdf, source: source, optimiser: optimiser, copyToClipboard: copyToClipboard)
                 }
                 return .file(result.path)
             } else if path.isAudio {
@@ -2875,7 +2907,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 }
                 guard let result else { return nil }
                 if !skipPipelineLookup, let source, let optimiser = opt(id) {
-                    await runPipelinesAfterOptimisation(file: result.path, type: .audio(path.url.utType() ?? .mp3), source: source, optimiser: optimiser)
+                    await runPipelinesAfterOptimisation(file: result.path, type: .audio(path.url.utType() ?? .mp3), source: source, optimiser: optimiser, copyToClipboard: copyToClipboard)
                 }
                 return .file(result.path)
             } else {
@@ -3010,7 +3042,8 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
     }
     let (resultFile, _) = await runPipelinesAfterOptimisation(
         file: startPath, type: type, source: source, optimiser: optimiser,
-        pipelines: [pipeline], forceHide: req.hideFloatingResult
+        pipelines: [pipeline], forceHide: req.hideFloatingResult,
+        copyToClipboard: req.copyToClipboard
     )
 
     return OptimisationResponse(

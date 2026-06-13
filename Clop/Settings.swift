@@ -181,7 +181,6 @@ extension Defaults.Keys {
     static let customNameTemplateForClipboardImages = Key<String>("customNameTemplateForClipboardImages", default: "")
     static let lastAutoIncrementingNumber = Key<Int>("lastAutoIncrementingNumber", default: 0)
 
-    static let showFloatingHatIcon = Key<Bool>("showFloatingHatIcon", default: true)
     static let floatingResultActions = Key<[FloatingAction]>("floatingResultActions", default: FloatingAction.defaultFloating)
     static let compactResultActions = Key<[FloatingAction]>("compactResultActions", default: FloatingAction.defaultCompact)
     static let showCopyClearButtons = Key<Bool>("showCopyClearButtons", default: true)
@@ -351,7 +350,6 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .pipelinesToRunOnAudio,
     .savedPipelines,
     .showCompactImages,
-    .showFloatingHatIcon,
     .showImages,
     .stripMetadata,
     .targetVideoFPS,
