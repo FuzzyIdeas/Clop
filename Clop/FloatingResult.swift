@@ -60,10 +60,14 @@ extension View {
                     .background(.thinMaterial, in: shape)
             }
         } else {
+            // Semi-opaque backing so the panel reads against the desktop instead of being see-through
+            // (bare .glassEffect on macOS 26 has no fill of its own).
             if #available(macOS 26.0, *) {
-                self.glassEffect(.regular, in: shape)
+                self.background(Color.bg.primary.opacity(0.75), in: shape)
+                    .glassEffect(.regular, in: shape)
             } else {
-                background(.thinMaterial, in: shape)
+                background(Color.bg.primary.opacity(0.75), in: shape)
+                    .background(.thinMaterial, in: shape)
             }
         }
     }
@@ -183,7 +187,6 @@ struct FloatingResultContainer: View {
     var isPreview = false
     @Default(.enableFloatingResults) var enableFloatingResults
     @Default(.floatingResultsCorner) var floatingResultsCorner
-    @Default(.showImages) var showImages
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
 
     var shouldShowDropZone: Bool {
@@ -240,7 +243,7 @@ struct FloatingResultContainer: View {
                 hoveredOptimiserID = nil
             }
         }
-        .padding(.vertical, om.compactResults ? 0 : (showImages ? 36 : 10))
+        .padding(.vertical, om.compactResults ? 0 : 36)
         .padding(floatingResultsCorner.isTrailing ? .leading : .trailing, 20)
     }
 }
@@ -259,7 +262,7 @@ struct FloatingPreview: View {
 
         let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
         videoOpt.url = "\(HOME)/Movies/meeting-recording-video.mov".fileURL
-        videoOpt.operation = Defaults[.showImages] ? "Optimising" : "Optimising \(videoOpt.filename)"
+        videoOpt.operation = "Optimising"
         videoOpt.thumbnail = NSImage(resource: .sonomaVideo)
         videoOpt.changePlaybackSpeedFactor = 2.0
 
@@ -592,10 +595,9 @@ struct FloatingResult: View {
     @State var editingFilename = false
 
     var isExpanded: Bool {
-        hovering || optimiser.editingResolution
+        (hovering && !optimiser.collapseHoverOverlay) || optimiser.editingResolution
     }
 
-    @Default(.showImages) var showImages
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.neverShowProError) var neverShowProError
     @Default(.floatingResultActions) var floatingResultActions
@@ -604,7 +606,7 @@ struct FloatingResult: View {
     @Environment(\.colorScheme) var colorScheme
 
     var showsThumbnail: Bool {
-        optimiser.thumbnail != nil && showImages
+        optimiser.thumbnail != nil
     }
 
     @ViewBuilder var progressURLView: some View {
@@ -641,7 +643,7 @@ struct FloatingResult: View {
             ResolutionField(optimiser: optimiser, size: oldSize)
                 .buttonStyle(FlatButton(color: .black.opacity(0.1), textColor: .white, radius: 3, horizontalPadding: 3, verticalPadding: 1))
                 .font(.round(10))
-                .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
+                .foregroundColor(optimiser.thumbnail != nil ? .lightGray : .secondary)
                 .fixedSize()
                 .disabled(!optimiser.canCrop())
         }
@@ -663,7 +665,7 @@ struct FloatingResult: View {
             }
             .lineLimit(1)
             .font(.round(10))
-            .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
+            .foregroundColor(optimiser.thumbnail != nil ? .lightGray : .secondary)
             .fixedSize()
         }
     }
@@ -684,14 +686,14 @@ struct FloatingResult: View {
             }
             .lineLimit(1)
             .font(.round(10))
-            .foregroundColor(optimiser.thumbnail != nil && showImages ? .lightGray : .secondary)
+            .foregroundColor(optimiser.thumbnail != nil ? .lightGray : .secondary)
             .fixedSize()
         }
     }
 
     @ViewBuilder var fileSizeDiff: some View {
         let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
-        let improvementColor = (optimiser.thumbnail != nil && showImages ? FloatingResult.yellow : (colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue))
+        let improvementColor = (optimiser.thumbnail != nil ? FloatingResult.yellow : (colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue))
 
         HStack {
             Text(optimiser.oldBytes.humanSize)
@@ -1126,7 +1128,7 @@ struct FloatingResult: View {
     @ViewBuilder var mainBody: some View {
         let hasThumbnail = optimiser.thumbnail != nil
         Group {
-            if hasThumbnail, showImages, optimiser.error == nil {
+            if hasThumbnail, optimiser.error == nil {
                 // Self-contained overlay-grid card: corners + grid + filename/format all live
                 // on the fixed-geometry thumbnail, revealed by opacity on hover.
                 thumbnailView
@@ -1159,6 +1161,8 @@ struct FloatingResult: View {
         .padding(.horizontal)
         .fixedSize()
         .onHover { hovering in
+            // A fresh hover (mouse re-entering) brings the overlay back after it was collapsed by an action.
+            if hovering { optimiser.collapseHoverOverlay = false }
             withAnimation(.easeOut(duration: 0.15)) {
                 self.hovering = hovering
             }

@@ -467,7 +467,7 @@ struct DropZoneView: View {
                 }
                 .contentShape(Rectangle())
         }
-        .frame(width: THUMB_SIZE.width, height: THUMB_SIZE.height / 2, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
+        .frame(width: FloatingResult.cardW, height: FloatingResult.cardH, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
         .padding()
         .fixedSize()
         .onChange(of: ctrlPressed) { ctrlPressed in
@@ -490,8 +490,10 @@ struct DropZoneView: View {
 }
 
 let HAT_ICON_SIZE: CGFloat = 30
-let DROPZONE_SIZE: CGSize = THUMB_SIZE.scaled(by: 0.5)
 let DROPZONE_PADDING = CGSize(width: 14, height: 10)
+// Match the floating result thumbnail card footprint (cardW × cardH); the inner content frame is
+// the card size minus the dropzone's own padding so the bordered box ends up the same size.
+let DROPZONE_SIZE = CGSize(width: FloatingResult.cardW - DROPZONE_PADDING.width * 2, height: FloatingResult.cardH - DROPZONE_PADDING.height * 2)
 let DROPZONE_SHAPE = RoundedRectangle(cornerRadius: 22, style: .continuous)
 
 extension DropZoneView: DropDelegate {
@@ -660,7 +662,10 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
     if copy {
         let url = URL.temporaryDirectory.appendingPathComponent("clop-dropzone-\(Int.random(in: 1000 ... 10_000_000))", conformingTo: .directory)
         try? fm.createDirectory(at: url, withIntermediateDirectories: true)
-        output = url.path
+        // Keep the original filename inside the temp copy dir (`%f` is the stem; the extension is
+        // appended automatically). A bare directory template resolves to the dir's own random name,
+        // so the result would otherwise lose the source name.
+        output = url.appendingPathComponent("%f").path
     }
 
     let itemsToOptimise = DM.itemsToOptimise

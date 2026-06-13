@@ -69,7 +69,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
 
     pdfOptimiseDebouncers[pathString]?.cancel()
     let workItem = mainAsyncAfter(ms: debounceMS) {
-        let finalOpLabel = (Defaults[.showImages] ? "Optimising" : "Optimising \(optimiser.filename)") + (aggressive ? " (aggressive)" : "")
+        let finalOpLabel = "Optimising" + (aggressive ? " (aggressive)" : "")
         optimiser.operation = finalOpLabel
         optimiser.originalURL = path.url
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)

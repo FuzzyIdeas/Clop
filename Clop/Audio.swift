@@ -5,6 +5,7 @@
 //  Created by Alin Panaitiu on 19.03.2026.
 //
 
+import AppKit
 import AVFoundation
 import Defaults
 import Foundation
@@ -336,6 +337,32 @@ func getAudioMetadata(path: FilePath) async throws -> AudioMetadata? {
     }
 
     return AudioMetadata(duration: duration, bitrate: bitrate, sampleRate: sampleRate, codec: codec)
+}
+
+/// Put audio on the thumbnail card: seed a generic placeholder immediately, then upgrade to the
+/// embedded cover art (what Finder shows) when the file has any. Used by every audio optimiser path.
+@MainActor func setAudioThumbnail(on optimiser: Optimiser, path: FilePath) {
+    if optimiser.thumbnail == nil {
+        optimiser.thumbnail = Optimisable.fallbackThumbnail(for: path.url, path: path)
+    }
+    Task {
+        if let art = await audioCoverArt(from: path) {
+            await MainActor.run { optimiser.thumbnail = art }
+        }
+    }
+}
+
+/// Embedded cover art (album artwork) from an audio file, the same image Finder shows. Returns nil
+/// when the file has no artwork.
+func audioCoverArt(from path: FilePath) async -> NSImage? {
+    let asset = AVURLAsset(url: path.url)
+    guard let metadata = try? await asset.load(.commonMetadata) else { return nil }
+    for item in AVMetadataItem.metadataItems(from: metadata, filteredByIdentifier: .commonIdentifierArtwork) {
+        if let data = try? await item.load(.dataValue), let image = NSImage(data: data) {
+            return image
+        }
+    }
+    return nil
 }
 
 @MainActor func cancelAudioOptimisation(path: FilePath) {

@@ -272,6 +272,9 @@ enum TempPipelineSegment {
     @Published var downscaleFactor = 1.0
     @Published var showDownscaleSlider = false
     @Published var showCompressionSlider = false
+    /// Set after a manual action (scale, compression, restore) so the hover overlay collapses and the
+    /// new file size is visible; cleared on the next hover so the overlay returns on the next pass.
+    @Published var collapseHoverOverlay = false
     @Published var audioBitrateOverride: Int?
     @Published var pdfDPIOverride: Int?
     /// Per-result compression override set by the draggable compression button; takes priority
@@ -2881,6 +2884,9 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     optimiser.url = path.url
                     let audio = Audio(path: path, thumb: !hideFloatingResult)
                     optimiser.audio = audio
+                    if !hideFloatingResult {
+                        setAudioThumbnail(on: optimiser, path: path)
+                    }
                     optimiser.finish(oldBytes: audio.fileSize, newBytes: audio.fileSize, oldBitrate: audio.bitrate, newBitrate: audio.bitrate)
                     if skipPipelineLookup { return .file(path) }
                     throw ClopError.alreadyOptimised(path)

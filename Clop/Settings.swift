@@ -187,7 +187,6 @@ extension Defaults.Keys {
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
     static let onlyShowDropZoneOnOption = Key<Bool>("onlyShowDropZoneOnOption", default: false)
     static let onlyShowPresetZonesOnControlTapped = Key<Bool>("onlyShowPresetZonesOnControlTapped", default: false)
-    static let showImages = Key<Bool>("showImages", default: true)
     static let showCompactImages = Key<Bool>("showCompactImages", default: false)
     static let autoHideFloatingResults = Key<Bool>("autoHideFloatingResults", default: true)
     static let autoHideFloatingResultsAfter = Key<Int>("autoHideFloatingResultsAfter", default: 30)
@@ -350,7 +349,6 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .pipelinesToRunOnAudio,
     .savedPipelines,
     .showCompactImages,
-    .showImages,
     .stripMetadata,
     .targetVideoFPS,
     .useAggressiveOptimisationGIF,

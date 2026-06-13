@@ -67,11 +67,14 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
 
     audioOptimiseDebouncers[pathString]?.cancel()
     let workItem = mainAsyncAfter(ms: debounceMS) {
-        let finalOpLabel = Defaults[.showImages] ? "Optimising" : "Optimising \(optimiser.filename)"
-        optimiser.operation = finalOpLabel
+        optimiser.operation = "Optimising"
         optimiser.originalURL = path.url
         OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
         showFloatingThumbnails()
+
+        if !hideFloatingResult {
+            setAudioThumbnail(on: optimiser, path: path)
+        }
 
         let fileSize = audio.fileSize
 
