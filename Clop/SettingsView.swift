@@ -1568,7 +1568,6 @@ struct DropZoneSettingsView: View {
 
 struct FloatingSettingsView: View {
     @Default(.enableFloatingResults) var enableFloatingResults
-    @Default(.showImages) var showImages
     @Default(.showCompactImages) var showCompactImages
     @Default(.autoHideFloatingResults) var autoHideFloatingResults
     @Default(.autoHideFloatingResultsAfter) var autoHideFloatingResultsAfter
@@ -1611,7 +1610,6 @@ struct FloatingSettingsView: View {
             }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Full layout")) {
-                Toggle("Show images", isOn: $showImages)
                 Toggle("Show Copy all / Clear all buttons", isOn: $showCopyClearButtons)
                 Text("Dismiss result after")
                 Toggle("drag and drop outside", isOn: $dismissFloatingResultOnDrop).padding(.leading, 20)
@@ -1700,7 +1698,7 @@ struct FloatingSettingsView: View {
                 if compact {
                     ActionListPicker(label: "Side actions", vertical: false, actions: $compactResultActions)
                 } else {
-                    ActionListPicker(label: "Side actions", vertical: true, actions: $floatingResultActions)
+                    FloatingActionGridPicker(actions: $floatingResultActions)
                 }
             }
         }

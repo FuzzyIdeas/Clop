@@ -79,7 +79,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     videoSize: CGSize? = nil,
     aggressive: Bool
 ) -> String {
-    let showFilename = !Defaults[.showImages]
+    let showFilename = false
 
     if let downscale = actions.first(where: \.isDownscale), case let .downscale(factor, cropSize) = downscale {
         let size = imageSize ?? videoSize ?? .zero
@@ -306,8 +306,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
 
                     case .optimise:
                         mainActor {
-                            let base = Defaults[.showImages] ? "Optimising" : "Optimising \(optimiser.filename)"
-                            optimiser.operation = optimiser.manualAdjustmentOperation ?? (base + (aggressive ? " (aggressive)" : ""))
+                            optimiser.operation = optimiser.manualAdjustmentOperation ?? ("Optimising" + (aggressive ? " (aggressive)" : ""))
                         }
                         // A file that can't get smaller is not a failure of the whole pipeline:
                         // keep the current image and let the remaining actions (e.g. a later

@@ -149,13 +149,13 @@ struct RestoreOptimiseButton: View {
     var body: some View {
         if optimiser.isOriginal {
             Button(
-                action: { if !preview { optimiser.optimise(allowLarger: false) } },
+                action: { if !preview { optimiser.optimise(allowLarger: false); optimiser.collapseHoverOverlay = true } },
                 label: { SwiftUI.Image(systemName: "goforward.plus").font(.heavy(9)) }
             )
             .contentShape(Rectangle())
         } else {
             Button(
-                action: { if !preview { optimiser.restoreOriginal(); optimiser.overlayMessage = "Restored original" } },
+                action: { if !preview { optimiser.restoreOriginal(); optimiser.overlayMessage = "Restored original"; optimiser.collapseHoverOverlay = true } },
                 label: { SwiftUI.Image(systemName: "arrow.uturn.left").font(.semibold(9)) }
             )
             .contentShape(Rectangle())
@@ -953,7 +953,10 @@ struct CardDownscaleSlider: View {
                 let start = optimiser.downscaleFactor
                 dragFactor = nil
                 optimiser.showDownscaleSlider = false
-                if abs(f - start) > 0.01 { optimiser.downscale(toFactor: f) }
+                if abs(f - start) > 0.01 {
+                    optimiser.downscale(toFactor: f)
+                    optimiser.collapseHoverOverlay = true
+                }
             },
             onCancel: { dragFactor = nil; optimiser.showDownscaleSlider = false }
         )
@@ -980,7 +983,10 @@ struct CardCompressionSlider: View {
                 dragPosition = nil
                 optimiser.showCompressionSlider = false
                 let cq = CompressionScale.quality(forPosition: p, type: optimiser.type)
-                if cq != start { optimiser.reoptimise(compression: cq) }
+                if cq != start {
+                    optimiser.reoptimise(compression: cq)
+                    optimiser.collapseHoverOverlay = true
+                }
             },
             onCancel: { dragPosition = nil; optimiser.showCompressionSlider = false }
         )
@@ -1014,7 +1020,10 @@ struct CardBitrateSlider: View {
                 let start = optimiser.audioBitrateOverride ?? defaultBitrate
                 dragBitrate = nil
                 optimiser.showDownscaleSlider = false
-                if nb != start { optimiser.lowerBitrate(to: nb) }
+                if nb != start {
+                    optimiser.lowerBitrate(to: nb)
+                    optimiser.collapseHoverOverlay = true
+                }
             },
             onCancel: { dragBitrate = nil; optimiser.showDownscaleSlider = false }
         )
@@ -1050,7 +1059,10 @@ struct CardPDFDPISlider: View {
                 let start = optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI
                 dragDPI = nil
                 optimiser.showDownscaleSlider = false
-                if newDPI != start { optimiser.lowerPDFDPI(to: newDPI) }
+                if newDPI != start {
+                    optimiser.lowerPDFDPI(to: newDPI)
+                    optimiser.collapseHoverOverlay = true
+                }
             },
             onCancel: { dragDPI = nil; optimiser.showDownscaleSlider = false }
         )
@@ -1898,6 +1910,86 @@ struct ActionPickerButton: View {
         .buttonStyle(FlatButton(color: .clear, textColor: .black.opacity(0.7), width: size, height: size, circle: true))
         .onHover { hovering = $0 }
         .topHelpTag(isPresented: $hovering, action.label)
+    }
+}
+
+/// Settings editor for the full floating result's action grid: the same 2×3 squircle layout shown in
+/// the hover overlay, but with settings-window contrast (solid `primary` fills rather than warm
+/// material over a dark thumbnail). Tap a slot to change it — filled slots offer Remove, empty
+/// slots a dashed `+` that assigns an action. Crop stays out of the grid (it's a fixed corner button
+/// in the overlay), matching the overlay's handling.
+struct FloatingActionGridPicker: View {
+    @Binding var actions: [FloatingAction]
+
+    private var configured: [FloatingAction] { actions.filter { $0 != .crop } }
+    private var slots: [FloatingAction?] {
+        var s: [FloatingAction?] = Array(configured.prefix(6)).map { Optional($0) }
+        while s.count < 6 { s.append(nil) }
+        return s
+    }
+    private var addable: [FloatingAction] {
+        FloatingAction.allCases.filter { $0 != .crop && !configured.contains($0) }
+    }
+
+    private let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
+    private let side: CGFloat = 40
+
+    var body: some View {
+        VStack(spacing: 6) {
+            VStack(spacing: 1) {
+                Text("Action buttons").medium(12).foregroundColor(.secondary)
+                Text("Tap a button to change it").regular(8).foregroundColor(.secondary.opacity(0.5))
+            }
+            let cols = Array(repeating: GridItem(.fixed(side), spacing: 8), count: 3)
+            LazyVGrid(columns: cols, spacing: 8) {
+                ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
+                    if let action = slot {
+                        Menu {
+                            Button("Remove from buttons", role: .destructive) {
+                                actions.removeAll { $0 == action }
+                            }
+                        } label: {
+                            SwiftUI.Image(systemName: action.icon)
+                                .font(.system(size: side * 0.4, weight: .semibold))
+                                .foregroundStyle(.primary)
+                                .frame(width: side, height: side)
+                                .background(Color.primary.opacity(0.08), in: shape)
+                                .overlay { shape.stroke(Color.primary.opacity(0.15), lineWidth: 1) }
+                                .contentShape(shape)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .buttonStyle(.plain)
+                        .fixedSize()
+                        .help(action.label)
+                    } else {
+                        Menu {
+                            Section("Assign to a button") {
+                                ForEach(addable) { a in
+                                    Button(action: { actions.append(a) }) {
+                                        Label(a.label, systemImage: a.icon)
+                                    }
+                                }
+                            }
+                        } label: {
+                            SwiftUI.Image(systemName: "plus")
+                                .font(.system(size: side * 0.32, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: side, height: side)
+                                .background(Color.primary.opacity(0.04), in: shape)
+                                .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
+                                .contentShape(shape)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .buttonStyle(.plain)
+                        .fixedSize()
+                        .disabled(addable.isEmpty)
+                    }
+                }
+            }
+            .fixedSize()
+        }
     }
 }
 
