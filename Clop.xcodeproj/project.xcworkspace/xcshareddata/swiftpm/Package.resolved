@@ -4,7 +4,7 @@
     {
       "identity" : "appreceiptvalidator",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/alin23/AppReceiptValidator.git",
+      "location" : "https://github.com/alin23/AppReceiptValidator",
       "state" : {
         "revision" : "e35794a03103839e024f71534e263310038c930d",
         "version" : "1.2.0"
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/Defaults",
       "state" : {
-        "revision" : "3efef5a28ebdbbe922d4a2049493733ed14475a6",
-        "version" : "7.3.1"
+        "revision" : "5bfac4928f000fabdbef7e4ed0251399bb0841c9",
+        "version" : "9.0.8"
       }
     },
     {
@@ -61,7 +61,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "278c849abc72490da3112c1a44bf8351ce8bd54e"
+        "revision" : "a35a61309f8214bc9b9a577fdb9ab50ea7c162f7"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
-        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
-        "version" : "1.7.1"
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
       }
     },
     {
@@ -143,6 +143,15 @@
       "state" : {
         "revision" : "4fc142964621eda7835a4524e567388f5ef6f1a0",
         "version" : "0.1.4"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax",
+      "state" : {
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
       }
     },
     {
