@@ -489,7 +489,7 @@ struct NameFormatPill: View {
         .padding(.horizontal, 4)
         .frame(height: 18)
         .warmControlBackground(in: Capsule())
-        .fixedSize(horizontal: !fullWidth || !optimiser.editingFilename, vertical: true)
+        .fixedSize(horizontal: !fullWidth, vertical: true)
         .onChange(of: optimiser.running) { running in if running { optimiser.editingFilename = false } }
     }
 
@@ -498,7 +498,7 @@ struct NameFormatPill: View {
             Text(stem.isEmpty ? "filename" : stem)
                 .font(.system(size: 9, weight: .medium)).lineLimit(1).truncationMode(.middle)
                 .foregroundColor(.primary)
-                .frame(maxWidth: 92)
+                .frame(maxWidth: fullWidth ? .infinity : 92)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 4).padding(.vertical, 2)
                 .background(hoveringName ? Color.primary.opacity(0.12) : .clear, in: Capsule())
@@ -874,8 +874,28 @@ struct FloatingResult: View {
     static let cardW: CGFloat = 196
     static let cardH: CGFloat = 148
 
-    /// Configured grid actions (crop is a dedicated corner button, so it's excluded here).
-    var gridConfigured: [FloatingAction] { floatingResultActions.filter { $0 != .crop } }
+    /// Whether an action belongs in the in-card grid for this result. Crop is a dedicated corner
+    /// button; downscale is dropped for audio, which uses the compression button as its single
+    /// bitrate/quality axis.
+    func gridApplies(_ action: FloatingAction) -> Bool {
+        switch action {
+        case .crop: false
+        case .downscale: !optimiser.type.isAudio
+        default: true
+        }
+    }
+
+    /// Configured grid actions (crop is a dedicated corner button, so it's excluded here). When a
+    /// configured action is hidden for this file type (e.g. downscale on audio), backfill a Show in
+    /// Finder button so the grid keeps a useful action instead of an empty slot.
+    var gridConfigured: [FloatingAction] {
+        let shown = floatingResultActions.filter(gridApplies)
+        let configuredCount = floatingResultActions.filter { $0 != .crop }.count
+        if shown.count < configuredCount, !shown.contains(.showInFinder) {
+            return shown + [.showInFinder]
+        }
+        return shown
+    }
 
     /// Always six slots: configured actions first, remaining slots are faint "+" add-placeholders.
     var gridSlots: [FloatingAction?] {
@@ -885,7 +905,7 @@ struct FloatingResult: View {
     }
 
     var addableActions: [FloatingAction] {
-        FloatingAction.allCases.filter { $0 != .crop && !gridConfigured.contains($0) }
+        FloatingAction.allCases.filter { gridApplies($0) && !gridConfigured.contains($0) }
     }
 
     var actionGrid: some View {
@@ -893,16 +913,9 @@ struct FloatingResult: View {
         return LazyVGrid(columns: cols, spacing: 8) {
             ForEach(Array(gridSlots.enumerated()), id: \.offset) { _, slot in
                 if let action = slot {
-                    let button = ActionButton(action: action, optimiser: optimiser)
-                    button
-                        .buttonStyle(FloatingGridButtonStyle())
-                        .disabled(!button.isAvailable())
-                        .opacity(button.isAvailable() ? 1 : 0.4)
-                        .contextMenu {
-                            Button("Remove from buttons") {
-                                floatingResultActions = floatingResultActions.filter { $0 != action }
-                            }
-                        }
+                    FloatingGridActionButton(action: action, optimiser: optimiser) {
+                        floatingResultActions = floatingResultActions.filter { $0 != action }
+                    }
                 } else {
                     addPlaceholderSlot
                 }
@@ -976,7 +989,13 @@ struct FloatingResult: View {
         } else if optimiser.editingFilename {
             NameFormatPill(optimiser: optimiser, fullWidth: true)
         } else if isExpanded {
-            HStack(spacing: 0) { Spacer(minLength: 0); NameFormatPill(optimiser: optimiser) }
+            // With no crop button in the bottom-left corner (e.g. audio), let the name·format pill
+            // span the full width; otherwise keep it right-aligned so it clears the crop button.
+            if optimiser.canCrop() {
+                HStack(spacing: 0) { Spacer(minLength: 0); NameFormatPill(optimiser: optimiser) }
+            } else {
+                NameFormatPill(optimiser: optimiser, fullWidth: true)
+            }
         } else {
             VStack(spacing: 2) { fileSizeDiff; sizeDiff; bitrateDiff; dpiDiff }
                 .frame(maxWidth: .infinity)

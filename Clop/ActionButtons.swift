@@ -19,7 +19,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
 
     static let maxFloatingButtons = 5
     static let maxCompactButtons = 9
-    static let defaultFloating: [FloatingAction] = [.downscale, .compression, .crop, .share, .restoreOptimise]
+    static let defaultFloating: [FloatingAction] = [.downscale, .restoreOptimise, .compression, .aggressiveOptimisation, .share, .sendSecurely]
     static let defaultCompact: [FloatingAction] = [.downscale, .compression, .crop, .quickLook, .restoreOptimise, .showInFinder, .saveAs, .copyToClipboard, .share]
 
     var id: String { rawValue }
@@ -413,6 +413,10 @@ enum CompressionScale {
             let f = 5 + (p - videoSmallerStart) / (1 - videoSmallerStart) * 95
             return CompressionQuality(tier: .smaller, factor: snapFactor(f))
         }
+        // Audio has no Adaptive tier: a plain 5…100% quality maps to a bitrate via audioBitrate(for:).
+        if type.isAudio {
+            return CompressionQuality(tier: .custom, factor: snapFactor(5 + p * 95))
+        }
         if p < imageFactorStart / 2 { return CompressionQuality(tier: .adaptive, factor: 5) }
         let f = 5 + (p - imageFactorStart) / (1 - imageFactorStart) * 95
         return CompressionQuality(tier: .custom, factor: snapFactor(f))
@@ -426,6 +430,7 @@ enum CompressionScale {
             default: return videoSmallerStart + Double(cq.factor - 5) / 95 * (1 - videoSmallerStart)
             }
         }
+        if type.isAudio { return Double(cq.factor - 5) / 95 }
         if cq.tier == .adaptive { return imageAdaptive }
         return imageFactorStart + Double(cq.factor - 5) / 95 * (1 - imageFactorStart)
     }
@@ -438,6 +443,7 @@ enum CompressionScale {
             default: return cq.videoUsesAutoCRF ? "Auto" : "\(cq.factor)%"
             }
         }
+        if type.isAudio { return "\(cq.factor)%" }
         return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)%"
     }
 
@@ -450,17 +456,22 @@ enum CompressionScale {
             default: return cq.videoUsesAutoCRF ? "Auto" : "\(cq.factor)% compression"
             }
         }
+        if type.isAudio { return "\(cq.factor)% compression" }
         return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)% compression"
     }
 
     static func anchors(for type: ItemType) -> [Double] {
-        type.isVideo ? [videoLossless, videoFast, videoSmallerStart] : [imageAdaptive, imageFactorStart]
+        if type.isVideo { return [videoLossless, videoFast, videoSmallerStart] }
+        if type.isAudio { return [0.0, 0.25, 0.5, 0.75, 1.0] }
+        return [imageAdaptive, imageFactorStart]
     }
 }
 
 @MainActor func currentCompressionQuality(for optimiser: Optimiser) -> CompressionQuality {
     if let override = optimiser.compressionOverride { return override }
-    return optimiser.type.isVideo ? Defaults[.videoCompression] : Defaults[.imageCompression]
+    if optimiser.type.isVideo { return Defaults[.videoCompression] }
+    if optimiser.type.isAudio { return Defaults[.audioCompression] }
+    return Defaults[.imageCompression]
 }
 
 struct CompressionButton: View {
@@ -892,14 +903,18 @@ struct CardSlider: View {
 
     var body: some View {
         VStack(spacing: 5) {
-            // Same look as the step-hint label (OverlayMessageView): white text on a dark
-            // .hudWindow vibrantDark blur pill, so it reads clearly over the blurred thumbnail.
+            // White text on a dark blurred pill. Everything is clipped to the capsule so the blur
+            // doesn't show as a rectangle behind a smaller rounded background.
             Text(hint)
                 .font(.system(size: 10, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
-                .roundbg(radius: 12, padding: 6, color: .black)
+                .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(
-                    VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark).scaleEffect(1.1)
+                    ZStack {
+                        VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
+                        Color.black.opacity(0.4)
+                    }
+                    .clipShape(Capsule())
                 )
                 .fixedSize()
             GeometryReader { geo in
@@ -1347,7 +1362,7 @@ private struct SliderEventOverlay: NSViewRepresentable {
             super.viewDidMoveToWindow()
             guard window != nil, dragMonitor == nil else { return }
             didDrag = false
-            dragMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp, .keyDown]) { [weak self] event in
+            dragMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp, .keyDown]) { [weak self] event in
                 guard let self, window != nil else { return event }
 
                 if event.type == .keyDown {
@@ -1356,6 +1371,19 @@ private struct SliderEventOverlay: NSViewRepresentable {
                     didDrag = false
                     onCancel?()
                     return nil
+                }
+
+                // A fresh press outside the slider dismisses it without applying. The press-drag that
+                // opened the slider fired its mouse-down before this monitor mounted, so it's not caught here.
+                if event.type == .leftMouseDown {
+                    let loc = convert(event.locationInWindow, from: nil)
+                    if !bounds.contains(loc) {
+                        directTracking = false
+                        didDrag = false
+                        onCancel?()
+                        return nil
+                    }
+                    return event
                 }
 
                 guard !directTracking else { return event }
@@ -1672,6 +1700,7 @@ struct AggressiveOptimisationButton: View {
                 } else {
                     optimiser.optimise(allowLarger: false, aggressiveOptimisation: newAggressive, fromOriginal: true)
                 }
+                optimiser.collapseHoverOverlay = true
             },
             label: {
                 SwiftUI.Image(systemName: optimiser.aggressive ? "bolt.fill" : "bolt")
@@ -1825,7 +1854,7 @@ struct ActionButton: View {
     func isAvailable() -> Bool {
         switch action {
         case .downscale: optimiser.canDownscale()
-        case .compression: optimiser.canReoptimise() && (optimiser.type.isImage || optimiser.type.isVideo)
+        case .compression: optimiser.canCompress()
         case .crop: optimiser.canCrop()
         case .aggressiveOptimisation: optimiser.canReoptimise()
         case .addToShelf: runningShelfApp() != nil
@@ -1895,6 +1924,28 @@ struct SideButtons: View {
     }
 }
 
+/// A floating-result grid action button that shows our custom HelpTag with the action name on hover.
+struct FloatingGridActionButton: View {
+    let action: FloatingAction
+    @ObservedObject var optimiser: Optimiser
+    let onRemove: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        let button = ActionButton(action: action, optimiser: optimiser)
+        button
+            .buttonStyle(FloatingGridButtonStyle())
+            .disabled(!button.isAvailable())
+            .opacity(button.isAvailable() ? 1 : 0.4)
+            .onHover { hovering = $0 }
+            .topHelpTag(isPresented: $hovering, action.label)
+            .contextMenu {
+                Button("Remove from buttons", action: onRemove)
+            }
+    }
+}
+
 struct ActionPickerButton: View {
     let action: FloatingAction
     let size: CGFloat
@@ -1913,11 +1964,11 @@ struct ActionPickerButton: View {
     }
 }
 
-/// Settings editor for the full floating result's action grid: the same 2×3 squircle layout shown in
-/// the hover overlay, but with settings-window contrast (solid `primary` fills rather than warm
-/// material over a dark thumbnail). Tap a slot to change it — filled slots offer Remove, empty
-/// slots a dashed `+` that assigns an action. Crop stays out of the grid (it's a fixed corner button
-/// in the overlay), matching the overlay's handling.
+/// Settings editor for the full floating result's action grid: the same 2×3 squircle layout and
+/// metrics as the hover overlay, with a solid `Color.bg.warm` chip per button (the settings window is
+/// opaque, so the overlay's translucent material is swapped for the equivalent solid). Tap a slot to
+/// change it — filled slots offer Remove, empty slots a dashed `+` that assigns an action. Crop stays
+/// out of the grid (it's a fixed corner button in the overlay), matching the overlay's handling.
 struct FloatingActionGridPicker: View {
     @Binding var actions: [FloatingAction]
 
@@ -1931,8 +1982,8 @@ struct FloatingActionGridPicker: View {
         FloatingAction.allCases.filter { $0 != .crop && !configured.contains($0) }
     }
 
-    private let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
-    private let side: CGFloat = 40
+    // Same metrics as the overlay grid (FloatingGridButtonStyle: 34pt cells, 8pt gaps).
+    private let side: CGFloat = 34
 
     var body: some View {
         VStack(spacing: 6) {
@@ -1944,52 +1995,81 @@ struct FloatingActionGridPicker: View {
             LazyVGrid(columns: cols, spacing: 8) {
                 ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
                     if let action = slot {
-                        Menu {
-                            Button("Remove from buttons", role: .destructive) {
-                                actions.removeAll { $0 == action }
-                            }
-                        } label: {
-                            SwiftUI.Image(systemName: action.icon)
-                                .font(.system(size: side * 0.4, weight: .semibold))
-                                .foregroundStyle(.primary)
-                                .frame(width: side, height: side)
-                                .background(Color.primary.opacity(0.08), in: shape)
-                                .overlay { shape.stroke(Color.primary.opacity(0.15), lineWidth: 1) }
-                                .contentShape(shape)
+                        GridPickerButton(action: action, side: side) {
+                            actions.removeAll { $0 == action }
                         }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .buttonStyle(.plain)
-                        .fixedSize()
-                        .help(action.label)
                     } else {
-                        Menu {
-                            Section("Assign to a button") {
-                                ForEach(addable) { a in
-                                    Button(action: { actions.append(a) }) {
-                                        Label(a.label, systemImage: a.icon)
-                                    }
-                                }
-                            }
-                        } label: {
-                            SwiftUI.Image(systemName: "plus")
-                                .font(.system(size: side * 0.32, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: side, height: side)
-                                .background(Color.primary.opacity(0.04), in: shape)
-                                .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
-                                .contentShape(shape)
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .buttonStyle(.plain)
-                        .fixedSize()
-                        .disabled(addable.isEmpty)
+                        addPlaceholder
                     }
                 }
             }
             .fixedSize()
+
+            if actions != FloatingAction.defaultFloating {
+                Button("Reset to default") { actions = FloatingAction.defaultFloating }
+                    .buttonStyle(.plain)
+                    .font(.medium(10))
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
+            }
         }
+    }
+
+    private var addPlaceholder: some View {
+        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
+        return Menu {
+            Section("Assign to a button") {
+                ForEach(addable) { a in
+                    Button(action: { actions.append(a) }) {
+                        Label(a.label, systemImage: a.icon)
+                    }
+                }
+            }
+        } label: {
+            SwiftUI.Image(systemName: "plus").font(.heavy(10)).foregroundStyle(.primary.opacity(0.45))
+                .frame(width: side, height: side)
+                .background(Color.primary.opacity(0.05), in: shape)
+                .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
+                .contentShape(shape)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .fixedSize()
+        .disabled(addable.isEmpty)
+    }
+}
+
+/// One filled slot in the settings action grid: same squircle/metrics as the hover overlay, with our
+/// custom HelpTag showing the action name on hover. It's a plain Button (a borderless Menu label
+/// wouldn't render the chip background). The opaque settings window can't blur, so the chip uses a
+/// solid `Color.bg.warm` fill plus a contrasting outline for separation. Tap removes the action.
+private struct GridPickerButton: View {
+    let action: FloatingAction
+    let side: CGFloat
+    let onRemove: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
+        // A plain Button renders the label's background; a borderless Menu label did not, which is
+        // why earlier fill changes were invisible. Tap removes the action (re-add via the + slot).
+        return Button(action: onRemove) {
+            SwiftUI.Image(systemName: action.icon)
+                .font(.heavy(11))
+                .foregroundStyle(Color.fg.primary)
+                .frame(width: side, height: side)
+                .background(Color.bg.warm, in: shape)
+                // A contrasting outline so the warm chip (warmBlack in dark mode) still separates from
+                // the same-shade settings panel behind it.
+                .overlay { shape.stroke(Color.fg.primary.opacity(0.5), lineWidth: 1) }
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .onHover { hovering = $0 }
+        .topHelpTag(isPresented: $hovering, action.label)
     }
 }
 

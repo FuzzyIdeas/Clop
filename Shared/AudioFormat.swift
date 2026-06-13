@@ -151,12 +151,21 @@ enum AudioFormat: String, CaseIterable, Codable {
         }
     }
 
-    /// Resolve step-lower sentinel bitrate values (-1, -2) to actual bitrates.
+    /// Resolve a target bitrate. Negative values are step-lower sentinels (-1, -2 = N allowed steps
+    /// below the input). Positive values are capped at the input bitrate so we never upscale a file
+    /// whose source bitrate is already lower than the requested target.
     func resolveBitrate(_ bitrate: Int, inputBitrate: Int?) -> Int {
-        guard bitrate < 0 else { return bitrate }
+        let allowed = allowedBitrates
+
+        if bitrate >= 0 {
+            guard let input = inputBitrate, input > 0 else { return bitrate }
+            let capped = min(bitrate, input)
+            guard !allowed.isEmpty else { return capped }
+            return allowed.last(where: { $0 <= capped }) ?? capped
+        }
+
         let stepsLower = abs(bitrate)
         let input = inputBitrate ?? defaultBitrate
-        let allowed = allowedBitrates
         guard !allowed.isEmpty else { return input }
 
         let inputIndex = allowed.lastIndex(where: { $0 <= input }) ?? (allowed.count - 1)
