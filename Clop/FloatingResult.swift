@@ -455,6 +455,122 @@ struct OnboardingFloatingPreview: View {
     }
 }
 
+// MARK: - NameFormatPill
+
+/// Compact in-thumbnail filename + format control. One warm pill split into two hover-highlighted
+/// segments: the name (tap to edit inline) and the extension (tap for the format menu), joined by a
+/// period and no chevron, so it reads as a single `name.ext` entity. While editing it becomes a
+/// full-width text field. Purpose-built for the small overlay card (the old FileNameField was sized
+/// for the full-width top slot and didn't populate/focus correctly here).
+struct NameFormatPill: View {
+    @ObservedObject var optimiser: Optimiser
+    var fullWidth = false
+    @Environment(\.preview) var preview
+
+    @FocusState private var focused: Bool
+    @State private var tempName = ""
+    @State private var hoveringName = false
+    @State private var hoveringExt = false
+
+    private var stem: String { optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? "" }
+    private var ext: String { optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? "" }
+
+    var body: some View {
+        Group {
+            if optimiser.editingFilename {
+                editor.frame(maxWidth: fullWidth ? .infinity : 150)
+            } else {
+                segments
+            }
+        }
+        .padding(.horizontal, 4)
+        .frame(height: 18)
+        .warmControlBackground(in: Capsule())
+        .fixedSize(horizontal: !fullWidth || !optimiser.editingFilename, vertical: true)
+        .onChange(of: optimiser.running) { running in if running { optimiser.editingFilename = false } }
+    }
+
+    var segments: some View {
+        HStack(spacing: 0) {
+            Text(stem.isEmpty ? "filename" : stem)
+                .font(.system(size: 9, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                .foregroundColor(.primary)
+                .frame(maxWidth: 92)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4).padding(.vertical, 2)
+                .background(hoveringName ? Color.primary.opacity(0.12) : .clear, in: Capsule())
+                .onHover { inside in
+                    hoveringName = inside
+                    if inside { NSCursor.iBeam.push() } else { NSCursor.pop() }
+                }
+                .onTapGesture { startEditing() }
+            if !ext.isEmpty {
+                Text(".").font(.system(size: 9, weight: .medium)).foregroundColor(.secondary)
+                formatSegment
+            }
+        }
+    }
+
+    @ViewBuilder var formatSegment: some View {
+        if !optimiser.running, optimiser.canChangeFormat() {
+            Menu {
+                ForEach(optimiser.convertibleTypes) { format in
+                    let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
+                    if !e.isEmpty {
+                        Button(e.uppercased()) {
+                            guard !preview, optimiser.type.utType != format else { return }
+                            optimiser.convert(to: format, optimise: true)
+                        }
+                    }
+                }
+            } label: {
+                Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.primary)
+                    .padding(.horizontal, 4).padding(.vertical, 2)
+                    .background(hoveringExt ? Color.primary.opacity(0.12) : .clear, in: Capsule())
+            }
+            .menuButtonStyle(BorderlessButtonMenuButtonStyle())
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .onHover { hoveringExt = $0 }
+            .fixedSize()
+        } else {
+            Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.primary).padding(.horizontal, 4)
+        }
+    }
+
+    var editor: some View {
+        HStack(spacing: 4) {
+            TextField("", text: $tempName)
+                .textFieldStyle(.plain)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.primary)
+                .focused($focused)
+                .onSubmit {
+                    optimiser.rename(to: tempName)
+                    optimiser.editingFilename = false
+                }
+            Button(action: { optimiser.editingFilename = false }, label: {
+                SwiftUI.Image(systemName: "xmark").font(.bold(8)).foregroundColor(.secondary)
+            })
+            .buttonStyle(.plain)
+            .keyboardShortcut(.escape, modifiers: [])
+        }
+        .onAppear {
+            tempName = stem
+            floatingResultsWindow.allowToBecomeKey = true
+            floatingResultsWindow.makeKeyAndOrderFront(nil)
+            floatingResultsWindow.orderFrontRegardless()
+            focused = true
+        }
+    }
+
+    func startEditing() {
+        guard !preview, !SM.selecting else { return }
+        tempName = stem
+        withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
+    }
+}
+
 // MARK: - FloatingResult
 
 struct FloatingResult: View {
@@ -479,10 +595,10 @@ struct FloatingResult: View {
         hovering || optimiser.editingResolution
     }
 
-    @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.showImages) var showImages
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.neverShowProError) var neverShowProError
+    @Default(.floatingResultActions) var floatingResultActions
 
     @Environment(\.openWindow) var openWindow
     @Environment(\.colorScheme) var colorScheme
@@ -596,17 +712,6 @@ struct FloatingResult: View {
 
     var closeStopButton: some View {
         CloseStopButton(optimiser: optimiser)
-            .buttonStyle(FlatButton(color: .clear, textColor: .primary, circle: true))
-            .frame(width: 22, height: 22)
-            .background(
-                Circle()
-                    .fill(.ultraThickMaterial)
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-            )
-            .overlay(
-                Circle()
-                    .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
-            )
     }
 
     @ViewBuilder var noThumbnailView: some View {
@@ -758,47 +863,168 @@ struct FloatingResult: View {
         }
     }
 
-    @ViewBuilder var thumbnailView: some View {
-        ZStack {
-            VStack {
-                HStack {
-                    closeStopButton
-                    Spacer()
-                    topRightButton
-                }.hfill(.leading)
-                Spacer()
+    // MARK: - Overlay-grid thumbnail card
+    //
+    // Fixed-geometry card: the thumbnail is the background, all controls are layered over it and
+    // revealed by opacity on hover. Geometry never changes on hover (only a cheap dim + control
+    // opacity), so the Liquid Glass controls never trigger an expensive re-resolve.
 
-                if optimiser.running {
-                    progressView
-                        .controlSize(.small)
-                        .lineLimit(1)
-                        .padding(.horizontal, 10)
-                } else if optimiser.error != nil {
-                    errorView
-                } else if optimiser.notice != nil {
-                    noticeView
-                        .foregroundColor(.white)
+    static let cardW: CGFloat = 196
+    static let cardH: CGFloat = 148
+
+    /// Configured grid actions (crop is a dedicated corner button, so it's excluded here).
+    var gridConfigured: [FloatingAction] { floatingResultActions.filter { $0 != .crop } }
+
+    /// Always six slots: configured actions first, remaining slots are faint "+" add-placeholders.
+    var gridSlots: [FloatingAction?] {
+        var slots: [FloatingAction?] = Array(gridConfigured.prefix(6)).map { Optional($0) }
+        while slots.count < 6 { slots.append(nil) }
+        return slots
+    }
+
+    var addableActions: [FloatingAction] {
+        FloatingAction.allCases.filter { $0 != .crop && !gridConfigured.contains($0) }
+    }
+
+    var actionGrid: some View {
+        let cols = Array(repeating: GridItem(.fixed(34), spacing: 8), count: 3)
+        return LazyVGrid(columns: cols, spacing: 8) {
+            ForEach(Array(gridSlots.enumerated()), id: \.offset) { _, slot in
+                if let action = slot {
+                    let button = ActionButton(action: action, optimiser: optimiser)
+                    button
+                        .buttonStyle(FloatingGridButtonStyle())
+                        .disabled(!button.isAvailable())
+                        .opacity(button.isAvailable() ? 1 : 0.4)
+                        .contextMenu {
+                            Button("Remove from buttons") {
+                                floatingResultActions = floatingResultActions.filter { $0 != action }
+                            }
+                        }
                 } else {
-                    VStack(spacing: 4) {
-                        fileSizeDiff
-                        sizeDiff
-                        bitrateDiff
-                        dpiDiff
-                    }
+                    addPlaceholderSlot
                 }
             }
-            .hfill(.leading)
+        }
+        .fixedSize()
+    }
+
+    /// Faint dashed slot; tapping opens a menu of actions to add to the grid.
+    var addPlaceholderSlot: some View {
+        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
+        return Menu {
+            Section("Assign to a button") {
+                ForEach(addableActions) { action in
+                    Button(action.label) { floatingResultActions = floatingResultActions + [action] }
+                }
+            }
+        } label: {
+            SwiftUI.Image(systemName: "plus").font(.heavy(10)).foregroundStyle(.primary.opacity(0.45))
+                .frame(width: 34, height: 34)
+                .background(Color.primary.opacity(0.05), in: shape)
+                .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
+                .contentShape(shape)
+        }
+        .menuButtonStyle(BorderlessButtonMenuButtonStyle())
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .fixedSize()
+        .disabled(addableActions.isEmpty)
+    }
+
+    func sliderBand(@ViewBuilder _ slider: () -> some View) -> some View {
+        slider().frame(width: Self.cardW - 30)
+    }
+
+    /// Center: the downscale/compression slider while active, otherwise the action grid on hover.
+    /// The grid buttons flip showDownscaleSlider/showCompressionSlider on mouse-DOWN and the
+    /// thin card slider's event overlay grabs the still-held drag, so press-and-drag is one gesture.
+    @ViewBuilder var cardGrid: some View {
+        if optimiser.showDownscaleSlider {
+            sliderBand {
+                if optimiser.type.isAudio {
+                    CardBitrateSlider(optimiser: optimiser)
+                } else if optimiser.type.isPDF {
+                    CardPDFDPISlider(optimiser: optimiser)
+                } else {
+                    CardDownscaleSlider(optimiser: optimiser)
+                }
+            }
+        } else if optimiser.showCompressionSlider {
+            sliderBand { CardCompressionSlider(optimiser: optimiser) }
+        } else if isExpanded, !optimiser.running, optimiser.error == nil, optimiser.notice == nil {
+            actionGrid
+                .opacity(optimiser.editingFilename ? 0.3 : 1)
+                .allowsHitTesting(!optimiser.editingFilename)
+        }
+    }
+
+    /// Bottom-anchored content: hidden while a slider is up; progress / error / notice while busy;
+    /// the unified name·format pill on hover; a full-width filename editor while editing; the
+    /// centered size-saving stats at rest.
+    @ViewBuilder var cardBottomContent: some View {
+        if optimiser.showDownscaleSlider || optimiser.showCompressionSlider {
+            EmptyView()
+        } else if optimiser.running {
+            progressView.controlSize(.small).lineLimit(1).foregroundColor(.white)
+        } else if optimiser.error != nil {
+            errorView.foregroundColor(.white)
+        } else if optimiser.notice != nil {
+            noticeView.foregroundColor(.white)
+        } else if optimiser.editingFilename {
+            NameFormatPill(optimiser: optimiser, fullWidth: true)
+        } else if isExpanded {
+            HStack(spacing: 0) { Spacer(minLength: 0); NameFormatPill(optimiser: optimiser) }
+        } else {
+            VStack(spacing: 2) { fileSizeDiff; sizeDiff; bitrateDiff; dpiDiff }
+                .frame(maxWidth: .infinity)
+                .foregroundColor(.white)
+        }
+    }
+
+    @ViewBuilder var cornerControls: some View {
+        let sliding = optimiser.showDownscaleSlider || optimiser.showCompressionSlider
+        if (isExpanded || optimiser.running), !sliding {
+            CloseStopButton(optimiser: optimiser)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        if isExpanded, !optimiser.running, !optimiser.editingFilename, !sliding {
+            Menu {
+                RightClickMenuView(optimiser: optimiser)
+            } label: {
+                SwiftUI.Image(systemName: "ellipsis")
+            }
+            .menuButtonStyle(BorderlessButtonMenuButtonStyle())
+            .menuIndicator(.hidden)
+            .buttonStyle(FloatingCornerButtonStyle())
+            .fixedSize()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+            if optimiser.canCrop() {
+                Button(action: { if !preview { optimiser.showCropWindow() } }, label: { SwiftUI.Image(systemName: "crop") })
+                    .buttonStyle(FloatingCornerButtonStyle())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+        }
+    }
+
+    @ViewBuilder var thumbnailView: some View {
+        ZStack {
+            cardGrid
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                cardBottomContent
+            }
             .animation(nil, value: optimiser.running)
+
+            cornerControls
+
             OverlayMessageView(optimiser: optimiser, color: .black)
         }
-        .frame(
-            width: THUMB_SIZE.width / 2,
-            height: THUMB_SIZE.height / 2,
-            alignment: .center
-        )
+        .padding(8)
+        .frame(width: Self.cardW, height: Self.cardH, alignment: .center)
         .fixedSize()
-        .padding(.horizontal, 5)
-        .padding(.vertical, 5)
         .background(
             SwiftUI.Image(nsImage: optimiser.thumbnail!)
                 .resizable()
@@ -806,35 +1032,44 @@ struct FloatingResult: View {
                 .overlay(
                     VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
                         .clipped()
-                        .mask(LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .init(x: 0.5, y: 0.7), endPoint: .init(x: 0.5, y: 0)))
+                        .mask(LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .init(x: 0.5, y: 0.95), endPoint: .init(x: 0.5, y: 0.45)))
                 )
-                .scaleEffect(hoveringThumbnail ? 1.1 : 1)
-                .blur(radius: hoveringThumbnail ? 6 : 0, opaque: true)
-                .any
+                // Hardware blur of the thumbnail on hover (NSVisualEffectView .withinWindow blurs the
+                // image behind it — no gaussian pixelation), appearing instantly, no animation. Same
+                // .hudWindow vibrantDark material the step-hint label uses, so the veil matches it.
+                .overlay {
+                    if isExpanded {
+                        VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
+                    }
+                }
+                // File-drag lives on the background image, NOT the whole card, so pressing a grid
+                // button (downscale/compression) never starts a drag and the slider catches the
+                // press-drag instantly. No drag while a slider is active either.
+                .ifLet(optimiser.url, transform: { img, url in
+                    img.if(!optimiser.showDownscaleSlider && !optimiser.showCompressionSlider) { v in
+                        v.onDrag {
+                            guard !preview else {
+                                return NSItemProvider()
+                            }
+
+                            log.debug("Dragging \(url)")
+                            if Defaults[.dismissFloatingResultOnDrop] {
+                                optimiser.remove(after: 100, withAnimation: true)
+                            }
+                            return NSItemProvider(object: url as NSURL)
+                        }
+                    }
+                })
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
+        // NOTE: no card-wide white foreground — controls sit on light warm material and must use
+        // .primary (adaptive). White is applied only to content over the dark thumbnail below.
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
-        .ifLet(optimiser.url, transform: { view, url in
-            view
-                .onDrag {
-                    guard !preview else {
-                        return NSItemProvider()
-                    }
-
-                    log.debug("Dragging \(url)")
-                    if Defaults[.dismissFloatingResultOnDrop] {
-                        optimiser.remove(after: 100, withAnimation: true)
-                    }
-                    return NSItemProvider(object: url as NSURL)
-                }
-        })
-        .foregroundColor(.white)
         .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 8)
-
     }
 
     func topField(_ url: URL) -> some View {
@@ -879,60 +1114,44 @@ struct FloatingResult: View {
     }
 
     var body: some View {
-        let hasThumbnail = optimiser.thumbnail != nil
-        HStack {
-            FlipGroup(if: !floatingResultsCorner.isTrailing) {
-                if hasThumbnail, showImages, optimiser.error == nil {
-                    VStack(alignment: floatingResultsCorner.isTrailing ? .leading : .trailing, spacing: 2) {
-                        if isExpanded, let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
-                            topField(url)
-                        }
-                        Group {
-                            thumbnailView
-                                .contentShape(Rectangle())
-                                .if(!optimiser.inRemoval) { view in
-                                    view.contextMenu {
-                                        RightClickMenuView(optimiser: optimiser)
-                                    }
-                                }
-                            FormatSelectorView(optimiser: optimiser)
-                                .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
-                                .opacity(isExpanded ? 1 : 0.1)
-                                .animation(.easeOut(duration: 0.15), value: isExpanded)
-                        }
-                        .onHover(perform: updateHover(_:))
-                    }
-                } else {
-                    VStack(spacing: 4) {
-                        noThumbnailView
-                            .contentShape(Rectangle())
-                            .onHover(perform: updateHover(_:))
-                            .if(!optimiser.inRemoval) { view in
-                                view.contextMenu {
-                                    RightClickMenuView(optimiser: optimiser)
-                                }
-                            }
-                        if optimiser.error == nil {
-                            FormatSelectorView(optimiser: optimiser)
-                                .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
-                                .opacity(isExpanded ? 1 : 0.1)
-                                .animation(.easeOut(duration: 0.15), value: isExpanded)
-                        }
-                    }
-                }
+        if optimiser.dismissing {
+            // Close button pressed: render nothing (no glass, no thumbnail) while removal
+            // completes, so dismissal is instant instead of paying for a final glass re-render.
+            Color.clear.frame(width: 0, height: 0)
+        } else {
+            mainBody
+        }
+    }
 
-                if hasThumbnail, isExpanded || optimiser.sharing {
-                    SideButtons(optimiser: optimiser, size: showsThumbnail ? 24 : 18)
-                        .frame(width: 30, alignment: .bottom)
-                        .fixedSize()
-                        .zIndex(100)
-                } else {
-                    SwiftUI.Image("clop")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 30, height: 30, alignment: .center)
-                        .fixedSize()
-                        .opacity(showFloatingHatIcon ? 1 : 0)
+    @ViewBuilder var mainBody: some View {
+        let hasThumbnail = optimiser.thumbnail != nil
+        Group {
+            if hasThumbnail, showImages, optimiser.error == nil {
+                // Self-contained overlay-grid card: corners + grid + filename/format all live
+                // on the fixed-geometry thumbnail, revealed by opacity on hover.
+                thumbnailView
+                    .onHover(perform: updateHover(_:))
+                    .if(!optimiser.inRemoval) { view in
+                        view.contextMenu {
+                            RightClickMenuView(optimiser: optimiser)
+                        }
+                    }
+            } else {
+                VStack(spacing: 4) {
+                    noThumbnailView
+                        .contentShape(Rectangle())
+                        .onHover(perform: updateHover(_:))
+                        .if(!optimiser.inRemoval) { view in
+                            view.contextMenu {
+                                RightClickMenuView(optimiser: optimiser)
+                            }
+                        }
+                    if optimiser.error == nil {
+                        FormatSelectorView(optimiser: optimiser)
+                            .frame(width: THUMB_SIZE.width / 2 + 10, height: 16, alignment: .center)
+                            .opacity(isExpanded ? 1 : 0.1)
+                            .animation(.easeOut(duration: 0.15), value: isExpanded)
+                    }
                 }
             }
         }

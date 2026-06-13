@@ -176,7 +176,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
 
     let workItem = mainAsyncAfter(ms: debounceMS) {
         let finalOpLabel = operationLabel(for: labelActions, filename: optimiser.filename, videoSize: resolution, aggressive: aggressive)
-        optimiser.operation = finalOpLabel
+        optimiser.operation = optimiser.manualAdjustmentOperation ?? finalOpLabel
         if !hasDownscale, !hasSpeedChange {
             optimiser.originalURL = path.url
         }

@@ -1568,7 +1568,6 @@ struct DropZoneSettingsView: View {
 
 struct FloatingSettingsView: View {
     @Default(.enableFloatingResults) var enableFloatingResults
-    @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.showImages) var showImages
     @Default(.showCompactImages) var showCompactImages
     @Default(.autoHideFloatingResults) var autoHideFloatingResults
@@ -1612,7 +1611,6 @@ struct FloatingSettingsView: View {
             }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Full layout")) {
-                Toggle("Show hat icon", isOn: $showFloatingHatIcon)
                 Toggle("Show images", isOn: $showImages)
                 Toggle("Show Copy all / Clear all buttons", isOn: $showCopyClearButtons)
                 Text("Dismiss result after")

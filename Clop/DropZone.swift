@@ -373,7 +373,6 @@ struct DropZonePresetsView: View {
 
 struct DropZoneView: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
-    @Default(.showFloatingHatIcon) var showFloatingHatIcon
     @Default(.enableDragAndDrop) var enableDragAndDrop
 
     @ObservedObject var dragManager = DM
@@ -462,19 +461,11 @@ struct DropZoneView: View {
 
     var body: some View {
         HStack {
-            FlipGroup(if: !floatingResultsCorner.isTrailing) {
-                draggingOutsideView
-                    .if(!dragManager.showPresetZones) {
-                        $0.dropZoneGlassBackground()
-                    }
-                    .contentShape(Rectangle())
-
-                SwiftUI.Image("clop")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: HAT_ICON_SIZE, height: HAT_ICON_SIZE, alignment: .center)
-                    .opacity(showFloatingHatIcon ? 1 : 0)
-            }
+            draggingOutsideView
+                .if(!dragManager.showPresetZones) {
+                    $0.dropZoneGlassBackground()
+                }
+                .contentShape(Rectangle())
         }
         .frame(width: THUMB_SIZE.width, height: THUMB_SIZE.height / 2, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
         .padding()

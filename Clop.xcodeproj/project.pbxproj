@@ -39,7 +39,6 @@
 		C73802032BD1B804001BEE6C /* bin.tar.lrz in Resources */ = {isa = PBXBuildFile; fileRef = C73802012BD1B804001BEE6C /* bin.tar.lrz */; };
 		C73802052BD1B81A001BEE6C /* lrzip in Resources */ = {isa = PBXBuildFile; fileRef = C73802042BD1B81A001BEE6C /* lrzip */; };
 		C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73802062BDCD76D001BEE6C /* CompareView.swift */; };
-		C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C401AA2E1B00010000A001 /* CropWindow.swift */; };
 		C7605FC32F78194D0087B195 /* WarpDrop in Frameworks */ = {isa = PBXBuildFile; productRef = C7605FC22F78194D0087B195 /* WarpDrop */; };
 		C7760AB62A5C4EE500851F8C /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB52A5C4EE500851F8C /* Images.swift */; };
 		C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB72A5C854600851F8C /* SettingsView.swift */; };
@@ -72,15 +71,16 @@
 		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */ = {isa = PBXBuildFile; productRef = C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */; };
+		C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C401AA2E1B00010000A001 /* CropWindow.swift */; };
 		C7CC9E242E57299900EAFCA1 /* InternetAccessPolicy.plist in Resources */ = {isa = PBXBuildFile; fileRef = C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */; };
 		C7CC9E282E57299900EAFCA1 /* Pipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CC9E262E57299900EAFCA1 /* Pipeline.swift */; };
 		C7D697172F837AD000FAFD3A /* LowtechProSentry in Frameworks */ = {isa = PBXBuildFile; productRef = C7D697162F837AD000FAFD3A /* LowtechProSentry */; };
 		C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */; };
+		C7DEBD022F20000100000002 /* DebugDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DEBD012F20000100000001 /* DebugDump.swift */; };
 		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
 		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
 		C7DF1A2C2EAA000000000001 /* IgnoredAppsPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */; };
-		C7DEBD022F20000100000002 /* DebugDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DEBD012F20000100000001 /* DebugDump.swift */; };
 		C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EFD28B2B22577100A6D843 /* Onboarding.swift */; };
 		C8813EA945B535E55DF1EC87 /* PipelineEditorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64A079DB235BB295B5D2F9B /* PipelineEditorViews.swift */; };
 		DD17718179BD01F73E35E0F8 /* WarpDropManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */; };
@@ -164,8 +164,6 @@
 		C73802012BD1B804001BEE6C /* bin.tar.lrz */ = {isa = PBXFileReference; lastKnownFileType = file; path = bin.tar.lrz; sourceTree = "<group>"; };
 		C73802042BD1B81A001BEE6C /* lrzip */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = lrzip; sourceTree = SOURCE_ROOT; };
 		C73802062BDCD76D001BEE6C /* CompareView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompareView.swift; sourceTree = "<group>"; };
-		C7C401AA2E1B00010000A001 /* CropWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CropWindow.swift; sourceTree = "<group>"; };
-		C73E36CB2F7067A800CA282E /* Lowtech */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Lowtech; path = ../Lowtech; sourceTree = SOURCE_ROOT; };
 		C7760AB52A5C4EE500851F8C /* Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
 		C7760AB72A5C854600851F8C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSImageExtensions.swift; sourceTree = "<group>"; };
@@ -195,13 +193,14 @@
 		C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C7C401AA2E1B00010000A001 /* CropWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CropWindow.swift; sourceTree = "<group>"; };
 		C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = InternetAccessPolicy.plist; sourceTree = "<group>"; };
 		C7CC9E262E57299900EAFCA1 /* Pipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pipeline.swift; sourceTree = "<group>"; };
 		C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingResult.swift; sourceTree = "<group>"; };
+		C7DEBD012F20000100000001 /* DebugDump.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugDump.swift; sourceTree = "<group>"; };
 		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
 		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
 		C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IgnoredAppsPicker.swift; sourceTree = "<group>"; };
-		C7DEBD012F20000100000001 /* DebugDump.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugDump.swift; sourceTree = "<group>"; };
 		C7EFD28B2B22577100A6D843 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
 		CFE08CBF4972CC590D4F1A06 /* PDFPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFPipeline.swift; sourceTree = "<group>"; };
 		D534A2084C0E9F7184617531 /* PipelineStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStep.swift; sourceTree = "<group>"; };
@@ -275,7 +274,6 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
-				C73E36CB2F7067A800CA282E /* Lowtech */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				BCF42C9E79C9DA717625AD2D /* Shared */,
 				C7AB6623288301590041BEC8 /* Clop */,
@@ -582,14 +580,14 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ENTITLEMENTS = ClopCLI/ClopCLI.entitlements;
-				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				INFOPLIST_FILE = ClopCLI/Info.plist;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				INFOPLIST_FILE = ClopCLI/Info.plist;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.CLI;
@@ -611,14 +609,14 @@
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				AUTOMATION_APPLE_EVENTS = YES;
 				CODE_SIGN_ENTITLEMENTS = ClopCLI/ClopCLI.entitlements;
-				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				INFOPLIST_FILE = ClopCLI/Info.plist;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				INFOPLIST_FILE = ClopCLI/Info.plist;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Clop.CLI;

@@ -519,7 +519,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     source: OptimisationSource,
     optimiser: Optimiser,
     pipelines explicitPipelines: [Pipeline]? = nil,
-    forceHide: Bool = false
+    forceHide: Bool = false,
+    copyToClipboard: Bool = false
 ) async -> (file: FilePath, anyRan: Bool) {
     log.debug("Pipeline: checking pipelines for file=\(file.string) type=\(String(describing: type)) source=\(source.string)")
     let pipelines = explicitPipelines?.map(\.resolved) ?? pipelinesFor(type: type, source: source)
@@ -584,6 +585,14 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         } catch {
             log.error("Pipeline: '\(name)' failed: \(error)")
         }
+    }
+
+    // Copy the final result to the clipboard. Pipeline steps (e.g. convert) produce a
+    // different file than the one any earlier optimisation pass already copied, so the copy
+    // has to happen here on `finalFile` rather than in the per-type pipelines.
+    if copyToClipboard, anyRan, finalFile.exists {
+        optimiser.url = finalFile.url
+        optimiser.copyToClipboard()
     }
 
     // If the optimiser was created just for pipeline execution (skipOptimisation case),
