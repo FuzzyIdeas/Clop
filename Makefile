@@ -45,6 +45,7 @@ upload:
 
 release:
 	gh release create v$(VERSION) -F ReleaseNotes/$(VERSION).md "Releases/Clop-$(VERSION).dmg#Clop.dmg"
+	git fetch --tags
 
 sentry:
 	op run -- sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/
