@@ -1431,7 +1431,10 @@ struct Clop: ParsableCommand {
         @Flag(name: .shortAndLong, help: "Use aggressive optimisation (legacy preset, same as --compression \(COMPRESSION_FACTOR_AGGRESSIVE))")
         var aggressive = false
 
-        @Option(name: .long, help: "How hard to compress images, videos and audio: a factor from 5 (best quality) to 100 (smallest file), 'adaptive' (best format per image) or 'auto' (let the video encoder pick). Takes priority over --aggressive.")
+        @Option(
+            name: .long,
+            help: "How hard to compress images, videos and audio: a factor from 5 (best quality) to 100 (smallest file), 'adaptive' (best format per image) or 'auto' (let the video encoder pick). Takes priority over --aggressive."
+        )
         var compression: String?
 
         @Option(name: .long, help: "PDF aggressive DPI: 'adaptive' or one of \(PDF_DPI_STOPS.map(String.init).joined(separator: ", ")). Overrides the app's stored aggressive DPI setting for this run.")
@@ -1945,10 +1948,44 @@ struct Clop: ParsableCommand {
             }
         }
 
+        struct Prompt: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                commandName: "prompt",
+                abstract: "Print an LLM-ready reference of the pipeline DSL: every step, parameter, value set, caveat, and how to run or save a pipeline.",
+                discussion: """
+                Feed it to an LLM so it can author Clop pipelines for you. Append your request as
+                the final argument and use -c/--copy to place the whole thing on the clipboard:
+
+                    clop pipeline prompt -c "shrink all my screenshots to webp under 500KB"
+
+                The LLM should reply with a single inline pipeline string you can run with
+                `clop pipeline run '<steps>' <files>` or save with `clop pipeline add <name> '<steps>'`.
+                """
+            )
+
+            @Flag(name: .shortAndLong, help: "Copy the generated prompt to the clipboard")
+            var copy = false
+
+            @Argument(help: "Optional task appended to the end as the request for the LLM")
+            var task: [String] = []
+
+            mutating func run() throws {
+                let taskText = task.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                let text = pipelinePromptContext(task: taskText.isEmpty ? nil : taskText)
+                print(text)
+                if copy {
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setString(text, forType: .string)
+                    FileHandle.standardError.write("\n\(CHECKMARK) Copied prompt to clipboard.\n".data(using: .utf8) ?? Data())
+                }
+            }
+        }
+
         static let configuration = CommandConfiguration(
             commandName: "pipeline",
             abstract: "Manage and run Clop pipelines (saved presets and inline step sequences).",
-            subcommands: [List.self, Show.self, Run.self, Add.self, Delete.self]
+            subcommands: [List.self, Show.self, Run.self, Add.self, Delete.self, Prompt.self]
         )
 
     }
@@ -1986,6 +2023,156 @@ let PIPELINE_AUTOMATION_KEYS = [
     ("pipelinesToRunOnPdf", "PDFs"),
     ("pipelinesToRunOnAudio", "audio"),
 ]
+
+/// LLM-ready reference for the pipeline DSL, emitted by `clop pipeline prompt`.
+/// Hand-maintained mirror of `ALL_STEP_TEMPLATES` + `parsePipelineStep` in Automation.swift
+/// (which aren't in the CLI target). Keep in sync when steps/params change there.
+func pipelinePromptContext(task: String?) -> String {
+    var out = #"""
+    # Clop pipeline DSL
+
+    You write Clop pipelines: ordered sequences of steps that transform image, video, PDF and
+    audio files. Your job is to translate a request into ONE pipeline string. Reply with just the
+    pipeline string (and a one-line note only if a caveat matters), nothing else.
+
+    ## Syntax
+
+    - Steps are separated by `->`, evaluated left to right: `crop(width: 1600) -> convert(to: webp)`.
+    - Each step is `name(key: value, key: value)`. No-parameter steps can be bare: `removeAudio`,
+      `stripExif`, `normalize`, `copyToClipboard`, `copyLinkForSending`.
+    - Quote string, path and regex values: `move(to: "~/Pictures/%y/")`, `if(regex: "^IMG_")`.
+      Bare values are fine for enums/numbers: `convert(to: webp)`, `downscale(factor: 0.5)`.
+    - File types: `image`, `video`, `pdf`, `audio`. Each step lists the types it applies to;
+      a step that doesn't apply to the input is skipped.
+
+    ## Execution model (IMPORTANT)
+
+    - An inline pipeline (`clop pipeline run '...'`) runs EXACTLY the steps you write, with NO
+      implicit optimisation pass. If you want compression, add an explicit `optimise` step.
+    - A saved pipeline honours its "skip optimisation" flag: when off, files are optimised first,
+      then your steps run.
+    - Most processing steps default to `location: inPlace` (replace the original). `convert` and
+      `extractPagesAsImages` default to `location: sameFolder`.
+
+    ## Steps
+
+    ### Processing
+
+    - `optimise(encoder, adaptive, dpi, location)` — compress in place. [image, video, pdf, audio]
+      - `encoder`: images/pdf/audio use `medium` (default), `aggressive`, `lossless`;
+        video uses `fast` (hardware H.264), `slowHighQuality` (software, smaller), `visuallyLossless`.
+      - `adaptive`: `true`/`false` (images only; may change the extension, e.g. PNG↔JPEG).
+      - `dpi`: PDF only, overrides encoder. 300 = no downsampling, 150 = screen reading, 72 = screen, 48 = smallest.
+    - `downscale(factor, location)` — scale down, keeps aspect ratio. [image, video, audio]
+      - `factor`: 0.0–1.0 (0.5 = half, 0.75 = 75%). For audio this lowers the bitrate.
+    - `lowerBitrate(kbps, location)` — set audio bitrate. Never upscales, snaps to allowed bitrates. [audio]
+      - `kbps`: e.g. 192, 160, 128, 96, 64.
+    - `convert(to, location)` — change format. [image, video, audio] (default location: sameFolder)
+      - `to`: image → webp, avif, heic, jxl, jpeg, png, gif; video → mp4 (H.264), hevc (H.265 hardware),
+        x265 (software, smaller), av1, webm, gif; audio → m4a, mp3, ogg, flac, wav, aiff.
+    - `crop(width, height, longEdge, location)` — resize to exact pixels. [image, video]
+      - Provide at least one. `width`/`height` in px (the missing one is computed, aspect kept).
+        `longEdge` sets the longest side instead of width/height.
+    - `extractPagesAsImages(format, quality, location)` — render PDF pages to images. [pdf]
+      - `format`: jpeg (default), png. `quality`: low (1x/72dpi), medium (2x/144dpi, default), high (3x/216dpi).
+    - `targetSize(size, location)` — compress iteratively until the file fits under a limit. [image, video, pdf, audio]
+      - `size`: `500KB`, `10MB`, `25MB` (kb/mb/gb or kib/mib/gib, or raw bytes). Handy limits:
+        Discord/GitHub 10MB, WhatsApp 16MB, Gmail 25MB.
+    - `stripExif` — remove EXIF and GPS metadata (privacy before sharing). [image, video]
+    - `watermark(image, position, opacity, scale, location)` — overlay a watermark image. [image, video]
+      - `image`: path (quote it; PNG with transparency works best). `position`: bottomRight (default),
+        bottomLeft, topRight, topLeft, center. `opacity`: 0.0–1.0 (default 1.0). `scale`: width fraction (default 0.15).
+
+    ### Media-specific
+
+    - `removeAudio` — strip the audio track. [video]
+    - `changeSpeed(factor)` — playback speed multiplier (2.0 = 2x, 0.5 = half). [video, audio]
+    - `capFps(fps)` — cap the frame rate (60, 30, 24, …). [video]
+    - `normalize(lufs)` — normalise loudness. `lufs` default -16 (-14 Spotify/YouTube, -16 Apple Podcasts, -23 EBU). [audio]
+
+    ### Filters (skip the rest of the pipeline for this file if the condition fails, no error)
+
+    - `if(...)` — continue only if the condition matches. `ifNot(...)` — continue only if it does NOT.
+      Condition keys (combine several; all must hold):
+      - `regex`: pattern matched against the filename (smart case; capture groups become $1, $2). Quote it.
+      - `types`: space-separated types/extensions, e.g. `types: jpeg png webp`.
+      - `nameContains`: case-insensitive substring. `nameIs`: exact filename.
+      - `fileSizeGreaterThan` / `fileSizeLowerThan`: raw bytes. `minFileSize`: human size (`100kb`, `2mb`).
+      - `widthGreaterThan` / `widthLowerThan` / `heightGreaterThan` / `heightLowerThan`: pixels (images).
+      - `minResolution`: `WxH`, e.g. `640x480` (images).
+      - `dpiGreaterThan` / `dpiLowerThan`: DPI (images & PDFs).
+      - `copiedBy`: app name or bundle id substring (clipboard source only), e.g. `copiedBy: "safari"`.
+
+    ### File operations (template tokens supported, see below)
+
+    - `copy(to)` — copy to a path/template. `move(to)` — move. `rename(to)` — new name.
+    - `delete(path)` — delete a path; `delete(path: "sourceFile")` removes the input file.
+
+    ### Actions
+
+    - `runScript(path)` or `runScript(code)` — run a script file/executable, or inline shell code via
+      `zsh -c`. The file is passed as $1 and in $CLOP_INPUT_FILE; if the script prints a file path to
+      stdout, that file replaces the one the pipeline carries forward. e.g. `runScript(code: "sips -Z 800 $1")`.
+      Inline `code` must be one line and must NOT contain `->` (the step separator) or newlines; chain with `;` or `&&`.
+    - `runShortcut(name)` — run a macOS Shortcut by its name. [image, video, pdf]
+    - `copyToClipboard(format, relativeTo)` — `format`: path (default), imageData (images), markdown.
+      `relativeTo`: a base path that makes the copied path/link relative (e.g. `~/Projects/blog`).
+    - `copyLinkForSending(expiration)` — send the file securely and copy the share link. `expiration`
+      auto-stops the link (and closes the room) after `1m`/`15m`/`1h`/`6h`/`1d`/`3d` or `never`; omit it to
+      use the default from Preferences. Transfer is peer-to-peer, so the Mac must stay awake until then.
+    - `shelveWith(app)` — yoink, dockside, dropover. `uploadWith(app)` — dropshare. `openWith(app)` — e.g. Preview.
+
+    ## location parameter & path templates
+
+    - `location` values: `inPlace` (replace original), `sameFolder` (next to original),
+      `temporaryFolder`, or a path template. With `convert`+`inPlace` the original is trashed and replaced.
+    - Path/template tokens (usable in `location`, copy/move/rename/delete `to`/`path`, watermark `image`):
+      `%f` filename (no extension), `%e` extension, `%P` parent folder, `%F` full path,
+      `%y` year, `%m` month (01–12), `%n` month name, `%d` day, `%w` weekday, `%H` hour, `%M` minute,
+      `%S` second, `%p` AM/PM, `%r` 5 random letters, `%i` auto-incrementing number.
+    - `$1`, `$2`, … are capture groups from a preceding `if(regex: ...)`. `~` expands to home.
+      When a template has no extension, the output extension is appended automatically.
+
+    ## Caveats
+
+    - Inline = no implicit optimise; add `optimise` yourself when you want smaller files.
+    - Consecutive processing steps are compiled into a single ffmpeg/vips pass for speed. A step with a
+      non-`inPlace` `location` ends that batch (this is how multi-output pipelines work). GIF conversion
+      never batches; `targetSize`, `stripExif`, `watermark`, `capFps`, `normalize` are not batch-compiled.
+    - Audio bitrate is never increased; `lowerBitrate` snaps to the format's allowed bitrates.
+    - Filters fail silently: when they don't match, the remaining steps are skipped for that file.
+    - Keep steps appropriate to the file type, or gate them with `if(types: ...)`.
+
+    ## Running and saving
+
+    - Test now: `clop pipeline run '<steps>' file1 [file2 ...]`
+      Flags: `--gui` show the floating result, `--async`, `-r` recurse into folders, `-s` skip errors,
+      `-j` JSON output, `--types image,video,…`, `-n` no progress.
+    - Save to the library (runnable by name and shown in the app's Settings → Automation):
+      `clop pipeline add [--file-type image|video|pdf|audio] [--skip-optimisation] [--hide-result] [--force] <name> '<steps>'`
+    - Inspect: `clop pipeline list`, `clop pipeline show <name>`. Remove: `clop pipeline delete <name>`.
+    - In the app, saved pipelines appear as presets in Settings → Automation and can be assigned to run
+      automatically per watched folder or input source.
+
+    ## Examples
+
+    - Image for the web:            `optimise -> convert(to: webp)`
+    - Just convert, no recompress:  `convert(to: avif)`
+    - Sort screenshots:             `if(regex: "^(screen ?shot|cleanshot)") -> optimise() -> move(to: "~/Pictures/Screenshots/%y/%m/")`
+    - Fit under Discord's 10MB:      `targetSize(size: 10MB)`
+    - Video to 1080p MP4:           `crop(width: 1920) -> optimise(encoder: slowHighQuality)`
+    - Video to GIF:                 `crop(longEdge: 800) -> convert(to: gif)`
+    - 2× silent screencast:         `changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)`
+    - Audio to 128k MP3:            `convert(to: mp3) -> lowerBitrate(kbps: 128)`
+    - PDF pages to JPEGs:           `extractPagesAsImages(format: jpeg, quality: high)`
+    - Watermark then optimise:      `watermark(image: "%P/logo.png", position: bottomRight) -> optimise`
+    """#
+
+    if let task, !task.isEmpty {
+        out += "\n\n---\n\n## Task\n\n\(task)\n\nReturn one pipeline string for this task.\n"
+    }
+    return out
+}
 
 /// Return step names from an inline pipeline that are not known DSL steps.
 func invalidPipelineSteps(_ text: String) -> [String] {

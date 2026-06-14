@@ -60,7 +60,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
 
     func label(for type: ItemType) -> String {
         switch self {
-        case .downscale where type.isAudio: "Lower bitrate"
+        case .downscale where type.isAudio: "Downscale cover art"
         case .downscale where type.isPDF: "Compression"
         default: label
         }
@@ -88,7 +88,7 @@ extension View {
 /// Warm-tinted material; cheap opacity/scale hover (no geometry change).
 struct FloatingCornerButtonStyle: ButtonStyle {
     var size: CGFloat = 23
-    @State private var hovering = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.heavy(10)).foregroundStyle(.primary)
@@ -99,12 +99,14 @@ struct FloatingCornerButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.9 : (hovering ? 1.08 : 1))
             .onHover { h in withAnimation(.fastTransition) { hovering = h } }
     }
+
+    @State private var hovering = false
 }
 
 /// Larger squircle button for the floating-card action grid (r≈15, almost-but-not-quite round).
 struct FloatingGridButtonStyle: ButtonStyle {
     var size: CGFloat = 34
-    @State private var hovering = false
+
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
         configuration.label
@@ -116,6 +118,8 @@ struct FloatingGridButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.92 : (hovering ? 1.06 : 1))
             .onHover { h in withAnimation(.fastTransition) { hovering = h } }
     }
+
+    @State private var hovering = false
 }
 
 struct CloseStopButton: View {
@@ -956,8 +960,9 @@ struct CardSlider: View {
 
 struct CardDownscaleSlider: View {
     @ObservedObject var optimiser: Optimiser
-    @State private var dragFactor: Double?
+
     var factor: Double { dragFactor ?? optimiser.downscaleFactor }
+
     var body: some View {
         CardSlider(
             hint: "\((factor * 100).intround)% scale",
@@ -976,16 +981,56 @@ struct CardDownscaleSlider: View {
             onCancel: { dragFactor = nil; optimiser.showDownscaleSlider = false }
         )
     }
+
+    @State private var dragFactor: Double?
+}
+
+/// Audio cover-art resize slider for the card. Reuses the downscale geometry but drives the
+/// cover-only resize and labels itself clearly with the target resolution.
+struct CardCoverArtSlider: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var factor: Double { dragFactor ?? optimiser.coverDownscaleFactor }
+    var hint: String {
+        guard let base = optimiser.coverArtSize, base.width > 0, base.height > 0 else { return "Cover art" }
+        let w = Int((base.width * factor).rounded())
+        let h = Int((base.height * factor).rounded())
+        return "Cover art \(w)×\(h)"
+    }
+
+    var body: some View {
+        CardSlider(
+            hint: hint,
+            position: (1.0 - factor) / 0.9,
+            anchors: [1.0, 0.75, 0.5, 0.25, 0.1].map { (1.0 - $0) / 0.9 },
+            onDrag: { f in dragFactor = f },
+            onRelease: { f in
+                let start = optimiser.coverDownscaleFactor
+                dragFactor = nil
+                optimiser.showDownscaleSlider = false
+                if abs(f - start) > 0.01 {
+                    downscaleAudioCoverArt(optimiser: optimiser, toFactor: f)
+                    optimiser.collapseHoverOverlay = true
+                }
+            },
+            onCancel: { dragFactor = nil; optimiser.showDownscaleSlider = false }
+        )
+        .onAppear { loadAudioCoverArtSize(optimiser: optimiser) }
+    }
+
+    @State private var dragFactor: Double?
+
 }
 
 struct CardCompressionSlider: View {
     @ObservedObject var optimiser: Optimiser
-    @State private var dragPosition: Double?
+
     var pos: Double { dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type) }
     var hint: String {
         let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) } ?? currentCompressionQuality(for: optimiser)
         return CompressionScale.stepLabel(for: cq, type: optimiser.type)
     }
+
     var body: some View {
         CardSlider(
             hint: hint,
@@ -1006,24 +1051,19 @@ struct CardCompressionSlider: View {
             onCancel: { dragPosition = nil; optimiser.showCompressionSlider = false }
         )
     }
+
+    @State private var dragPosition: Double?
 }
 
 struct CardBitrateSlider: View {
     @ObservedObject var optimiser: Optimiser
+
     @Default(.audioFormat) var audioFormat
     @Default(.audioBitrate) var defaultBitrate
-    @State private var dragBitrate: Int?
+
     var bitrates: [Int] { audioFormat.allowedBitrates }
     var current: Int { dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate }
-    func position(forIndex idx: Int) -> Double {
-        bitrates.count > 1 ? Double(bitrates.count - 1 - idx) / Double(bitrates.count - 1) : 0
-    }
-    func index(forFactor factor: Double) -> Int {
-        let c = bitrates.count
-        guard c > 1 else { return 0 }
-        let n = (factor - 0.1) / 0.9
-        return max(0, min(c - 1, Int(round(n * Double(c - 1)))))
-    }
+
     var body: some View {
         CardSlider(
             hint: "\(current) kbps",
@@ -1043,26 +1083,26 @@ struct CardBitrateSlider: View {
             onCancel: { dragBitrate = nil; optimiser.showDownscaleSlider = false }
         )
     }
+
+    func position(forIndex idx: Int) -> Double {
+        bitrates.count > 1 ? Double(bitrates.count - 1 - idx) / Double(bitrates.count - 1) : 0
+    }
+    func index(forFactor factor: Double) -> Int {
+        let c = bitrates.count
+        guard c > 1 else { return 0 }
+        let n = (factor - 0.1) / 0.9
+        return max(0, min(c - 1, Int(round(n * Double(c - 1)))))
+    }
+
+    @State private var dragBitrate: Int?
 }
 
 struct CardPDFDPISlider: View {
     @ObservedObject var optimiser: Optimiser
-    @State private var dragDPI: Int?
+
     var stops: [Int] { PDF_DPI_STOPS }
     var current: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
-    func position(forIndex idx: Int) -> Double {
-        stops.count > 1 ? Double(idx) / Double(stops.count - 1) : 0
-    }
-    func index(forFactor factor: Double) -> Int {
-        let c = stops.count
-        guard c > 1 else { return 0 }
-        let n = (1.0 - factor) / 0.9
-        return max(0, min(c - 1, Int(round(n * Double(c - 1)))))
-    }
-    func nearestIndex(for dpi: Int) -> Int? {
-        guard !stops.isEmpty else { return nil }
-        return stops.indices.min(by: { abs(stops[$0] - dpi) < abs(stops[$1] - dpi) })
-    }
+
     var body: some View {
         CardSlider(
             hint: "\(current) DPI",
@@ -1082,6 +1122,22 @@ struct CardPDFDPISlider: View {
             onCancel: { dragDPI = nil; optimiser.showDownscaleSlider = false }
         )
     }
+
+    func position(forIndex idx: Int) -> Double {
+        stops.count > 1 ? Double(idx) / Double(stops.count - 1) : 0
+    }
+    func index(forFactor factor: Double) -> Int {
+        let c = stops.count
+        guard c > 1 else { return 0 }
+        let n = (1.0 - factor) / 0.9
+        return max(0, min(c - 1, Int(round(n * Double(c - 1)))))
+    }
+    func nearestIndex(for dpi: Int) -> Int? {
+        guard !stops.isEmpty else { return nil }
+        return stops.indices.min(by: { abs(stops[$0] - dpi) < abs(stops[$1] - dpi) })
+    }
+
+    @State private var dragDPI: Int?
 }
 
 // MARK: - PDFDPISlider (vertical)
@@ -1566,7 +1622,9 @@ extension View {
     }
 }
 
-struct LowerBitrateButton: View {
+/// Audio's downscale button, repurposed to resize the embedded cover art. Opens the cover-art
+/// slider band (the bitrate axis lives on the compression button now).
+struct CoverArtDownscaleButton: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
 
@@ -1706,6 +1764,9 @@ struct AggressiveOptimisationButton: View {
                 SwiftUI.Image(systemName: optimiser.aggressive ? "bolt.fill" : "bolt")
                     .font(.heavy(9))
                     .foregroundColor(optimiser.aggressive ? FloatingResult.yellow : nil)
+                    // The pale "glow" yellow washes out on light thumbnails/backgrounds; a dark drop
+                    // shadow keeps it legible on any background without losing the yellow identity.
+                    .shadow(color: optimiser.aggressive ? .black.opacity(0.6) : .clear, radius: 1, y: 0.5)
             }
         )
         .contentShape(Rectangle())
@@ -1731,12 +1792,31 @@ struct VideoEncoderButton: View {
 struct WarpDropActiveButton: View {
     let session: WarpDropSession
     @ObservedObject var optimiser: Optimiser
+    @ObservedObject var wdm = WDM
     @Environment(\.preview) var preview
 
     @State private var glowing = false
 
+    /// The current session from the manager (the passed-in copy goes stale after rescheduling).
+    var liveSession: WarpDropSession { wdm.sessions.first { $0.id == session.id } ?? session }
+
     var body: some View {
         Menu {
+            if let label = liveSession.expiresInLabel {
+                Text(label)
+            }
+            Menu("Change expiration") {
+                ForEach(LINK_EXPIRATION_PRESETS, id: \.self) { preset in
+                    Button(expirationDurationLabel(preset)) {
+                        if !preview { WDM.rescheduleExpiry(liveSession, to: preset) }
+                    }
+                }
+                Divider()
+                Button("Never expire") {
+                    if !preview { WDM.rescheduleExpiry(liveSession, to: LINK_EXPIRATION_NEVER) }
+                }
+            }
+            Divider()
             Button {
                 if !preview {
                     let pb = NSPasteboard.general
@@ -1783,16 +1863,127 @@ struct WarpDropActiveButton: View {
     }
 }
 
+/// Binding that maps the optimiser's `sendExpiration` seconds onto the preset index used by the
+/// expiration sliders (so dragging snaps to 1m … 3d).
+@MainActor
+func sendExpirationIndexBinding(_ optimiser: Optimiser) -> Binding<Double> {
+    Binding(
+        get: { Double(nearestExpirationPresetIndex(optimiser.sendExpiration)) },
+        set: { optimiser.sendExpiration = LINK_EXPIRATION_PRESETS[max(0, min(LINK_EXPIRATION_PRESETS.count - 1, Int($0.rounded())))] }
+    )
+}
+
+/// The idle "Send securely" button. In the floating card it opens the in-card expiration overlay;
+/// in compact mode it opens a popover. Confirming creates the link with the chosen expiration.
+struct SendSecurelyStartButton: View {
+    @ObservedObject var optimiser: Optimiser
+    var inFloatingCard = false
+    @Environment(\.preview) var preview
+    @State private var showPopover = false
+
+    var body: some View {
+        Button(action: {
+            guard !preview else { return }
+            optimiser.sendExpiration = Defaults[.defaultLinkExpiration]
+            if inFloatingCard {
+                optimiser.showSendExpiration = true
+            } else {
+                showPopover = true
+            }
+        }) {
+            SwiftUI.Image(systemName: "paperplane.fill").font(.heavy(9))
+        }
+        .contentShape(Rectangle())
+        .popover(isPresented: $showPopover, arrowEdge: .bottom) {
+            SendExpirationPopover(optimiser: optimiser) { showPopover = false }
+        }
+    }
+}
+
+/// Compact-result popover: pick an expiration then create + copy the link.
+struct SendExpirationPopover: View {
+    @ObservedObject var optimiser: Optimiser
+    var onSend: () -> Void
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Link expires in \(expirationDurationLabel(optimiser.sendExpiration))")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            Slider(value: sendExpirationIndexBinding(optimiser), in: 0 ... Double(LINK_EXPIRATION_PRESETS.count - 1), step: 1)
+            Button(action: {
+                guard !preview else { return }
+                warpDropSend(optimiser: optimiser, expiration: optimiser.sendExpiration)
+                onSend()
+            }) {
+                Label("Copy link · expires in \(expirationShortLabel(optimiser.sendExpiration))", systemImage: "paperplane.fill")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(12)
+        .frame(width: 240)
+    }
+}
+
+/// Floating-card expiration overlay band: label + snap slider. The confirm button lives at the
+/// bottom of the card (SendExpirationConfirmButton).
+struct CardSendExpirationSlider: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text("Link expires in \(expirationDurationLabel(optimiser.sendExpiration))")
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Slider(value: sendExpirationIndexBinding(optimiser), in: 0 ... Double(LINK_EXPIRATION_PRESETS.count - 1), step: 1)
+                .controlSize(.mini)
+                .tint(.white)
+        }
+    }
+}
+
+/// Bottom-of-card confirm button for the floating expiration overlay.
+struct SendExpirationConfirmButton: View {
+    @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        Button(action: {
+            guard !preview else { return }
+            optimiser.showSendExpiration = false
+            warpDropSend(optimiser: optimiser, expiration: optimiser.sendExpiration)
+        }) {
+            Label("Copy link · expires in \(expirationShortLabel(optimiser.sendExpiration))", systemImage: "paperplane.fill")
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 5)
+                .background(Capsule(style: .continuous).fill(.white))
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct ActionButton: View {
     let action: FloatingAction
     @ObservedObject var optimiser: Optimiser
+    /// In the floating card the send button opens the in-card expiration overlay; elsewhere (compact)
+    /// it opens a popover instead.
+    var inFloatingCard = false
     @Environment(\.preview) var preview
 
     var body: some View {
         switch action {
         case .downscale:
-            if optimiser.type.isAudio, optimiser.type.utType != .wav {
-                LowerBitrateButton(optimiser: optimiser)
+            if optimiser.type.isAudio {
+                CoverArtDownscaleButton(optimiser: optimiser)
             } else if optimiser.type.isPDF {
                 LowerPDFDPIButton(optimiser: optimiser)
             } else if !optimiser.type.isAudio {
@@ -1843,10 +2034,7 @@ struct ActionButton: View {
             } else if let session = WDM.session(forOptimiser: optimiser) {
                 WarpDropActiveButton(session: session, optimiser: optimiser)
             } else {
-                Button(action: { if !preview { warpDropSend(optimiser: optimiser) } }) {
-                    SwiftUI.Image(systemName: "paperplane.fill").font(.heavy(9))
-                }
-                .contentShape(Rectangle())
+                SendSecurelyStartButton(optimiser: optimiser, inFloatingCard: inFloatingCard)
             }
         }
     }
@@ -1933,7 +2121,7 @@ struct FloatingGridActionButton: View {
     @State private var hovering = false
 
     var body: some View {
-        let button = ActionButton(action: action, optimiser: optimiser)
+        let button = ActionButton(action: action, optimiser: optimiser, inFloatingCard: true)
         button
             .buttonStyle(FloatingGridButtonStyle())
             .disabled(!button.isAvailable())
@@ -1972,19 +2160,6 @@ struct ActionPickerButton: View {
 struct FloatingActionGridPicker: View {
     @Binding var actions: [FloatingAction]
 
-    private var configured: [FloatingAction] { actions.filter { $0 != .crop } }
-    private var slots: [FloatingAction?] {
-        var s: [FloatingAction?] = Array(configured.prefix(6)).map { Optional($0) }
-        while s.count < 6 { s.append(nil) }
-        return s
-    }
-    private var addable: [FloatingAction] {
-        FloatingAction.allCases.filter { $0 != .crop && !configured.contains($0) }
-    }
-
-    // Same metrics as the overlay grid (FloatingGridButtonStyle: 34pt cells, 8pt gaps).
-    private let side: CGFloat = 34
-
     var body: some View {
         VStack(spacing: 6) {
             VStack(spacing: 1) {
@@ -2013,6 +2188,21 @@ struct FloatingActionGridPicker: View {
                     .padding(.top, 2)
             }
         }
+    }
+
+    // Same metrics as the overlay grid (FloatingGridButtonStyle: 34pt cells, 8pt gaps).
+    private let side: CGFloat = 34
+
+    private var configured: [FloatingAction] { actions.filter { $0 != .crop } }
+    private var slots: [FloatingAction?] {
+        var s: [FloatingAction?] = Array(configured.prefix(6)).map { Optional($0) }
+        while s.count < 6 {
+            s.append(nil)
+        }
+        return s
+    }
+    private var addable: [FloatingAction] {
+        FloatingAction.allCases.filter { $0 != .crop && !configured.contains($0) }
     }
 
     private var addPlaceholder: some View {
@@ -2049,8 +2239,6 @@ private struct GridPickerButton: View {
     let side: CGFloat
     let onRemove: () -> Void
 
-    @State private var hovering = false
-
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
         // A plain Button renders the label's background; a borderless Menu label did not, which is
@@ -2071,6 +2259,9 @@ private struct GridPickerButton: View {
         .onHover { hovering = $0 }
         .topHelpTag(isPresented: $hovering, action.label)
     }
+
+    @State private var hovering = false
+
 }
 
 struct ActionListPicker: View {

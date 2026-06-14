@@ -929,10 +929,15 @@ struct CompactPreview: View {
         videoToGIF.operation = "Converting to GIF"
         videoToGIF.thumbnail = NSImage(resource: .appUiDemo)
 
-        let pdfEnd = Optimiser(id: "pages.pdf", type: .pdf)
-        pdfEnd.url = "\(HOME)/Documents/pages.pdf".fileURL
-        pdfEnd.thumbnail = NSImage(resource: .pagesPdf)
+        let pdfEnd = Optimiser(id: "Low-Tech Whistle.pdf", type: .pdf)
+        pdfEnd.thumbnail = NSImage(resource: .previewPdfThumb)
         pdfEnd.finish(oldBytes: 12_250_190, newBytes: 15_211_932)
+
+        let audioEnd = Optimiser(id: "Evening guitar.m4a", type: .audio(.mpeg4Audio))
+        audioEnd.url = "\(HOME)/Music/Evening guitar.m4a".fileURL
+        audioEnd.thumbnail = NSImage(resource: .guitarCover)
+        audioEnd.coverArtSize = CGSize(width: 1012, height: 1012)
+        audioEnd.finish(oldBytes: 2_834_000, newBytes: 1_027_608, oldBitrate: 256, newBitrate: 96)
 
         let gifOpt = Optimiser(id: "https://files.lowtechguys.com/moon.gif", type: .url, running: true, progress: gifProgress)
         gifOpt.url = "https://files.lowtechguys.com/moon.gif".url!
@@ -943,9 +948,8 @@ struct CompactPreview: View {
         pngIndeterminate.thumbnail = NSImage(resource: .deviceHierarchy)
         pngIndeterminate.operation = "Scaling to 50%"
 
-        let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
-        clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
-        clipEnd.thumbnail = NSImage(resource: .sonomaShot)
+        let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.webP))
+        clipEnd.thumbnail = NSImage(resource: .previewImageThumb)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: NSSize(width: 1880, height: 1000), newSize: NSSize(width: 1200, height: 600))
 
         let proErrorOpt = Optimiser(id: Optimiser.IDs.pro, type: .unknown)
@@ -954,6 +958,14 @@ struct CompactPreview: View {
 
         let noticeOpt = Optimiser(id: "notice", type: .unknown, operation: "")
         noticeOpt.finish(notice: "**Paused**\nNext clipboard event will be ignored")
+
+        // Record which bundled sample backs each finished card; the temp files are only written when
+        // the Floating Results settings tab appears (materializeSamples), to avoid I/O on launch.
+        CompactPreview.sampleSpecs = [
+            (clipEnd, "preview-sample-image", "downscale-images.webp"),
+            (pdfEnd, "preview-sample-pdf", "Low-Tech Whistle.pdf"),
+            (audioEnd, "preview-sample-audio", "Evening guitar.m4a"),
+        ]
 
         o.optimisers = [
             clipEnd,
@@ -965,6 +977,7 @@ struct CompactPreview: View {
             pdfRunning,
 //            noticeOpt,
             pdfEnd,
+            audioEnd,
             videoToGIF,
         ]
         for opt in o.optimisers {
@@ -1011,6 +1024,23 @@ struct CompactPreview: View {
         p.localizedAdditionalDescription = "Page \(p.completedUnitCount) of \(p.totalUnitCount)"
         return p
     }()
+
+    /// (card optimiser, bundled data-set name, display filename) for each openable preview card.
+    static var sampleSpecs: [(opt: Optimiser, asset: String, name: String)] = []
+    static var samplesMaterialized = false
+
+    /// Write the bundled preview samples to the temp folder and point the cards at them. Called only
+    /// when the Floating Results settings tab appears, so we don't do this I/O on launch.
+    static func materializeSamples() {
+        _ = om // ensure the (cheap, in-memory) setup ran and populated sampleSpecs
+        guard !samplesMaterialized else { return }
+        samplesMaterialized = true
+        for spec in sampleSpecs {
+            if let url = previewSampleURL(dataAsset: spec.asset, named: spec.name) {
+                spec.opt.url = url
+            }
+        }
+    }
 
     var body: some View {
         FloatingResultContainer(om: Self.om, isPreview: true)

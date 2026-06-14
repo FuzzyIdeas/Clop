@@ -218,7 +218,7 @@ let ISO_PAPER_GROUPS: [CropSizeGroup] = [
         members: [
             "4A0", "2A0", "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13",
             "B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13",
-            ],
+        ],
         summary: "A0\u{2013}A13, 2A0, 4A0, B0\u{2013}B13"
     ),
     CropSizeGroup(name: "A0+", width: 914, height: 1292, members: ["A0+"]),

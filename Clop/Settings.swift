@@ -58,12 +58,19 @@ enum CleanupInterval: TimeInterval, Codable, Defaults.Serializable {
 extension CropOrientation: Defaults.Serializable {}
 extension VideoEncoder: Defaults.Serializable {}
 extension AudioFormat: Defaults.Serializable {}
+extension AudioCoverArtBehaviour: Defaults.Serializable {}
 extension CompressionTier: Defaults.Serializable {}
 extension CompressionQuality: Defaults.Serializable {}
 
 extension Defaults.Keys {
     static let finishedOnboarding = Key<Bool>("finishedOnboarding", default: false)
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
+    // false = the new (default) menubar icon, true = the classic pre-3.0 icon. Paired with
+    // `showMenubarIcon` to drive the New / Classic / Hidden picker in General settings.
+    static let useClassicMenubarIcon = Key<Bool>("useClassicMenubarIcon", default: false)
+    // Seconds after which a "Send securely" link auto-stops (0 = never). Starting value for the
+    // expiration picker and the fallback for the copyLinkForSending step. Default 1 hour.
+    static let defaultLinkExpiration = Key<TimeInterval>("defaultLinkExpiration", default: 3600)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
     static let alwaysShowCompactResults = Key<Bool>("alwaysShowCompactResults", default: false)
 
@@ -139,6 +146,7 @@ extension Defaults.Keys {
     static let enableAutomaticAudioOptimisations = Key<Bool>("enableAutomaticAudioOptimisations", default: false)
 
     static let audioFormat = Key<AudioFormat>("audioFormat", default: .aac)
+    static let audioCoverArt = Key<AudioCoverArtBehaviour>("audioCoverArt", default: .optimise)
     static let audioBitrate = Key<Int>("audioBitrate", default: 192)
     static let optimisedAudioBehaviour = Key<OptimisedFileBehaviour>("optimisedAudioBehaviour", default: .inPlace)
     static let sameFolderNameTemplateAudio = Key<String>("sameFolderNameTemplateAudio", default: "")
@@ -258,6 +266,8 @@ public enum OptimisedFileBehaviour: String, Defaults.Serializable {
 
 let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     Defaults.Keys.showMenubarIcon,
+    .useClassicMenubarIcon,
+    .defaultLinkExpiration,
     .adaptiveImageSize,
     .imageCompression,
     .audioCompression,
@@ -293,6 +303,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .imageFormatsToSkip,
     .appendClipboardResults,
     .audioBitrate,
+    .audioCoverArt,
     .audioDirs,
     .audioFormat,
     .audioFormatsToSkip,

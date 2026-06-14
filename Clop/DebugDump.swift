@@ -17,6 +17,22 @@ private struct DebugDumpSnapshot: Sendable {
 }
 
 enum DebugDump {
+    // MARK: - Live event recording
+
+    /// Time-ordered trace of every filesystem event in the watched folders and
+    /// every clipboard change during the capture window, unfiltered. Clop's
+    /// watchers add ">>> handled by Clop" markers through `DebugDump.record`,
+    /// so an event Clop filtered out is visible by the absence of a marker.
+    @MainActor
+    final class EventRecorder {
+        private(set) var lines: [String] = []
+        let startedAt = Date()
+
+        func append(_ line: String) {
+            lines.append(String(format: "%8.3fs  %@", Date().timeIntervalSince(startedAt), line))
+        }
+    }
+
     static let outputDir = URL(fileURLWithPath: "/tmp/clop-debug", isDirectory: true)
 
     static let confirmationDescription = """
@@ -41,7 +57,9 @@ enum DebugDump {
     """
 
     @MainActor static var isRunning = false
-    @MainActor static weak var progressOptimiser: Optimiser?
+    @MainActor weak static var progressOptimiser: Optimiser?
+
+    @MainActor static var eventRecorder: EventRecorder?
 
     @MainActor static func confirmAndRun() {
         guard !isRunning else {
@@ -82,6 +100,16 @@ enum DebugDump {
             }
         }
     }
+
+    /// Called by Clop's clipboard and file watchers when they accept an event,
+    /// so the live event trace can mark what was actually handled. No-op
+    /// unless a debug dump capture window is open.
+    @MainActor static func record(_ line: String) {
+        eventRecorder?.append(line)
+    }
+
+    @MainActor private static var clipboardMonitorTimer: Timer?
+    @MainActor private static let fseventsMonitorKey = NSObject()
 
     private static func collect() async throws -> URL {
         let snapshot = try await captureMainActorSnapshot()
@@ -139,9 +167,9 @@ enum DebugDump {
 
     @MainActor
     private static func captureMainActorSnapshot() throws -> DebugDumpSnapshot {
-        DebugDumpSnapshot(
+        try DebugDumpSnapshot(
             appInfoText: appInfoSnapshot(),
-            settingsData: try settingsSnapshot(),
+            settingsData: settingsSnapshot(),
             optimisersText: optimisersSnapshot(),
             pipelinesText: pipelinesSnapshot()
         )
@@ -469,33 +497,6 @@ enum DebugDump {
             await setPhase("Capturing logs and events, reproduce the issue now… \(remaining)s")
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
-    }
-
-    // MARK: - Live event recording
-
-    /// Time-ordered trace of every filesystem event in the watched folders and
-    /// every clipboard change during the capture window, unfiltered. Clop's
-    /// watchers add ">>> handled by Clop" markers through `DebugDump.record`,
-    /// so an event Clop filtered out is visible by the absence of a marker.
-    @MainActor
-    final class EventRecorder {
-        private(set) var lines: [String] = []
-        let startedAt = Date()
-
-        func append(_ line: String) {
-            lines.append(String(format: "%8.3fs  %@", Date().timeIntervalSince(startedAt), line))
-        }
-    }
-
-    @MainActor static var eventRecorder: EventRecorder?
-    @MainActor private static var clipboardMonitorTimer: Timer?
-    @MainActor private static let fseventsMonitorKey = NSObject()
-
-    /// Called by Clop's clipboard and file watchers when they accept an event,
-    /// so the live event trace can mark what was actually handled. No-op
-    /// unless a debug dump capture window is open.
-    @MainActor static func record(_ line: String) {
-        eventRecorder?.append(line)
     }
 
     @MainActor

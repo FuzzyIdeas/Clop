@@ -12,6 +12,7 @@ let CROP_WINDOW_SIZE: CGFloat = 600
 
 extension Optimiser {
     func showCropWindow() {
+        guard !isPreview else { return }
         if let window = cropWindowController?.window {
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
@@ -106,6 +107,7 @@ enum CropHandle: CaseIterable {
 
 struct CropSelectionOverlay: View {
     @Binding var rect: CropRect
+
     let viewSize: CGSize
     let sourceSize: NSSize
     var aspect: Double? = nil
@@ -116,20 +118,6 @@ struct CropSelectionOverlay: View {
     var previewImage: NSImage? = nil
     var onEdit: () -> Void = {}
     var onReset: () -> Void = {}
-
-    @State private var dragStart: CGRect? = nil
-    @State private var interacting = false
-
-    private static let minSide: CGFloat = 24
-
-    private var disp: CGRect {
-        CGRect(
-            x: rect.x * viewSize.width, y: rect.y * viewSize.height,
-            width: rect.width * viewSize.width, height: rect.height * viewSize.height
-        )
-    }
-    private var pixelSize: NSSize { rect.computedSize(from: sourceSize) }
-    private var cornerRadius: CGFloat { frameStyle.cornerRadius(for: disp) }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -146,10 +134,65 @@ struct CropSelectionOverlay: View {
         .frame(width: viewSize.width, height: viewSize.height)
     }
 
+    private static let minSide: CGFloat = 24
+
+    @State private var dragStart: CGRect? = nil
+    @State private var interacting = false
+
+    private var disp: CGRect {
+        CGRect(
+            x: rect.x * viewSize.width, y: rect.y * viewSize.height,
+            width: rect.width * viewSize.width, height: rect.height * viewSize.height
+        )
+    }
+    private var pixelSize: NSSize { rect.computedSize(from: sourceSize) }
+    private var cornerRadius: CGFloat { frameStyle.cornerRadius(for: disp) }
+
     /// How much the selection gets scaled down in the final file. 1 = no scaling.
     private var resultScaleFactor: CGFloat {
         guard let out = outputSize, pixelSize.width > 0 else { return 1 }
         return out.width / pixelSize.width
+    }
+
+    // MARK: Gestures
+
+    private var moveGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                let start = dragStart ?? disp
+                dragStart = start
+                interacting = true
+
+                var r = start
+                r.origin.x = min(max(start.minX + value.translation.width, 0), viewSize.width - start.width)
+                r.origin.y = min(max(start.minY + value.translation.height, 0), viewSize.height - start.height)
+                commit(r)
+            }
+            .onEnded { _ in endDrag() }
+    }
+
+    private var marqueeGesture: some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                interacting = true
+                var w = value.location.x - value.startLocation.x
+                var h = value.location.y - value.startLocation.y
+                if let aspect {
+                    if abs(w) / aspect >= abs(h) {
+                        h = (abs(w) / aspect) * (h < 0 ? -1 : 1)
+                    } else {
+                        w = abs(h) * aspect * (w < 0 ? -1 : 1)
+                    }
+                }
+                let r = CGRect(
+                    x: w < 0 ? value.startLocation.x + w : value.startLocation.x,
+                    y: h < 0 ? value.startLocation.y + h : value.startLocation.y,
+                    width: abs(w), height: abs(h)
+                ).intersection(CGRect(origin: .zero, size: viewSize))
+                guard r.width >= 8, r.height >= 8 else { return }
+                commit(r)
+            }
+            .onEnded { _ in endDrag() }
     }
 
     /// When the output is significantly smaller than the selection, float a render of the
@@ -272,23 +315,6 @@ struct CropSelectionOverlay: View {
         .contentShape(Rectangle())
     }
 
-    // MARK: Gestures
-
-    private var moveGesture: some Gesture {
-        DragGesture(minimumDistance: 1)
-            .onChanged { value in
-                let start = dragStart ?? disp
-                dragStart = start
-                interacting = true
-
-                var r = start
-                r.origin.x = min(max(start.minX + value.translation.width, 0), viewSize.width - start.width)
-                r.origin.y = min(max(start.minY + value.translation.height, 0), viewSize.height - start.height)
-                commit(r)
-            }
-            .onEnded { _ in endDrag() }
-    }
-
     private func resizeGesture(_ handle: CropHandle) -> some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
@@ -296,30 +322,6 @@ struct CropSelectionOverlay: View {
                 dragStart = start
                 interacting = true
                 commit(resized(start: start, handle: handle, translation: value.translation))
-            }
-            .onEnded { _ in endDrag() }
-    }
-
-    private var marqueeGesture: some Gesture {
-        DragGesture(minimumDistance: 4)
-            .onChanged { value in
-                interacting = true
-                var w = value.location.x - value.startLocation.x
-                var h = value.location.y - value.startLocation.y
-                if let aspect {
-                    if abs(w) / aspect >= abs(h) {
-                        h = (abs(w) / aspect) * (h < 0 ? -1 : 1)
-                    } else {
-                        w = abs(h) * aspect * (w < 0 ? -1 : 1)
-                    }
-                }
-                let r = CGRect(
-                    x: w < 0 ? value.startLocation.x + w : value.startLocation.x,
-                    y: h < 0 ? value.startLocation.y + h : value.startLocation.y,
-                    width: abs(w), height: abs(h)
-                ).intersection(CGRect(origin: .zero, size: viewSize))
-                guard r.width >= 8, r.height >= 8 else { return }
-                commit(r)
             }
             .onEnded { _ in endDrag() }
     }
@@ -342,7 +344,7 @@ struct CropSelectionOverlay: View {
         let dy = translation.height
 
         // anchor: the point that must not move while resizing from this handle
-        let anchor: CGPoint = switch handle {
+        let anchor = switch handle {
         case .topLeft: CGPoint(x: start.maxX, y: start.maxY)
         case .top, .bottom: CGPoint(x: start.midX, y: handle == .top ? start.maxY : start.minY)
         case .topRight: CGPoint(x: start.minX, y: start.maxY)
@@ -429,9 +431,6 @@ struct SizePresetRow: View {
     var apply: () -> Void
     var delete: () -> Void
 
-    @State private var hovering = false
-    @State private var hoveringTrash = false
-
     var body: some View {
         Button(action: apply) {
             HStack(spacing: 6) {
@@ -474,6 +473,10 @@ struct SizePresetRow: View {
         .animation(.easeOut(duration: 0.1), value: hovering)
         .animation(.easeOut(duration: 0.1), value: hoveringTrash)
     }
+
+    @State private var hovering = false
+    @State private var hoveringTrash = false
+
 }
 
 /// Popup listing crop size groups with the member devices/papers as a native
@@ -493,6 +496,7 @@ struct CropSizeGroupPicker: NSViewRepresentable {
     }
 
     @Binding var selection: CropSize?
+
     let categories: [(category: String, groups: [CropSizeGroup])]
 
     func makeCoordinator() -> Coordinator {
@@ -1039,12 +1043,12 @@ struct CropView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             })
-                .buttonStyle(.borderedProminent)
-                .fontDesign(.rounded)
-                .monospacedDigit()
-                .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(optimiser.running || nothingToCrop)
-                .help("Press ⌘⏎ to crop")
+            .buttonStyle(.borderedProminent)
+            .fontDesign(.rounded)
+            .monospacedDigit()
+            .keyboardShortcut(.return, modifiers: [.command])
+            .disabled(optimiser.running || nothingToCrop)
+            .help("Press ⌘⏎ to crop")
         }
     }
 

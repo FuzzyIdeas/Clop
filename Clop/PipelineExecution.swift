@@ -375,101 +375,6 @@ final class PipelineExecution {
         retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
     }
 
-    private func targetSizeImage(bytes: Int, inputFile: FilePath) async -> FilePath? {
-        guard let data = try? Data(contentsOf: inputFile.url) else { return nil }
-        var img = Image(data: data, path: inputFile, optimised: false, retinaDownscaled: false)
-
-        if let optimised = try? await runImagePipeline(
-            img, actions: [.optimise],
-            allowLarger: false, hideFloatingResult: hide,
-            aggressiveOptimisation: true, source: source
-        ) {
-            img = optimised
-        }
-
-        var attempts = 0
-        while let size = img.path.fileSize(), size > bytes, attempts < 5 {
-            let factor = max(0.2, (Double(bytes) / Double(size)).squareRoot() * 0.92)
-            guard let imgData = try? Data(contentsOf: img.path.url) else { break }
-            let fresh = Image(data: imgData, path: img.path, optimised: false, retinaDownscaled: false)
-            guard let smaller = try? await runImagePipeline(
-                fresh, actions: [.downscale(factor: factor, cropSize: nil)],
-                allowLarger: true, hideFloatingResult: hide,
-                aggressiveOptimisation: true, source: source
-            ) else { break }
-            img = smaller
-            attempts += 1
-        }
-        return img.path
-    }
-
-    private func targetSizeVideo(bytes: Int, inputFile: FilePath) async -> FilePath? {
-        let vid = await (try? Video.byFetchingMetadata(path: inputFile)) ?? Video(inputFile)
-        guard let duration = vid.duration, duration > 0 else {
-            // No duration metadata: best effort with aggressive optimisation
-            return (try? await runVideoPipeline(vid, actions: [.optimise], allowLarger: true, hideFloatingResult: hide, aggressiveOptimisation: true, source: source))?.path
-        }
-
-        func encode(toFit target: Int, video: Video) async -> FilePath? {
-            // 7% container overhead margin, 128 kbps reserved for audio.
-            // libx264 ABR with a tight maxrate: hardware encoders ignore very low
-            // bitrate targets, software x264 actually honours them.
-            let totalKbps = Double(target) * 8.0 * 0.93 / duration / 1000.0
-            let videoKbps = max(40.0, totalKbps - 128.0)
-            let encoderArgs = [
-                "-vcodec", "libx264",
-                "-preset", "fast",
-                "-b:v", "\(Int(videoKbps))k",
-                "-maxrate", "\(Int(videoKbps * 1.2))k",
-                "-bufsize", "\(Int(videoKbps * 2))k",
-            ]
-            return (try? await runVideoPipeline(
-                vid, actions: [.optimise],
-                allowLarger: true, hideFloatingResult: hide,
-                ffmpegEncoderOverride: encoderArgs, source: source
-            ))?.path
-        }
-
-        guard var result = await encode(toFit: bytes, video: vid) else { return nil }
-        // One retry on VBV overshoot, aiming proportionally lower
-        if let actual = result.fileSize(), actual > bytes {
-            let correctedTarget = Int(Double(bytes) * Double(bytes) / Double(actual) * 0.95)
-            let retryVid = await (try? Video.byFetchingMetadata(path: result)) ?? Video(result)
-            if let retried = await encode(toFit: correctedTarget, video: retryVid) {
-                result = retried
-            }
-        }
-        return result
-    }
-
-    private func targetSizePDF(bytes: Int, inputFile: FilePath) async -> FilePath? {
-        var result: FilePath?
-        for stop in PDF_DPI_STOPS.sorted(by: >).dropFirst() { // 250 down to 48
-            let pdf = PDF(inputFile)
-            guard let optimised = try? await runPDFPipeline(
-                pdf, actions: [.optimise],
-                allowLarger: true, hideFloatingResult: hide,
-                aggressiveOptimisation: true, dpiOverride: stop, source: source
-            ) else { continue }
-            result = optimised.path
-            if let size = optimised.path.fileSize(), size <= bytes { break }
-        }
-        return result
-    }
-
-    private func targetSizeAudio(bytes: Int, inputFile: FilePath) async -> FilePath? {
-        let audio = await (try? Audio.byFetchingMetadata(path: inputFile, thumb: false)) ?? Audio(path: inputFile, thumb: false)
-        guard let duration = audio.duration, duration > 0 else { return nil }
-
-        let kbps = Int(Double(bytes) * 8.0 * 0.95 / duration / 1000.0)
-        let clamped = audio.loweredBitrate(kbps: kbps) ?? kbps
-        return (try? await runAudioPipeline(
-            audio, actions: [.optimise],
-            allowLarger: true, hideFloatingResult: hide,
-            source: source, bitrateOverride: clamped
-        ))?.path
-    }
-
     // MARK: - Metadata & Overlay Steps
 
     func handleStripExif() async {
@@ -579,57 +484,6 @@ final class PipelineExecution {
             return
         }
         await watermarkWithFFmpeg(input: input, wm: wm, baseWidth: baseWidth, position: position, opacity: opacity, scale: scale, location: location, isVideo: true)
-    }
-
-    /// ffmpeg-based watermarking, used for videos and animated GIFs (both need every frame
-    /// overlaid). Still images go through `Image.watermarked` instead.
-    private func watermarkWithFFmpeg(input: FilePath, wm: FilePath, baseWidth: Int, position: String, opacity: Double, scale: Double, location: String, isVideo: Bool) async {
-        let targetWmWidth = max(16, Int(Double(baseWidth) * scale))
-        let coords = switch position {
-        case "topLeft": "20:20"
-        case "topRight": "W-w-20:20"
-        case "bottomLeft": "20:H-h-20"
-        case "center": "(W-w)/2:(H-h)/2"
-        default: "W-w-20:H-h-20"
-        }
-        let filter = "[1:v]scale=\(targetWmWidth):-1,format=rgba,colorchannelmixer=aa=\(opacity)[wm];[0:v][wm]overlay=\(coords)"
-
-        let tempDir: FilePath = isVideo ? .videos : .images
-        let output = tempDir.appending("wm-\(UUID().uuidString.prefix(8))-\(input.lastComponent?.string ?? "file")")
-        var args = ["-y", "-i", input.string, "-i", wm.string, "-filter_complex", filter]
-        if isVideo {
-            args += ["-c:a", "copy"]
-        }
-        args.append(output.string)
-
-        optimiser.running = true
-        optimiser.operation = "Watermarking"
-        let success: Bool = await Task.detached {
-            let proc = Process()
-            proc.executableURL = FFMPEG.url
-            proc.arguments = args
-            proc.standardOutput = FileHandle.nullDevice
-            let errPipe = Pipe()
-            proc.standardError = errPipe
-            do { try proc.run() } catch { return false }
-            proc.waitUntilExit()
-            if proc.terminationStatus != 0 {
-                let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                log.error("Pipeline: watermark ffmpeg failed for \(input.string): \(err.suffix(500))")
-            }
-            return proc.terminationStatus == 0 && output.exists && (output.fileSize() ?? 0) > 0
-        }.value
-        optimiser.running = false
-
-        guard success else {
-            optimiser.finish(error: "Watermarking failed")
-            shouldStop = true
-            return
-        }
-        // Name the result like the input so applyLocation(inPlace) replaces the original
-        let named = (try? output.move(to: output.dir.appending(input.lastComponent?.string ?? output.name.string), force: true)) ?? output
-        currentFile = applyLocation(location, to: named, original: currentFile, context: context)
-        if !hide { shownVisibleResult = true }
     }
 
     func handleCapFps(fps: Int) async {
@@ -1013,17 +867,25 @@ final class PipelineExecution {
 
     // MARK: - Generic Action Steps
 
-    func handleRunScript(scriptPath: String) async {
-        let resolvedPath = context.resolve(scriptPath)
+    func handleRunScript(path: String?, code: String?) async {
         let inputPath = currentFile.string
-        let scriptName = FilePath(resolvedPath).stem ?? resolvedPath
-        log.debug("Pipeline: running script '\(scriptName)' at \(resolvedPath) with input \(inputPath)")
+
+        // Inline code is run literally via `zsh -c` so the script's own `$1` stays the input
+        // file (don't resolve % tokens / $1 captures into it). A path is resolved as before:
+        // run directly if executable, otherwise as a script file via zsh.
+        let inlineCode = (code?.isEmpty == false) ? code : nil
+        let resolvedPath = inlineCode == nil ? context.resolve(path ?? "") : ""
+        let scriptName = inlineCode != nil ? "inline code" : (FilePath(resolvedPath).stem ?? resolvedPath)
+        log.debug("Pipeline: running script '\(scriptName)' with input \(inputPath)")
 
         let currentFile = currentFile
         let scriptResult: (newPath: FilePath?, error: String?) = await Task.detached {
             let task = Process()
-            let resolvedFilePath = FilePath(resolvedPath)
-            if fm.isExecutableFile(atPath: resolvedPath) {
+            if let inlineCode {
+                task.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                // argv after the command string become $0, $1, …: pass the input file as $1.
+                task.arguments = ["-c", inlineCode, "clop", inputPath]
+            } else if fm.isExecutableFile(atPath: resolvedPath) {
                 task.executableURL = URL(fileURLWithPath: resolvedPath)
                 task.arguments = [inputPath]
             } else {
@@ -1053,7 +915,7 @@ final class PipelineExecution {
 
             if task.terminationStatus != 0 {
                 let logContent = """
-                Script: \(scriptName) (\(resolvedPath))
+                Script: \(scriptName) (\(inlineCode ?? resolvedPath))
                 Input: \(inputPath)
                 Exit code: \(task.terminationStatus)
                 stdout: \(stdout)
@@ -1195,9 +1057,9 @@ final class PipelineExecution {
         try? currentFile.setOptimisationStatusXattr("true")
     }
 
-    func handleCopyLinkForSending() async {
+    func handleCopyLinkForSending(expiration: TimeInterval? = nil) async {
         let url = currentFile.url
-        if let shareURL = await warpDropSendAndWait(url: url, optimiser: optimiser) {
+        if let shareURL = await warpDropSendAndWait(url: url, optimiser: optimiser, expiration: expiration) {
             log.debug("Pipeline: send link copied: \(shareURL)")
         }
     }
@@ -1273,6 +1135,152 @@ final class PipelineExecution {
             optimiser.finish(error: "App '\(app)' not found")
             shouldStop = true
         }
+    }
+
+    private func targetSizeImage(bytes: Int, inputFile: FilePath) async -> FilePath? {
+        guard let data = try? Data(contentsOf: inputFile.url) else { return nil }
+        var img = Image(data: data, path: inputFile, optimised: false, retinaDownscaled: false)
+
+        if let optimised = try? await runImagePipeline(
+            img, actions: [.optimise],
+            allowLarger: false, hideFloatingResult: hide,
+            aggressiveOptimisation: true, source: source
+        ) {
+            img = optimised
+        }
+
+        var attempts = 0
+        while let size = img.path.fileSize(), size > bytes, attempts < 5 {
+            let factor = max(0.2, (Double(bytes) / Double(size)).squareRoot() * 0.92)
+            guard let imgData = try? Data(contentsOf: img.path.url) else { break }
+            let fresh = Image(data: imgData, path: img.path, optimised: false, retinaDownscaled: false)
+            guard let smaller = try? await runImagePipeline(
+                fresh, actions: [.downscale(factor: factor, cropSize: nil)],
+                allowLarger: true, hideFloatingResult: hide,
+                aggressiveOptimisation: true, source: source
+            ) else { break }
+            img = smaller
+            attempts += 1
+        }
+        return img.path
+    }
+
+    private func targetSizeVideo(bytes: Int, inputFile: FilePath) async -> FilePath? {
+        let vid = await (try? Video.byFetchingMetadata(path: inputFile)) ?? Video(inputFile)
+        guard let duration = vid.duration, duration > 0 else {
+            // No duration metadata: best effort with aggressive optimisation
+            return await (try? runVideoPipeline(vid, actions: [.optimise], allowLarger: true, hideFloatingResult: hide, aggressiveOptimisation: true, source: source))?.path
+        }
+
+        func encode(toFit target: Int, video: Video) async -> FilePath? {
+            // 7% container overhead margin, 128 kbps reserved for audio.
+            // libx264 ABR with a tight maxrate: hardware encoders ignore very low
+            // bitrate targets, software x264 actually honours them.
+            let totalKbps = Double(target) * 8.0 * 0.93 / duration / 1000.0
+            let videoKbps = max(40.0, totalKbps - 128.0)
+            let encoderArgs = [
+                "-vcodec", "libx264",
+                "-preset", "fast",
+                "-b:v", "\(Int(videoKbps))k",
+                "-maxrate", "\(Int(videoKbps * 1.2))k",
+                "-bufsize", "\(Int(videoKbps * 2))k",
+            ]
+            return await (try? runVideoPipeline(
+                vid, actions: [.optimise],
+                allowLarger: true, hideFloatingResult: hide,
+                ffmpegEncoderOverride: encoderArgs, source: source
+            ))?.path
+        }
+
+        guard var result = await encode(toFit: bytes, video: vid) else { return nil }
+        // One retry on VBV overshoot, aiming proportionally lower
+        if let actual = result.fileSize(), actual > bytes {
+            let correctedTarget = Int(Double(bytes) * Double(bytes) / Double(actual) * 0.95)
+            let retryVid = await (try? Video.byFetchingMetadata(path: result)) ?? Video(result)
+            if let retried = await encode(toFit: correctedTarget, video: retryVid) {
+                result = retried
+            }
+        }
+        return result
+    }
+
+    private func targetSizePDF(bytes: Int, inputFile: FilePath) async -> FilePath? {
+        var result: FilePath?
+        for stop in PDF_DPI_STOPS.sorted(by: >).dropFirst() { // 250 down to 48
+            let pdf = PDF(inputFile)
+            guard let optimised = try? await runPDFPipeline(
+                pdf, actions: [.optimise],
+                allowLarger: true, hideFloatingResult: hide,
+                aggressiveOptimisation: true, dpiOverride: stop, source: source
+            ) else { continue }
+            result = optimised.path
+            if let size = optimised.path.fileSize(), size <= bytes { break }
+        }
+        return result
+    }
+
+    private func targetSizeAudio(bytes: Int, inputFile: FilePath) async -> FilePath? {
+        let audio = await (try? Audio.byFetchingMetadata(path: inputFile, thumb: false)) ?? Audio(path: inputFile, thumb: false)
+        guard let duration = audio.duration, duration > 0 else { return nil }
+
+        let kbps = Int(Double(bytes) * 8.0 * 0.95 / duration / 1000.0)
+        let clamped = audio.loweredBitrate(kbps: kbps) ?? kbps
+        return await (try? runAudioPipeline(
+            audio, actions: [.optimise],
+            allowLarger: true, hideFloatingResult: hide,
+            source: source, bitrateOverride: clamped
+        ))?.path
+    }
+
+    /// ffmpeg-based watermarking, used for videos and animated GIFs (both need every frame
+    /// overlaid). Still images go through `Image.watermarked` instead.
+    private func watermarkWithFFmpeg(input: FilePath, wm: FilePath, baseWidth: Int, position: String, opacity: Double, scale: Double, location: String, isVideo: Bool) async {
+        let targetWmWidth = max(16, Int(Double(baseWidth) * scale))
+        let coords = switch position {
+        case "topLeft": "20:20"
+        case "topRight": "W-w-20:20"
+        case "bottomLeft": "20:H-h-20"
+        case "center": "(W-w)/2:(H-h)/2"
+        default: "W-w-20:H-h-20"
+        }
+        let filter = "[1:v]scale=\(targetWmWidth):-1,format=rgba,colorchannelmixer=aa=\(opacity)[wm];[0:v][wm]overlay=\(coords)"
+
+        let tempDir: FilePath = isVideo ? .videos : .images
+        let output = tempDir.appending("wm-\(UUID().uuidString.prefix(8))-\(input.lastComponent?.string ?? "file")")
+        var args = ["-y", "-i", input.string, "-i", wm.string, "-filter_complex", filter]
+        if isVideo {
+            args += ["-c:a", "copy"]
+        }
+        args.append(output.string)
+
+        optimiser.running = true
+        optimiser.operation = "Watermarking"
+        let success: Bool = await Task.detached {
+            let proc = Process()
+            proc.executableURL = FFMPEG.url
+            proc.arguments = args
+            proc.standardOutput = FileHandle.nullDevice
+            let errPipe = Pipe()
+            proc.standardError = errPipe
+            do { try proc.run() } catch { return false }
+            proc.waitUntilExit()
+            if proc.terminationStatus != 0 {
+                let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                log.error("Pipeline: watermark ffmpeg failed for \(input.string): \(err.suffix(500))")
+            }
+            return proc.terminationStatus == 0 && output.exists && (output.fileSize() ?? 0) > 0
+        }.value
+        optimiser.running = false
+
+        guard success else {
+            optimiser.finish(error: "Watermarking failed")
+            shouldStop = true
+            return
+        }
+        // Name the result like the input so applyLocation(inPlace) replaces the original
+        let named = (try? output.move(to: output.dir.appending(input.lastComponent?.string ?? output.name.string), force: true)) ?? output
+        currentFile = applyLocation(location, to: named, original: currentFile, context: context)
+        if !hide { shownVisibleResult = true }
     }
 
     // MARK: - File Operation Steps

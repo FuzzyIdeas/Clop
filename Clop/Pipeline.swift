@@ -480,14 +480,14 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             await exec.handleRemoveAudio()
         case let .changeSpeed(factor):
             try await exec.handleChangeSpeed(factor: factor)
-        case let .runScript(scriptPath):
-            await exec.handleRunScript(scriptPath: scriptPath)
+        case let .runScript(path, code):
+            await exec.handleRunScript(path: path, code: code)
         case let .runShortcut(shortcut):
             await exec.handleRunShortcut(shortcut: shortcut)
         case let .copyToClipboard(format, relativeTo):
             exec.handleCopyToClipboard(format: format, relativeTo: relativeTo)
-        case .copyLinkForSending:
-            await exec.handleCopyLinkForSending()
+        case let .copyLinkForSending(expiration):
+            await exec.handleCopyLinkForSending(expiration: expiration)
         case let .shelveWith(app):
             try await exec.handleShelveWith(app: app)
         case let .uploadWith(app):

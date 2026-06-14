@@ -302,7 +302,10 @@ struct CropOptimiseFileIntent: AppIntent {
     init() {}
 
     static var title: LocalizedStringResource = "Crop image or video"
-    static var description = IntentDescription("Resizes and does a smart crop on an image or video received as input. Use 0 for width or height to have it calculated automatically while keeping the original aspect ratio.", categoryName: "Optimisation")
+    static var description = IntentDescription(
+        "Resizes and does a smart crop on an image or video received as input. Use 0 for width or height to have it calculated automatically while keeping the original aspect ratio.",
+        categoryName: "Optimisation"
+    )
 
     static var parameterSummary: some ParameterSummary {
         When(\.$longEdge, .equalTo, true, {
@@ -735,7 +738,13 @@ struct DownscaleFileIntent: AppIntent {
     @Parameter(title: "Remove audio from video")
     var removeAudio: Bool
 
-    @Parameter(title: "Downscale factor", description: "Makes the image or video smaller by a certain amount (1.0 means no change, 0.5 means half the size, or half the bitrate for audio)", default: 0.5, controlStyle: .field, inclusiveRange: (0.1, 1.0))
+    @Parameter(
+        title: "Downscale factor",
+        description: "Makes the image or video smaller by a certain amount (1.0 means no change, 0.5 means half the size, or half the bitrate for audio)",
+        default: 0.5,
+        controlStyle: .field,
+        inclusiveRange: (0.1, 1.0)
+    )
     var downscaleFactor: Double
 
     @Parameter(title: "Output path", description: """

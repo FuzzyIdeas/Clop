@@ -138,7 +138,7 @@ class Audio: Optimisable {
 
         let format = formatOverride ?? Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
         let rawBitrate = bitrateOverride ?? (optimiser.compressionOverride ?? Defaults[.audioCompression]).audioBitrate(for: format) ?? Defaults[.audioBitrate]
-        var bitrate = format.resolveBitrate(rawBitrate, inputBitrate: self.bitrate)
+        var bitrate = format.resolveBitrate(rawBitrate, inputBitrate: bitrate)
         // Aggressive must actually shrink: for lossy formats force at least one allowed step below the
         // source bitrate, otherwise re-encoding at the same (or capped) bitrate would be a no-op.
         if aggressive, !format.allowedBitrates.isEmpty {
@@ -146,7 +146,8 @@ class Audio: Optimisable {
         }
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
-        var args = ["-y", "-i", inputPath.string, "-vn"]
+        var args = ["-y", "-i", inputPath.string]
+        args += audioCoverArtArgs(input: inputPath, format: format, stem: name.stem, behaviour: Defaults[.audioCoverArt])
         args += format.encodingArgs(bitrate: bitrate, aggressive: aggressive, inputSampleRate: sampleRate)
         if let loudnormTarget {
             args += ["-af", "loudnorm=I=\(loudnormTarget):TP=-1.5:LRA=11"]
@@ -280,7 +281,8 @@ class Audio: Optimisable {
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path
 
-        var args = ["-y", "-i", inputPath.string, "-vn"]
+        var args = ["-y", "-i", inputPath.string]
+        args += audioCoverArtArgs(input: inputPath, format: format, stem: name.stem, behaviour: Defaults[.audioCoverArt])
         args += format.encodingArgs(bitrate: bitrate)
         args += [
             "-progress", "pipe:2",
@@ -342,6 +344,262 @@ func getAudioMetadata(path: FilePath) async throws -> AudioMetadata? {
     }
 
     return AudioMetadata(duration: duration, bitrate: bitrate, sampleRate: sampleRate, codec: codec)
+}
+
+/// Build the ffmpeg argument block (inserted right after `-i <input>`) that applies the user's
+/// cover-art behaviour to an audio re-encode. For `.optimise` it extracts the embedded artwork
+/// losslessly and recompresses it with Clop's image optimisers, then returns it as a second input
+/// to re-attach. Returns `["-vn"]` (strip art) when the format can't carry art, the behaviour is
+/// `.remove`, or no artwork is found.
+func audioCoverArtArgs(input: FilePath, format: AudioFormat, stem: String, behaviour: AudioCoverArtBehaviour) -> [String] {
+    guard behaviour != .remove, format.supportsCoverArt else {
+        return ["-vn"]
+    }
+
+    if behaviour == .keep {
+        // Copy the original art stream untouched; `?` keeps the map optional so art-less files still encode.
+        return ["-map", "0:a", "-map", "0:v?", "-c:v", "copy"]
+    }
+
+    guard let cover = optimisedAudioCoverArt(input: input, stem: stem) else {
+        // No embedded art (or extraction failed): nothing to optimise, strip cleanly.
+        return ["-vn"]
+    }
+    var args = ["-i", cover.string, "-map", "0:a", "-map", "1:v", "-c:v", "copy", "-disposition:v:0", "attached_pic"]
+    if format == .mp3 {
+        args += ["-id3v2_version", "3"]
+    }
+    return args
+}
+
+/// jpegli quality (via the bundled jpegli-backed jpegoptim) for aggressive cover-art recompression.
+/// 68 is the validated sweet spot: near-visually-lossless album art at a fraction of the size.
+let AUDIO_COVER_JPEG_QUALITY = 68
+
+/// Shannon-entropy gate above which a PNG cover is worth trying as a JPEG (photographic art has high
+/// entropy and shrinks far more as JPEG; flat graphics stay smaller as PNG). Mirrors the `< 5`
+/// threshold Clop's image adaptive optimisation uses for the opposite JPEG→PNG decision.
+let COVER_JPEG_ENTROPY_THRESHOLD = 5.0
+
+/// Recompress a JPEG cover in place with the bundled jpegli-backed jpegoptim at the aggressive
+/// cover-art quality. Shared by the JPEG path and the adaptive PNG→JPEG trial.
+func optimiseCoverJPEG(_ path: FilePath) {
+    #if arch(arm64)
+        let archArgs = ["--auto-mode"]
+    #else
+        let archArgs: [String] = []
+    #endif
+    _ = try? tryProc(JPEGOPTIM.string, args: ["--strip-all", "--force", "--max", "\(AUDIO_COVER_JPEG_QUALITY)"] + archArgs + [path.string], tries: 2, captureOutput: true)
+}
+
+/// Extract the embedded cover art as losslessly as possible (copy the original encoded bytes, no
+/// transcode and no resize) into a temp file named by its real format (.jpg/.png sniffed from the
+/// header bytes, .img when unknown). Returns nil when there's no artwork or extraction fails.
+/// Shared by the optimise pass and the "Extract cover art" action.
+func extractedAudioCoverArt(input: FilePath, stem: String) -> FilePath? {
+    let token = "\(stem)-cover-\(Int.random(in: 100 ... 100_000))"
+    let rawPath = FilePath.images.appending("\(token).img")
+    try? rawPath.delete()
+
+    // Lossless extraction: copy the original encoded packet straight out, no re-encode or resize.
+    guard let proc = try? tryProc(FFMPEG.string, args: [
+        "-y", "-i", input.string, "-an", "-map", "0:v:0", "-c:v", "copy", "-f", "image2", rawPath.string,
+    ], tries: 1, captureOutput: true),
+    proc.terminationStatus == 0, let data = fm.contents(atPath: rawPath.string), !data.isEmpty
+    else {
+        try? rawPath.delete()
+        return nil
+    }
+
+    // The container reports the codec, not the extension, so sniff the header to name the file.
+    let ext: String? = if data.starts(with: [0xFF, 0xD8, 0xFF] as [UInt8]) {
+        "jpg"
+    } else if data.starts(with: [0x89, 0x50, 0x4E, 0x47] as [UInt8]) {
+        "png"
+    } else {
+        nil
+    }
+    guard let ext else { return rawPath }
+    let coverPath = FilePath.images.appending("\(token).\(ext)")
+    return (try? rawPath.move(to: coverPath, force: true)) != nil ? coverPath : rawPath
+}
+
+/// Extract the embedded cover art losslessly, then recompress it in place at aggressive settings
+/// while keeping the original resolution. JPEG art goes through jpegoptim (jpegli); PNG art through
+/// pngquant, with an adaptive PNG→JPEG trial for photographic covers. Returns the temp file, or nil
+/// when the input has no artwork or extraction fails.
+func optimisedAudioCoverArt(input: FilePath, stem: String) -> FilePath? {
+    guard let coverPath = extractedAudioCoverArt(input: input, stem: stem),
+          let data = fm.contents(atPath: coverPath.string)
+    else { return nil }
+
+    let cq = CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_AGGRESSIVE)
+
+    if data.starts(with: [0xFF, 0xD8, 0xFF] as [UInt8]) {
+        optimiseCoverJPEG(coverPath)
+        return coverPath
+    }
+
+    if data.starts(with: [0x89, 0x50, 0x4E, 0x47] as [UInt8]) {
+        // Baseline: pngquant the PNG in place at aggressive settings.
+        _ = try? tryProc(PNGQUANT.string, args: ["--force", "--speed", "\(cq.pngQuantSpeed)", "--quality", cq.pngQuantQuality, "--ext", ".png", coverPath.string], tries: 2, captureOutput: true)
+
+        // Adaptive, mirroring Clop's image optimisation: photographic (high-entropy) art usually
+        // shrinks far more as JPEG. Convert the original to a 100%-quality JPEG, jpegoptim it, and
+        // keep it when it beats the pngquant result.
+        let original = Image(data: data, path: coverPath, type: .png, retinaDownscaled: false)
+        if !original.image.hasTransparentPixels, (original.image.entropy ?? 0) >= COVER_JPEG_ENTROPY_THRESHOLD,
+           let jpeg = try? original.convert(to: .jpeg, asTempFile: true)
+        {
+            optimiseCoverJPEG(jpeg.path)
+            if let pngSize = coverPath.fileSize(), let jpegSize = jpeg.path.fileSize(), jpegSize < pngSize {
+                return jpeg.path
+            }
+        }
+        return coverPath
+    }
+
+    // Unknown image format: re-embed the losslessly-extracted art untouched rather than dropping it.
+    return coverPath
+}
+
+/// Pull the embedded cover art out of an audio file and surface it as a new floating image result
+/// the user can save, drag, or optimise. Mirrors the PDF "extract pages as images" flow.
+@MainActor func extractAudioCoverArt(optimiser: Optimiser) {
+    guard !optimiser.isPreview else { return }
+    guard let url = optimiser.url ?? optimiser.originalURL, let audioPath = url.filePath else {
+        optimiser.overlayMessage = "No file"
+        return
+    }
+    let stem = audioPath.lastComponent?.stem ?? "cover"
+    let source = optimiser.source
+
+    audioOptimisationQueue.addOperation {
+        guard let coverPath = extractedAudioCoverArt(input: audioPath, stem: stem) else {
+            mainActor { optimiser.overlayMessage = "No cover art" }
+            return
+        }
+        mainActor {
+            guard let img = Image(path: coverPath, retinaDownscaled: false) else {
+                optimiser.overlayMessage = "Extract failed"
+                return
+            }
+            // Surface the extracted art as its own finished result WITHOUT running it through the
+            // optimiser: the user asked for the original embedded cover, not a re-compressed copy.
+            let coverType: ItemType = coverPath.extension?.lowercased() == "png" ? .image(.png) : .image(.jpeg)
+            let cover = OM.optimiser(id: coverPath.string, type: coverType, operation: "", source: source)
+            cover.url = coverPath.url
+            cover.originalURL = coverPath.url
+            cover.thumbnail = img.image
+            cover.image = img
+            let bytes = coverPath.fileSize() ?? img.data.count
+            cover.finish(oldBytes: bytes, newBytes: bytes, oldSize: img.size)
+        }
+    }
+}
+
+/// Resolve the pristine, full-resolution cover art: the cached copy if we already grabbed one,
+/// otherwise extract it from `audio` (which is full-resolution until the first downscale) and cache
+/// it. Caching is what makes downscaling absolute, the in-place re-mux changes the file's backup
+/// hash, so we can't re-derive the original from disk afterwards. `cached` is read on the main actor
+/// by the caller and passed in; the cache write happens back on the main actor.
+func resolveOriginalAudioCoverArt(cached: FilePath?, optimiser: Optimiser, audio: FilePath, stem: String) -> FilePath? {
+    if let cached, cached.exists { return cached }
+    guard let cover = extractedAudioCoverArt(input: audio, stem: "\(stem)-orig") else { return nil }
+    mainActor { optimiser.coverArtOriginalPath = cover }
+    return cover
+}
+
+/// Lazily read the original embedded cover-art resolution and cache the original cover, for the
+/// "Downscale cover art" slider's resolution label.
+@MainActor func loadAudioCoverArtSize(optimiser: Optimiser) {
+    guard optimiser.coverArtSize == nil,
+          let url = optimiser.url ?? optimiser.originalURL, let path = url.filePath
+    else { return }
+    let stem = path.lastComponent?.stem ?? "audio"
+    let cached = optimiser.coverArtOriginalPath
+    audioOptimisationQueue.addOperation {
+        guard let coverPath = resolveOriginalAudioCoverArt(cached: cached, optimiser: optimiser, audio: path, stem: stem),
+              let image = NSImage(contentsOf: coverPath.url)
+        else { return }
+        let size = image.realSize
+        mainActor { optimiser.coverArtSize = size }
+    }
+}
+
+/// Downscale just the embedded cover art to `factor` of its ORIGINAL resolution, leaving the audio
+/// stream untouched (copied, not re-encoded). Absolute: it always scales from the cached pristine
+/// cover, so dragging back up restores detail and repeated downscales don't compound. At 100% the
+/// original cover is re-embedded verbatim.
+@MainActor func downscaleAudioCoverArt(optimiser: Optimiser, toFactor factor: Double) {
+    guard !optimiser.isPreview else { return }
+    guard let url = optimiser.url ?? optimiser.originalURL, let audioPath = url.filePath else { return }
+    let stem = audioPath.lastComponent?.stem ?? "audio"
+    let oldBytes = optimiser.oldBytes
+    let cached = optimiser.coverArtOriginalPath
+
+    optimiser.coverDownscaleFactor = factor
+    optimiser.running = true
+    optimiser.operation = "Downscaling cover art"
+    optimiser.stopRemover()
+
+    audioOptimisationQueue.addOperation {
+        func fail(_ message: String) {
+            mainActor {
+                optimiser.running = false
+                optimiser.overlayMessage = message
+            }
+        }
+        guard let coverOrig = resolveOriginalAudioCoverArt(cached: cached, optimiser: optimiser, audio: audioPath, stem: stem) else {
+            fail("No cover art")
+            return
+        }
+        let isPNG = coverOrig.extension?.lowercased() == "png"
+        let f = min(1.0, factor)
+
+        // The cover to embed: the pristine original at 100%, otherwise a scaled + recompressed copy.
+        let coverToEmbed: FilePath
+        if f >= 0.999 {
+            coverToEmbed = coverOrig
+        } else {
+            let scaledPath = FilePath.images.appending("\(stem)-cover-scaled-\(Int.random(in: 100 ... 100_000)).\(isPNG ? "png" : "jpg")")
+            // Even dimensions keep every encoder happy.
+            let scaleFilter = "scale='trunc(\(f)*iw/2)*2':'trunc(\(f)*ih/2)*2'"
+            var scaleArgs = ["-y", "-i", coverOrig.string, "-vf", scaleFilter]
+            if !isPNG { scaleArgs += ["-q:v", "3"] }
+            scaleArgs.append(scaledPath.string)
+            guard let sproc = try? tryProc(FFMPEG.string, args: scaleArgs, tries: 1, captureOutput: true),
+                  sproc.terminationStatus == 0, (scaledPath.fileSize() ?? 0) > 0
+            else {
+                fail("Downscale failed")
+                return
+            }
+            if !isPNG { optimiseCoverJPEG(scaledPath) }
+            coverToEmbed = scaledPath
+        }
+
+        // Re-mux: copy the (already optimised) audio stream, attach the cover.
+        let ext = audioPath.extension ?? "m4a"
+        let outPath = FilePath.audios.appending("\(stem)-coverscaled.\(ext)")
+        var muxArgs = ["-y", "-i", audioPath.string, "-i", coverToEmbed.string, "-map", "0:a", "-map", "1:v", "-c:a", "copy", "-c:v", "copy", "-disposition:v:0", "attached_pic"]
+        if ext.lowercased() == "mp3" { muxArgs += ["-id3v2_version", "3"] }
+        muxArgs.append(outPath.string)
+        guard let mproc = try? tryProc(FFMPEG.string, args: muxArgs, tries: 1, captureOutput: true),
+              mproc.terminationStatus == 0, (outPath.fileSize() ?? 0) > 0
+        else {
+            fail("Downscale failed")
+            return
+        }
+
+        let finalPath = (try? outPath.move(to: audioPath, force: true)) ?? outPath
+        // Keep the cached original; only the transient scaled copy is disposable.
+        if coverToEmbed != coverOrig { try? coverToEmbed.delete() }
+        mainActor {
+            optimiser.url = finalPath.url
+            let bytes = finalPath.fileSize() ?? oldBytes
+            optimiser.finish(oldBytes: oldBytes, newBytes: bytes)
+        }
+    }
 }
 
 /// Put audio on the thumbnail card: seed a generic placeholder immediately, then upgrade to the

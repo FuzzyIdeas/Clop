@@ -10,12 +10,12 @@ enum CropOrientation: String, CaseIterable, Codable {
 /// Being relative, it can be applied to any source size (pipeline runs operate on the
 /// original file, whose pixel size can differ from the displayed file).
 struct CropRect: Codable, Hashable {
+    static let full = CropRect(x: 0, y: 0, width: 1, height: 1)
+
     var x: Double
     var y: Double
     var width: Double
     var height: Double
-
-    static let full = CropRect(x: 0, y: 0, width: 1, height: 1)
 
     var isFullFrame: Bool {
         x <= 0.005 && y <= 0.005 && width >= 0.995 && height >= 0.995
