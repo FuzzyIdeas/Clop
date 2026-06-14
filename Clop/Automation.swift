@@ -543,11 +543,12 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         create: { .changeSpeed(factor: 1.5) }
     ),
     StepTemplate(
-        name: "runScript", description: "Run a script or executable, input file passed as $1 and CLOP_INPUT_FILE",
-        mandatoryParams: [
-            ParamTemplate(name: "path", description: "path to script or executable", suggestions: [], freeText: true, needsQuotes: true),
+        name: "runScript", description: "Run a script file, executable, or inline shell code. Input file is passed as $1 and CLOP_INPUT_FILE; print a file path to stdout to swap the file the pipeline carries forward",
+        mandatoryParams: [],
+        optionalParams: [
+            ParamTemplate(name: "path", description: "path to a script file or executable", suggestions: [], freeText: true, needsQuotes: true),
+            ParamTemplate(name: "code", description: "inline shell code run via zsh -c (use instead of path)", suggestions: [], freeText: true, needsQuotes: true),
         ],
-        optionalParams: [],
         applicableTypes: [.image, .video, .audio, .pdf],
         create: { .runScript(path: "") }
     ),
@@ -584,9 +585,16 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
     StepTemplate(
         name: "copyLinkForSending", description: "Send file securely and copy share link to clipboard",
         mandatoryParams: [],
-        optionalParams: [],
+        optionalParams: [
+            ParamTemplate(
+                name: "expiration",
+                description: "auto-stop the link after this long (1m–3d, or never). Defaults to the setting in Preferences",
+                suggestions: ["1m", "15m", "1h", "6h", "1d", "3d", "never"],
+                freeText: true
+            ),
+        ],
         applicableTypes: [.image, .video, .audio, .pdf],
-        create: { .copyLinkForSending }
+        create: { .copyLinkForSending() }
     ),
     StepTemplate(
         name: "shelveWith", description: "Send file to a shelf app",
@@ -657,7 +665,7 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
 
     // Handle no-param steps
     if trimmed == "removeAudio" { return .removeAudio }
-    if trimmed == "copyLinkForSending" { return .copyLinkForSending }
+    if trimmed == "copyLinkForSending" { return .copyLinkForSending() }
     if trimmed == "copyToClipboard" { return .copyToClipboard() }
     if trimmed == "stripExif" { return .stripExif }
     if trimmed == "normalize" { return .normalize() }
@@ -773,6 +781,9 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         return .changeSpeed(factor: factor)
 
     case "runScript":
+        if let code = params["code"], !code.isEmpty {
+            return .runScript(code: code)
+        }
         guard let scriptPath = params["path"], !scriptPath.isEmpty else { return nil }
         return .runScript(path: scriptPath)
 
@@ -788,7 +799,8 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         return .copyToClipboard(format: format, relativeTo: relativeTo)
 
     case "copyLinkForSending":
-        return .copyLinkForSending
+        let expiration = params["expiration"].flatMap { parseExpirationDuration($0) }
+        return .copyLinkForSending(expiration: expiration)
 
     case "shelveWith":
         guard let app = params["app"], ["yoink", "dockside", "dropover"].contains(app.lowercased()) else { return nil }

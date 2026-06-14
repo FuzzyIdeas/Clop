@@ -247,8 +247,6 @@ func fileActions(for url: URL) -> some View {
 struct PathFieldMenu: View {
     let url: URL
 
-    @State private var hovering = false
-
     var body: some View {
         Menu(url.shellString) {
             fileActions(for: url)
@@ -265,6 +263,9 @@ struct PathFieldMenu: View {
             withAnimation(.fastTransition) { hovering = hover }
         }
     }
+
+    @State private var hovering = false
+
 }
 
 /// A view that allows the user to preview a comparison of the optimised and original image/video/PDF.
@@ -318,65 +319,6 @@ struct CompareView: View {
             .coordinateSpace(name: "compareArea")
             .onContinuousHover(perform: trackHover(_:))
         }
-    }
-
-    func splitPreview(originalURL: URL, optimisedURL: URL) -> some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            ZStack(alignment: .leading) {
-                // Frame each renderer to the full pane so fitted content stays centered;
-                // the ZStack's `.leading` alignment would otherwise hug it to the left edge,
-                // leaving the divider stranded relative to the visible image.
-                renderer(for: optimisedURL)
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .scaleEffect(zoom, anchor: zoomOffset)
-                renderer(for: originalURL, otherVideoURL: optimisedURL)
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .scaleEffect(zoom, anchor: zoomOffset)
-                    .mask(alignment: .leading) {
-                        Rectangle().frame(width: max(width * splitPosition, 0))
-                    }
-                splitDivider(height: proxy.size.height)
-                    .offset(x: width * splitPosition - 1)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0).onChanged { value in
-                    splitPosition = min(max(value.location.x / width, 0), 1)
-                }
-            )
-            .contextMenu {
-                Section("Original") { fileActions(for: originalURL) }
-                Section("Optimised") { fileActions(for: optimisedURL) }
-            }
-        }
-        .frame(
-            minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE * 2, maxWidth: .infinity,
-            minHeight: COMPARISON_VIEW_SIZE / 2, idealHeight: COMPARISON_VIEW_SIZE, maxHeight: .infinity
-        )
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .background(paneFrameReader(.split))
-    }
-
-    func splitDivider(height: CGFloat) -> some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.9))
-            .frame(width: 2, height: height)
-            .shadow(color: .black.opacity(0.55), radius: 3)
-            .overlay(
-                ZStack {
-                    Circle()
-                        .fill(.regularMaterial)
-                        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-                    SwiftUI.Image(systemName: "arrow.left.and.right")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.primary)
-                }
-                .frame(width: 26, height: 26)
-            )
-            .allowsHitTesting(false)
     }
 
     @ViewBuilder var savingsBadge: some View {
@@ -509,6 +451,65 @@ struct CompareView: View {
             }
         }
         .padding(.top, 10)
+    }
+
+    func splitPreview(originalURL: URL, optimisedURL: URL) -> some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            ZStack(alignment: .leading) {
+                // Frame each renderer to the full pane so fitted content stays centered;
+                // the ZStack's `.leading` alignment would otherwise hug it to the left edge,
+                // leaving the divider stranded relative to the visible image.
+                renderer(for: optimisedURL)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .scaleEffect(zoom, anchor: zoomOffset)
+                renderer(for: originalURL, otherVideoURL: optimisedURL)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .scaleEffect(zoom, anchor: zoomOffset)
+                    .mask(alignment: .leading) {
+                        Rectangle().frame(width: max(width * splitPosition, 0))
+                    }
+                splitDivider(height: proxy.size.height)
+                    .offset(x: width * splitPosition - 1)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0).onChanged { value in
+                    splitPosition = min(max(value.location.x / width, 0), 1)
+                }
+            )
+            .contextMenu {
+                Section("Original") { fileActions(for: originalURL) }
+                Section("Optimised") { fileActions(for: optimisedURL) }
+            }
+        }
+        .frame(
+            minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE * 2, maxWidth: .infinity,
+            minHeight: COMPARISON_VIEW_SIZE / 2, idealHeight: COMPARISON_VIEW_SIZE, maxHeight: .infinity
+        )
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(paneFrameReader(.split))
+    }
+
+    func splitDivider(height: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.9))
+            .frame(width: 2, height: height)
+            .shadow(color: .black.opacity(0.55), radius: 3)
+            .overlay(
+                ZStack {
+                    Circle()
+                        .fill(.regularMaterial)
+                        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+                    SwiftUI.Image(systemName: "arrow.left.and.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.primary)
+                }
+                .frame(width: 26, height: 26)
+            )
+            .allowsHitTesting(false)
     }
 
     @ViewBuilder

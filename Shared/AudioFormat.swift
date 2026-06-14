@@ -50,6 +50,15 @@ enum AudioFormat: String, CaseIterable, Codable {
         self == .wav || self == .flac || self == .aiff
     }
 
+    /// Formats whose container can carry an embedded cover art picture that ffmpeg can write.
+    /// Opus/OGG, WAV and AIFF can't reliably hold an attached picture, so art is dropped there.
+    var supportsCoverArt: Bool {
+        switch self {
+        case .aac, .mp3, .flac: true
+        case .opus, .wav, .aiff, .sameAsInput: false
+        }
+    }
+
     var allowedBitrates: [Int] {
         switch self {
         case .sameAsInput: [56, 64, 80, 96, 128, 160, 192, 256, 320]
@@ -213,4 +222,22 @@ enum AudioFormat: String, CaseIterable, Codable {
         }
     }
 
+}
+
+/// What to do with the embedded cover art (album artwork) when an audio file is optimised.
+enum AudioCoverArtBehaviour: String, CaseIterable, Codable {
+    /// Downscale and recompress the artwork so it stops bloating the file (the default).
+    case optimise
+    /// Strip the artwork entirely.
+    case remove
+    /// Copy the original artwork through untouched.
+    case keep
+
+    var name: String {
+        switch self {
+        case .optimise: "Optimise"
+        case .remove: "Remove"
+        case .keep: "Leave untouched"
+        }
+    }
 }

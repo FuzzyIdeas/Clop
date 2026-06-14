@@ -261,6 +261,17 @@ enum TempPipelineSegment {
     @Published var oldDPI: Int? = nil
     @Published var newDPI: Int? = nil
 
+    /// Original embedded cover-art resolution, lazily loaded for the audio "Downscale cover art"
+    /// slider so it can show the target size.
+    @Published var coverArtSize: CGSize? = nil
+    /// Current cover-art scale (1.0 = original). Kept separate from `downscaleFactor` so audio cover
+    /// resizing doesn't get tangled up with the image/video resolution-downscale machinery.
+    @Published var coverDownscaleFactor = 1.0
+    /// Cached pristine, full-resolution cover art extracted on first use. Every cover downscale
+    /// scales from this so resizing is absolute (no compounding) and 100% restores the original.
+    /// In-place re-muxing changes the file's `clopBackupPath` hash, so we can't rely on the backup.
+    var coverArtOriginalPath: FilePath? = nil
+
     @Published var error: String? = nil
     @Published var notice: String? = nil
     @Published var info: String? = nil
@@ -270,8 +281,15 @@ enum TempPipelineSegment {
     @Published var convertedFromURL: URL?
     @Published var outputFolderURL: URL? = nil
     @Published var downscaleFactor = 1.0
+    /// True while the pointer is over the filename name segment specifically (not the extension or
+    /// the rest of the card), so the card can hide the crop button and let the name expand.
+    @Published var hoveringFilename = false
     @Published var showDownscaleSlider = false
     @Published var showCompressionSlider = false
+    /// While true, the floating card shows the "Send securely" expiration overlay (slider + confirm).
+    @Published var showSendExpiration = false
+    /// Chosen link expiration (seconds) for the pending send; seeded from the default setting.
+    @Published var sendExpiration: TimeInterval = Defaults[.defaultLinkExpiration]
     /// Set after a manual action (scale, compression, restore) so the hover overlay collapses and the
     /// new file size is visible; cleared on the next hover so the overlay returns on the next pass.
     @Published var collapseHoverOverlay = false
@@ -334,6 +352,10 @@ enum TempPipelineSegment {
     /// can re-open on the uncropped source with the current crop pre-selected
     var lastCropSize: CropSize?
 
+    var isComparing = false
+
+    @Published var stepIndicator = ""
+
     /// The pristine uncropped file that rect crops should start from. The backup name
     /// hashes the file's timestamp, so in-place changes (like a previous crop) can make
     /// it unresolvable: fall back to the URLs tracked at optimisation time.
@@ -350,10 +372,6 @@ enum TempPipelineSegment {
         }
         return nil
     }
-
-    var isComparing = false
-
-    @Published var stepIndicator = ""
 
     var fileType: ClopFileType? {
         switch type {
@@ -809,6 +827,7 @@ enum TempPipelineSegment {
     }
 
     func convert(to type: UTType, optimise: Bool = false) {
+        guard !isPreview else { return }
         guard type != self.type.utType else { return }
         let typeStr = type.preferredFilenameExtension ?? type.identifier
 
@@ -1055,6 +1074,7 @@ enum TempPipelineSegment {
     }
 
     func rename(to newFileName: String) {
+        guard !isPreview else { return }
         let newFileName = newFileName.safeFilename
         guard !newFileName.isEmpty, let currentPath = url?.existingFilePath, currentPath.stem != newFileName else {
             return
@@ -1102,14 +1122,10 @@ enum TempPipelineSegment {
     }
 
     func canDownscale() -> Bool {
-        switch type {
-        case .image(.png), .image(.jpeg), .image(.gif), .video(.mpeg4Movie), .video(.quickTimeMovie), .pdf:
-            true
-        case .audio:
-            true
-        default:
-            false
-        }
+        // Downscaling works for any raster image (webp/heic/avif/tiff/jxl included, not just
+        // png/jpeg/gif), any video, plus PDF (DPI) and audio (bitrate). Whitelisting only a few
+        // formats made the button look disabled for files that downscale just fine.
+        type.isImage || type.isVideo || type.isPDF || type.isAudio
     }
 
     /// Compression applies to any image/video (a re-encode), and to audio only when the output
@@ -1131,7 +1147,7 @@ enum TempPipelineSegment {
     }
 
     func canChangePlaybackSpeed() -> Bool {
-        type.isVideo && !inRemoval
+        (type.isVideo || type.isAudio) && !inRemoval
     }
 
     func canRemoveAudio() -> Bool {
@@ -1139,7 +1155,7 @@ enum TempPipelineSegment {
     }
 
     func removeAudio() {
-        guard !inRemoval, !SWIFTUI_PREVIEW else { return }
+        guard !inRemoval, !SWIFTUI_PREVIEW, !isPreview else { return }
 
         if !tempPipeline.isEmpty {
             updateTempPipeline(with: .removeAudio)
@@ -1175,7 +1191,7 @@ enum TempPipelineSegment {
     }
 
     func changePlaybackSpeed(byFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
-        guard !inRemoval, !SWIFTUI_PREVIEW else { return }
+        guard !inRemoval, !SWIFTUI_PREVIEW, !isPreview else { return }
 
         let effectiveFactor = factor ?? changePlaybackSpeedFactor
         changePlaybackSpeedFactor = effectiveFactor
@@ -1207,6 +1223,32 @@ enum TempPipelineSegment {
         guard let path = originalURL?.filePath ?? path else {
             return
         }
+
+        if type.isAudio {
+            // Audio speed runs off the pristine backup when we still have it, so factors stay
+            // absolute (1.5x then 2x means 2x of the original, not 3x), matching the menu.
+            running = true
+            operation = effectiveFactor == 1.0 ? "Restoring speed" : "Changing speed to \(effectiveFactor)x"
+            let oldBytes = self.oldBytes
+            let speedSource = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath! : path
+            let optimiser = self
+            audioOptimisationQueue.addOperation {
+                let audio = Audio(speedSource)
+                guard let changed = try? audio.changeSpeed(factor: effectiveFactor, optimiser: optimiser), changed.path.exists else {
+                    mainActor { optimiser.running = false; optimiser.overlayMessage = "Speed change failed" }
+                    return
+                }
+                let finalPath: FilePath = (changed.path.dir == FilePath.audios && changed.path != path)
+                    ? ((try? changed.path.move(to: path, force: true)) ?? changed.path)
+                    : changed.path
+                mainActor {
+                    optimiser.url = finalPath.url
+                    optimiser.finish(oldBytes: oldBytes, newBytes: finalPath.fileSize() ?? oldBytes)
+                }
+            }
+            return
+        }
+
         let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath
         if !path.exists, let originalPath {
             let _ = try? originalPath.copy(to: path)
@@ -1230,6 +1272,7 @@ enum TempPipelineSegment {
     }
 
     func stepDownscale() {
+        guard !isPreview else { return }
         stopRemover()
         guard downscaleFactor > 0.1 else { return }
 
@@ -1247,6 +1290,7 @@ enum TempPipelineSegment {
     }
 
     func stepLowerPDFDPI() {
+        guard !isPreview else { return }
         stopRemover()
         guard type.isPDF else { return }
 
@@ -1271,6 +1315,7 @@ enum TempPipelineSegment {
     }
 
     func stepLowerBitrate() {
+        guard !isPreview else { return }
         stopRemover()
         guard type.isAudio else { return }
 
@@ -1296,7 +1341,7 @@ enum TempPipelineSegment {
     }
 
     func lowerPDFDPI(to dpi: Int) {
-        guard !inRemoval, type.isPDF else { return }
+        guard !inRemoval, !isPreview, type.isPDF else { return }
 
         pdfDPIOverride = dpi
 
@@ -1323,8 +1368,35 @@ enum TempPipelineSegment {
         }
     }
 
+    /// Re-encode the audio normalising its loudness to `lufs` (EBU R128 two-pass loudnorm),
+    /// reusing the audio optimise pipeline's `loudnormTarget`.
+    func normalizeAudioLoudness(lufs: Double) {
+        guard !inRemoval, !isPreview, type.isAudio else { return }
+
+        stopRemover()
+        isOriginal = false
+        error = nil
+        notice = nil
+        info = nil
+
+        guard let path = originalURL?.filePath ?? self.path else { return }
+
+        Task.init {
+            let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hidden)) ?? Audio(path: path, thumb: !hidden)
+            let _ = try? await runAudioPipeline(
+                audio,
+                actions: [.optimise],
+                id: self.id,
+                allowLarger: true,
+                hideFloatingResult: hidden,
+                source: source,
+                loudnormTarget: lufs
+            )
+        }
+    }
+
     func lowerBitrate(to bitrate: Int) {
-        guard !inRemoval, type.isAudio else { return }
+        guard !inRemoval, !isPreview, type.isAudio else { return }
 
         audioBitrateOverride = bitrate
 
@@ -1351,7 +1423,7 @@ enum TempPipelineSegment {
     }
 
     func downscale(toFactor factor: Double? = nil, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil) {
-        guard !inRemoval else { return }
+        guard !inRemoval, !isPreview else { return }
 
         let effectiveFactor = factor ?? downscaleFactor
         if let factor { downscaleFactor = factor }
@@ -1459,6 +1531,7 @@ enum TempPipelineSegment {
     }
 
     func reoptimise() {
+        guard !isPreview else { return }
         try? (path ?? url?.filePath)?.removeOptimisationStatusXattr()
         if !tempPipeline.isEmpty {
             executeTempPipeline()
@@ -1468,6 +1541,7 @@ enum TempPipelineSegment {
     }
 
     func reoptimiseWithEncoder(_ encoder: VideoEncoder) {
+        guard !isPreview else { return }
         Defaults[.videoEncoder] = encoder
         // Keep the unified value (the real source of truth for the encode) in sync with the legacy encoder.
         Defaults[.videoCompression] = videoEncoderToCQ(encoder)
@@ -1483,7 +1557,7 @@ enum TempPipelineSegment {
     /// Re-run optimisation for this result with a per-result compression value (the draggable
     /// compression button). The override is read by the image/video encode paths at encode time.
     func reoptimise(compression cq: CompressionQuality) {
-        guard !inRemoval else { return }
+        guard !inRemoval, !isPreview else { return }
         compressionOverride = cq
         // Compile the per-result operations into the temp pipeline so they always re-run from the
         // pristine original in a single pass (optimise [+ downscale]) instead of stacking encodes on
@@ -1513,7 +1587,7 @@ enum TempPipelineSegment {
     }
 
     func optimise(allowLarger: Bool = false, hideFloatingResult: Bool = false, aggressiveOptimisation: Bool? = nil, fromOriginal: Bool = false) {
-        guard let url, var path = url.filePath else { return }
+        guard !isPreview, let url, var path = url.filePath else { return }
         stopRemover()
         error = nil
         notice = nil
@@ -1568,9 +1642,10 @@ enum TempPipelineSegment {
     }
 
     func restoreOriginal() {
-        guard let url, var path = url.filePath else { return }
+        guard !isPreview, let url, var path = url.filePath else { return }
         scalingFactor = 1.0
         downscaleFactor = 1.0
+        coverDownscaleFactor = 1.0
         changePlaybackSpeedFactor = 1.0
         lastCropSize = nil
         aggressive = false
@@ -1616,6 +1691,10 @@ enum TempPipelineSegment {
         self.oldBytes = path.fileSize() ?? self.oldBytes
         self.newBytes = -1
         self.newSize = nil
+        // Clear the optimised-vs-original deltas so audio/PDF results stop showing the stale
+        // "183kbps → 160kbps" / DPI comparison after the original is restored.
+        self.newBitrate = nil
+        self.newDPI = nil
         // Re-derive the type from the RESTORED file's own extension rather than preserving the prior
         // category, so a cross-media conversion reverts correctly in both directions: a GIF produced
         // from a video comes back as .video, and a video produced from an animated GIF comes back as
@@ -1763,7 +1842,7 @@ enum TempPipelineSegment {
     }
 
     func crop(to size: CropSize) {
-        guard let url, url.isFileURL, url.filePath?.exists ?? false else { return }
+        guard !isPreview, let url, url.isFileURL, url.filePath?.exists ?? false else { return }
         lastCropSize = size.cropRect == nil ? nil : size
 
         // pipeline crop steps can't represent arbitrary rects, those go through optimiseItem directly

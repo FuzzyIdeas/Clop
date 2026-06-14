@@ -267,10 +267,10 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     case normalize(lufs: Double = -16)
 
     // Generic actions
-    case runScript(path: String)
+    case runScript(path: String? = nil, code: String? = nil)
     case runShortcut(Shortcut)
     case copyToClipboard(format: ClipboardCopyFormat = .path, relativeTo: String? = nil)
-    case copyLinkForSending
+    case copyLinkForSending(expiration: TimeInterval? = nil)
 
     // App integration
     case shelveWith(app: String)
@@ -298,10 +298,10 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case .filterIfNot: "filterIfNot"
         case .removeAudio: "removeAudio"
         case let .changeSpeed(factor): "changeSpeed-\(factor)"
-        case let .runScript(path): "runScript-\(path)"
+        case let .runScript(path, code): "runScript-\(code ?? path ?? "")"
         case let .runShortcut(shortcut): "runShortcut-\(shortcut.name)"
         case let .copyToClipboard(format, relativeTo): "copyToClipboard-\(format.rawValue)-\(relativeTo ?? "")"
-        case .copyLinkForSending: "copyLinkForSending"
+        case let .copyLinkForSending(expiration): "copyLinkForSending-\(expiration ?? -1)"
         case let .shelveWith(app): "shelveWith-\(app)"
         case let .uploadWith(app): "uploadWith-\(app)"
         case let .openWith(app): "openWith-\(app)"
@@ -394,13 +394,18 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .filterIfNot(condition): return "ifNot(\(condition.displayString))"
         case .removeAudio: return "removeAudio"
         case let .changeSpeed(factor): return "changeSpeed(factor: \(factor))"
-        case let .runScript(path): return "runScript(path: \(path))"
+        case let .runScript(path, code):
+            if let code, !code.isEmpty { return "runScript(code: \(code))" }
+            return "runScript(path: \(path ?? ""))"
         case let .runShortcut(shortcut): return "runShortcut(name: \(shortcut.name))"
         case let .copyToClipboard(format, relativeTo):
             var params = ["format: \(format.rawValue)"]
             if let relativeTo { params.append("relativeTo: \(relativeTo)") }
             return "copyToClipboard(\(params.joined(separator: ", ")))"
-        case .copyLinkForSending: return "copyLinkForSending"
+        case let .copyLinkForSending(expiration):
+            guard let expiration else { return "copyLinkForSending" }
+            let token = expiration <= 0 ? "never" : expirationShortLabel(expiration)
+            return "copyLinkForSending(expiration: \(token))"
         case let .shelveWith(app): return "shelveWith(app: \(app))"
         case let .uploadWith(app): return "uploadWith(app: \(app))"
         case let .openWith(app): return "openWith(app: \(app))"
@@ -582,7 +587,10 @@ extension PipelineStep: Decodable {
             self = try .changeSpeed(factor: c.decode(Double.self, forKey: DynKey("factor")))
         } else if container.contains(DynKey("runScript")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("runScript"))
-            self = try .runScript(path: c.decode(String.self, forKey: DynKey("path")))
+            self = try .runScript(
+                path: c.decodeIfPresent(String.self, forKey: DynKey("path")),
+                code: c.decodeIfPresent(String.self, forKey: DynKey("code"))
+            )
         } else if container.contains(DynKey("runShortcut")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("runShortcut"))
             self = try .runShortcut(c.decode(Shortcut.self, forKey: DynKey("_0")))
@@ -593,7 +601,8 @@ extension PipelineStep: Decodable {
                 relativeTo: c.decodeIfPresent(String.self, forKey: DynKey("relativeTo"))
             )
         } else if container.contains(DynKey("copyLinkForSending")) {
-            self = .copyLinkForSending
+            let c = try? container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("copyLinkForSending"))
+            self = try .copyLinkForSending(expiration: c?.decodeIfPresent(TimeInterval.self, forKey: DynKey("expiration")) ?? nil)
         } else if container.contains(DynKey("shelveWith")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("shelveWith"))
             self = try .shelveWith(app: c.decode(String.self, forKey: DynKey("app")))

@@ -1,0 +1,4 @@
+{
+  "images" : [ { "filename" : "book-cover.jpg", "idiom" : "universal" } ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

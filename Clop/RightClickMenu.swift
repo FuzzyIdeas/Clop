@@ -149,6 +149,18 @@ struct RightClickMenuView: View {
                 }
             }
 
+            if optimiser.type.isAudio {
+                Menu("Normalise loudness") {
+                    LoudnessMenu(optimiser: optimiser)
+                }
+                Button("Extract cover art") {
+                    extractAudioCoverArt(optimiser: optimiser)
+                }
+                Menu("Downscale cover art") {
+                    CoverArtDownscaleMenu(optimiser: optimiser)
+                }
+            }
+
             if optimiser.canChangePlaybackSpeed() {
                 Menu("Change playback speed") {
                     ChangePlaybackSpeedMenu(optimiser: optimiser)
@@ -171,9 +183,6 @@ struct RightClickMenuView: View {
                         ReoptimiseWithEncoderMenu(optimiser: optimiser)
                     }
                 } else {
-                    Button("Re-optimise") {
-                        optimiser.reoptimise()
-                    }
                     Button("Aggressive optimisation") {
                         if optimiser.downscaleFactor < 1 {
                             optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
@@ -544,6 +553,44 @@ struct DownscaleMenu: View {
                 Button("\((factor * 100).intround)%") {
                     optimiser.downscale(toFactor: factor)
                 }.disabled(factor == optimiser.downscaleFactor)
+            }
+        }
+    }
+}
+
+struct CoverArtDownscaleMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        let factors = Array(stride(from: 0.9, to: 0.0, by: -0.1))
+        Button("Restore original size (100%)") {
+            downscaleAudioCoverArt(optimiser: optimiser, toFactor: 1)
+        }.disabled(optimiser.coverDownscaleFactor == 1)
+        Section("Downscale cover art to") {
+            ForEach(factors, id: \.self) { factor in
+                Button("\((factor * 100).intround)%") {
+                    downscaleAudioCoverArt(optimiser: optimiser, toFactor: factor)
+                }.disabled(factor == optimiser.coverDownscaleFactor)
+            }
+        }
+    }
+}
+
+struct LoudnessMenu: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        // EBU R128 integrated loudness targets (LUFS); more negative = quieter.
+        let targets: [(name: String, lufs: Double)] = [
+            ("Loud (−12 LUFS)", -12),
+            ("Streaming (−14 LUFS)", -14),
+            ("Apple Music (−16 LUFS)", -16),
+            ("Podcast (−19 LUFS)", -19),
+            ("Broadcast (−23 LUFS)", -23),
+        ]
+        ForEach(targets, id: \.lufs) { target in
+            Button(target.name) {
+                optimiser.normalizeAudioLoudness(lufs: target.lufs)
             }
         }
     }

@@ -552,8 +552,17 @@ class AppDelegate: AppDelegateParent {
         case .comma:
             WM.open("settings")
             focus()
-        case .minus where opt.downscaleFactor > 0.1:
-            opt.stepDownscale()
+        case .minus:
+            // Step "down" maps to each type's own compression axis: DPI for PDF, bitrate for audio,
+            // resolution for everything else. stepDownscale only drives image/video, so PDF/audio
+            // need their dedicated steppers or the keypress just flashes the indicator.
+            if opt.type.isPDF {
+                opt.stepLowerPDFDPI()
+            } else if opt.type.isAudio {
+                opt.stepLowerBitrate()
+            } else if opt.downscaleFactor > 0.1 {
+                opt.stepDownscale()
+            }
         case .x where opt.changePlaybackSpeedFactor < 10 && opt.canChangePlaybackSpeed():
             opt.changePlaybackSpeed()
         case .delete:
@@ -561,6 +570,8 @@ class AppDelegate: AppDelegateParent {
             opt.stop(animateRemoval: true)
         case .z where !opt.isOriginal:
             opt.restoreOriginal()
+            opt.overlayMessage = "Restored original"
+            opt.collapseHoverOverlay = true
         case .r where !opt.running:
             opt.editingFilename = true
         case .d where !opt.type.isAudio && opt.url != nil && opt.comparisonOriginalURL != nil:
@@ -623,8 +634,13 @@ class AppDelegate: AppDelegateParent {
             OM.clearVisibleOptimisers(stop: true)
         case .minus:
             if let opt = OM.current {
-                guard opt.downscaleFactor > 0.1 else { return }
-                opt.stepDownscale()
+                if opt.type.isPDF {
+                    opt.stepLowerPDFDPI()
+                } else if opt.type.isAudio {
+                    opt.stepLowerBitrate()
+                } else if opt.downscaleFactor > 0.1 {
+                    opt.stepDownscale()
+                }
             } else {
                 guard scalingFactor > 0.1 else { return }
                 scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
@@ -904,11 +920,11 @@ class AppDelegate: AppDelegateParent {
     }
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
-        if !Defaults[.showMenubarIcon] {
-            WM.open("settings")
-            focus()
-        }
-
+        // Fires when the app is launched again while already running (Finder double-click, dock
+        // click, `open`), but NOT on plain re-activation like QuickLook making the app key, so
+        // surfacing settings here means it won't pop up when you QuickLook a floating result.
+        WM.open("settings")
+        focus()
         return true
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -1381,6 +1397,7 @@ struct ClopApp: App {
     @Environment(\.scenePhase) var scenePhase
 
     @AppStorage("showMenubarIcon") var showMenubarIcon = Defaults[.showMenubarIcon]
+    @AppStorage("useClassicMenubarIcon") var useClassicMenubarIcon = Defaults[.useClassicMenubarIcon]
 
     @ObservedObject var om = OM
     @ObservedObject var wm = WM
@@ -1410,7 +1427,12 @@ struct ClopApp: App {
         MenuBarExtra(isInserted: $showMenubarIcon, content: {
             MenuView()
         }, label: {
-            SwiftUI.Image(nsImage: NSImage(resource: !proactive && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty ? .menubarIconBadge : .menubarIcon))
+            let badge = !proactive && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty
+            SwiftUI.Image(nsImage: NSImage(
+                resource: badge
+                    ? (useClassicMenubarIcon ? .menubarIconBadgeClassic : .menubarIconBadge)
+                    : (useClassicMenubarIcon ? .menubarIconClassic : .menubarIcon)
+            ))
         })
         .menuBarExtraStyle(.menu)
         .onChange(of: showMenubarIcon) { show in

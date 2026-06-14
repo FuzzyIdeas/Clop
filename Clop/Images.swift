@@ -1062,17 +1062,6 @@ class Image: CustomStringConvertible {
         }
     }
 
-    private func writeCGImage(_ cgImage: CGImage, to dest: FilePath, as type: UTType) throws {
-        guard let destination = CGImageDestinationCreateWithURL(dest.url as CFURL, type.identifier as CFString, 1, nil) else {
-            throw ClopError.conversionFailed(dest)
-        }
-        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
-        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-        guard CGImageDestinationFinalize(destination) else {
-            throw ClopError.conversionFailed(dest)
-        }
-    }
-
     func optimise(optimiser: Optimiser, allowLarger: Bool = false, aggressiveOptimisation: Bool? = nil, adaptiveSize: Bool = false) throws -> Image {
         guard !optimised else {
             throw ClopError.alreadyOptimised(path)
@@ -1237,6 +1226,17 @@ class Image: CustomStringConvertible {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.writeObjects([item])
+    }
+
+    private func writeCGImage(_ cgImage: CGImage, to dest: FilePath, as type: UTType) throws {
+        guard let destination = CGImageDestinationCreateWithURL(dest.url as CFURL, type.identifier as CFString, 1, nil) else {
+            throw ClopError.conversionFailed(dest)
+        }
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
+        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw ClopError.conversionFailed(dest)
+        }
     }
 
     private func conversionArgs(to format: String, outPath: FilePath, cq: CompressionQuality?) -> [String] {

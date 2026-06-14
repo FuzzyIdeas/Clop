@@ -11,6 +11,7 @@ import LowtechIndie
 import LowtechPro
 import os
 import SwiftUI
+import System
 import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "FloatingResult")
@@ -77,7 +78,6 @@ struct FloatingResultList: View {
     var optimisers: [Optimiser]
 
     @State var copiedText = "Copy all"
-    @State var hoveringList = false
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showCopyClearButtons) var showCopyClearButtons
     @Environment(\.preview) var preview
@@ -92,13 +92,48 @@ struct FloatingResultList: View {
             .help("Drag all")
             .onDrag {
                 guard !preview else { return NSItemProvider() }
-                let urls = optimisers.compactMap(\.url)
+                // One NSItemProvider per file so the drop lands as a set of files, not a single item
+                // with conflicting representations (which is why "drag all" stopped working).
+                let urls = optimisers.compactMap(\.url).filter(\.isFileURL)
+                guard let first = urls.first else { return NSItemProvider() }
                 let provider = NSItemProvider()
-                for url in urls {
+                provider.registerObject(first as NSURL, visibility: .all)
+                for url in urls.dropFirst() {
                     provider.registerObject(url as NSURL, visibility: .all)
                 }
                 return provider
+            } preview: {
+                dragAllPreview
             }
+    }
+
+    /// A little stack of the result thumbnails (cover art for audio) shown while dragging the whole
+    /// set, instead of dragging the bare handle button.
+    var dragAllPreview: some View {
+        // Cap at the first few results so a large set doesn't build/render a wall of thumbnails;
+        // the badge still reports the true total.
+        let thumbs = optimisers.prefix(4).compactMap(\.thumbnail)
+        return ZStack {
+            ForEach(Array(thumbs.enumerated()), id: \.offset) { i, thumb in
+                SwiftUI.Image(nsImage: thumb)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 54, height: 54)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(.white.opacity(0.5), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
+                    .rotationEffect(.degrees(Double(i) * 5 - 7))
+                    .offset(x: Double(i) * 6, y: Double(i) * -3)
+            }
+            Text("\(optimisers.count)")
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+                .frame(minWidth: 20, minHeight: 20)
+                .background(Circle().fill(Color.accentColor).shadow(color: .black.opacity(0.3), radius: 2))
+                .offset(x: 32, y: -30)
+        }
+        .frame(width: 96, height: 80)
+        .padding(8)
     }
 
     var copyAllButton: some View {
@@ -131,7 +166,10 @@ struct FloatingResultList: View {
     }
 
     var body: some View {
-        VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: hoveringList ? 10 : 4) {
+        // Fixed-geometry overlay cards no longer grow on hover, so the list spacing is constant
+        // (the old hover-driven 4↔10 shuffle is gone). The copy/clear row gets a little breathing
+        // room above it and sits close to the cards' edge so it lines up with the result rects.
+        VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: 4) {
             ForEach(Array(optimisers.enumerated()), id: \.element.id) { index, optimiser in
                 FloatingResult(optimiser: optimiser, linear: optimisers.count > 1)
                     .zIndex(Double(optimisers.count - index))
@@ -147,13 +185,12 @@ struct FloatingResultList: View {
                     copyAllButton
                     clearAllButton
                 }
-                .padding(floatingResultsCorner.isTrailing ? .trailing : .leading, HAT_ICON_SIZE + 24)
-                .padding(.bottom, 30)
-            }
-        }
-        .onHover { h in
-            withAnimation(.easeOut(duration: 0.2)) {
-                hoveringList = h
+                .padding(.top, 6)
+                .padding(floatingResultsCorner.isTrailing ? .trailing : .leading, 16)
+                .padding(.bottom, preview ? 0 : 30)
+                // Every card carries a zIndex >= 1 (for the piled look), so without this the row sits
+                // underneath them and the card just above steals the drag-handle's clicks/drags.
+                .zIndex(Double(optimisers.count + 1))
             }
         }
     }
@@ -194,9 +231,11 @@ struct FloatingResultContainer: View {
     }
 
     var body: some View {
-        let optimisers = (enableFloatingResults || isPreview)
-            ? om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse)
-            : []
+        // The settings preview keeps its authored order (so we can lay the sample results out
+        // deliberately); real results sort newest-first.
+        let optimisers = isPreview
+            ? om.optimisers.filter(!\.hidden)
+            : (enableFloatingResults ? om.optimisers.filter(!\.hidden).sorted(by: \.startedAt, order: .reverse) : [])
         VStack(alignment: floatingResultsCorner.isTrailing ? .trailing : .leading, spacing: 10) {
             if shouldShowDropZone, floatingResultsCorner.isTop {
                 DropZoneView()
@@ -243,12 +282,36 @@ struct FloatingResultContainer: View {
                 hoveredOptimiserID = nil
             }
         }
-        .padding(.vertical, om.compactResults ? 0 : 36)
+        .padding(.vertical, om.compactResults ? 0 : (isPreview ? 6 : 36))
         .padding(floatingResultsCorner.isTrailing ? .leading : .trailing, 20)
     }
 }
 
 var initializedFloatingWindow = false
+
+/// Generic audio-file icon used as a stand-in for album art in the settings live previews.
+var audioPreviewThumbnail: NSImage {
+    let icon = NSWorkspace.shared.icon(for: .mp3)
+    icon.size = THUMB_SIZE
+    return icon
+}
+
+/// Folder under the system temp dir where preview sample files live. It's deliberately throwaway:
+/// the files are re-materialised from bundled assets on every launch, so if a curious user does
+/// "Show in Finder" and deletes them, nothing breaks. Preview optimisers are also gated against
+/// every file-mutating action, so these stay strictly read-only demo files.
+var previewSamplesDir: FilePath {
+    FilePath.dir(FilePath(NSTemporaryDirectory()) / "com.lowtechguys.Clop" / "preview-samples", permissions: 0o755)
+}
+
+/// Materialise a bundled preview sample (a `.dataset` in the asset catalog) to a temp file, so the
+/// settings-preview cards can be double-clicked to open the real file.
+func previewSampleURL(dataAsset: String, named: String) -> URL? {
+    guard let asset = NSDataAsset(name: dataAsset) else { return nil }
+    let path = previewSamplesDir.appending(named)
+    fm.createFile(atPath: path.string, contents: asset.data)
+    return path.url
+}
 
 @MainActor
 struct FloatingPreview: View {
@@ -256,26 +319,39 @@ struct FloatingPreview: View {
         let o = OptimisationManager()
         let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
 
-        let noThumb = Optimiser(id: "pages.pdf", type: .pdf)
-        noThumb.url = "\(HOME)/Documents/pages.pdf".fileURL
-        noThumb.finish(oldBytes: 12_250_190, newBytes: 5_211_932)
+        let pdfOpt = Optimiser(id: "Low-Tech Whistle.pdf", type: .pdf)
+        pdfOpt.thumbnail = NSImage(resource: .previewPdfThumb)
+        pdfOpt.finish(oldBytes: 12_250_190, newBytes: 5_211_932)
 
-        let videoOpt = Optimiser(id: "Movies/meeting-recording-video.mov", type: .video(.quickTimeMovie), running: true, progress: videoProgress)
-        videoOpt.url = "\(HOME)/Movies/meeting-recording-video.mov".fileURL
-        videoOpt.operation = "Optimising"
-        videoOpt.thumbnail = NSImage(resource: .sonomaVideo)
-        videoOpt.changePlaybackSpeedFactor = 2.0
+        let audioOpt = Optimiser(id: "Evening guitar.m4a", type: .audio(.mpeg4Audio))
+        audioOpt.thumbnail = NSImage(resource: .guitarCover)
+        audioOpt.coverArtSize = CGSize(width: 1012, height: 1012)
+        audioOpt.finish(oldBytes: 2_834_000, newBytes: 1_027_608, oldBitrate: 256, newBitrate: 96)
 
-        let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.png))
-        clipEnd.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
-        clipEnd.thumbnail = NSImage(resource: .sonomaShot)
-        clipEnd.image = Image(nsImage: clipEnd.thumbnail!, data: Data(), type: .png, retinaDownscaled: false)
+        let videoOpt = Optimiser(id: "copy-optimise-paste.mp4", type: .video(.mpeg4Movie))
+        videoOpt.thumbnail = NSImage(resource: .previewVideoThumb)
+        videoOpt.finish(oldBytes: 4_512_000, newBytes: 1_204_233, oldSize: CGSize(width: 1920, height: 1080), newSize: CGSize(width: 1280, height: 720))
+
+        let clipEnd = Optimiser(id: Optimiser.IDs.clipboardImage, type: .image(.webP))
+        clipEnd.thumbnail = NSImage(resource: .previewImageThumb)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
+        // Record which bundled sample backs each card. The temp files are only written when the
+        // Floating Results settings tab is actually shown (materializeSamples), to avoid I/O on launch.
+        FloatingPreview.sampleSpecs = [
+            (clipEnd, "preview-sample-image", "downscale-images.webp"),
+            (videoOpt, "preview-sample-video", "copy-optimise-paste.mp4"),
+            (pdfOpt, "preview-sample-pdf", "Low-Tech Whistle.pdf"),
+            (audioOpt, "preview-sample-audio", "Evening guitar.m4a"),
+        ]
+
+        // Authored order is the display order in the settings preview (it isn't sorted): pdf and
+        // audio up top, image and video at the bottom near the clear-all buttons.
         o.optimisers = [
+            pdfOpt,
+            audioOpt,
             clipEnd,
             videoOpt,
-            noThumb,
         ]
         for opt in o.optimisers {
             opt.isPreview = true
@@ -290,6 +366,23 @@ struct FloatingPreview: View {
         p.localizedAdditionalDescription = "\(p.completedUnitCount.hmsString) of \(p.totalUnitCount.hmsString)"
         return p
     }()
+
+    /// (card optimiser, bundled data-set name, display filename) for each openable preview card.
+    static var sampleSpecs: [(opt: Optimiser, asset: String, name: String)] = []
+    static var samplesMaterialized = false
+
+    /// Write the bundled preview samples to the temp folder and point the cards at them. Called only
+    /// when the Floating Results settings tab appears, so we don't do this I/O on launch.
+    static func materializeSamples() {
+        _ = om // ensure the (cheap, in-memory) setup ran and populated sampleSpecs
+        guard !samplesMaterialized else { return }
+        samplesMaterialized = true
+        for spec in sampleSpecs {
+            if let url = previewSampleURL(dataAsset: spec.asset, named: spec.name) {
+                spec.opt.url = url
+            }
+        }
+    }
 
     var body: some View {
         FloatingResultContainer(om: Self.om, isPreview: true)
@@ -472,7 +565,6 @@ struct NameFormatPill: View {
 
     @FocusState private var focused: Bool
     @State private var tempName = ""
-    @State private var hoveringName = false
     @State private var hoveringExt = false
 
     private var stem: String { optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? "" }
@@ -497,13 +589,19 @@ struct NameFormatPill: View {
         HStack(spacing: 0) {
             Text(stem.isEmpty ? "filename" : stem)
                 .font(.system(size: 9, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                // Shrink the text a little more while hovering the name so more of a long filename
+                // shows, but not so much it stops being readable.
+                .minimumScaleFactor(optimiser.hoveringFilename ? 0.75 : 0.9)
                 .foregroundColor(.primary)
-                .frame(maxWidth: fullWidth ? .infinity : 92)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: fullWidth ? .infinity : 92, alignment: .trailing)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 4).padding(.vertical, 2)
-                .background(hoveringName ? Color.primary.opacity(0.12) : .clear, in: Capsule())
+                // Keep the outer (leading) padding for the hover capsule, but hug the dot on the
+                // trailing side so "name.ext" reads as one path instead of "name . ext".
+                .padding(.leading, 4).padding(.trailing, 1).padding(.vertical, 2)
+                .background(optimiser.hoveringFilename ? Color.primary.opacity(0.12) : .clear, in: Capsule())
                 .onHover { inside in
-                    hoveringName = inside
+                    optimiser.hoveringFilename = inside
                     if inside { NSCursor.iBeam.push() } else { NSCursor.pop() }
                 }
                 .onTapGesture { startEditing() }
@@ -528,7 +626,7 @@ struct NameFormatPill: View {
                 }
             } label: {
                 Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.primary)
-                    .padding(.horizontal, 4).padding(.vertical, 2)
+                    .padding(.leading, 1).padding(.trailing, 4).padding(.vertical, 2)
                     .background(hoveringExt ? Color.primary.opacity(0.12) : .clear, in: Capsule())
             }
             .menuButtonStyle(BorderlessButtonMenuButtonStyle())
@@ -537,7 +635,7 @@ struct NameFormatPill: View {
             .onHover { hoveringExt = $0 }
             .fixedSize()
         } else {
-            Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.primary).padding(.horizontal, 4)
+            Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.primary).padding(.leading, 1).padding(.trailing, 4)
         }
     }
 
@@ -661,6 +759,25 @@ struct FloatingResult: View {
                         SwiftUI.Image(systemName: "arrow.right")
                     }
                     Text("\(newBitrate) kbps")
+                }
+            }
+            .lineLimit(1)
+            .font(.round(10))
+            .foregroundColor(optimiser.thumbnail != nil ? .lightGray : .secondary)
+            .fixedSize()
+        }
+    }
+
+    @ViewBuilder var coverArtDiff: some View {
+        if optimiser.type.isAudio, let base = optimiser.coverArtSize, base.width > 0, base.height > 0 {
+            let factor = optimiser.coverDownscaleFactor
+            let scaled = factor < 0.999
+            HStack(spacing: 3) {
+                SwiftUI.Image(systemName: "photo").font(.system(size: 8))
+                Text("\(Int(base.width.rounded()))×\(Int(base.height.rounded()))")
+                if scaled {
+                    SwiftUI.Image(systemName: "arrow.right")
+                    Text("\(Int((base.width * factor).rounded()))×\(Int((base.height * factor).rounded()))")
                 }
             }
             .lineLimit(1)
@@ -866,6 +983,7 @@ struct FloatingResult: View {
     }
 
     // MARK: - Overlay-grid thumbnail card
+
     //
     // Fixed-geometry card: the thumbnail is the background, all controls are layered over it and
     // revealed by opacity on hover. Geometry never changes on hover (only a cheap dim + control
@@ -880,7 +998,13 @@ struct FloatingResult: View {
     func gridApplies(_ action: FloatingAction) -> Bool {
         switch action {
         case .crop: false
-        case .downscale: !optimiser.type.isAudio
+        // Audio's downscale button is repurposed to resize the embedded cover art, so it's shown for
+        // every type now (bitrate lives on the compression button).
+        case .downscale: true
+        // PDF's downscale button already is the compression (DPI) control with the same icon, so a
+        // separate, always-disabled compression button is just a confusing duplicate; hide it like
+        // PDF does.
+        case .compression: !optimiser.type.isPDF
         default: true
         }
     }
@@ -900,7 +1024,9 @@ struct FloatingResult: View {
     /// Always six slots: configured actions first, remaining slots are faint "+" add-placeholders.
     var gridSlots: [FloatingAction?] {
         var slots: [FloatingAction?] = Array(gridConfigured.prefix(6)).map { Optional($0) }
-        while slots.count < 6 { slots.append(nil) }
+        while slots.count < 6 {
+            slots.append(nil)
+        }
         return slots
     }
 
@@ -958,7 +1084,7 @@ struct FloatingResult: View {
         if optimiser.showDownscaleSlider {
             sliderBand {
                 if optimiser.type.isAudio {
-                    CardBitrateSlider(optimiser: optimiser)
+                    CardCoverArtSlider(optimiser: optimiser)
                 } else if optimiser.type.isPDF {
                     CardPDFDPISlider(optimiser: optimiser)
                 } else {
@@ -967,6 +1093,8 @@ struct FloatingResult: View {
             }
         } else if optimiser.showCompressionSlider {
             sliderBand { CardCompressionSlider(optimiser: optimiser) }
+        } else if optimiser.showSendExpiration {
+            sliderBand { CardSendExpirationSlider(optimiser: optimiser) }
         } else if isExpanded, !optimiser.running, optimiser.error == nil, optimiser.notice == nil {
             actionGrid
                 .opacity(optimiser.editingFilename ? 0.3 : 1)
@@ -978,7 +1106,9 @@ struct FloatingResult: View {
     /// the unified name·format pill on hover; a full-width filename editor while editing; the
     /// centered size-saving stats at rest.
     @ViewBuilder var cardBottomContent: some View {
-        if optimiser.showDownscaleSlider || optimiser.showCompressionSlider {
+        if optimiser.showSendExpiration {
+            SendExpirationConfirmButton(optimiser: optimiser)
+        } else if optimiser.showDownscaleSlider || optimiser.showCompressionSlider {
             EmptyView()
         } else if optimiser.running {
             progressView.controlSize(.small).lineLimit(1).foregroundColor(.white)
@@ -989,23 +1119,24 @@ struct FloatingResult: View {
         } else if optimiser.editingFilename {
             NameFormatPill(optimiser: optimiser, fullWidth: true)
         } else if isExpanded {
-            // With no crop button in the bottom-left corner (e.g. audio), let the name·format pill
-            // span the full width; otherwise keep it right-aligned so it clears the crop button.
-            if optimiser.canCrop() {
+            // While hovering the name, expand the pill full-width (the crop button hides to make
+            // room); otherwise keep it right-aligned so it clears the crop button in the corner.
+            if optimiser.canCrop(), !optimiser.hoveringFilename {
                 HStack(spacing: 0) { Spacer(minLength: 0); NameFormatPill(optimiser: optimiser) }
             } else {
                 NameFormatPill(optimiser: optimiser, fullWidth: true)
             }
         } else {
-            VStack(spacing: 2) { fileSizeDiff; sizeDiff; bitrateDiff; dpiDiff }
+            VStack(spacing: 2) { fileSizeDiff; sizeDiff; bitrateDiff; coverArtDiff; dpiDiff }
                 .frame(maxWidth: .infinity)
                 .foregroundColor(.white)
+                .onAppear { if optimiser.type.isAudio { loadAudioCoverArtSize(optimiser: optimiser) } }
         }
     }
 
     @ViewBuilder var cornerControls: some View {
-        let sliding = optimiser.showDownscaleSlider || optimiser.showCompressionSlider
-        if (isExpanded || optimiser.running), !sliding {
+        let sliding = optimiser.showDownscaleSlider || optimiser.showCompressionSlider || optimiser.showSendExpiration
+        if isExpanded || optimiser.running, !sliding {
             CloseStopButton(optimiser: optimiser)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -1021,7 +1152,9 @@ struct FloatingResult: View {
             .fixedSize()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
-            if optimiser.canCrop() {
+            // Crop lives in the bottom-left corner; it only steps aside while the name is hovered so
+            // a long filename can use the full width.
+            if optimiser.canCrop(), !optimiser.hoveringFilename {
                 Button(action: { if !preview { optimiser.showCropWindow() } }, label: { SwiftUI.Image(systemName: "crop") })
                     .buttonStyle(FloatingCornerButtonStyle())
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -1053,7 +1186,7 @@ struct FloatingResult: View {
                 .overlay(
                     VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
                         .clipped()
-                        .mask(LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .init(x: 0.5, y: 0.95), endPoint: .init(x: 0.5, y: 0.45)))
+                        .mask(LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .init(x: 0.5, y: 0.95), endPoint: .init(x: 0.5, y: 0.38)))
                 )
                 // Hardware blur of the thumbnail on hover (NSVisualEffectView .withinWindow blurs the
                 // image behind it — no gaussian pixelation), appearing instantly, no animation. Same
@@ -1067,7 +1200,7 @@ struct FloatingResult: View {
                 // button (downscale/compression) never starts a drag and the slider catches the
                 // press-drag instantly. No drag while a slider is active either.
                 .ifLet(optimiser.url, transform: { img, url in
-                    img.if(!optimiser.showDownscaleSlider && !optimiser.showCompressionSlider) { v in
+                    img.if(!optimiser.showDownscaleSlider && !optimiser.showCompressionSlider && !optimiser.showSendExpiration) { v in
                         v.onDrag {
                             guard !preview else {
                                 return NSItemProvider()
@@ -1078,6 +1211,8 @@ struct FloatingResult: View {
                                 optimiser.remove(after: 100, withAnimation: true)
                             }
                             return NSItemProvider(object: url as NSURL)
+                        } preview: {
+                            dragThumbPreview
                         }
                     }
                 })
@@ -1144,6 +1279,26 @@ struct FloatingResult: View {
         }
     }
 
+    /// Clean rounded thumbnail used as the drag image for a single result (the same look as one tile
+    /// in the "drag all" pile, no badge), instead of the default washed-out dark rectangle.
+    @ViewBuilder var dragThumbPreview: some View {
+        if let thumb = optimiser.thumbnail {
+            SwiftUI.Image(nsImage: thumb)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(.white.opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
+                .padding(8)
+        } else {
+            SwiftUI.Image(systemName: "doc.fill")
+                .font(.system(size: 40))
+                .foregroundColor(.secondary)
+                .padding(8)
+        }
+    }
+
     @ViewBuilder var mainBody: some View {
         let hasThumbnail = optimiser.thumbnail != nil
         Group {
@@ -1182,6 +1337,8 @@ struct FloatingResult: View {
         .onHover { hovering in
             // A fresh hover (mouse re-entering) brings the overlay back after it was collapsed by an action.
             if hovering { optimiser.collapseHoverOverlay = false }
+            // Leaving the card abandons an in-progress send-expiration overlay.
+            if !hovering { optimiser.showSendExpiration = false }
             withAnimation(.easeOut(duration: 0.15)) {
                 self.hovering = hovering
             }

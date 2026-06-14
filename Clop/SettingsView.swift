@@ -836,6 +836,7 @@ struct SpecificFolderNameTemplate: View {
 struct AudioSettingsView: View {
     @Default(.audioDirs) var audioDirs
     @Default(.audioFormat) var audioFormat
+    @Default(.audioCoverArt) var audioCoverArt
     @Default(.audioBitrate) var audioBitrate
     @Default(.audioCompression) var audioCompression
     @Default(.audioFormatsToSkip) var audioFormatsToSkip
@@ -903,6 +904,19 @@ struct AudioSettingsView: View {
                                 .mono(11).foregroundColor(.secondary).frame(width: 38, alignment: .trailing)
                         }
                         Text(audioCompressionCaption).round(10, weight: .regular).foregroundColor(.secondary)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(selection: $audioCoverArt) {
+                        ForEach(AudioCoverArtBehaviour.allCases, id: \.self) { behaviour in
+                            Text(behaviour.name).tag(behaviour)
+                        }
+                    } label: {
+                        Text("Cover art").regular(13)
+                    }
+                    if audioFormat != .sameAsInput, !audioFormat.supportsCoverArt {
+                        Text("\(audioFormat.name) can't store cover art, so it's always dropped")
+                            .round(10, weight: .regular).foregroundColor(.secondary)
                     }
                 }
             }
@@ -1540,16 +1554,22 @@ struct DropZoneSettingsView: View {
             }
 
             VStack(spacing: 4) {
-                VStack(spacing: 0) {
-                    dropZoneSection("PDF preset zones")
-                    DropZoneView(presetFileType: .pdf)
-                    dropZoneSection("Video preset zones")
-                    DropZoneView(presetFileType: .video)
-                    dropZoneSection("Image preset zones")
-                    DropZoneView(presetFileType: .image)
-                    DropZoneView()
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        dropZoneSection("PDF preset zones")
+                        DropZoneView(presetFileType: .pdf)
+                        dropZoneSection("Video preset zones")
+                        DropZoneView(presetFileType: .video)
+                        dropZoneSection("Image preset zones")
+                        DropZoneView(presetFileType: .image)
+                        dropZoneSection("Audio preset zones")
+                        DropZoneView(presetFileType: .audio)
+                        DropZoneView()
+                    }
+                    .frame(width: THUMB_SIZE.width - 50, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
+                    .padding(.vertical, 8)
                 }
-                .frame(width: THUMB_SIZE.width - 50, height: WINDOW_MIN_SIZE.height - 100, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
+                .frame(width: THUMB_SIZE.width - 50, height: WINDOW_MIN_SIZE.height - 100)
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
                 .disabled(!enableDragAndDrop)
                 .saturation(enableDragAndDrop ? 1 : 0.5)
@@ -1679,11 +1699,25 @@ struct FloatingSettingsView: View {
                         .disabled(!enableFloatingResults)
                         .saturation(enableFloatingResults ? 1 : 0.5)
                 } else {
-                    FloatingPreview()
-                        .frame(width: THUMB_SIZE.width + 60, height: 450, alignment: .center)
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(spacing: 0) {
+                                FloatingPreview()
+                                // Anchor pinned to the very bottom of the list so we can scroll the
+                                // "Clear all" / "Copy all" buttons into view by default.
+                                Color.clear.frame(height: 1).id("previewBottom")
+                            }
+                        }
+                        .frame(width: THUMB_SIZE.width + 60, height: 450)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
                         .disabled(!enableFloatingResults)
                         .saturation(enableFloatingResults ? 1 : 0.5)
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                proxy.scrollTo("previewBottom", anchor: .bottom)
+                            }
+                        }
+                    }
                 }
                 Picker("", selection: $compact) {
                     Text("Compact").tag(true)
@@ -1706,6 +1740,9 @@ struct FloatingSettingsView: View {
         .padding(.top)
         .onAppear {
             compact = alwaysShowCompactResults
+            // Materialise the preview sample files only now that this tab is on screen.
+            FloatingPreview.materializeSamples()
+            CompactPreview.materializeSamples()
         }
         .onChange(of: alwaysShowCompactResults) { value in
             compact = value
@@ -1713,7 +1750,14 @@ struct FloatingSettingsView: View {
     }
 }
 struct GeneralSettingsView: View {
+    enum MenubarIconStyle { case new, classic, hidden }
+
+    static let menubarIconNew = templatedMenubarIcon("MenubarIcon")
+    static let menubarIconClassic = templatedMenubarIcon("MenubarIconClassic")
+
     @Default(.showMenubarIcon) var showMenubarIcon
+    @Default(.useClassicMenubarIcon) var useClassicMenubarIcon
+    @Default(.defaultLinkExpiration) var defaultLinkExpiration
     @Default(.optimiseTIFF) var optimiseTIFF
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
     @Default(.optimiseAudioClipboard) var optimiseAudioClipboard
@@ -1745,11 +1789,41 @@ struct GeneralSettingsView: View {
         )
     }
 
+    /// Maps the three-way picker onto the two stored bools: the icon choice only touches
+    /// `useClassicMenubarIcon` so the new/classic preference is remembered while hidden.
+    var menubarIconStyle: Binding<MenubarIconStyle> {
+        Binding(
+            get: { !showMenubarIcon ? .hidden : (useClassicMenubarIcon ? .classic : .new) },
+            set: { style in
+                showMenubarIcon = style != .hidden
+                if style != .hidden { useClassicMenubarIcon = style == .classic }
+            }
+        )
+    }
+
     var body: some View {
         Form {
-            Toggle("Show menubar icon", isOn: $showMenubarIcon)
+            HStack {
+                Text("Menubar icon")
+                Spacer()
+                menubarIconButton(.new) { SwiftUI.Image(nsImage: Self.menubarIconNew).resizable() }
+                menubarIconButton(.classic) { SwiftUI.Image(nsImage: Self.menubarIconClassic).resizable() }
+                menubarIconButton(.hidden) { SwiftUI.Image(systemName: "eye.slash").resizable() }
+            }
             LaunchAtLogin.Toggle()
             Toggle("Sync settings with other Macs via iCloud", isOn: $syncSettingsCloud)
+            HStack {
+                Text("Secure send links expire after")
+                Spacer()
+                Picker("", selection: $defaultLinkExpiration) {
+                    ForEach(LINK_EXPIRATION_PRESETS, id: \.self) { preset in
+                        Text(expirationDurationLabel(preset)).tag(preset)
+                    }
+                    Divider()
+                    Text("Never").tag(LINK_EXPIRATION_NEVER)
+                }
+                .frame(width: 150)
+            }
 
             Section(header: SectionHeader(title: "Clipboard")) {
                 Toggle(isOn: $enableClipboardOptimiser) {
@@ -1885,6 +1959,41 @@ struct GeneralSettingsView: View {
         .padding(.horizontal, 50)
         .padding(.vertical, 20)
     }
+
+    @ViewBuilder
+    func menubarIconButton(_ style: MenubarIconStyle, @ViewBuilder icon: () -> some View) -> some View {
+        let selected = menubarIconStyle.wrappedValue == style
+        Button {
+            menubarIconStyle.wrappedValue = style
+        } label: {
+            icon()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 18, height: 18)
+                .frame(width: 46, height: 28)
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(selected ? Color.accentColor : Color.primary.opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(selected ? Color.clear : Color.primary.opacity(0.12))
+                )
+        }
+        .buttonStyle(.plain)
+        .help(style == .hidden ? "Hide the menubar icon" : (style == .classic ? "Use the classic menubar icon" : "Use the new menubar icon"))
+    }
+
+    /// Copy the menubar asset, mark it as a template and size it down so it tints and fits the picker buttons.
+    static func templatedMenubarIcon(_ name: String) -> NSImage {
+        guard let icon = NSImage(named: name)?.copy() as? NSImage else {
+            return NSImage(size: NSSize(width: 18, height: 18))
+        }
+        icon.isTemplate = true
+        icon.size = NSSize(width: 18, height: 18)
+        return icon
+    }
+
 }
 
 struct HighlightedFolderRequest: Equatable {
