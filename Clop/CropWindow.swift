@@ -610,7 +610,7 @@ struct CropView: View {
             sidebar
                 .frame(width: 280)
                 .frame(maxHeight: .infinity)
-                .background(Color.bg.warm.opacity(colorScheme == .dark ? 0.4 : 0.8))
+                .background(.regularMaterial)
         }
         .background(
             Button("") { optimiser.cropWindowController?.close() }

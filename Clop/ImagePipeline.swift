@@ -29,7 +29,9 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
 /// Compute the downscale factor for an image, handling auto-decrement when no explicit factor is given.
 @MainActor func computeImageDownscaleFactor(id: String?, factor: Double?, cropSize: CropSize?, imageSize: NSSize) -> Double {
     if let cropSize {
-        return cropSize.factor(from: imageSize)
+        let f = cropSize.factor(from: imageSize)
+        // A "max long edge" is a cap: never enlarge a file that's already smaller than the target.
+        return cropSize.longEdge ? min(f, 1.0) : f
     }
     if let factor {
         return factor
@@ -49,7 +51,8 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
 /// Compute the downscale factor for a video.
 @MainActor func computeVideoDownscaleFactor(id: String?, factor: Double?, cropSize: CropSize?, videoSize: CGSize) -> Double {
     if let cropSize {
-        return cropSize.factor(from: videoSize)
+        let f = cropSize.factor(from: videoSize)
+        return cropSize.longEdge ? min(f, 1.0) : f
     }
     if let factor {
         return factor
@@ -130,7 +133,8 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     adaptiveOptimisation: Bool? = nil,
     source: OptimisationSource? = nil,
     skipCache: Bool = false,
-    compression: CompressionQuality? = nil
+    compression: CompressionQuality? = nil,
+    batchOptimiser: Optimiser? = nil
 ) async throws -> Image? {
     let path = img.path
     var img = img
@@ -222,8 +226,9 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
         }
     }
 
-    // Set up optimiser
-    let optimiser = OM.optimiser(
+    // Set up optimiser. In batch mode a transient hidden optimiser is supplied by the engine and is
+    // never registered in OM, so the heavy floating-result machinery is skipped entirely.
+    let optimiser = batchOptimiser ?? OM.optimiser(
         id: pipelineId, type: .image(img.type),
         operation: opLabel,
         hidden: hideFloatingResult, source: source, indeterminateProgress: true
@@ -272,8 +277,10 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
             OM.current = optimiser
         }
 
-        OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
-        showFloatingThumbnails()
+        if batchOptimiser == nil {
+            OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
+            showFloatingThumbnails()
+        }
 
         let img = img
         let pathString = pathString
@@ -405,7 +412,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
                     log.error("Error in image pipeline \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
-                    mainActor { optimiser.finish(error: "Optimisation failed") }
+                    mainActor { optimiser.finish(processError: proc) }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger,
                 ClopError.alreadyOptimised, ClopError.alreadyResized

@@ -241,7 +241,16 @@ func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool, types: 
     return urls
 }
 
-func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: Bool, operation: String, _ requestCreator: () -> OptimisationRequest) throws {
+func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: Bool, review: Bool = false, operation: String, _ requestCreator: () -> OptimisationRequest) throws {
+    // --review opens the batch window for the user to tweak knobs and press Optimise; the CLI fires
+    // the request and returns without waiting (nothing runs until the user confirms in the window).
+    if review {
+        let req = requestCreator()
+        try OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
+        printerr("Opened the batch window for \(urls.count) items. Press Optimise there to start.")
+        Clop.exit()
+    }
+
     if !async {
         progressPrinter = ProgressPrinter(urls: urls)
         Task.init {
@@ -483,6 +492,9 @@ struct CommonOptimisationOptions: ParsableArguments {
     @Flag(name: .shortAndLong, help: "Output results as a JSON")
     var json = false
 
+    @Flag(name: .long, help: "Open the batch adjustment window to review/tweak the per-type knobs before optimising, instead of starting immediately")
+    var review = false
+
     @Option(name: .shortAndLong, help: "\(OUTPUT_TEMPLATE_HELP)")
     var output: String? = nil
 }
@@ -503,7 +515,7 @@ func sendOptimisationCommand(
     pipeline: String? = nil,
     operation: String = "optimisation"
 ) throws {
-    try sendRequest(urls: urls, showProgress: !options.noProgress, async: options.async, gui: options.gui, json: options.json, operation: operation) {
+    try sendRequest(urls: urls, showProgress: !options.noProgress, async: options.async, gui: options.gui, json: options.json, review: options.review, operation: operation) {
         var out = normalizeRelativeOutput(options.output)
         if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
             out = out!.replacingFirstOccurrence(of: ".\(inExt)", with: "")
@@ -524,7 +536,8 @@ func sendOptimisationCommand(
             pdfDPI: pdfDPI,
             compression: compression,
             audioBitrate: audioBitrate,
-            pipeline: pipeline
+            pipeline: pipeline,
+            prepareInBatch: options.review
         )
     }
 }

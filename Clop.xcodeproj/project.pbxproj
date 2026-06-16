@@ -72,6 +72,11 @@
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */ = {isa = PBXBuildFile; productRef = C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */; };
 		C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C401AA2E1B00010000A001 /* CropWindow.swift */; };
+		746889BF3756430A980B6DB6 /* BatchPrepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947ACABBF1E54BA7ACD69B48 /* BatchPrepView.swift */; };
+		C4401CC17C6F4E09AC5608E5 /* BatchWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4693623D61F94747851DCAA8 /* BatchWindow.swift */; };
+		537EB22C23B448CDAFE7F24D /* BatchBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C1984562F8F4FE1B91A39EB /* BatchBackup.swift */; };
+		E2E2C845FF7444FB8237BF30 /* BatchOptimiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A491A5179634D07B4513DA2 /* BatchOptimiser.swift */; };
+		95659A8C84874DF08B1A206C /* FileOps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81D62E5ADB77436086B06CBB /* FileOps.swift */; };
 		C7CC9E242E57299900EAFCA1 /* InternetAccessPolicy.plist in Resources */ = {isa = PBXBuildFile; fileRef = C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */; };
 		C7CC9E282E57299900EAFCA1 /* Pipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CC9E262E57299900EAFCA1 /* Pipeline.swift */; };
 		C7D697172F837AD000FAFD3A /* LowtechProSentry in Frameworks */ = {isa = PBXBuildFile; productRef = C7D697162F837AD000FAFD3A /* LowtechProSentry */; };
@@ -194,6 +199,11 @@
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C7C401AA2E1B00010000A001 /* CropWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CropWindow.swift; sourceTree = "<group>"; };
+		947ACABBF1E54BA7ACD69B48 /* BatchPrepView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchPrepView.swift; sourceTree = "<group>"; };
+		4693623D61F94747851DCAA8 /* BatchWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchWindow.swift; sourceTree = "<group>"; };
+		6C1984562F8F4FE1B91A39EB /* BatchBackup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchBackup.swift; sourceTree = "<group>"; };
+		9A491A5179634D07B4513DA2 /* BatchOptimiser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchOptimiser.swift; sourceTree = "<group>"; };
+		81D62E5ADB77436086B06CBB /* FileOps.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileOps.swift; sourceTree = "<group>"; };
 		C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = InternetAccessPolicy.plist; sourceTree = "<group>"; };
 		C7CC9E262E57299900EAFCA1 /* Pipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pipeline.swift; sourceTree = "<group>"; };
 		C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingResult.swift; sourceTree = "<group>"; };
@@ -313,6 +323,11 @@
 				C71AAAD72D2D500300CA86D9 /* PresetZones.swift */,
 				C73802062BDCD76D001BEE6C /* CompareView.swift */,
 				C7C401AA2E1B00010000A001 /* CropWindow.swift */,
+				947ACABBF1E54BA7ACD69B48 /* BatchPrepView.swift */,
+				4693623D61F94747851DCAA8 /* BatchWindow.swift */,
+				6C1984562F8F4FE1B91A39EB /* BatchBackup.swift */,
+				9A491A5179634D07B4513DA2 /* BatchOptimiser.swift */,
+				81D62E5ADB77436086B06CBB /* FileOps.swift */,
 				C7976AC72B07B87D00C4246A /* BatchCropButton.swift */,
 				C735DA012B021D6E001DCAA8 /* Migrations.swift */,
 				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
@@ -546,6 +561,11 @@
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
 				C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */,
 				C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */,
+				746889BF3756430A980B6DB6 /* BatchPrepView.swift in Sources */,
+				C4401CC17C6F4E09AC5608E5 /* BatchWindow.swift in Sources */,
+				537EB22C23B448CDAFE7F24D /* BatchBackup.swift in Sources */,
+				E2E2C845FF7444FB8237BF30 /* BatchOptimiser.swift in Sources */,
+				95659A8C84874DF08B1A206C /* FileOps.swift in Sources */,
 				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
 				2C5A7A735E2586ECE5A24B90 /* Audio.swift in Sources */,
 				C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */,

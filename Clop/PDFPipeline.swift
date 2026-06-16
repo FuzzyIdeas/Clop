@@ -21,7 +21,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
     hideFloatingResult: Bool = false,
     aggressiveOptimisation: Bool? = nil,
     dpiOverride: Int? = nil,
-    source: OptimisationSource? = nil
+    source: OptimisationSource? = nil,
+    batchOptimiser: Optimiser? = nil
 ) async throws -> PDF? {
     let path = pdf.path
     let pathString = path.string
@@ -54,7 +55,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
         }
     }
 
-    let optimiser = OM.optimiser(id: pipelineId, type: .pdf, operation: opLabel, hidden: hideFloatingResult, source: source)
+    // In batch mode the engine supplies a transient hidden optimiser that is never registered in OM.
+    let optimiser = batchOptimiser ?? OM.optimiser(id: pipelineId, type: .pdf, operation: opLabel, hidden: hideFloatingResult, source: source)
 
     // Extract crop size and shortcut from actions
     var cropSize: CropSize?
@@ -72,8 +74,10 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
         let finalOpLabel = "Optimising" + (aggressive ? " (aggressive)" : "")
         optimiser.operation = finalOpLabel
         optimiser.originalURL = path.url
-        OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
-        showFloatingThumbnails()
+        if batchOptimiser == nil {
+            OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
+            showFloatingThumbnails()
+        }
 
         let fileSize = pdf.fileSize
         var previouslyCached = true
@@ -123,7 +127,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "PDFPipeline")
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
                     log.error("Error in PDF pipeline \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
-                    mainActor { optimiser.finish(error: "Optimisation failed") }
+                    mainActor { optimiser.finish(processError: proc) }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedPDF = pdf

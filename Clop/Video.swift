@@ -464,7 +464,7 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
         optimiser.progress.fileURL = url
         optimiser.progress.localizedDescription = optimiser.operation
         optimiser.progress.localizedAdditionalDescription = "Frame 0 of \(optimiser.progress.totalUnitCount)"
-        optimiser.progress.publish()
+        optimiser.publishProgress()
     }
 
     let handle = pipe.fileHandleForReading
@@ -472,7 +472,7 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
         let data = pipe.availableData
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
-            mainActor { optimiser.progress.unpublish() }
+            mainActor { optimiser.unpublishProgress() }
             return
         }
         guard let string = String(data: data.replacing([0x13], with: []), encoding: .utf8) else {
@@ -503,7 +503,7 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
         } else {
             optimiser.progress.localizedAdditionalDescription = "\(0.i64.hmsString) of \(optimiser.progress.totalUnitCount.hmsString)"
         }
-        optimiser.progress.publish()
+        optimiser.publishProgress()
     }
 
     let handle = pipe.fileHandleForReading
@@ -511,7 +511,7 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
         let data = pipe.availableData
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
-            mainActor { optimiser.progress.unpublish() }
+            mainActor { optimiser.unpublishProgress() }
             return
         }
         guard let string = String(data: data, encoding: .utf8) else {

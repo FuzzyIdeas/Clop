@@ -60,11 +60,13 @@ struct BatchCropButton: View {
     }
 
     var editor: some View {
-        VStack(spacing: 10) {
-            VStack(alignment: .leading) {
-                Text("Size presets")
-                    .heavy(10)
+        VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("SIZE PRESETS")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .kerning(0.7)
                     .foregroundColor(.secondary)
+                    .padding(.bottom, 1)
                 ForEach(savedCropSizes.map { $0.withOrientation(cropOrientation) }.filter(!\.isAspectRatio).sorted(by: \.area)) { size in
                     cropSizeButton(size)
                 }
@@ -93,11 +95,13 @@ struct BatchCropButton: View {
             }
 
             Divider()
-            VStack(alignment: .leading) {
-                Text("Aspect ratios")
-                    .heavy(10)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ASPECT RATIOS")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .kerning(0.7)
                     .foregroundColor(.secondary)
-                Grid(alignment: .leading) {
+                    .padding(.bottom, 1)
+                Grid(alignment: .leading, horizontalSpacing: 4, verticalSpacing: 4) {
                     GridRow {
                         ForEach(DEFAULT_CROP_ASPECT_RATIOS[0 ..< 5].map { $0.withOrientation(cropOrientation) }) { size in
                             aspectRatioButton(size)
@@ -167,20 +171,31 @@ struct BatchCropButton: View {
     @State private var lastFocusState: Field?
 
     @ViewBuilder func aspectRatioButton(_ size: CropSize) -> some View {
-        Button(size.name) {
+        let selected = isAspectRatio && cropSize?.name == size.name
+        Button(action: {
             isAspectRatio = true
             cropSize = size.withOrientation(cropOrientation)
-        }.buttonStyle(.bordered)
+        }, label: {
+            Text(size.name)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 4)
+                .chipBackground(selected: selected)
+        })
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder var editorViewer: some View {
         viewer
             .popover(isPresented: $cropping, arrowEdge: .bottom) {
-                PaddedPopoverView(background: Color.bg.warm.any) {
+                PaddedPopoverView(background: Color(light: Color.white, dark: Color.black).any) {
                     editor
-                        .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.05 : 0.13), textColor: .fg.warm, radius: 4, horizontalPadding: 3, verticalPadding: 1))
+                        .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.08 : 0.10), textColor: .primary, radius: 5, horizontalPadding: 3, verticalPadding: 1))
                         .font(.mono(11, weight: .medium))
-                        .foregroundColor(.fg.warm)
+                        .foregroundColor(.primary)
                 }
             }
     }
@@ -196,7 +211,8 @@ struct BatchCropButton: View {
     }
 
     @ViewBuilder func cropSizeButton(_ size: CropSize) -> some View {
-        HStack(spacing: 10) {
+        let selected = !isAspectRatio && tempWidth == size.width && tempHeight == size.height
+        HStack(spacing: 6) {
             Button(action: {
                 isAspectRatio = false
                 tempWidth = size.width
@@ -209,13 +225,17 @@ struct BatchCropButton: View {
                         .fontDesign(.rounded)
                     Spacer()
                     Text(size.id)
-                        .monospaced()
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.secondary)
                         .allowsTightening(false)
                 }
                 .frame(width: 190)
                 .lineLimit(1)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
+                .chipBackground(selected: selected)
             })
-            .buttonStyle(.bordered)
+            .buttonStyle(.plain)
 
             Button(action: {
                 withAnimation(.easeOut(duration: 0.1)) {
@@ -230,4 +250,18 @@ struct BatchCropButton: View {
         }
     }
 
+}
+
+private extension View {
+    @ViewBuilder func chipBackground(selected: Bool) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(selected ? Color.accentColor.opacity(0.8) : Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
 }

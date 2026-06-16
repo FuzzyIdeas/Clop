@@ -454,6 +454,9 @@ struct OptimisationRequest: Codable, Identifiable {
     /// (e.g. "crop(width: 1600) -> convert(to: webp)"). When set, the app executes
     /// this pipeline instead of looking up source-configured automations.
     var pipeline: String? = nil
+    /// When true, open the batch adjustment window for review instead of starting immediately. The
+    /// CLI returns right away; the user presses Optimise in the window to begin. (Dev/iteration aid.)
+    var prepareInBatch: Bool? = nil
 }
 
 func runningClopApp() -> NSRunningApplication? {

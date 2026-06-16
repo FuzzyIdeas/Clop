@@ -671,6 +671,40 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
     let itemsToOptimise = DM.itemsToOptimise
     let itemProvidersCount = itemProviders.count
     let copyToClipboard = Defaults[.autoCopyToClipboard]
+
+    // Batch mode: a large pile of dropped files (all plain file references) goes to the lightweight
+    // engine + window instead of one floating result each. Pro-only; a single folder isn't caught
+    // here (it goes through optimiseFile → optimiseDir, which has its own batch routing).
+    if Defaults[.useBatchModeForFolders], proactive,
+       itemProvidersCount > Defaults[.batchModeFileCountThreshold],
+       itemProviders.allSatisfy({ $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) })
+    {
+        tryAsync {
+            var paths: [FilePath] = []
+            for provider in itemProviders {
+                guard let item = try? await provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier),
+                      let path = item.existingFilePath else { continue }
+                if path.isDir {
+                    // Folders arrive as file URLs and pass the gate, but the batch scanner only keeps
+                    // real media files, so expand each folder into its contents (else the batch is empty
+                    // and nothing gets optimised). Scan off the main actor so a deep/slow tree (e.g. a
+                    // network volume) doesn't beachball the UI before the window opens.
+                    let dirURL = path.url
+                    let expanded = await Task.detached {
+                        getURLsFromFolder(dirURL, recursive: true, types: ALL_FORMATS).compactMap(\.existingFilePath)
+                    }.value
+                    paths.append(contentsOf: expanded)
+                } else {
+                    paths.append(path)
+                }
+            }
+            guard !paths.isEmpty else { return }
+            BAT.prepare(paths: paths, source: .dropZone)
+            BAT.showWindow()
+        }
+        return true
+    }
+
     for itemProvider in itemProviders {
         log.debug("Dropped itemProvider types: \(itemProvider.registeredTypeIdentifiers)")
 
@@ -909,8 +943,21 @@ extension NSSecureCoding {
 
 @MainActor
 func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: OptimisationSource? = nil, output: String? = nil, types: [UTType]) async throws {
+    let urls = getURLsFromFolder(dir.url, recursive: true, types: types)
+
+    // Batch mode: a large folder is handed to the lightweight engine + native window instead of one
+    // heavy Optimiser/thumbnail per file. Pro-only; free users fall through to the per-file proGuard
+    // path below (capped at the free limit).
+    if Defaults[.useBatchModeForFolders], proactive, urls.count > Defaults[.batchModeFileCountThreshold] {
+        let paths = urls.compactMap(\.filePath)
+        // Drops open the prepare panel (review knobs, then Optimise); the CLI auto-starts instead.
+        BAT.prepare(paths: paths, source: source ?? .dir(dir.string))
+        BAT.showWindow()
+        return
+    }
+
     await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
-        for url in getURLsFromFolder(dir.url, recursive: true, types: types) {
+        for url in urls {
             let path = url.filePath!
             let added = group.addTaskUnlessCancelled {
                 _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {

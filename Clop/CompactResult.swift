@@ -11,11 +11,20 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "CompactResult")
 struct CompactResult: View {
     static let improvementColor = Color(light: FloatingResult.darkBlue, dark: FloatingResult.yellow)
 
-    @ObservedObject var sm = SM
+    // Shared typography so every row reads as one design instead of a pile of ad-hoc sizes.
+    static let nameFont = Font.medium(12)
+    static let sizeFont = Font.mono(11, weight: .semibold)
+    static let metricFont = Font.round(10, weight: .medium)
+
     @ObservedObject var optimiser: Optimiser
+    // Passed down from the list instead of each row observing the global SelectionManager,
+    // so toggling one row's selection no longer re-renders every other row's body.
+    var selecting: Bool
+    var selected = false
+    var selectable = true
+    var onToggleSelection: () -> Void = {}
     @State var hovering = false
 
-    @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.neverShowProError) var neverShowProError
     @Default(.showCompactImages) var showCompactImages
 
@@ -23,8 +32,6 @@ struct CompactResult: View {
     @Environment(\.preview) var preview
     @Environment(\.openURL) var openURL
     @Environment(\.colorScheme) var colorScheme
-
-    var isEven: Bool
 
     @ViewBuilder var pathView: some View {
         if let url = optimiser.url, url.isFileURL {
@@ -88,18 +95,18 @@ struct CompactResult: View {
         }
     }
     @ViewBuilder var sizeDiff: some View {
-        if let oldSize = optimiser.oldSize, !sm.selecting {
-            ResolutionField(optimiser: optimiser, size: oldSize)
-                .buttonStyle(FlatButton(color: .bg.warm, textColor: .fg.warm.opacity(0.8), radius: 4, horizontalPadding: 3, verticalPadding: 1, shadowSize: 1))
-                .font(.round(10, weight: .medium))
-                .foregroundColor(.fg.warm)
+        if let oldSize = optimiser.oldSize, !selecting {
+            ResolutionField(optimiser: optimiser, showCropIcon: true, size: oldSize)
+                .buttonStyle(FlatButton(color: .primary.opacity(0.06), textColor: .secondary, radius: 4, horizontalPadding: 4, verticalPadding: 1, shadowSize: 0))
+                .font(Self.metricFont)
+                .foregroundColor(.secondary)
                 .fixedSize()
                 .disabled(!optimiser.canCrop())
         }
     }
 
     @ViewBuilder var bitrateDiff: some View {
-        if optimiser.type.isAudio, let oldBitrate = optimiser.oldBitrate, !sm.selecting {
+        if optimiser.type.isAudio, let oldBitrate = optimiser.oldBitrate, !selecting {
             HStack(spacing: 3) {
                 let hideOldBitrate = optimiser.newBitrate != nil && optimiser.newBitrate! != oldBitrate
                 if !hideOldBitrate {
@@ -113,14 +120,14 @@ struct CompactResult: View {
                 }
             }
             .lineLimit(1)
-            .font(.round(10, weight: .medium))
-            .foregroundColor(.fg.warm)
+            .font(Self.metricFont)
+            .foregroundColor(.secondary)
             .fixedSize()
         }
     }
 
     @ViewBuilder var dpiDiff: some View {
-        if optimiser.type.isPDF, let oldDPI = optimiser.oldDPI, !sm.selecting {
+        if optimiser.type.isPDF, let oldDPI = optimiser.oldDPI, !selecting {
             HStack(spacing: 3) {
                 let hideOldDPI = optimiser.newDPI != nil && optimiser.newDPI! != oldDPI
                 if !hideOldDPI {
@@ -134,32 +141,51 @@ struct CompactResult: View {
                 }
             }
             .lineLimit(1)
-            .font(.round(10, weight: .medium))
-            .foregroundColor(.fg.warm)
+            .font(Self.metricFont)
+            .foregroundColor(.secondary)
             .fixedSize()
+        }
+    }
+
+    /// Percentage saved, styled to match the batch window's savings pills for a cohesive look across the app.
+    @ViewBuilder var savingsBadge: some View {
+        if !selecting, optimiser.oldBytes > 0, optimiser.newBytes > 0, optimiser.newBytes < optimiser.oldBytes {
+            let pct = Int(((optimiser.oldBytes - optimiser.newBytes).d / optimiser.oldBytes.d * 100).rounded())
+            if pct > 0 {
+                // Bigger savings read stronger: the capsule fill ramps with the percentage (a 70%+ save
+                // sits near full intensity), so the wins you care about visibly pop.
+                let intensity = min(1.0, max(0.2, pct.d / 70.0))
+                Text("−\(pct)%")
+                    .mono(9, weight: .bold)
+                    .foregroundColor(Self.improvementColor)
+                    .padding(.horizontal, 4).padding(.vertical, 1)
+                    .background(Self.improvementColor.opacity(0.1 + intensity * 0.22), in: Capsule())
+                    .fixedSize()
+            }
         }
     }
 
     @ViewBuilder var fileSizeDiff: some View {
         let improvement = optimiser.newBytes > 0 && optimiser.newBytes < optimiser.oldBytes
 
-        HStack {
+        HStack(spacing: 4) {
             Text(optimiser.oldBytes.humanSize)
-                .mono(11, weight: .semibold)
+                .font(Self.sizeFont)
                 .foregroundColor(
-                    !sm.selecting
+                    !selecting
                         ? (improvement ? Color.red : Color.secondary)
                         : (improvement ? Color.secondary : Color.primary)
                 )
             if optimiser.newBytes > 0, optimiser.newBytes != optimiser.oldBytes {
                 SwiftUI.Image(systemName: "arrow.right")
                     .font(.medium(11))
+                    .foregroundColor(.secondary)
                 Text(optimiser.newBytes.humanSize)
-                    .mono(11, weight: .semibold)
+                    .font(Self.sizeFont)
                     .foregroundColor(
                         improvement
-                            ? (!sm.selecting ? Self.improvementColor : .primary)
-                            : (!sm.selecting ? FloatingResult.red : .secondary)
+                            ? (!selecting ? Self.improvementColor : .primary)
+                            : (!selecting ? FloatingResult.red : .secondary)
                     )
             }
         }
@@ -210,23 +236,147 @@ struct CompactResult: View {
             .allowsTightening(true)
         }
     }
+    /// Per-file-type accent hue for the thumbnail ring.
+    var typeColor: Color {
+        if optimiser.type.isImage { return .blue }
+        if optimiser.type.isVideo { return .purple }
+        if optimiser.type.isPDF { return .orange }
+        if optimiser.type.isAudio { return .pink }
+        return .gray
+    }
+
     @ViewBuilder var thumbnail: some View {
         if showCompactImages {
-            VStack {
+            Group {
                 if let image = optimiser.thumbnail {
                     SwiftUI.Image(nsImage: image)
                         .resizable()
                         .scaledToFill()
                 } else {
                     SwiftUI.Image(systemName: optimiser.type.icon)
-                        .font(.system(size: 22))
-                        .foregroundColor(.secondary.opacity(0.5))
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary.opacity(0.6))
                 }
             }
             .frame(width: 40, height: 40)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(Color.primary.opacity(optimiser.thumbnail == nil ? 0.05 : 0))
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            // A thin ring tinted by file type, for a touch of colour and quick scanning (handy when the
+            // thumbnail is a generic icon, e.g. audio/PDF).
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(typeColor.opacity(0.3), lineWidth: 1.5)
+            )
+            .overlay(alignment: .topLeading) {
+                if !selecting { closeButton.offset(x: -5, y: -5) }
+            }
+            // In a SwiftUI List, a press on STATIC content (the bare image) is claimed by the list's own
+            // selection/scroll gesture, so neither the row's body-root .onDrag NOR an .onDrag attached
+            // here ever initiates from the thumbnail. The drag only works where the press lands on an
+            // INTERACTIVE responder (the filename's tap gesture, the checkbox/close Buttons), which lets
+            // the drag bubble up to the row's drag source. So give the thumbnail its own tap gesture to
+            // make it such a responder: a tap toggles selection while selecting (and is a no-op
+            // otherwise), and crucially a press-drag now bubbles to the body-root .onDrag and drags.
+            .contentShape(Rectangle())
+            .onTapGesture { if SM.selecting { onToggleSelection() } }
+            // Signal draggability: a subtle scale-up and a pointer cursor on hover (render-only, no layout shift).
+            .scaleEffect(hoveringThumb ? 1.08 : 1)
+            .animation(.easeOut(duration: 0.12), value: hoveringThumb)
+            .onHover { h in
+                hoveringThumb = h
+                if h { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            }
         }
     }
+
+    /// File drag for the whole row. Attached at the body ROOT (NOT a nested subview) so it bridges to the
+    /// SwiftUI List row's table drag session on macOS — `.onDrag` on a nested subview inside a List row
+    /// does not. A selected row (with a multi-selection) drags the whole selection; otherwise just this
+    /// file. Gated at the call site by `!showDownscaleSlider && !showCompressionSlider`, so pressing a
+    /// grid slider catches the press-drag instead of starting a row drag, exactly like the floating card.
+    func fileDragProvider(_ url: URL) -> NSItemProvider {
+        if selected, SM.selection.count > 1 {
+            let urls = SM.optimisers.compactMap(\.url).filter(\.isFileURL)
+            let provider = NSItemProvider()
+            for u in urls {
+                provider.registerObject(u as NSURL, visibility: .all)
+            }
+            return provider
+        }
+        log.debug("Dragging \(url)")
+        if Defaults[.dismissCompactResultOnDrop] {
+            optimiser.remove(after: 100, withAnimation: true)
+        }
+        return NSItemProvider(object: url as NSURL)
+    }
+
+    @ViewBuilder var dragPreview: some View {
+        if selected, SM.selection.count > 1 {
+            DragPilePreview(optimisers: SM.optimisers)
+        } else {
+            DragPreview(optimiser: optimiser)
+        }
+    }
+
+    /// Plain X (or stop) button pinned to the thumbnail's top-left corner. Fades in on row hover via
+    /// opacity only, so it never shifts the row's geometry. Replaces the old "Close"/"Stop" text pill
+    /// that used to sit in the top-right.
+    @ViewBuilder var closeButton: some View {
+        Button {
+            guard !preview else { return }
+            hoveredOptimiserID = nil
+            optimiser.stop(remove: !OM.compactResults || !optimiser.running, animateRemoval: true)
+            optimiser.uiStop()
+        } label: {
+            SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark")
+                .font(.bold(7))
+                .foregroundColor(.red)
+                .frame(width: 14, height: 14)
+                .background(Circle().fill(
+                    hoveringCloseStopButton
+                        ? Color(light: Color(red: 1.0, green: 0.82, blue: 0.82), dark: Color(red: 0.42, green: 0.17, blue: 0.17))
+                        : Color(light: Color(red: 1.0, green: 0.89, blue: 0.89), dark: Color(red: 0.32, green: 0.14, blue: 0.14))
+                ))
+                .overlay(Circle().strokeBorder(Color.red, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        // Only hit-testable while shown (on row hover); otherwise the invisible button would block drags
+        // from the thumbnail's top-left corner. `.offset` is render-only so the hit area sits at the corner.
+        .allowsHitTesting(hovering)
+        .opacity(hovering ? (hoveringCloseStopButton ? 1 : 0.85) : 0)
+        .onHover { hoveringCloseStopButton = $0 }
+        .help(optimiser.running ? "Stop" : "Close")
+    }
+
+    /// Photos/Finder-style selection circle. Always present on selectable rows (translucent at rest,
+    /// solid when hovered or selected) so the affordance is discoverable without a hover and the row
+    /// geometry never shifts. Clicking it is the ONLY thing that selects a row, so a plain click on the
+    /// row body keeps doing single-item things (drag, rename, quick actions) without entering a mode.
+    @ViewBuilder var selectionCheckbox: some View {
+        if selectable {
+            Button(action: onToggleSelection) {
+                ZStack {
+                    Circle().fill(.background).frame(width: 17, height: 17)
+                    if selected {
+                        SwiftUI.Image(systemName: "checkmark.circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, Color.accentColor)
+                    } else {
+                        SwiftUI.Image(systemName: "circle")
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                }
+                .font(.system(size: 17, weight: .medium))
+                .shadow(color: .black.opacity(0.15), radius: 1, y: 0.5)
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+            .opacity(selected || selecting || hovering ? 1 : 0.35)
+            .help(selected ? "Deselect" : "Select")
+        }
+    }
+
     @ViewBuilder var noticeView: some View {
         if let notice = optimiser.notice {
             VStack(alignment: .leading) {
@@ -242,75 +392,83 @@ struct CompactResult: View {
     }
 
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
             thumbnail
 
             if optimiser.running {
                 progressView
                     .controlSize(.small)
-                    .font(.medium(12)).lineLimit(1)
+                    .font(Self.nameFont).lineLimit(1)
             } else if optimiser.error != nil {
                 errorView
             } else if optimiser.notice != nil {
                 noticeView
             } else {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
-                        FileNameField(optimiser: optimiser)
-                            .foregroundColor(.primary)
-                            .font(.medium(12)).lineLimit(1)
-                            .fixedSize(horizontal: false, vertical: true)
+                        CompactNameField(optimiser: optimiser)
                             .frame(width: THUMB_SIZE.width * 0.6, alignment: .leading)
                     }
-                    HStack {
+                    HStack(spacing: 5) {
                         fileSizeDiff
-                        Spacer()
+                        savingsBadge
+                        Spacer(minLength: 4)
                         sizeDiff
                         bitrateDiff
                         dpiDiff
                     }
-                    if !sm.selecting {
-                        ActionButtons(optimiser: optimiser, size: 18)
-                            .padding(.top, 2)
+                    // Keep the trailing size/bitrate/resolution text off the flush row edge.
+                    .padding(.trailing, 8)
+                    if !selecting {
+                        ActionButtons(optimiser: optimiser, size: 18, revealed: hovering)
+                            .padding(.top, 0)
+                            .padding(.bottom, 2)
                             .focusable(false)
                     }
                 }
             }
         }
+        // Always reserve a fixed leading checkbox column so the checkbox sits in its own gap (close to
+        // the left edge once the list row insets are removed) and the row geometry never shifts on hover.
+        // 28 leaves a small (~7pt) gap between the 17pt checkbox and the 40pt thumbnail without looking loose.
+        .padding(.leading, 28)
+        .overlay(alignment: .leading) { selectionCheckbox.padding(.leading, 4) }
         .animation(nil, value: optimiser.running)
         .padding(.top, 3)
         .frame(height: 70)
         .hfill(.leading)
-        .if(!sm.selecting) { view in
-            view
-                .overlay(alignment: .topTrailing) {
-                    CompactCloseStopButton(optimiser: optimiser)
-                        .buttonStyle(FlatButton(color: .bg.warm, textColor: Color.mauvish.opacity(0.8)))
-                        .focusable(false)
-                        .shadow(color: Color.shadow.opacity(colorScheme == .dark ? 0.5 : 0.1), radius: colorScheme == .dark ? 4 : 2, x: 0, y: 1)
-                        .offset(x: 4, y: 0)
-                        .opacity(hovering ? (hoveringCloseStopButton ? 1 : 0.4) : 0)
-                        .onHover(perform: { hovering in
-                            hoveringCloseStopButton = hovering
-                        })
-                }
+        // Plain full-bleed selection fill (no rounding, no inset) so selected rows read as a clean band;
+        // a faint accent wash on plain hover gives the row a live feel without adding chrome.
+        .background {
+            if selected {
+                Color.accentColor.opacity(colorScheme == .dark ? 0.22 : 0.14)
+            } else if hovering {
+                Color.accentColor.opacity(colorScheme == .dark ? 0.10 : 0.06)
+            }
+        }
+        // Thin accent edge marks the selected row at a glance.
+        .overlay(alignment: .leading) {
+            if selected {
+                Rectangle().fill(Color.accentColor).frame(width: 2.5)
+            }
+        }
+        // The close button normally lives on the thumbnail's corner; when thumbnails are hidden there's
+        // nothing to anchor it to, so fall back to the row's trailing edge.
+        .if(!selecting && !showCompactImages) { view in
+            view.overlay(alignment: .topTrailing) { closeButton.padding(.trailing, 4) }
         }
         .onHover(perform: updateHover(_:))
-        .ifLet(optimiser.url, transform: { view, url in
-            view.if(!optimiser.showDownscaleSlider) { v in
-                v.onDrag {
-                    guard !preview else {
-                        return NSItemProvider()
-                    }
-
-                    log.debug("Dragging \(url)")
-                    if Defaults[.dismissCompactResultOnDrop] {
-                        optimiser.remove(after: 100, withAnimation: true)
-                    }
-                    return NSItemProvider(object: url as NSURL)
-                }
+        // Resolve cover-art size for audio so the cover-art downscale button only appears when there's
+        // actually cover art to resize.
+        .onAppear { if optimiser.type.isAudio { loadAudioCoverArtSize(optimiser: optimiser) } }
+        // File drag attached at the body ROOT (see fileDragProvider) so it bridges to the List row's
+        // table drag session. Gated by both slider flags so a press-drag on the compression/downscale
+        // slider stays with the slider instead of starting a row drag.
+        .ifLet(optimiser.url) { view, url in
+            view.if(url.isFileURL && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider && !preview) { v in
+                v.onDrag { fileDragProvider(url) } preview: { dragPreview }
             }
-        })
+        }
     }
 
     func updateHover(_ hovering: Bool) {
@@ -323,31 +481,127 @@ struct CompactResult: View {
     }
 
     @State private var hoveringCloseStopButton = false
+    @State private var hoveringThumb = false
 
 }
 
-struct CompactCloseStopButton: View {
+/// Flat filename control for the compact list rows. Reads as a plain `name.ext` Text; tapping the name
+/// swaps it for an inline edit field, and the extension is a borderless format-conversion menu. Both
+/// segments highlight on hover (so it's clear they're clickable) without any background chrome of their
+/// own, and nothing changes size on hover. The floating card keeps its own `NameFormatPill`/`FileNameField`.
+struct CompactNameField: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
 
     var body: some View {
-        Button(
-            action: {
-                guard !preview else { return }
-
-                hoveredOptimiserID = nil
-                optimiser.stop(remove: !OM.compactResults || !optimiser.running, animateRemoval: true)
-                optimiser.uiStop()
-            },
-            label: {
-                HStack(spacing: 2) {
-                    SwiftUI.Image(systemName: optimiser.running ? "stop.fill" : "xmark").font(.heavy(8))
-                    Text(optimiser.running ? "Stop" : "Close").medium(9)
-                }
+        Group {
+            if optimiser.editingFilename {
+                editor
+            } else {
+                segments
             }
-        )
-
+        }
+        .frame(height: 18)
+        .onAppear { tempName = stem }
+        .onChange(of: optimiser.url) { _ in tempName = stem }
+        .onChange(of: optimiser.running) { running in if running { optimiser.editingFilename = false } }
     }
+
+    var segments: some View {
+        HStack(spacing: 0) {
+            // Flat text, no padding/background at rest; hovering just underlines it (and shows the I-beam)
+            // so it reads as editable without a chrome box hugging the text.
+            Text(stem.isEmpty ? "filename" : stem)
+                .font(CompactResult.nameFont)
+                .underline(hoveringName, color: .primary.opacity(0.4))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .onHover { inside in
+                    guard !SM.selecting else { return }
+                    hoveringName = inside
+                    if inside { NSCursor.iBeam.push() } else { NSCursor.pop() }
+                }
+                .onTapGesture { startEditing() }
+            if !ext.isEmpty {
+                Text(".").font(CompactResult.nameFont).foregroundColor(.secondary)
+                formatSegment
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder var formatSegment: some View {
+        if !optimiser.running, optimiser.canChangeFormat() {
+            Menu {
+                ForEach(optimiser.convertibleTypes) { format in
+                    let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
+                    if !e.isEmpty {
+                        Button(e.uppercased()) {
+                            guard !preview, optimiser.type.utType != format else { return }
+                            optimiser.convert(to: format, optimise: true)
+                        }
+                    }
+                }
+            } label: {
+                Text(ext)
+                    .font(CompactResult.nameFont)
+                    .underline(hoveringExt, color: .primary.opacity(0.4))
+                    .foregroundColor(hoveringExt ? .primary : .secondary)
+            }
+            .menuButtonStyle(BorderlessButtonMenuButtonStyle())
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .onHover { hoveringExt = $0 }
+            .fixedSize()
+            .help("Convert to another format")
+        } else {
+            Text(ext).font(CompactResult.nameFont).foregroundColor(.secondary)
+        }
+    }
+
+    var editor: some View {
+        // The X sits OUTSIDE the field's frame (not in a shared background), so the focused text field's
+        // own white editing/selection background stays within the field and never overlaps the button.
+        HStack(spacing: 6) {
+            TextField("", text: $tempName)
+                .textFieldStyle(.plain)
+                .font(CompactResult.nameFont)
+                .foregroundColor(.primary)
+                .focused($focused)
+                .onSubmit {
+                    optimiser.rename(to: tempName)
+                    optimiser.editingFilename = false
+                }
+            Button(action: { optimiser.editingFilename = false }, label: {
+                SwiftUI.Image(systemName: "xmark").font(.bold(8)).foregroundColor(.secondary)
+            })
+            .buttonStyle(.plain)
+            .keyboardShortcut(.escape, modifiers: [])
+        }
+        .onAppear {
+            tempName = stem
+            floatingResultsWindow.allowToBecomeKey = true
+            floatingResultsWindow.makeKeyAndOrderFront(nil)
+            floatingResultsWindow.orderFrontRegardless()
+            focused = true
+        }
+    }
+
+    func startEditing() {
+        guard !preview, !SM.selecting else { return }
+        tempName = stem
+        withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
+    }
+
+    @FocusState private var focused: Bool
+    @State private var tempName = ""
+    @State private var hoveringName = false
+    @State private var hoveringExt = false
+
+    private var stem: String { optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? "" }
+    private var ext: String { optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? "" }
+
 }
 
 struct OverlayMessageView: View {
@@ -384,20 +638,6 @@ struct OverlayMessageView: View {
                     }
                 }
         }
-    }
-}
-
-struct DeselectButton: View {
-    var body: some View {
-        let img = SwiftUI.Image(systemName: "xmark.rectangle.fill")
-        Button("\(img) Clear selection") { SM.selection = [] }
-    }
-}
-
-struct StopSelectionButton: View {
-    var body: some View {
-        let img = SwiftUI.Image(systemName: "chevron.backward.circle.fill")
-        Button("\(img) Back") { SM.selecting = false }
     }
 }
 
@@ -470,46 +710,176 @@ class SelectionManager: ObservableObject {
 
 @MainActor let SM = SelectionManager()
 
-struct SelectButton: View {
-    var body: some View {
-        let img = SwiftUI.Image(systemName: "checkmark.rectangle.stack.fill")
-        Button("\(img) Select all") { SM.selection = OM.visibleOptimisers.filter(!\.running).map(\.id).set }
+extension View {
+    /// Full-width footer-bar chrome shared by both bottom bars: fills the panel width and stays flat
+    /// (the panel's own rounded clip shapes the bottom corners, so the bar has no corner whitespace),
+    /// with a hairline separator above it.
+    func footerBarChrome() -> some View {
+        padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
+            .background(.thinMaterial)
+            .overlay(alignment: .top) { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 0.5) }
     }
 }
 
-struct StartSelectionButton: View {
+/// A little stack of result thumbnails shown while dragging a set out of the compact list, matching the
+/// floating result's "drag all" preview instead of dragging the bare handle button.
+struct DragPilePreview: View {
+    var optimisers: [Optimiser]
+
     var body: some View {
-        let img = SwiftUI.Image(systemName: "checkmark.rectangle.fill")
-        Button("\(img) Select") { SM.selecting = true }
+        let thumbs = optimisers.prefix(4).compactMap(\.thumbnail)
+        ZStack {
+            if thumbs.isEmpty {
+                SwiftUI.Image(systemName: "doc.on.doc.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(.secondary)
+                    .frame(width: 54, height: 54)
+            } else {
+                ForEach(Array(thumbs.enumerated()), id: \.offset) { i, thumb in
+                    SwiftUI.Image(nsImage: thumb)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 54, height: 54)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(.white.opacity(0.5), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
+                        .rotationEffect(.degrees(Double(i) * 5 - 7))
+                        .offset(x: Double(i) * 6, y: Double(i) * -3)
+                }
+            }
+            Text("\(optimisers.count)")
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+                .frame(minWidth: 20, minHeight: 20)
+                .background(Circle().fill(Color.accentColor).shadow(color: .black.opacity(0.3), radius: 2))
+                .offset(x: 32, y: -30)
+        }
+        .frame(width: 96, height: 80)
+        .padding(8)
     }
 }
 
-struct CompactActionButtons: View {
+/// Neutral "drag all" handle for the compact footer bars. Registers one provider per file so the drop
+/// lands as a set, and shows the thumbnail-pile preview instead of a snapshot of the handle itself.
+struct CompactDragAllHandle: View {
+    var optimisers: [Optimiser]
+    var help: String
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        SwiftUI.Image(systemName: "line.3.horizontal")
+            .font(.medium(12))
+            .frame(width: 30, height: 22)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.08)))
+            .foregroundColor(.primary.opacity(0.7))
+            .help(help)
+            .onDrag {
+                guard !preview else { return NSItemProvider() }
+                let urls = optimisers.compactMap(\.url).filter(\.isFileURL)
+                guard let first = urls.first else { return NSItemProvider() }
+                let provider = NSItemProvider()
+                provider.registerObject(first as NSURL, visibility: .all)
+                for url in urls.dropFirst() {
+                    provider.registerObject(url as NSURL, visibility: .all)
+                }
+                return provider
+            } preview: {
+                DragPilePreview(optimisers: optimisers)
+            }
+    }
+}
+
+/// The unified action bar shown at the bottom of the compact list while a selection is active. Mirrors
+/// the floating-result layout: a drag handle first (drags all selected), then a menu holding every batch
+/// action, the crop control, and a selection count + clear on the trailing side. Neutral styling (no warm
+/// tint) to match the rest of the redesigned list.
+struct CompactSelectionBar: View {
     @ObservedObject var sm = SM
 
     var body: some View {
-        HStack {
-            if !sm.selecting {
-                StartSelectionButton()
-            } else {
-                if sm.selection.count == 0 {
-                    StopSelectionButton()
-                } else {
-                    DeselectButton()
-                }
-                if sm.selection.count < sm.selectableCount {
-                    SelectButton()
-                }
-                Text("\(sm.selection.count)/\(sm.selectableCount)")
-                    .foregroundColor(.secondary)
-                    .roundbg(radius: 7, padding: 2, color: .inverted.opacity(0.3))
+        let selected = sm.selection.compactMap { opt($0) }
+        HStack(spacing: 6) {
+            CompactDragAllHandle(optimisers: selected, help: "Drag all selected files")
+
+            Menu {
+                BatchRightClickMenuView()
+                Divider()
+                Button("Select all") { SM.selection = OM.visibleOptimisers.filter { !$0.running && $0.url != nil }.map(\.id).set }
+            } label: {
+                SwiftUI.Image(systemName: "ellipsis")
+                    .font(.medium(12))
+                    .frame(width: 34, height: 22)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.08)))
+                    .foregroundColor(.primary.opacity(0.7))
+                    .contentShape(Rectangle())
             }
+            // .button + .plain renders the custom chip label as-is (the deprecated borderless style
+            // swallowed the label background); chip matches the drag handle's size and fill exactly.
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Actions for the selection")
+
+            BatchCropButton()
+
+            Spacer()
+
+            Text("\(sm.selection.count)")
+                .mono(11, weight: .semibold)
+                .foregroundColor(.primary.opacity(0.6))
+            Button(action: { sm.selection = [] }) {
+                SwiftUI.Image(systemName: "xmark.circle.fill").font(.medium(13))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+            .help("Clear selection")
         }
-        .buttonStyle(FlatButton(color: Color.bg.warm, textColor: .primary.opacity(0.7), width: 22, height: 22, horizontalPadding: 6, verticalPadding: 2))
-        .lineLimit(1)
-        .font(.bold(11))
-        .allowsTightening(false)
+        .font(.round(10))
+        .buttonStyle(FlatButton(color: .primary.opacity(0.08), textColor: .primary.opacity(0.8), shadowSize: 0))
+        .footerBarChrome()
     }
+}
+
+/// The unified bottom bar shown when there is NO active selection: the "drag all" handle first (matching
+/// the floating-card and selection-bar layout), then stop/clear, and the update button on the trailing
+/// side. Lives in the same overlay slot as `CompactSelectionBar` and fades in on hover, so the list no
+/// longer needs a separate row of buttons above it.
+struct CompactListBar: View {
+    var optimisers: [Optimiser]
+    var hasRunning: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            CompactDragAllHandle(optimisers: optimisers, help: "Drag all results")
+
+            if hasRunning {
+                Button("Stop all") {
+                    for optimiser in OM.optimisers.filter(\.running) {
+                        optimiser.stop(remove: false)
+                        optimiser.uiStop()
+                    }
+                }
+            }
+            Button(hasRunning ? "Stop and clear" : "Clear all") {
+                OM.clearVisibleOptimisers(stop: true)
+            }
+            .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
+
+            Spacer()
+
+            UpdateButton(short: !showCompactImages)
+        }
+        .font(.round(10))
+        .buttonStyle(FlatButton(color: .primary.opacity(0.08), textColor: .primary.opacity(0.8), shadowSize: 0))
+        .footerBarChrome()
+    }
+
+    @Default(.keyComboModifiers) private var keyComboModifiers
+    @Default(.showCompactImages) private var showCompactImages
+
 }
 
 @MainActor struct CompactOptimiser: Identifiable {
@@ -584,197 +954,16 @@ struct CompactResultList: View {
     @State private var opts: [CompactOptimiser] = []
     @State private var hoveringBatchActions = false
 
-    @ViewBuilder var topButtons: some View {
-        let hasRunningOptimisers = visibleCount > (doneCount + failedCount)
-
-        HStack {
-            if floatingResultsCorner.isTrailing {
-                UpdateButton(short: !showCompactImages)
-                Spacer()
-            }
-
-            if hasRunningOptimisers {
-                Button("Stop all") {
-                    for optimiser in OM.optimisers.filter(\.running) {
-                        optimiser.stop(remove: false)
-                        optimiser.uiStop()
-                    }
-                }
-            }
-            Button(hasRunningOptimisers ? "Stop and clear" : "Clear all") {
-                OM.clearVisibleOptimisers(stop: true)
-            }
-            .help("Stop all running optimisations and dismiss all results (\(keyComboModifiers.str) esc)")
-
-            SwiftUI.Image(systemName: "line.3.horizontal")
-                .font(.medium(11))
-                .frame(height: 18)
-                .padding(.horizontal, 8)
-                .background(RoundedRectangle(cornerRadius: 7).fill(Color.inverted.opacity(0.9)))
-                .foregroundColor(.mauvish)
-                .help("Drag all")
-                .onDrag {
-                    let urls = optimisers.compactMap(\.url)
-                    let provider = NSItemProvider()
-                    for url in urls {
-                        provider.registerObject(url as NSURL, visibility: .all)
-                    }
-                    return provider
-                }
-
-            if !floatingResultsCorner.isTrailing {
-                Spacer()
-                UpdateButton(short: !showCompactImages)
-            }
-        }
-        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .mauvish, radius: 7, verticalPadding: 2))
-        .font(.medium(11))
-        .opacity(hovering && showList ? 1 : 0)
-        .allowsHitTesting(showList)
-        .focusable(false)
-        .frame(width: size.width, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
-    }
-
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
 
         VStack(alignment: isTrailing ? .trailing : .leading, spacing: 5) {
             FlipGroup(if: floatingResultsCorner.isTop) {
-                if !sm.selecting {
-                    topButtons
-                }
-
-                ZStack(alignment: .bottom) {
-                    List(opts, selection: $sm.selection) { opt in
-                        HStack {
-                            if sm.selecting {
-                                DragHandle()
-                            }
-                            CompactResult(optimiser: opt.optimiser, isEven: opt.isEven)
-//                                .roundbg(radius: 8, padding: 4, color: .fg.warm.opacity(0.1))
-                                .if(!sm.selecting) {
-                                    $0.overlay(
-                                        OverlayMessageView(optimiser: opt.optimiser, color: .inverted)
-                                            .foregroundColor(.primary)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    )
-                                }
-                                .tag(opt.id)
-                        }
-                        .if(!sm.selecting && !opt.optimiser.inRemoval) { view in
-                            view.contextMenu {
-                                RightClickMenuView(optimiser: opt.optimiser)
-                            }
-                        }
-                        .if(opt.selected) { view in
-                            view
-                                .draggable(opt.optimiser.url ?? URL(fileURLWithPath: "/tmp")) { DragPreview(optimiser: opt.optimiser) }
-                        }
-                    }
-                    .listStyle(.bordered(alternatesRowBackgrounds: true))
-//                    .listStyle(.bordered)
-                    .listItemTint(.monochrome)
-                    .padding(.bottom, progress == nil ? 0 : 18)
-                    .frame(width: size.width, height: size.height, alignment: .center)
-                    .fixedSize()
-                    .background(Color.inverted.brightness(0.1))
-                    .if(!sm.selection.isEmpty) {
-                        $0.contextMenu { BatchRightClickMenuView() }
-                    }
-                    .onHover { hovering in
-                        if !hovering {
-                            hoveredOptimiserID = nil
-                        }
-                    }
-                    .onChange(of: sm.selection) { sel in
-                        guard !sel.isEmpty else {
-                            floatingResultsWindow.allowToBecomeKey = false
-                            sm.selecting = false
-                            return
-                        }
-                        sm.selecting = true
-                        if !floatingResultsWindow.allowToBecomeKey {
-                            floatingResultsWindow.allowToBecomeKey = true
-                            focus()
-                            floatingResultsWindow.becomeFirstResponder()
-                            floatingResultsWindow.makeKeyAndOrderFront(nil)
-                            floatingResultsWindow.orderFrontRegardless()
-                        }
-                    }
-
-                    if progress != nil {
-                        ProgressView(" Done: \(doneCount)/\(visibleCount)  |  Failed: \(failedCount)/\(visibleCount)", value: (doneCount + failedCount).d, total: visibleCount.d)
-                            .controlSize(.small)
-                            .frame(width: THUMB_SIZE.width + (showCompactImages ? 40 : -10))
-                            .padding(.top, 4)
-                            .background(VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active).scaleEffect(1.1))
-                            .offset(y: 6)
-                            .font(.mono(9))
-                    }
-                    if !sm.selection.isEmpty {
-                        VStack(spacing: 4) {
-                            HStack {
-                                Button("Save to folder") {
-                                    sm.save()
-                                    sm.selection = []
-                                }
-                                BatchCropButton()
-                                let selectedOptimisers = sm.selection.compactMap { opt($0) }
-                                if selectedOptimisers.contains(where: { !$0.type.isAudio }) {
-                                    Menu("Downscale") {
-                                        BatchDownscaleMenu(optimisers: selectedOptimisers.filter { !$0.type.isAudio })
-                                    }
-                                }
-                                if selectedOptimisers.contains(where: \.type.isAudio) {
-                                    Menu("Bitrate") {
-                                        BatchBitrateMenu(optimisers: selectedOptimisers.filter(\.type.isAudio))
-                                    }
-                                }
-                            }
-                            .font(.round(10))
-                            .buttonStyle(FlatButton(color: .inverted.opacity(0.7), textColor: .primary.opacity(0.7), shadowSize: 1))
-                            .opacity(hoveringBatchActions ? 1.0 : 0.3)
-//                            Text("Right click for more actions")
-//                                .round(9).foregroundColor(.inverted)
-//                                .roundbg(radius: 4, color: .primary.opacity(0.9))
-//                                .opacity(hoveringBatchActions ? 1.0 : 0.0)
-//                                .allowsHitTesting(false)
-                        }
-                        .padding(.vertical, 5)
-                        .padding(.horizontal, 8)
-                        .background(.thinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .padding(.bottom, 2)
-                        .onHover { hovering in
-                            withAnimation { hoveringBatchActions = hovering }
-                        }
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.bg.warm, lineWidth: 2)
-                )
-                .shadow(radius: preview ? 0 : 10)
-                .opacity(showList ? 1 : 0)
-                .allowsHitTesting(showList)
+                listPanel
 
                 HStack {
-                    FlipGroup(if: !floatingResultsCorner.isTrailing) {
-                        if showList, !preview {
-                            if !floatingResultsCorner.isTrailing {
-                                Spacer()
-                            }
-                            CompactActionButtons()
-                                .offset(y: floatingResultsCorner.isTop ? 12 : -12)
-                                .opacity(hovering ? 1 : 0)
-                            if floatingResultsCorner.isTrailing {
-                                Spacer()
-                            }
-                        }
-                        ToggleCompactResultListButton(showList: $showList, badge: optimisers.count.s, progress: progress)
-                            .offset(x: isTrailing ? 10 : -10)
-                    }
+                    ToggleCompactResultListButton(showList: $showList, badge: optimisers.count.s, progress: progress)
+                        .offset(x: isTrailing ? 10 : -10)
                 }
                 .frame(width: size.width, alignment: isTrailing ? .trailing : .leading)
             }
@@ -809,37 +998,202 @@ struct CompactResultList: View {
                 .map { n, x in
                     CompactOptimiser(optimiser: x, isLast: false, isEven: (n + 1).isMultiple(of: 2), index: n)
                 } + [CompactOptimiser(optimiser: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2), index: optimisers.count - 1)]
+
+        // Drop selected ids whose row no longer exists (finished/auto-dismissed/closed), so selection
+        // mode can't get stuck on after the rows it referred to are gone.
+        let live = Set(opts.map(\.id))
+        let pruned = sm.selection.intersection(live)
+        if pruned != sm.selection { sm.selection = pruned }
     }
+
+    /// Height reserved at the bottom of the panel for the unified action bar (selection actions, or the
+    /// drag-all / clear-all controls), so the bar never covers the last row.
+    static let footerBand: CGFloat = 34
 
     func setSize(showList: Bool? = nil, count: Int? = nil, compactImages: Bool? = nil) {
         size = NSSize(
             width: (showList ?? self.showList) ? (THUMB_SIZE.width + ((compactImages ?? showCompactImages) ? 50 : 0)) : 50,
-            height: (showList ?? self.showList) ? min(360, ((count ?? optimisers.count) * 80).cg) : 50
+            height: (showList ?? self.showList) ? min(360, ((count ?? optimisers.count) * 80).cg) + Self.footerBand : 50
         )
     }
 
-    @State private var lastSelectedIndex = 0
+    /// The bordered list of results plus its overlays (progress bar, selection action bar), extracted
+    /// from `body` to keep each view expression small enough for the Swift type-checker.
+    var listPanel: some View {
+        ZStack(alignment: .bottom) {
+            // No native `selection:` binding: a plain click on a row body must NOT select (it keeps the
+            // row's single-item behaviour). Selection happens only through the per-row checkbox (and
+            // Select all / ⌘A / shift-click / a whole-row tap once selecting), wired via the row builder.
+            List(opts) { opt in
+                row(for: opt)
+            }
+            // Plain style (not bordered) so rows reach the panel edges with no built-in horizontal inset;
+            // the alternating background is applied per row instead, and our panel background shows through.
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            // Reserve the footer band (plus the progress strip when busy) so the bar sits below the
+            // rows, never over the last one.
+            .padding(.bottom, Self.footerBand + (progress == nil ? 0 : 18))
+            .frame(width: size.width, height: size.height, alignment: .center)
+            .fixedSize()
+            .background(Color.inverted.brightness(0.1))
+            .if(!sm.selection.isEmpty) {
+                $0.contextMenu { BatchRightClickMenuView() }
+            }
+            .onHover { hovering in
+                if !hovering {
+                    hoveredOptimiserID = nil
+                }
+            }
+            .onChange(of: sm.selection, perform: onSelectionChanged)
+            .background { selectionKeyboardShortcuts }
+
+            listProgressBar
+
+            // One unified, always-visible bottom bar filling the panel width in the reserved footer band:
+            // the selection actions while a selection is active, otherwise the drag-all / clear-all bar.
+            if !sm.selection.isEmpty {
+                CompactSelectionBar()
+            } else {
+                CompactListBar(optimisers: optimisers, hasRunning: visibleCount > (doneCount + failedCount))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(radius: preview ? 0 : 10)
+        .opacity(showList ? 1 : 0)
+        .allowsHitTesting(showList)
+    }
+
+    /// Selection drives the floating window's key state: take key focus when a selection starts (so the
+    /// keyboard shortcuts work) and release it when the selection is cleared.
+    func onSelectionChanged(_ sel: Set<String>) {
+        guard !sel.isEmpty else {
+            floatingResultsWindow.allowToBecomeKey = false
+            sm.selecting = false
+            return
+        }
+        sm.selecting = true
+        if !floatingResultsWindow.allowToBecomeKey {
+            floatingResultsWindow.allowToBecomeKey = true
+            focus()
+            floatingResultsWindow.becomeFirstResponder()
+            floatingResultsWindow.makeKeyAndOrderFront(nil)
+            floatingResultsWindow.orderFrontRegardless()
+        }
+    }
+
+    /// Hidden buttons that bind ⌘A (select all) and Escape (clear) once the selection has the window key.
+    @ViewBuilder var selectionKeyboardShortcuts: some View {
+        Button("") { selectAll() }
+            .keyboardShortcut("a", modifiers: .command).hidden().disabled(!showList)
+        Button("") { sm.selection = [] }
+            .keyboardShortcut(.escape, modifiers: []).hidden().disabled(!sm.selecting)
+    }
+
+    @ViewBuilder var listProgressBar: some View {
+        if progress != nil {
+            ProgressView(" Done: \(doneCount)/\(visibleCount)  |  Failed: \(failedCount)/\(visibleCount)", value: (doneCount + failedCount).d, total: visibleCount.d)
+                .controlSize(.small)
+                .frame(width: THUMB_SIZE.width + (showCompactImages ? 40 : -10))
+                .padding(.top, 4)
+                .background(VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active).scaleEffect(1.1))
+                .offset(y: -Self.footerBand + 4)
+                .font(.mono(9))
+        }
+    }
+
+    /// One list row, extracted from `body` so the type-checker doesn't choke on the combined expression.
+    @ViewBuilder func row(for opt: CompactOptimiser) -> some View {
+        CompactResult(
+            optimiser: opt.optimiser,
+            selecting: sm.selecting,
+            selected: opt.selected,
+            selectable: !opt.optimiser.running && opt.optimiser.url != nil,
+            onToggleSelection: { toggleSelection(opt) }
+        )
+        .if(!sm.selecting) {
+            $0.overlay(
+                OverlayMessageView(optimiser: opt.optimiser, color: .inverted)
+                    .foregroundColor(.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            )
+        }
+        .tag(opt.id)
+        .if(!sm.selecting && !opt.optimiser.inRemoval) { view in
+            view.contextMenu {
+                RightClickMenuView(optimiser: opt.optimiser)
+            }
+        }
+        // Once in selection mode, the whole row toggles (not just the checkbox), which is what list
+        // multi-select feels like. The checkbox Button still consumes its own taps, so this only fires
+        // for taps elsewhere on the row. (Dragging the file lives on the thumbnail, see CompactResult.)
+        .if(sm.selecting) { view in
+            view.contentShape(Rectangle()).onTapGesture { toggleSelection(opt) }
+        }
+        // macOS's plain List/NSTableView keeps a residual horizontal cell inset that an EMPTY EdgeInsets
+        // can't fully remove. Counteract it with a small NEGATIVE horizontal inset on the row cell itself
+        // (listRowInsets reaches the cell content; an outer .padding on the List does not), so the
+        // full-bleed rows reach the panel edges. Rows carry their own internal leading padding (the
+        // reserved checkbox column), so this never clips row content.
+        .listRowInsets(EdgeInsets(top: 0, leading: -8, bottom: 0, trailing: -8))
+        .listRowSeparator(.hidden)
+        // Manual alternating background (the plain list style doesn't provide one).
+        .listRowBackground(opt.isEven ? Color.primary.opacity(0.04) : Color.clear)
+    }
+
+    /// Toggle one row's membership (the checkbox action). Holding Shift extends the range from the last
+    /// toggled row, matching the usual list multi-select gesture. The anchor is tracked by id (not index)
+    /// so it stays correct when the list reorders (results sort newest-first as new ones arrive).
+    func toggleSelection(_ opt: CompactOptimiser) {
+        guard !opt.optimiser.running, opt.optimiser.url != nil else { return }
+        if NSEvent.modifierFlags.contains(.shift), !sm.selection.isEmpty,
+           let anchor = opts.first(where: { $0.id == lastSelectedID })?.index
+        {
+            let lo = min(anchor, opt.index), hi = max(anchor, opt.index)
+            let ids = opts.filter { $0.index >= lo && $0.index <= hi && !$0.optimiser.running && $0.optimiser.url != nil }.map(\.id)
+            sm.selection.formUnion(ids)
+        } else if sm.selection.contains(opt.id) {
+            sm.selection.remove(opt.id)
+        } else {
+            sm.selection.insert(opt.id)
+        }
+        lastSelectedID = opt.id
+    }
+
+    func selectAll() {
+        sm.selection = OM.visibleOptimisers.filter { !$0.running && $0.url != nil }.map(\.id).set
+    }
+
+    @State private var lastSelectedID: String?
 
 }
 
+/// Clean rounded thumbnail used as the drag image for a single result, matching the floating result's
+/// `dragThumbPreview` (one tile in the "drag all" pile, no badge) instead of a washed-out rectangle.
 struct DragPreview: View {
     @ObservedObject var optimiser: Optimiser
 
     var body: some View {
-        ZStack {
+        Group {
             if let thumb = optimiser.thumbnail {
                 SwiftUI.Image(nsImage: thumb)
                     .resizable()
                     .scaledToFill()
+                    .frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(.white.opacity(0.5), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
             } else {
                 SwiftUI.Image(systemName: optimiser.type.systemImage)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundColor(.primary)
+                    .font(.system(size: 40))
+                    .foregroundColor(.secondary)
             }
         }
-        .frame(width: THUMB_SIZE.width * 0.5, height: THUMB_SIZE.height * 0.5)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(8)
     }
 }
 
@@ -1029,6 +1383,10 @@ struct CompactPreview: View {
     static var sampleSpecs: [(opt: Optimiser, asset: String, name: String)] = []
     static var samplesMaterialized = false
 
+    var body: some View {
+        FloatingResultContainer(om: Self.om, isPreview: true)
+    }
+
     /// Write the bundled preview samples to the temp folder and point the cards at them. Called only
     /// when the Floating Results settings tab appears, so we don't do this I/O on launch.
     static func materializeSamples() {
@@ -1040,10 +1398,6 @@ struct CompactPreview: View {
                 spec.opt.url = url
             }
         }
-    }
-
-    var body: some View {
-        FloatingResultContainer(om: Self.om, isPreview: true)
     }
 
 }

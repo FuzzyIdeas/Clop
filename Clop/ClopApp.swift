@@ -21,6 +21,7 @@ import os
 import QuickLookUI
 import Sentry
 import ServiceManagement
+import Sparkle
 import System
 import UniformTypeIdentifiers
 
@@ -496,6 +497,8 @@ class AppDelegate: AppDelegateParent {
         return resp.jsonData
     }
 
+    func allowedChannels(for _: SPUUpdater) -> Set<String> { lowtechAllowedChannels() }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         Task.init {
             await handleURLs(application, urls)
@@ -780,6 +783,9 @@ class AppDelegate: AppDelegateParent {
                 return
             }
 
+            // NB: `FilePath.batchBackups` is intentionally absent here. Batch backups are the only
+            // pristine copy after an in-place rewrite and are removed only via "Delete backups" or a
+            // verified restore, never on the time-based schedule.
             for dir in [FilePath.clopBackups, .videos, .images, .pdfs, .conversions, .downloads, .forResize, .forFilters, .finderQuickAction, .processLogs] {
                 let enumerator = fm.enumerator(at: dir.url, includingPropertiesForKeys: [.attributeModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
                 guard let iterator = enumerator else {
@@ -834,6 +840,16 @@ class AppDelegate: AppDelegateParent {
                 self.onboardingWindowController = nil
             }
         }
+
+        if window.identifier == BATCH_WINDOW_IDENTIFIER {
+            mainActor {
+                // Closing the window stops any in-flight processing (originals stay restorable from
+                // the backups, which persist until "Delete backups").
+                BAT.cancel()
+                BAT.windowController = nil
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
     }
 
     @objc func windowDidBecomeMainNotification(_ notification: Notification) {
@@ -858,6 +874,11 @@ class AppDelegate: AppDelegateParent {
         }
 
         if window.title == "Comparison" {
+            NSApp.setActivationPolicy(.regular)
+            return
+        }
+
+        if window.identifier == BATCH_WINDOW_IDENTIFIER {
             NSApp.setActivationPolicy(.regular)
             return
         }
@@ -907,6 +928,9 @@ class AppDelegate: AppDelegateParent {
 
             switch event.charactersIgnoringModifiers {
             case "e":
+                // Prefer the user's configured "Edit with" app for this file type; fall back to the
+                // running shelf app (Yoink/Dropover/…) when none is set.
+                if optimiser.editWithConfiguredApp() { return nil }
                 guard let shelfApp = runningShelfApp() else { return event }
                 shelfApp.open(optimiser: optimiser)
                 return nil
