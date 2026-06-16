@@ -85,6 +85,11 @@ extension Defaults.Keys {
     static let preserveDates = Key<Bool>("preserveDates", default: true)
     static let preserveColorMetadata = Key<Bool>("preserveColorMetadata", default: true)
 
+    /// Batch mode: process large folder drops with the lightweight engine + native table window
+    /// instead of one floating result per file.
+    static let useBatchModeForFolders = Key<Bool>("useBatchModeForFolders", default: true)
+    static let batchModeFileCountThreshold = Key<Int>("batchModeFileCountThreshold", default: 30)
+
     static let workdir = Key<String>("workdir", default: URL.cachesDirectory.appendingPathComponent("Clop", conformingTo: .directory).path)
     static let workdirCleanupInterval = Key<CleanupInterval>("workdirCleanupInterval", default: .every3Days)
 
@@ -144,6 +149,13 @@ extension Defaults.Keys {
     static let enableAutomaticVideoOptimisations = Key<Bool>("enableAutomaticVideoOptimisations", default: true)
     static let enableAutomaticPDFOptimisations = Key<Bool>("enableAutomaticPDFOptimisations", default: true)
     static let enableAutomaticAudioOptimisations = Key<Bool>("enableAutomaticAudioOptimisations", default: false)
+
+    // Per-type "Edit with" apps (bundle paths, empty = none). Opened via the floating-result context
+    // menu or ⌘E to hand the file off to an external editor (e.g. Pixelmator Pro, CapCut, Audacity).
+    static let editorAppImage = Key<String>("editorAppImage", default: "")
+    static let editorAppVideo = Key<String>("editorAppVideo", default: "")
+    static let editorAppPDF = Key<String>("editorAppPDF", default: "")
+    static let editorAppAudio = Key<String>("editorAppAudio", default: "")
 
     static let audioFormat = Key<AudioFormat>("audioFormat", default: .aac)
     static let audioCoverArt = Key<AudioCoverArtBehaviour>("audioCoverArt", default: .optimise)

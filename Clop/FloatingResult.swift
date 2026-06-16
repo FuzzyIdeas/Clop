@@ -250,7 +250,9 @@ struct FloatingResultContainer: View {
 
                 if compact {
                     CompactResultList(
-                        optimisers: sm.selecting ? optimisers.filter { !$0.running && $0.url != nil } : optimisers,
+                        // Keep every row visible while selecting (running rows just aren't selectable),
+                        // so starting a selection no longer reshuffles the list out from under the cursor.
+                        optimisers: optimisers,
                         progress: sm.selecting ? nil : om.progress,
                         doneCount: om.doneCount,
                         failedCount: om.failedCount,
@@ -371,6 +373,10 @@ struct FloatingPreview: View {
     static var sampleSpecs: [(opt: Optimiser, asset: String, name: String)] = []
     static var samplesMaterialized = false
 
+    var body: some View {
+        FloatingResultContainer(om: Self.om, isPreview: true)
+    }
+
     /// Write the bundled preview samples to the temp folder and point the cards at them. Called only
     /// when the Floating Results settings tab appears, so we don't do this I/O on launch.
     static func materializeSamples() {
@@ -384,9 +390,6 @@ struct FloatingPreview: View {
         }
     }
 
-    var body: some View {
-        FloatingResultContainer(om: Self.om, isPreview: true)
-    }
 }
 
 @MainActor
@@ -1105,6 +1108,14 @@ struct FloatingResult: View {
     /// Bottom-anchored content: hidden while a slider is up; progress / error / notice while busy;
     /// the unified name·format pill on hover; a full-width filename editor while editing; the
     /// centered size-saving stats at rest.
+    /// Whether the filename renders fully at the pill's resting width, so hovering it shouldn't expand
+    /// the pill (and the crop button can stay put). Mirrors NameFormatPill's 9pt name segment / 92pt cap.
+    var filenameFits: Bool {
+        let stem = optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
+        let width = (stem as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 9, weight: .medium)]).width
+        return width <= 92
+    }
+
     @ViewBuilder var cardBottomContent: some View {
         if optimiser.showSendExpiration {
             SendExpirationConfirmButton(optimiser: optimiser)
@@ -1119,12 +1130,17 @@ struct FloatingResult: View {
         } else if optimiser.editingFilename {
             NameFormatPill(optimiser: optimiser, fullWidth: true)
         } else if isExpanded {
-            // While hovering the name, expand the pill full-width (the crop button hides to make
-            // room); otherwise keep it right-aligned so it clears the crop button in the corner.
-            if optimiser.canCrop(), !optimiser.hoveringFilename {
+            if optimiser.hoveringFilename, !filenameFits {
+                // Hovering a name that doesn't fit: expand full-width to give it room (the crop button,
+                // if any, has stepped aside). A name that already fits is left as-is.
+                NameFormatPill(optimiser: optimiser, fullWidth: true)
+            } else if optimiser.canCrop() {
+                // Right-aligned so it clears the crop button in the bottom-left corner.
                 HStack(spacing: 0) { Spacer(minLength: 0); NameFormatPill(optimiser: optimiser) }
             } else {
-                NameFormatPill(optimiser: optimiser, fullWidth: true)
+                // No crop button to clear (e.g. audio): centre the pill at its natural width rather
+                // than stretching it full-width right-aligned, which looks odd for short filenames.
+                HStack(spacing: 0) { Spacer(minLength: 0); NameFormatPill(optimiser: optimiser); Spacer(minLength: 0) }
             }
         } else {
             VStack(spacing: 2) { fileSizeDiff; sizeDiff; bitrateDiff; coverArtDiff; dpiDiff }
@@ -1152,9 +1168,9 @@ struct FloatingResult: View {
             .fixedSize()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
 
-            // Crop lives in the bottom-left corner; it only steps aside while the name is hovered so
-            // a long filename can use the full width.
-            if optimiser.canCrop(), !optimiser.hoveringFilename {
+            // Crop lives in the bottom-left corner; it only steps aside while a name that doesn't fit
+            // is hovered (so a long filename can use the full width). A fitting name keeps the button.
+            if optimiser.canCrop(), !optimiser.hoveringFilename || filenameFits {
                 Button(action: { if !preview { optimiser.showCropWindow() } }, label: { SwiftUI.Image(systemName: "crop") })
                     .buttonStyle(FloatingCornerButtonStyle())
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -1352,6 +1368,7 @@ struct FloatingResult: View {
         .allowsHitTesting(!optimiser.inRemoval)
         .animation(.easeOut(duration: 0.3), value: optimiser.inRemoval)
         .onAppear {
+            optimiser.ensurePlaceholderThumbnail()
             if optimiser.editingFilename {
                 editingFilename = true
             } else {

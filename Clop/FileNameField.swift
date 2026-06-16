@@ -4,6 +4,9 @@ import SwiftUI
 
 struct FileNameField: View {
     @ObservedObject var optimiser: Optimiser
+    /// The glass/material capsule behind the name. Used on the floating result card; the compact list
+    /// rows keep a flat look (no glass), so this is turned off there.
+    var glass = true
     @FocusState var focused: Bool
     @State var tempName = ""
     @Namespace var namespace
@@ -84,7 +87,7 @@ struct FileNameField: View {
         editorViewer
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .glassOrMaterial(in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .if(glass) { $0.glassOrMaterial(in: RoundedRectangle(cornerRadius: 6, style: .continuous)) }
             .onChange(of: optimiser.running) { running in
                 if running {
                     optimiser.editingFilename = false

@@ -169,6 +169,10 @@ extension FilePath {
         FilePath.clopBackups.appending(nameWithHash)
     }
     static var clopBackups: FilePath { FilePath.dir(workdir / "backups", permissions: 0o755) }
+    /// Batch-mode CoW backups, one `batch-<id>` subfolder per run. Deliberately a separate root that
+    /// the `fileCleaner` never enumerates: batch backups are the only pristine copy after an in-place
+    /// rewrite and must survive until an explicit "Delete backups" or a verified restore.
+    static var batchBackups: FilePath { FilePath.dir(workdir / "batch-backups", permissions: 0o755) }
     static var videos: FilePath { FilePath.dir(workdir / "videos", permissions: 0o755) }
     static var images: FilePath { FilePath.dir(workdir / "images", permissions: 0o755) }
     static var pdfs: FilePath { FilePath.dir(workdir / "pdfs", permissions: 0o755) }

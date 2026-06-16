@@ -158,7 +158,7 @@ class OptimiserProgressDelegate: NSObject, URLSessionDataDelegate {
         if !optimiser.running || optimiser.inRemoval {
             task.cancel()
         }
-        optimiser.progress.publish()
+        optimiser.publishProgress()
     }
 
     nonisolated func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
@@ -245,6 +245,10 @@ enum TempPipelineSegment {
     var type: ItemType
     let startedAt = Date()
     var isPreview = false
+    /// When true, this optimiser's `Progress` is never registered in the system-wide NSProgress
+    /// tree. Set for batch-mode runs so a large batch doesn't flood the global progress hierarchy
+    /// with thousands of jobs (it also has no floating result observing the progress anyway).
+    var batchSilent = false
     @Published var hidden = false
     @Published var isOriginal = false
     @Published var progress = Progress()
@@ -273,9 +277,12 @@ enum TempPipelineSegment {
     var coverArtOriginalPath: FilePath? = nil
 
     @Published var error: String? = nil
+    /// The real command line + stdout/stderr of the failing tool, captured for the batch failures view.
+    var errorLog: String? = nil
     @Published var notice: String? = nil
     @Published var info: String? = nil
     @Published var thumbnail: NSImage?
+
     @Published var originalURL: URL?
     @Published var startingURL: URL?
     @Published var convertedFromURL: URL?
@@ -561,6 +568,25 @@ enum TempPipelineSegment {
 
     nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {
         lhs.id == rhs.id
+    }
+
+    /// Guarantee at least a placeholder thumbnail (the file's QuickLook / system icon) so a result never
+    /// renders as an empty no-thumbnail card. No-op once a real thumbnail is set.
+    @MainActor func ensurePlaceholderThumbnail() {
+        guard thumbnail == nil, let fileURL = url ?? originalURL, fileURL.isFileURL, let filePath = fileURL.filePath else { return }
+        thumbnail = Optimisable.fallbackThumbnail(for: fileURL, path: filePath)
+    }
+
+    /// Register/unregister this optimiser's `Progress` in the system-wide tree, unless this is a
+    /// silent batch run. Centralising it here keeps every pipeline's publish/unpublish gated.
+    func publishProgress() {
+        guard !batchSilent else { return }
+        progress.publish()
+    }
+
+    func unpublishProgress() {
+        guard !batchSilent else { return }
+        progress.unpublish()
     }
 
     /// Update the temp pipeline with a new user action.
@@ -1779,6 +1805,9 @@ enum TempPipelineSegment {
         self.error = error
         self.notice = notice
         self.running = false
+        // Batch runs read results straight off the optimiser and own its lifetime; they never touch
+        // the floating-result removal machinery (which would reassign OM.optimisers and churn the UI).
+        if batchSilent { return }
         self.removeDebouncer()
 
         guard !OM.compactResults else { return }
@@ -1793,7 +1822,25 @@ enum TempPipelineSegment {
         self.remove(after: 2500)
     }
 
+    /// Capture the failing process's command line and output, then finish with a generic error.
+    func finish(processError proc: Process) {
+        errorLog = "\(proc.commandLine)\n\nExit code: \(proc.terminationStatus)\n\nSTDERR:\n\(proc.err)\n\nSTDOUT:\n\(proc.out)"
+        finish(error: "Optimisation failed")
+    }
+
     func finish(oldBytes: Int, newBytes: Int, oldSize: CGSize? = nil, newSize: CGSize? = nil, oldBitrate: Int? = nil, newBitrate: Int? = nil, removeAfterMs: Int? = nil) {
+        // Batch runs read results straight off the optimiser; just record them and stop, without the
+        // animation/removal machinery (which would reassign OM.optimisers and churn the UI per file).
+        if batchSilent {
+            self.oldBytes = oldBytes
+            self.newBytes = newBytes
+            if let oldSize { self.oldSize = oldSize }
+            if let newSize { self.newSize = newSize }
+            if let oldBitrate { self.oldBitrate = oldBitrate }
+            if let newBitrate { self.newBitrate = newBitrate }
+            self.running = false
+            return
+        }
         guard !self.inRemoval else { return }
         self.stopRemover()
         withAnimation(.easeOut(duration: 0.5)) {
@@ -2363,7 +2410,9 @@ let pdfOptimisationQueue: OperationQueue = {
 }()
 let audioOptimisationQueue: OperationQueue = {
     let q = OperationQueue()
-    q.maxConcurrentOperationCount = MediaEngineCores.current.rawValue
+    // Audio encoders (ffmpeg + aac_at/lame/opus) are light and CPU-bound, not media-engine-bound, so
+    // they're not limited by MediaEngineCores like video; run plenty in parallel to saturate the CPU.
+    q.maxConcurrentOperationCount = ProcessInfo.processInfo.activeProcessorCount * 2
     q.underlyingQueue = DispatchQueue.global()
     return q
 }()
@@ -2590,7 +2639,7 @@ var manualOptimisationCount = 0
 
     optimiser.operation = "Downloading"
     let fileURL = try await url.download(type: type?.utType, delegate: progressDelegate)
-    optimiser.progress.unpublish()
+    optimiser.unpublishProgress()
 
     type = type ?? ItemType.from(filePath: fileURL.filePath!)
     guard let type, type.isImage || type.isVideo, let ext = type.ext else {
@@ -3147,7 +3196,21 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
 }
 
 func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [OptimisationResponse] {
-    try await withThrowingTaskGroup(of: OptimisationResponse.self, returning: [OptimisationResponse].self) { group in
+    // --review: open the batch window for the user to tweak knobs and press Optimise; don't process here.
+    if req.prepareInBatch == true, await MainActor.run(body: { proactive }) {
+        await MainActor.run {
+            BAT.prepare(paths: req.urls.compactMap(\.filePath), source: req.source.optSource)
+            BAT.showWindow()
+        }
+        return []
+    }
+
+    // Large requests go through the batch engine + window (Pro-only); small ones use the per-file path.
+    if await shouldRouteToBatch(req) {
+        return await runBatchForCLI(req)
+    }
+
+    return try await withThrowingTaskGroup(of: OptimisationResponse.self, returning: [OptimisationResponse].self) { group in
         THUMBNAIL_URLS.accessQueue.sync {
             THUMBNAIL_URLS = ThreadSafeDictionary(dict: req.originalUrls)
         }

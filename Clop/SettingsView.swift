@@ -1325,6 +1325,7 @@ struct KeysSettingsView: View {
 
 import LowtechIndie
 import LowtechPro
+import LowtechProSentry
 
 struct MadeBy: View {
     var body: some View {
@@ -1345,52 +1346,38 @@ struct MadeBy: View {
     }
 }
 
+struct LicenseUpdatesSettingsView: View {
+    @ObservedObject var um: UpdateManager = UM
+    @ObservedObject var pm: ProManager = PM
+
+    var body: some View {
+        if let pro = pm.pro, let updater = um.updater {
+            Form {
+                LicenseAndUpdatesView(pro: pro, updater: updater, appName: "Clop")
+            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+        } else {
+            ProgressView()
+                .fill()
+        }
+    }
+}
+
 struct AboutSettingsView: View {
     @ObservedObject var um: UpdateManager = UM
     @ObservedObject var pm: ProManager = PM
 
-    @Default(.enableSentry) var enableSentry
-
-    var proText: some View {
-        Text(proactive ? "Pro" : "")
-    }
-
     var body: some View {
-        VStack {
-            ZStack(alignment: .topTrailing) {
-                SwiftUI.Image("clop")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 128, height: 128)
-                proText
-                    .font(.mono(16, weight: .semibold))
-                    .foregroundColor(.hotRed)
-                    .offset(x: 5, y: 14)
-            }
-            Text("Clop")
-                .round(64, weight: .black)
-                .padding(.top, -30)
-            Text((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "v2")
-                .mono(16, weight: .regular)
-                .foregroundColor(.secondary)
-
-            if let updater = um.updater {
-                VersionView(updater: updater)
-                    .frame(width: 340)
-            }
-            if let pro = PM.pro {
-                LicenseView(pro: pro)
-                    .frame(width: 340)
-            }
-            Toggle("Send error reports to developer", isOn: $enableSentry)
-                .frame(width: 340)
-            HStack {
-                Link("Source code", destination: "https://github.com/FuzzyIdeas/Clop".url!)
-            }
-            .underline()
-            .opacity(0.7)
-        }
-        .padding(10)
+        AboutView(
+            appName: "Clop",
+            pro: pm.pro,
+            updater: um.updater,
+            websiteURL: URL(string: "https://lowtechguys.com/clop"),
+            contactURL: URL(string: "https://lowtechguys.com/contact?app=Clop"),
+            discordURL: URL(string: "https://discord.gg/YeTuy6adXk"),
+            sourceURL: URL(string: "https://github.com/FuzzyIdeas/Clop")
+        )
         .fill()
     }
 }
@@ -1749,6 +1736,70 @@ struct FloatingSettingsView: View {
         }
     }
 }
+/// One row of the "Edit with external app" settings: shows the chosen app (icon + name) for a file
+/// type, or a "Choose app…" button. Any app can be picked; nothing is filtered.
+struct EditorAppRow: View {
+    let label: String
+    let systemImage: String
+    let key: Defaults.Key<String>
+
+    var body: some View {
+        HStack {
+            SwiftUI.Image(systemName: systemImage).foregroundColor(.secondary).frame(width: 20)
+            Text(label)
+            Spacer()
+            if !appPath.isEmpty, FileManager.default.fileExists(atPath: appPath) {
+                let url = URL(fileURLWithPath: appPath)
+                Button(action: pick) {
+                    SwiftUI.Image(nsImage: appIcon(url))
+                    Text(appName(url))
+                }
+                Button(action: clear) {
+                    SwiftUI.Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Remove")
+            } else {
+                Button("Choose app…", action: pick)
+            }
+        }
+        .onAppear { appPath = Defaults[key] }
+    }
+
+    @State private var appPath = ""
+
+    private func appIcon(_ url: URL) -> NSImage {
+        let i = NSWorkspace.shared.icon(forFile: url.path)
+        i.size = NSSize(width: 16, height: 16)
+        return i
+    }
+
+    private func appName(_ url: URL) -> String {
+        (try? url.resourceValues(forKeys: [.localizedNameKey]).localizedName) ?? url.deletingPathExtension().lastPathComponent
+    }
+
+    private func clear() {
+        appPath = ""
+        Defaults[key] = ""
+    }
+
+    private func pick() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.treatsFilePackagesAsDirectories = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.prompt = "Choose"
+        panel.message = "Choose an app to edit \(label.lowercased()) with"
+        panel.begin { resp in
+            guard resp == .OK, let url = panel.url else { return }
+            appPath = url.path
+            Defaults[key] = url.path
+        }
+    }
+}
+
 struct GeneralSettingsView: View {
     enum MenubarIconStyle { case new, classic, hidden }
 
@@ -1773,6 +1824,8 @@ struct GeneralSettingsView: View {
     @Default(.preserveDates) var preserveDates
     @Default(.syncSettingsCloud) var syncSettingsCloud
     @Default(.optimisedFileProtectionMs) var optimisedFileProtectionMs
+    @Default(.useBatchModeForFolders) var useBatchModeForFolders
+    @Default(.batchModeFileCountThreshold) var batchModeFileCountThreshold
 
     @Default(.workdir) var workdir
     @Default(.workdirCleanupInterval) var workdirCleanupInterval
@@ -1823,6 +1876,13 @@ struct GeneralSettingsView: View {
                     Text("Never").tag(LINK_EXPIRATION_NEVER)
                 }
                 .frame(width: 150)
+            }
+
+            Section(header: SectionHeader(title: "Edit with external app", subtitle: "Hand an optimised file to an editor of your choice with ⌘E or the right-click menu")) {
+                EditorAppRow(label: "Images", systemImage: "photo", key: .editorAppImage)
+                EditorAppRow(label: "Videos", systemImage: "video", key: .editorAppVideo)
+                EditorAppRow(label: "Audio", systemImage: "waveform", key: .editorAppAudio)
+                EditorAppRow(label: "PDFs", systemImage: "doc", key: .editorAppPDF)
             }
 
             Section(header: SectionHeader(title: "Clipboard")) {
@@ -1954,6 +2014,32 @@ struct GeneralSettingsView: View {
                         + Text("\nIncrease if files on iCloud Drive get optimised twice").round(11, weight: .regular).foregroundColor(.secondary)
                 }
             }
+
+            Section(header: SectionHeader(title: "Batch mode", subtitle: "Process large folders in a fast native window instead of one floating result per file")) {
+                Toggle(isOn: $useBatchModeForFolders) {
+                    Text("Use batch mode for large folders").regular(13)
+                        + Text("\nDropping a folder with many files opens a single batch window that optimises them all efficiently. Originals are backed up first and can be restored.").round(11, weight: .regular)
+                        .foregroundColor(.secondary)
+                }
+                HStack {
+                    Text("Switch to batch mode above").regular(13)
+                    Spacer()
+                    TextField("", value: $batchModeFileCountThreshold, format: .number)
+                        .multilineTextAlignment(.center)
+                        .font(.mono(12))
+                        .frame(width: 60)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
+                    Text("files").regular(13)
+                }
+                .disabled(!useBatchModeForFolders)
+            }
+
+            Section(header: SectionHeader(title: "Privacy")) {
+                SentryToggleRow(
+                    title: "Send error reports",
+                    subtitle: "Help improve Clop by sending anonymous crash and error reports to the developer"
+                )
+            }
         }
         .scrollContentBackground(.hidden)
         .padding(.horizontal, 50)
@@ -2040,7 +2126,7 @@ struct SettingsSidebarRow: View {
 
 struct SettingsView: View {
     enum Tabs: Int, Hashable, CaseIterable, Identifiable {
-        case general, video, audio, images, pdf, dropzone, floating, keys, automation, about
+        case general, video, audio, images, pdf, dropzone, floating, keys, automation, licenseUpdates, about
 
         var id: Int { rawValue }
 
@@ -2049,7 +2135,7 @@ struct SettingsView: View {
         }
 
         var previous: Tabs {
-            Tabs(rawValue: rawValue - 1) ?? .automation
+            Tabs(rawValue: rawValue - 1) ?? .about
         }
 
         var title: String {
@@ -2063,6 +2149,7 @@ struct SettingsView: View {
             case .floating: "Floating Results"
             case .keys: "Keyboard Shortcuts"
             case .automation: "Automation"
+            case .licenseUpdates: "License & updates"
             case .about: "About"
             }
         }
@@ -2078,6 +2165,7 @@ struct SettingsView: View {
             case .floating: "rectangle.stack"
             case .keys: "command.square"
             case .automation: "hammer"
+            case .licenseUpdates: "key"
             case .about: "info.circle"
             }
         }
@@ -2093,10 +2181,14 @@ struct SettingsView: View {
             case .floating: .teal
             case .keys: .brown
             case .automation: .pink
-            case .about: .purple
+            case .licenseUpdates: .yellow
+            case .about: .pink
             }
         }
     }
+
+    static let supportTabs: [Tabs] = [.licenseUpdates, .about]
+    static let mainTabs: [Tabs] = Tabs.allCases.filter { !supportTabs.contains($0) }
 
     @ObservedObject var svm = settingsViewManager
 
@@ -2108,8 +2200,13 @@ struct SettingsView: View {
 
     var sidebar: some View {
         List(selection: $svm.tab) {
-            ForEach(Tabs.allCases, id: \.self) { tab in
+            ForEach(Self.mainTabs, id: \.self) { tab in
                 SettingsSidebarRow(tab: tab)
+            }
+            Section("Support") {
+                ForEach(Self.supportTabs, id: \.self) { tab in
+                    SettingsSidebarRow(tab: tab)
+                }
             }
         }
         .listStyle(.sidebar)
@@ -2155,6 +2252,7 @@ struct SettingsView: View {
         case .floating: FloatingSettingsView()
         case .keys: KeysSettingsView()
         case .automation: AutomationSettingsView()
+        case .licenseUpdates: LicenseUpdatesSettingsView()
         case .about:
             AboutSettingsView()
                 .overlay(alignment: .bottomTrailing) {

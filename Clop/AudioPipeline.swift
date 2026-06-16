@@ -21,7 +21,10 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     aggressiveOptimisation: Bool? = nil,
     formatOverride: AudioFormat? = nil,
     loudnormTarget: Double? = nil,
-    compression: CompressionQuality? = nil
+    coverArt: AudioCoverArtBehaviour? = nil,
+    coverArtMaxLongEdge: Int? = nil,
+    compression: CompressionQuality? = nil,
+    batchOptimiser: Optimiser? = nil
 ) async throws -> Audio? {
     let path = audio.path
     let pathString = path.string
@@ -56,7 +59,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
         }
     }
 
-    let optimiser = OM.optimiser(id: pipelineId, type: .audio(audioType), operation: opLabel, hidden: hideFloatingResult, source: source)
+    // In batch mode the engine supplies a transient hidden optimiser that is never registered in OM.
+    let optimiser = batchOptimiser ?? OM.optimiser(id: pipelineId, type: .audio(audioType), operation: opLabel, hidden: hideFloatingResult, source: source)
     optimiser.aggressive = aggressive
     if let compression {
         optimiser.compressionOverride = compression
@@ -69,8 +73,10 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     let workItem = mainAsyncAfter(ms: debounceMS) {
         optimiser.operation = "Optimising"
         optimiser.originalURL = path.url
-        OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
-        showFloatingThumbnails()
+        if batchOptimiser == nil {
+            OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
+            showFloatingThumbnails()
+        }
 
         if !hideFloatingResult {
             setAudioThumbnail(on: optimiser, path: path)
@@ -92,7 +98,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                 }
 
                 log.debug("Running audio pipeline \(actions) for \(pathString)")
-                optimisedAudio = try audio.optimise(optimiser: optimiser, bitrateOverride: bitrateOverride, aggressive: aggressive, formatOverride: formatOverride, loudnormTarget: loudnormTarget)
+                optimisedAudio = try audio.optimise(
+                    optimiser: optimiser,
+                    bitrateOverride: bitrateOverride,
+                    aggressive: aggressive,
+                    formatOverride: formatOverride,
+                    loudnormTarget: loudnormTarget,
+                    coverArtBehaviour: coverArt,
+                    coverArtMaxLongEdge: coverArtMaxLongEdge
+                )
 
                 if !allowLarger, optimisedAudio!.fileSize >= fileSize {
                     audio.path.restore(backupPath: audio.path.clopBackupPath, force: true)
@@ -113,7 +127,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
                     log.error("Error in audio pipeline \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
-                    mainActor { optimiser.finish(error: "Optimisation failed") }
+                    mainActor { optimiser.finish(processError: proc) }
                 }
             } catch ClopError.audioSizeLarger {
                 optimisedAudio = audio

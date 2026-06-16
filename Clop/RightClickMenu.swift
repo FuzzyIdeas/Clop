@@ -51,6 +51,56 @@ struct OpenWithMenuView: View {
     }
 }
 
+/// The user-configured "Edit with" app for this file type, or nil if unset / no longer on disk.
+@MainActor func editorAppURL(for type: ItemType) -> URL? {
+    let path: String = if type.isImage {
+        Defaults[.editorAppImage]
+    } else if type.isVideo {
+        Defaults[.editorAppVideo]
+    } else if type.isPDF {
+        Defaults[.editorAppPDF]
+    } else if type.isAudio {
+        Defaults[.editorAppAudio]
+    } else {
+        ""
+    }
+    guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return nil }
+    return URL(fileURLWithPath: path)
+}
+
+extension Optimiser {
+    /// Hand the optimised file to the user's configured editor for its type. Returns false when no
+    /// editor is set (or the file is missing) so callers can fall back to other behaviour.
+    @discardableResult
+    func editWithConfiguredApp() -> Bool {
+        guard let appURL = editorAppURL(for: type), let fileURL = url ?? originalURL else { return false }
+        NSWorkspace.shared.open([fileURL], withApplicationAt: appURL, configuration: .init(), completionHandler: { _, _ in })
+        return true
+    }
+}
+
+/// "Edit with <App>" menu entry, shown only when an editor app is configured for the file's type.
+struct EditWithAppButton: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        if let appURL = editorAppURL(for: optimiser.type), optimiser.url != nil || optimiser.originalURL != nil {
+            let icon: NSImage = {
+                let i = NSWorkspace.shared.icon(forFile: appURL.path)
+                i.size = NSSize(width: 14, height: 14)
+                return i
+            }()
+            let name = (try? appURL.resourceValues(forKeys: [.localizedNameKey]).localizedName)?
+                .replacingOccurrences(of: ".app", with: "") ?? appURL.deletingPathExtension().lastPathComponent
+            Button(action: { optimiser.editWithConfiguredApp() }) {
+                SwiftUI.Image(nsImage: icon)
+                Text("Edit with \(name)")
+            }
+            .keyboardShortcut("e")
+        }
+    }
+}
+
 struct RightClickMenuView: View {
     @ObservedObject var optimiser: Optimiser
     @ObservedObject var wdm = WDM
@@ -90,6 +140,8 @@ struct RightClickMenuView: View {
             if let url = optimiser.url {
                 OpenWithMenuView(fileURL: url)
             }
+
+            EditWithAppButton(optimiser: optimiser)
 
             Divider()
         }
@@ -671,7 +723,7 @@ struct BatchDownscaleMenu: View {
 
     var body: some View {
         let factors = Array(stride(from: 0.9, to: 0.0, by: -0.1))
-        Button("Restore original size (100%)") {
+        Button("Restore original size (\(downscaleFactorLabel(1)))") {
             for optimiser in optimisers {
                 optimiser.downscale(toFactor: 1)
             }
@@ -679,7 +731,7 @@ struct BatchDownscaleMenu: View {
         }.disabled(optimisers.allSatisfy { $0.downscaleFactor == 1 })
         Section("Downscale resolution to") {
             ForEach(factors, id: \.self) { factor in
-                Button("\((factor * 100).intround)%") {
+                Button(downscaleFactorLabel(factor)) {
                     for optimiser in optimisers {
                         optimiser.downscale(toFactor: factor)
                     }

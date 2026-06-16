@@ -30,7 +30,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     outputExtension: String? = nil,
     source: OptimisationSource? = nil,
     fpsOverride: Int? = nil,
-    compression: CompressionQuality? = nil
+    compression: CompressionQuality? = nil,
+    batchOptimiser: Optimiser? = nil
 ) async throws -> Video? {
     let path = video.path
     let pathString = path.string
@@ -49,8 +50,16 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     for action in actions {
         switch action {
         case let .downscale(factor, cropSize):
-            cropTo = cropSize
             if let resolution = video.size {
+                // Never upscale: a long-edge cap larger than the source is a no-op, not an enlargement.
+                // ffmpeg's `scale` would otherwise blow the video up (unlike vipsthumbnail for images).
+                if let cropSize, cropSize.longEdge {
+                    let target = cropSize.computedSize(from: resolution)
+                    if max(target.width, target.height) >= max(resolution.width, resolution.height) {
+                        break
+                    }
+                }
+                cropTo = cropSize
                 let effectiveFactor: Double = if let cropSize {
                     computeVideoDownscaleFactor(id: id ?? pathString, factor: factor, cropSize: cropSize, videoSize: resolution)
                 } else {
@@ -58,6 +67,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
                 }
                 scalingFactor = effectiveFactor
                 resizeTo = cropSize?.computedSize(from: resolution) ?? resolution.scaled(by: effectiveFactor)
+            } else {
+                cropTo = cropSize
             }
         case let .changePlaybackSpeed(factor):
             speedFactor = computeSpeedFactor(id: id ?? pathString, factor: factor)
@@ -123,8 +134,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
         }
     }
 
-    // Set up optimiser
-    let optimiser = OM.optimiser(id: pipelineId, type: itemType, operation: opLabel, hidden: hideFloatingResult, source: source)
+    // Set up optimiser. In batch mode the engine supplies a transient hidden optimiser that is
+    // never registered in OM, so the floating-result machinery is skipped entirely.
+    let optimiser = batchOptimiser ?? OM.optimiser(id: pipelineId, type: itemType, operation: opLabel, hidden: hideFloatingResult, source: source)
     if let compression {
         optimiser.compressionOverride = compression
     }
@@ -180,8 +192,10 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
         if !hasDownscale, !hasSpeedChange {
             optimiser.originalURL = path.url
         }
-        OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
-        showFloatingThumbnails()
+        if batchOptimiser == nil {
+            OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
+            showFloatingThumbnails()
+        }
 
         let fileSize = video.fileSize
         var previouslyCached = true
@@ -247,7 +261,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
                     log.debug("Process terminated by us: \(proc.commandLine)")
                 } else {
                     log.error("Error in video pipeline \(pathString): \(proc.commandLine)\nOUT: \(proc.out)\nERR: \(proc.err)")
-                    mainActor { optimiser.finish(error: "Optimisation failed") }
+                    mainActor { optimiser.finish(processError: proc) }
                 }
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger {
                 optimisedVideo = video

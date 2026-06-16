@@ -126,7 +126,15 @@ class Audio: Optimisable {
         return outputFormat.loweredBitrate(target: target, inputBitrate: input)
     }
 
-    func optimise(optimiser: Optimiser, bitrateOverride: Int? = nil, aggressive: Bool = false, formatOverride: AudioFormat? = nil, loudnormTarget: Double? = nil) throws -> Audio {
+    func optimise(
+        optimiser: Optimiser,
+        bitrateOverride: Int? = nil,
+        aggressive: Bool = false,
+        formatOverride: AudioFormat? = nil,
+        loudnormTarget: Double? = nil,
+        coverArtBehaviour: AudioCoverArtBehaviour? = nil,
+        coverArtMaxLongEdge: Int? = nil
+    ) throws -> Audio {
         log.debug("Optimising audio \(self.path.string)")
         guard let name = path.lastComponent else {
             log.error("No file name for path: \(self.path)")
@@ -147,10 +155,13 @@ class Audio: Optimisable {
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
         var args = ["-y", "-i", inputPath.string]
-        args += audioCoverArtArgs(input: inputPath, format: format, stem: name.stem, behaviour: Defaults[.audioCoverArt])
+        args += audioCoverArtArgs(input: inputPath, format: format, stem: name.stem, behaviour: coverArtBehaviour ?? Defaults[.audioCoverArt], maxLongEdge: coverArtMaxLongEdge)
         args += format.encodingArgs(bitrate: bitrate, aggressive: aggressive, inputSampleRate: sampleRate)
         if let loudnormTarget {
-            args += ["-af", "loudnorm=I=\(loudnormTarget):TP=-1.5:LRA=11"]
+            // loudnorm resamples to 192 kHz in single-pass mode, which the AudioToolbox AAC encoder
+            // (aac_at) rejects with a "fmt?" error; resample back to the input rate so encoding works.
+            let resampleRate = sampleRate.flatMap { $0 > 0 ? Int($0) : nil } ?? 48000
+            args += ["-af", "loudnorm=I=\(loudnormTarget):TP=-1.5:LRA=11,aresample=\(resampleRate)"]
         }
         args += [
             "-progress", "pipe:2",
@@ -351,7 +362,7 @@ func getAudioMetadata(path: FilePath) async throws -> AudioMetadata? {
 /// losslessly and recompresses it with Clop's image optimisers, then returns it as a second input
 /// to re-attach. Returns `["-vn"]` (strip art) when the format can't carry art, the behaviour is
 /// `.remove`, or no artwork is found.
-func audioCoverArtArgs(input: FilePath, format: AudioFormat, stem: String, behaviour: AudioCoverArtBehaviour) -> [String] {
+func audioCoverArtArgs(input: FilePath, format: AudioFormat, stem: String, behaviour: AudioCoverArtBehaviour, maxLongEdge: Int? = nil) -> [String] {
     guard behaviour != .remove, format.supportsCoverArt else {
         return ["-vn"]
     }
@@ -361,7 +372,7 @@ func audioCoverArtArgs(input: FilePath, format: AudioFormat, stem: String, behav
         return ["-map", "0:a", "-map", "0:v?", "-c:v", "copy"]
     }
 
-    guard let cover = optimisedAudioCoverArt(input: input, stem: stem) else {
+    guard let cover = optimisedAudioCoverArt(input: input, stem: stem, maxLongEdge: maxLongEdge) else {
         // No embedded art (or extraction failed): nothing to optimise, strip cleanly.
         return ["-vn"]
     }
@@ -424,14 +435,35 @@ func extractedAudioCoverArt(input: FilePath, stem: String) -> FilePath? {
     return (try? rawPath.move(to: coverPath, force: true)) != nil ? coverPath : rawPath
 }
 
+/// Downsize an extracted cover image in place to a max long edge, preserving its format (so the
+/// header sniffing in `optimisedAudioCoverArt` still picks the right recompression path).
+func resizeCoverArt(_ path: FilePath, maxLongEdge: Int) {
+    guard maxLongEdge > 0, let data = fm.contents(atPath: path.string), let image = NSImage(data: data) else { return }
+    let px = image.realSize
+    let longEdge = max(px.width, px.height)
+    guard longEdge > CGFloat(maxLongEdge) else { return }
+
+    let scale = CGFloat(maxLongEdge) / longEdge
+    let target = CGSize(width: (px.width * scale).rounded(), height: (px.height * scale).rounded())
+    guard let resized = image.resize(to: target),
+          let tiff = resized.tiffRepresentation,
+          let rep = NSBitmapImageRep(data: tiff) else { return }
+
+    let isJPEG = data.starts(with: [0xFF, 0xD8, 0xFF] as [UInt8])
+    let out = isJPEG
+        ? rep.representation(using: .jpeg, properties: [.compressionFactor: 1.0])
+        : rep.representation(using: .png, properties: [:])
+    if let out { try? out.write(to: path.url) }
+}
+
 /// Extract the embedded cover art losslessly, then recompress it in place at aggressive settings
 /// while keeping the original resolution. JPEG art goes through jpegoptim (jpegli); PNG art through
 /// pngquant, with an adaptive PNG→JPEG trial for photographic covers. Returns the temp file, or nil
 /// when the input has no artwork or extraction fails.
-func optimisedAudioCoverArt(input: FilePath, stem: String) -> FilePath? {
-    guard let coverPath = extractedAudioCoverArt(input: input, stem: stem),
-          let data = fm.contents(atPath: coverPath.string)
-    else { return nil }
+func optimisedAudioCoverArt(input: FilePath, stem: String, maxLongEdge: Int? = nil) -> FilePath? {
+    guard let coverPath = extractedAudioCoverArt(input: input, stem: stem) else { return nil }
+    if let maxLongEdge { resizeCoverArt(coverPath, maxLongEdge: maxLongEdge) }
+    guard let data = fm.contents(atPath: coverPath.string) else { return nil }
 
     let cq = CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_AGGRESSIVE)
 

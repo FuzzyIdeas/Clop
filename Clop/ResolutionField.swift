@@ -6,6 +6,9 @@ import SwiftUI
 
 struct ResolutionField: View {
     @ObservedObject var optimiser: Optimiser
+    /// Prefix the value with a small crop glyph so it reads as a "crop & resize" control, not just a
+    /// passive size readout. Opt-in (off on the floating card, on in the compact list).
+    var showCropIcon = false
 
     @State var size: NSSize = .zero
 
@@ -19,6 +22,9 @@ struct ResolutionField: View {
             },
             label: {
                 HStack(spacing: 3) {
+                    if showCropIcon {
+                        SwiftUI.Image(systemName: "crop")
+                    }
                     let hideOldSize = OM.compactResults && optimiser.newBytes > 0 && optimiser.newSize != nil && optimiser.newSize! != size // && (optimiser.newSize!.s + size.s).count > 14
                     if !hideOldSize {
                         Text(size == .zero ? "Crop" : "\(size.width.i.s)×\(size.height.i.s)")

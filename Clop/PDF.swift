@@ -324,7 +324,7 @@ func isPDFValid(path: FilePath) -> Bool {
         optimiser.progress.fileURL = url
         optimiser.progress.localizedDescription = optimiser.operation
         optimiser.progress.localizedAdditionalDescription = "Calculating progress"
-        optimiser.progress.publish()
+        optimiser.publishProgress()
     }
 
     let handle = pipe.fileHandleForReading
@@ -332,7 +332,7 @@ func isPDFValid(path: FilePath) -> Bool {
         let data = pipe.availableData
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
-            mainActor { optimiser.progress.unpublish() }
+            mainActor { optimiser.unpublishProgress() }
             return
         }
         guard let string = String(data: data, encoding: .utf8) else {
@@ -635,7 +635,7 @@ extension PDF {
             optimiser.progress.fileURL = url
             optimiser.progress.localizedDescription = optimiser.operation
             optimiser.progress.localizedAdditionalDescription = "Page 0 of \(totalPages)"
-            optimiser.progress.publish()
+            optimiser.publishProgress()
         }
 
         let queue = OperationQueue()
@@ -696,7 +696,7 @@ extension PDF {
         queue.waitUntilAllOperationsAreFinished()
 
         if let anyError {
-            mainActor { optimiser.progress.unpublish() }
+            mainActor { optimiser.unpublishProgress() }
             throw anyError
         }
 
@@ -704,7 +704,7 @@ extension PDF {
         var globalIdx = 0
         for chunk in chunks {
             guard let chunkDoc = PDFDocument(url: chunk.output.url) else {
-                mainActor { optimiser.progress.unpublish() }
+                mainActor { optimiser.unpublishProgress() }
                 throw ClopError.invalidPDF(chunk.output)
             }
             for p in 0 ..< chunkDoc.pageCount {
@@ -715,7 +715,7 @@ extension PDF {
             }
         }
         guard merged.write(to: tempFile.url) else {
-            mainActor { optimiser.progress.unpublish() }
+            mainActor { optimiser.unpublishProgress() }
             throw ClopError.invalidPDF(tempFile)
         }
 
@@ -728,7 +728,7 @@ extension PDF {
             try tempFile.copy(to: path, force: true)
         }
 
-        mainActor { optimiser.progress.unpublish() }
+        mainActor { optimiser.unpublishProgress() }
 
         return PDF(path)
     }

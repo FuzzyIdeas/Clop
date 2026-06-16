@@ -343,15 +343,20 @@ struct HorizontalDownscaleSlider: View {
                     .frame(width: knobSize, height: knobSize)
                     .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
                     .overlay(alignment: .top) {
-                        Text("\((displayFactor * 100).intround)%")
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            .foregroundColor(.primary)
-                            .fixedSize()
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
-                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
-                            .offset(y: -knobSize - 4)
+                        VStack(spacing: 0) {
+                            Text(downscaleFactorLabel(displayFactor))
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            if let res = downscaleResolutionString(for: optimiser, factor: displayFactor) {
+                                Text(res).font(.system(size: 7, weight: .semibold, design: .rounded)).foregroundColor(.secondary)
+                            }
+                        }
+                        .foregroundColor(.primary)
+                        .fixedSize()
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                        .offset(y: -knobSize - 10)
                     }
                     .position(x: knobX, y: centerY)
             }
@@ -364,7 +369,7 @@ struct HorizontalDownscaleSlider: View {
                 isHorizontal: true,
                 onDrag: { factor in
                     dragFactor = factor
-                    optimiser.stepIndicator = "\((factor * 100).intround)%"
+                    optimiser.stepIndicator = downscaleResolutionString(for: optimiser, factor: factor).map { "\(downscaleFactorLabel(factor)) · \($0)" } ?? downscaleFactorLabel(factor)
                 },
                 onRelease: { factor in
                     let startFactor = optimiser.downscaleFactor
@@ -382,6 +387,113 @@ struct HorizontalDownscaleSlider: View {
                 }
             )
         )
+    }
+
+    func xPosition(for factor: Double, trackLeft: CGFloat, trackWidth: CGFloat) -> CGFloat {
+        trackLeft + (1.0 - factor) / 0.9 * trackWidth
+    }
+
+    @State private var dragFactor: Double?
+}
+
+// MARK: - HorizontalCoverArtSlider
+
+/// Audio's downscale axis in the compact list: resizes the embedded cover art (NOT the bitrate, which
+/// lives on the compression button), mirroring the floating card's `CardCoverArtSlider`. Same geometry
+/// as `HorizontalDownscaleSlider`, but drives `coverDownscaleFactor` / `downscaleAudioCoverArt`.
+struct HorizontalCoverArtSlider: View {
+    static let thresholds: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
+
+    @ObservedObject var optimiser: Optimiser
+
+    var size: CGFloat
+
+    var displayFactor: Double {
+        dragFactor ?? optimiser.coverDownscaleFactor
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let knobSize = size * 0.8
+            let trackLeft = knobSize / 2
+            let trackWidth = max(geo.size.width - knobSize, 1)
+            let centerY = geo.size.height / 2
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(.primary.opacity(0.15))
+                    .frame(width: trackWidth, height: 3)
+                    .position(x: geo.size.width / 2, y: centerY)
+
+                ForEach(Self.thresholds, id: \.self) { threshold in
+                    let x = xPosition(for: threshold, trackLeft: trackLeft, trackWidth: trackWidth)
+                    let isActive = abs(displayFactor - threshold) < 0.01
+                    RoundedRectangle(cornerRadius: 0.5)
+                        .fill(.primary.opacity(isActive ? 0.7 : 0.3))
+                        .frame(width: isActive ? 2 : 1.5, height: size * 0.55)
+                        .position(x: x, y: centerY)
+                }
+
+                let knobX = xPosition(for: displayFactor, trackLeft: trackLeft, trackWidth: trackWidth)
+                Circle()
+                    .fill(.white)
+                    .frame(width: knobSize, height: knobSize)
+                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                    .overlay(alignment: .top) {
+                        VStack(spacing: 0) {
+                            Text(downscaleFactorLabel(displayFactor))
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                            if let base = optimiser.coverArtSize, base.width > 0, base.height > 0 {
+                                Text("\(Int((base.width * displayFactor).rounded()))×\(Int((base.height * displayFactor).rounded()))")
+                                    .font(.system(size: 7, weight: .semibold, design: .rounded)).foregroundColor(.secondary)
+                            }
+                        }
+                        .foregroundColor(.primary)
+                        .fixedSize()
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                        .offset(y: -knobSize - 10)
+                    }
+                    .position(x: knobX, y: centerY)
+            }
+            .background(.ultraThickMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+        }
+        .overlay(
+            SliderEventOverlay(
+                buttonSize: size,
+                isHorizontal: true,
+                onDrag: { factor in
+                    dragFactor = factor
+                    optimiser.stepIndicator = resolutionLabel(factor)
+                },
+                onRelease: { factor in
+                    let startFactor = optimiser.coverDownscaleFactor
+                    dragFactor = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showDownscaleSlider = false
+                    if abs(factor - startFactor) > 0.01 {
+                        downscaleAudioCoverArt(optimiser: optimiser, toFactor: factor)
+                    }
+                },
+                onCancel: {
+                    dragFactor = nil
+                    optimiser.stepIndicator = ""
+                    optimiser.showDownscaleSlider = false
+                }
+            )
+        )
+        .onAppear { loadAudioCoverArtSize(optimiser: optimiser) }
+    }
+
+    func resolutionLabel(_ factor: Double) -> String {
+        let f = downscaleFactorLabel(factor)
+        guard let base = optimiser.coverArtSize, base.width > 0, base.height > 0 else { return f }
+        let w = Int((base.width * factor).rounded())
+        let h = Int((base.height * factor).rounded())
+        return "\(f) · \(w)×\(h)"
     }
 
     func xPosition(for factor: Double, trackLeft: CGFloat, trackWidth: CGFloat) -> CGFloat {
@@ -478,6 +590,33 @@ enum CompressionScale {
     return Defaults[.imageCompression]
 }
 
+/// Downscale factor as "1x", "0.5x", "0.1x" (rounded to 2 decimals), used in place of a percentage in
+/// every downscale readout.
+func downscaleFactorLabel(_ factor: Double) -> String {
+    String(format: "%gx", (factor * 100).rounded() / 100)
+}
+
+/// "W×H" the image/video would be at `factor` of its original size, for slider readouts. nil if the
+/// original size isn't known yet.
+@MainActor func downscaleResolutionString(for optimiser: Optimiser, factor: Double) -> String? {
+    guard let base = optimiser.oldSize, base.width > 0, base.height > 0 else { return nil }
+    return "\(Int((base.width * factor).rounded()))×\(Int((base.height * factor).rounded()))"
+}
+
+/// Compression readout enriched for the Adaptive image case: appends the format its PNG↔JPEG cross-test
+/// landed on, so the user can see what Adaptive produced and that switching to a manual factor drops the
+/// cross-format test (back to the source format). Adaptive has no single numeric factor (it lets the
+/// encoder pick a quality within a range), so only the resulting format is shown, not a misleading number.
+@MainActor func compressionLabel(for optimiser: Optimiser, quality: CompressionQuality? = nil, terse: Bool = false) -> String {
+    let cq = quality ?? currentCompressionQuality(for: optimiser)
+    let base = terse ? CompressionScale.label(for: cq, type: optimiser.type) : CompressionScale.stepLabel(for: cq, type: optimiser.type)
+    guard optimiser.type.isImage, cq.tier == .adaptive,
+          let ext = optimiser.url?.filePath?.extension ?? optimiser.type.utType?.preferredFilenameExtension
+    else { return base }
+    let fmt = ["jpg", "jpeg"].contains(ext.lowercased()) ? "JPEG" : ext.uppercased()
+    return terse ? "\(base)·\(fmt)" : "\(base) · \(fmt)"
+}
+
 struct CompressionButton: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
@@ -507,8 +646,8 @@ struct CompressionSlider: View {
     }
 
     var displayLabel: String {
-        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) } ?? currentCompressionQuality(for: optimiser)
-        return CompressionScale.label(for: cq, type: optimiser.type)
+        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+        return compressionLabel(for: optimiser, quality: cq, terse: true)
     }
 
     var body: some View {
@@ -599,8 +738,8 @@ struct HorizontalCompressionSlider: View {
     }
 
     var displayLabel: String {
-        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) } ?? currentCompressionQuality(for: optimiser)
-        return CompressionScale.label(for: cq, type: optimiser.type)
+        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+        return compressionLabel(for: optimiser, quality: cq, terse: true)
     }
 
     var body: some View {
@@ -962,10 +1101,15 @@ struct CardDownscaleSlider: View {
     @ObservedObject var optimiser: Optimiser
 
     var factor: Double { dragFactor ?? optimiser.downscaleFactor }
+    var hint: String {
+        let f = downscaleFactorLabel(factor)
+        if let res = downscaleResolutionString(for: optimiser, factor: factor) { return "\(f) · \(res)" }
+        return "\(f) scale"
+    }
 
     var body: some View {
         CardSlider(
-            hint: "\((factor * 100).intround)% scale",
+            hint: hint,
             position: (1.0 - factor) / 0.9,
             anchors: [1.0, 0.75, 0.5, 0.25, 0.1].map { (1.0 - $0) / 0.9 },
             onDrag: { f in dragFactor = f },
@@ -992,10 +1136,11 @@ struct CardCoverArtSlider: View {
 
     var factor: Double { dragFactor ?? optimiser.coverDownscaleFactor }
     var hint: String {
-        guard let base = optimiser.coverArtSize, base.width > 0, base.height > 0 else { return "Cover art" }
+        let f = downscaleFactorLabel(factor)
+        guard let base = optimiser.coverArtSize, base.width > 0, base.height > 0 else { return "Cover art \(f)" }
         let w = Int((base.width * factor).rounded())
         let h = Int((base.height * factor).rounded())
-        return "Cover art \(w)×\(h)"
+        return "\(f) · \(w)×\(h)"
     }
 
     var body: some View {
@@ -1027,8 +1172,8 @@ struct CardCompressionSlider: View {
 
     var pos: Double { dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type) }
     var hint: String {
-        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) } ?? currentCompressionQuality(for: optimiser)
-        return CompressionScale.stepLabel(for: cq, type: optimiser.type)
+        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+        return compressionLabel(for: optimiser, quality: cq, terse: false)
     }
 
     var body: some View {
@@ -2041,7 +2186,9 @@ struct ActionButton: View {
 
     func isAvailable() -> Bool {
         switch action {
-        case .downscale: optimiser.canDownscale()
+        // For audio the downscale button resizes the embedded cover art, so it only makes sense when the
+        // file actually has cover art (coverArtSize is populated lazily by loadAudioCoverArtSize).
+        case .downscale: optimiser.type.isAudio ? (optimiser.coverArtSize != nil) : optimiser.canDownscale()
         case .compression: optimiser.canCompress()
         case .crop: optimiser.canCrop()
         case .aggressiveOptimisation: optimiser.canReoptimise()
@@ -2323,6 +2470,10 @@ struct ActionListPicker: View {
 struct ActionButtons: View {
     @ObservedObject var optimiser: Optimiser
     var size: CGFloat
+    /// When false (row at rest), the icons are translucent and the capsule background is hidden; when
+    /// true (row hovered) the icons go full-strength and the background fades in. Buttons keep their
+    /// place either way, so the row never gains/loses height.
+    var revealed = true
 
     @Environment(\.preview) var preview
     @Default(.compactResultActions) var compactResultActions
@@ -2352,12 +2503,28 @@ struct ActionButtons: View {
             height: size,
             circle: true
         ))
+        // Translucent icons at rest, full on hover.
+        .opacity(revealed ? 1 : 0.5)
         .allowsHitTesting(!optimiser.showDownscaleSlider && !optimiser.showCompressionSlider)
-        .sideButtonBackground(preview: preview)
+        // Capsule background fades in only on hover (or while a slider is open), so resting rows stay
+        // clean — without hiding the buttons, which would leave an empty gap.
+        .background {
+            let showBg = revealed || optimiser.showDownscaleSlider || optimiser.showCompressionSlider
+            // Opaque, modern control surface (no muddy translucent material): a clean light/dark fill with
+            // a hairline border, so the capsule reads as a crisp toolbar instead of dark-gray glass.
+            Capsule()
+                .fill(Color(light: Color.white, dark: Color(white: 0.19)))
+                .overlay(Capsule().strokeBorder(Color(light: Color.black.opacity(0.1), dark: Color.white.opacity(0.12)), lineWidth: 1))
+                .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                .opacity(showBg ? 1 : 0)
+        }
+        .animation(.easeOut(duration: 0.15), value: revealed)
         .overlay {
             if optimiser.showDownscaleSlider {
                 if optimiser.type.isAudio {
-                    HorizontalBitrateSlider(optimiser: optimiser, size: size)
+                    // Audio's "downscale" axis resizes the embedded cover art (the bitrate axis lives on
+                    // the compression button), matching the floating card and the button's own label.
+                    HorizontalCoverArtSlider(optimiser: optimiser, size: size)
                 } else if optimiser.type.isPDF {
                     HorizontalPDFDPISlider(optimiser: optimiser, size: size)
                 } else {
