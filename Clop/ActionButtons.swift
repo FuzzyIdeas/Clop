@@ -509,33 +509,37 @@ struct HorizontalCoverArtSlider: View {
 /// 1 = bottom = most compression / smallest file) to a `CompressionQuality` per item type, and back.
 /// Video flows through Lossless → Fast (hardware) → Smaller (software CRF). Image is Adaptive → factor.
 enum CompressionScale {
+    /// Position of each named tier on the slider track (0 = top = least compression / best quality). Drags
+    /// are continuous (no fixed stops); `magneticValues` makes the knob click onto these tiers and a few
+    /// round factor milestones while staying free to sit at any value in between. The factor ramp fills the
+    /// track below the last named tier, so the Fast / Adaptive regions end exactly where the ramp begins.
     static let videoLossless = 0.0
-    static let videoFast = 0.15
-    static let videoSmallerStart = 0.3
+    static let videoFast = 0.12
+    static let videoFactorStart = 0.24
     static let imageAdaptive = 0.0
-    static let imageFactorStart = 0.15
+    static let imageFactorStart = 0.12
 
-    /// Snap a raw 5...100 factor to the nearest multiple of 5 so the slider exposes round
-    /// increments (5, 10, 15, …) instead of arbitrary values like 81 or 54.
-    static func snapFactor(_ f: Double) -> Int {
-        Int((max(5, min(100, f)) / 5).rounded()) * 5
+    /// Map a position within the factor ramp `[start, 1]` to a continuous 5…100% (whole-percent), so every
+    /// pixel of the track is a distinct value rather than snapping to coarse increments.
+    static func rampFactor(_ p: Double, start: Double) -> Int {
+        Int(max(5, min(100, 5 + (p - start) / (1 - start) * 95)).rounded())
     }
 
     static func quality(forPosition position: Double, type: ItemType) -> CompressionQuality {
         let p = max(0, min(1, position))
+        // Tier boundaries are the midpoint between the tier's position and the factor ramp's start, so the
+        // ramp's 5% (which sits exactly at the start) is never misread as the tier by a hair of float error.
         if type.isVideo {
-            if p < (videoLossless + videoFast) / 2 { return CompressionQuality(tier: .lossless, factor: 5) }
-            if p < (videoFast + videoSmallerStart) / 2 { return CompressionQuality(tier: .fast, factor: 50) }
-            let f = 5 + (p - videoSmallerStart) / (1 - videoSmallerStart) * 95
-            return CompressionQuality(tier: .smaller, factor: snapFactor(f))
+            if p < videoFast / 2 { return CompressionQuality(tier: .lossless, factor: 5) }
+            if p < (videoFast + videoFactorStart) / 2 { return CompressionQuality(tier: .fast, factor: 50) }
+            return CompressionQuality(tier: .smaller, factor: rampFactor(p, start: videoFactorStart))
         }
         // Audio has no Adaptive tier: a plain 5…100% quality maps to a bitrate via audioBitrate(for:).
         if type.isAudio {
-            return CompressionQuality(tier: .custom, factor: snapFactor(5 + p * 95))
+            return CompressionQuality(tier: .custom, factor: Int((5 + p * 95).rounded()))
         }
         if p < imageFactorStart / 2 { return CompressionQuality(tier: .adaptive, factor: 5) }
-        let f = 5 + (p - imageFactorStart) / (1 - imageFactorStart) * 95
-        return CompressionQuality(tier: .custom, factor: snapFactor(f))
+        return CompressionQuality(tier: .custom, factor: rampFactor(p, start: imageFactorStart))
     }
 
     static func position(for cq: CompressionQuality, type: ItemType) -> Double {
@@ -543,7 +547,7 @@ enum CompressionScale {
             switch cq.tier {
             case .lossless: return videoLossless
             case .fast: return videoFast
-            default: return videoSmallerStart + Double(cq.factor - 5) / 95 * (1 - videoSmallerStart)
+            default: return videoFactorStart + Double(cq.factor - 5) / 95 * (1 - videoFactorStart)
             }
         }
         if type.isAudio { return Double(cq.factor - 5) / 95 }
@@ -577,9 +581,32 @@ enum CompressionScale {
     }
 
     static func anchors(for type: ItemType) -> [Double] {
-        if type.isVideo { return [videoLossless, videoFast, videoSmallerStart] }
+        // Tick marks. The named tier(s) sit at the top; the factor ramp fills the rest, marked with a few
+        // evenly spread factor milestones (these line up with the magnetic snap targets below).
+        if type.isVideo {
+            return [videoLossless, videoFast] + [25, 50, 75, 100].map { position(for: CompressionQuality(tier: .smaller, factor: $0), type: type) }
+        }
         if type.isAudio { return [0.0, 0.25, 0.5, 0.75, 1.0] }
-        return [imageAdaptive, imageFactorStart]
+        return [imageAdaptive] + [25, 50, 75, 100].map { position(for: CompressionQuality(tier: .custom, factor: $0), type: type) }
+    }
+
+    /// Magnetic snap targets for the compression slider, in `SliderEventOverlay` value space
+    /// (`value = 1 - position*0.9`): the named tiers plus round factor milestones, so the knob clicks onto
+    /// Adaptive / Lossless / Fast and the common factors while staying free to sit anywhere between them.
+    static func magneticValues(for type: ItemType) -> [Double] {
+        func value(_ p: Double) -> Double { 1 - p * 0.9 }
+        // 5 is the minimum factor (right after the named tiers): including it makes the tier ↔ 5% boundary
+        // a clean snap, so the knob can't linger in the gap between e.g. Adaptive and 5%.
+        let factors = [5, 25, 50, 75, 100]
+        if type.isVideo {
+            return [value(videoLossless), value(videoFast)]
+                + factors.map { value(position(for: CompressionQuality(tier: .smaller, factor: $0), type: type)) }
+        }
+        if type.isAudio {
+            return factors.map { value(Double($0 - 5) / 95) }
+        }
+        return [value(imageAdaptive)]
+            + factors.map { value(position(for: CompressionQuality(tier: .custom, factor: $0), type: type)) }
     }
 }
 
@@ -603,18 +630,62 @@ func downscaleFactorLabel(_ factor: Double) -> String {
     return "\(Int((base.width * factor).rounded()))×\(Int((base.height * factor).rounded()))"
 }
 
-/// Compression readout enriched for the Adaptive image case: appends the format its PNG↔JPEG cross-test
-/// landed on, so the user can see what Adaptive produced and that switching to a manual factor drops the
-/// cross-format test (back to the source format). Adaptive has no single numeric factor (it lets the
-/// encoder pick a quality within a range), so only the resulting format is shown, not a misleading number.
+/// The compression value readout (tier/factor). The resulting format, and any PNG↔JPEG flip the
+/// Adaptive cross-test produced, is shown separately by `FormatChangeLine` so the transition (not just
+/// the landed format) is visible, which is what tells the user whether nudging the factor flips the
+/// format and changes the size tradeoff.
 @MainActor func compressionLabel(for optimiser: Optimiser, quality: CompressionQuality? = nil, terse: Bool = false) -> String {
     let cq = quality ?? currentCompressionQuality(for: optimiser)
-    let base = terse ? CompressionScale.label(for: cq, type: optimiser.type) : CompressionScale.stepLabel(for: cq, type: optimiser.type)
-    guard optimiser.type.isImage, cq.tier == .adaptive,
-          let ext = optimiser.url?.filePath?.extension ?? optimiser.type.utType?.preferredFilenameExtension
-    else { return base }
-    let fmt = ["jpg", "jpeg"].contains(ext.lowercased()) ? "JPEG" : ext.uppercased()
-    return terse ? "\(base)·\(fmt)" : "\(base) · \(fmt)"
+    return terse ? CompressionScale.label(for: cq, type: optimiser.type) : CompressionScale.stepLabel(for: cq, type: optimiser.type)
+}
+
+/// The format a compression value produces for an image, as `(original, result)`. The original is the
+/// format the file had before Adaptive's PNG↔JPEG cross-test (the one a literal factor preserves), read
+/// from the pristine source reference: `startingURL` for clipboard, `originalURL` for file drops (set once
+/// and never overwritten, so it survives slider re-optimisations), then `convertedFromURL`. A literal
+/// factor disables the format change and keeps that original; only the Adaptive tier can flip the format,
+/// and its choice only lands in `url`, so the result is taken from the output only when Adaptive is the
+/// selected quality. Returns nil for non-images (where the compression value never changes the format).
+@MainActor func compressionFormatDisplay(for optimiser: Optimiser, selectedQuality: CompressionQuality?) -> (original: String, result: String)? {
+    guard optimiser.type.isImage else { return nil }
+    func fmt(_ ext: String) -> String { ["jpg", "jpeg"].contains(ext.lowercased()) ? "JPEG" : ext.uppercased() }
+    let originalURL = optimiser.startingURL ?? optimiser.originalURL ?? optimiser.convertedFromURL
+    guard let origExt = originalURL?.filePath?.extension ?? optimiser.url?.filePath?.extension else { return nil }
+    let original = fmt(origExt)
+    let cq = selectedQuality ?? currentCompressionQuality(for: optimiser)
+    let result = (cq.tier == .adaptive ? optimiser.url?.filePath?.extension.map(fmt) : nil) ?? original
+    return (original, result)
+}
+
+/// The format line shown under a compression value. When the selected quality keeps the format it shows a
+/// single token (the resulting format, e.g. `PNG`); when Adaptive flips it, it shows the transition with
+/// original (secondary) → (tertiary) result (primary). `onDark` switches the hierarchy to a white scale for
+/// dark pills; otherwise it uses the adaptive primary/secondary scale. `selectedQuality` is the value the
+/// slider currently points at (nil = the committed value), so the format tracks the dragged position.
+struct FormatChangeLine: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var selectedQuality: CompressionQuality?
+    var onDark = false
+
+    var body: some View {
+        if let display = compressionFormatDisplay(for: optimiser, selectedQuality: selectedQuality) {
+            let primary: Color = onDark ? .white : .primary
+            let secondary: Color = onDark ? .white.opacity(0.65) : .secondary
+            let tertiary: Color = onDark ? .white.opacity(0.4) : .primary.opacity(0.35)
+            Group {
+                if display.original == display.result {
+                    Text(display.result).foregroundColor(primary)
+                } else {
+                    Text(display.original).foregroundColor(secondary)
+                        + Text(" → ").foregroundColor(tertiary)
+                        + Text(display.result).foregroundColor(primary)
+                }
+            }
+            .font(.system(size: 8.5, weight: .bold, design: .rounded))
+            .fixedSize()
+        }
+    }
 }
 
 struct CompressionButton: View {
@@ -642,12 +713,16 @@ struct CompressionSlider: View {
     var size: CGFloat
 
     var displayPosition: Double {
-        dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
+        // Snap the knob to the canonical position of whatever value the drag resolves to, so it can't rest
+        // in the gap between a named tier and the first factor (e.g. Adaptive ↔ 5%) on a non-value.
+        CompressionScale.position(for: displayQuality ?? currentCompressionQuality(for: optimiser), type: optimiser.type)
     }
 
+    var displayQuality: CompressionQuality? {
+        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+    }
     var displayLabel: String {
-        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
-        return compressionLabel(for: optimiser, quality: cq, terse: true)
+        compressionLabel(for: optimiser, quality: displayQuality, terse: true)
     }
 
     var body: some View {
@@ -679,15 +754,18 @@ struct CompressionSlider: View {
                     .frame(width: knobSize, height: knobSize)
                     .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
                     .overlay {
-                        Text(displayLabel)
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundColor(.primary)
-                            .fixedSize()
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
-                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
-                            .offset(x: isTrailing ? -tooltipOffset : tooltipOffset)
+                        VStack(spacing: 1) {
+                            Text(displayLabel)
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                .foregroundColor(.primary)
+                            FormatChangeLine(optimiser: optimiser, selectedQuality: displayQuality)
+                        }
+                        .fixedSize()
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                        .offset(x: isTrailing ? -tooltipOffset : tooltipOffset)
                     }
                     .position(x: centerX, y: knobY)
             }
@@ -697,6 +775,7 @@ struct CompressionSlider: View {
         .overlay(
             SliderEventOverlay(
                 buttonSize: size,
+                snapPoints: CompressionScale.magneticValues(for: optimiser.type),
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
@@ -734,12 +813,16 @@ struct HorizontalCompressionSlider: View {
     var size: CGFloat
 
     var displayPosition: Double {
-        dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
+        // Snap the knob to the canonical position of whatever value the drag resolves to, so it can't rest
+        // in the gap between a named tier and the first factor (e.g. Adaptive ↔ 5%) on a non-value.
+        CompressionScale.position(for: displayQuality ?? currentCompressionQuality(for: optimiser), type: optimiser.type)
     }
 
+    var displayQuality: CompressionQuality? {
+        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+    }
     var displayLabel: String {
-        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
-        return compressionLabel(for: optimiser, quality: cq, terse: true)
+        compressionLabel(for: optimiser, quality: displayQuality, terse: true)
     }
 
     var body: some View {
@@ -769,15 +852,18 @@ struct HorizontalCompressionSlider: View {
                     .frame(width: knobSize, height: knobSize)
                     .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
                     .overlay {
-                        Text(displayLabel)
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundColor(.primary)
-                            .fixedSize()
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
-                            .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
-                            .offset(y: -knobSize / 2 - 16)
+                        VStack(spacing: 1) {
+                            Text(displayLabel)
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                .foregroundColor(.primary)
+                            FormatChangeLine(optimiser: optimiser, selectedQuality: displayQuality)
+                        }
+                        .fixedSize()
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                        .offset(y: -knobSize / 2 - 16)
                     }
                     .position(x: knobX, y: centerY)
             }
@@ -788,6 +874,7 @@ struct HorizontalCompressionSlider: View {
             SliderEventOverlay(
                 buttonSize: size,
                 isHorizontal: true,
+                snapPoints: CompressionScale.magneticValues(for: optimiser.type),
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
@@ -1038,6 +1125,9 @@ struct HorizontalBitrateSlider: View {
 /// shared downscale-style factor (0.1…1.0) which each wrapper maps to its own domain.
 struct CardSlider: View {
     let hint: String
+    var formatChangeOptimiser: Optimiser? = nil
+    var formatChangeQuality: CompressionQuality? = nil
+    var snapPoints: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
     let position: Double
     let anchors: [Double]
     let onDrag: (Double) -> Void
@@ -1048,18 +1138,23 @@ struct CardSlider: View {
         VStack(spacing: 5) {
             // White text on a dark blurred pill. Everything is clipped to the capsule so the blur
             // doesn't show as a rectangle behind a smaller rounded background.
-            Text(hint)
-                .font(.system(size: 10, weight: .heavy, design: .rounded))
-                .foregroundColor(.white)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(
-                    ZStack {
-                        VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
-                        Color.black.opacity(0.4)
-                    }
-                    .clipShape(Capsule())
-                )
-                .fixedSize()
+            VStack(spacing: 1) {
+                Text(hint)
+                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                if let optimiser = formatChangeOptimiser {
+                    FormatChangeLine(optimiser: optimiser, selectedQuality: formatChangeQuality, onDark: true)
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(
+                ZStack {
+                    VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
+                    Color.black.opacity(0.4)
+                }
+                .clipShape(Capsule())
+            )
+            .fixedSize()
             GeometryReader { geo in
                 let knob: CGFloat = 11
                 let left = knob / 2
@@ -1078,7 +1173,7 @@ struct CardSlider: View {
             }
             .frame(height: 12)
         }
-        .overlay(SliderEventOverlay(buttonSize: 11, isHorizontal: true, onDrag: onDrag, onRelease: onRelease, onCancel: onCancel))
+        .overlay(SliderEventOverlay(buttonSize: 11, isHorizontal: true, snapPoints: snapPoints, onDrag: onDrag, onRelease: onRelease, onCancel: onCancel))
         // Escape bails out without committing. The floating panel is non-activating, so it has to
         // be made key first for the keyboard shortcut (and the overlay's keyDown monitor) to fire.
         .background {
@@ -1171,14 +1266,19 @@ struct CardCompressionSlider: View {
     @ObservedObject var optimiser: Optimiser
 
     var pos: Double { dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type) }
+    var displayQuality: CompressionQuality? {
+        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+    }
     var hint: String {
-        let cq = dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
-        return compressionLabel(for: optimiser, quality: cq, terse: false)
+        compressionLabel(for: optimiser, quality: displayQuality, terse: false)
     }
 
     var body: some View {
         CardSlider(
             hint: hint,
+            formatChangeOptimiser: optimiser,
+            formatChangeQuality: displayQuality,
+            snapPoints: CompressionScale.magneticValues(for: optimiser.type),
             position: pos,
             anchors: CompressionScale.anchors(for: optimiser.type),
             onDrag: { v in dragPosition = (1.0 - v) / 0.9 },
@@ -1509,11 +1609,15 @@ struct HorizontalPDFDPISlider: View {
 
 private struct SliderEventOverlay: NSViewRepresentable {
     class SliderEventView: NSView {
-        static let thresholds: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
         static let snapDistance = 0.04
 
         override var isFlipped: Bool { true }
         override var acceptsFirstResponder: Bool { true }
+
+        /// Magnetic snap targets in factor/value space. The drag is otherwise continuous; the knob clicks
+        /// onto one of these only while within `snapDistance`. Defaults to the downscale factor anchors;
+        /// compression sliders override with their tier + round-factor values.
+        var snapPoints: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
 
         var buttonSize: CGFloat = 24
         var isHorizontal = false
@@ -1625,10 +1729,10 @@ private struct SliderEventOverlay: NSViewRepresentable {
             let normalized = (y - trackTop) / trackHeight
             let raw = 1.0 - normalized * 0.9
             let clamped = max(0.1, min(1.0, raw))
-            for t in Self.thresholds where abs(clamped - t) < Self.snapDistance {
+            for t in snapPoints where abs(clamped - t) < Self.snapDistance {
                 return t
             }
-            return (clamped * 20).rounded() / 20
+            return clamped
         }
 
         func factor(forX x: CGFloat) -> Double {
@@ -1638,16 +1742,17 @@ private struct SliderEventOverlay: NSViewRepresentable {
             let normalized = (x - trackLeft) / trackWidth
             let raw = 1.0 - normalized * 0.9
             let clamped = max(0.1, min(1.0, raw))
-            for t in Self.thresholds where abs(clamped - t) < Self.snapDistance {
+            for t in snapPoints where abs(clamped - t) < Self.snapDistance {
                 return t
             }
-            return (clamped * 20).rounded() / 20
+            return clamped
         }
 
     }
 
     var buttonSize: CGFloat
     var isHorizontal = false
+    var snapPoints: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
     var onDrag: (Double) -> Void
     var onRelease: (Double) -> Void
     var onCancel: () -> Void
@@ -1656,6 +1761,7 @@ private struct SliderEventOverlay: NSViewRepresentable {
         let view = SliderEventView()
         view.buttonSize = buttonSize
         view.isHorizontal = isHorizontal
+        view.snapPoints = snapPoints
         view.onDrag = onDrag
         view.onRelease = onRelease
         view.onCancel = onCancel
@@ -1665,6 +1771,7 @@ private struct SliderEventOverlay: NSViewRepresentable {
     func updateNSView(_ nsView: SliderEventView, context: Context) {
         nsView.buttonSize = buttonSize
         nsView.isHorizontal = isHorizontal
+        nsView.snapPoints = snapPoints
         nsView.onDrag = onDrag
         nsView.onRelease = onRelease
         nsView.onCancel = onCancel
