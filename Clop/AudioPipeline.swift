@@ -20,6 +20,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     bitrateOverride: Int? = nil,
     aggressiveOptimisation: Bool? = nil,
     formatOverride: AudioFormat? = nil,
+    operationOverride: String? = nil,
     loudnormTarget: Double? = nil,
     coverArt: AudioCoverArtBehaviour? = nil,
     coverArtMaxLongEdge: Int? = nil,
@@ -71,7 +72,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
 
     audioOptimiseDebouncers[pathString]?.cancel()
     let workItem = mainAsyncAfter(ms: debounceMS) {
-        optimiser.operation = "Optimising"
+        optimiser.operation = operationOverride ?? "Optimising"
         optimiser.originalURL = path.url
         if batchOptimiser == nil {
             OM.optimisers = OM.optimisers.without(optimiser).with(optimiser)
@@ -178,7 +179,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                 result = optimisedAudio
                 optimiser.url = optimisedAudio.path.url
                 optimiser.audio = optimisedAudio
-                if let outputType = Defaults[.audioFormat].utType {
+                // Use the format actually produced (formatOverride wins), not the global default, so a
+                // per-result conversion sets the right type.
+                if let outputType = resolvedFormat.utType {
                     optimiser.type = .audio(outputType)
                 }
                 optimiser.finish(
