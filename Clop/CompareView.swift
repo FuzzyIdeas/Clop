@@ -1,3 +1,4 @@
+import AVFoundation
 import AVKit
 import Defaults
 import Foundation
@@ -200,6 +201,12 @@ struct PDFKitView: NSViewRepresentable {
         let pdfView = PDFView()
         pdfView.setFrameSize(NSSize(width: COMPARISON_VIEW_SIZE, height: COMPARISON_VIEW_SIZE))
         pdfView.displayMode = .singlePage
+        // Render the physical page (mediaBox), not the cropBox. Clop's optimised PDFs often carry a
+        // cropBox inset from their mediaBox while the original's cropBox == mediaBox; PDFView shows the
+        // cropBox by default, so the two panes auto-scaled to different geometries and the optimised
+        // page sat higher/larger. The mediaBox matches between original and optimised, so both panes
+        // line up exactly in split and side-by-side modes.
+        pdfView.displayBox = .mediaBox
 
         pdfView.document = PDFDocument(url: url)
         pdfView.autoScales = true
@@ -268,6 +275,135 @@ struct PathFieldMenu: View {
 
 }
 
+enum AudioSide: Hashable {
+    case original
+    case optimised
+}
+
+/// Drives the side-by-side audio comparison: two players, only one audible at a time, sharing a
+/// single start position so the other side begins from exactly where the first one started.
+///
+/// `startTime` is that shared anchor. Pressing play on a side that wasn't the last one played seeks
+/// it to the anchor first ("the other side starts from the same time the first playback did");
+/// resuming the same side after a pause just continues. Scrubbing either side stores the new time as
+/// the anchor, so you can move the comparison point instead of always restarting from the same spot.
+@MainActor
+final class AudioCompareController: ObservableObject {
+    @Published var activeSide: AudioSide?
+    @Published var currentTime: Double = 0
+    @Published var startTime: Double = 0
+    @Published private(set) var durations: [AudioSide: Double] = [:]
+    @Published private(set) var coverArt: [AudioSide: NSImage] = [:]
+
+    func register(_ side: AudioSide, url: URL) {
+        guard urls[side] != url else { return }
+        urls[side] = url
+
+        if let player = try? AVAudioPlayer(contentsOf: url) {
+            player.prepareToPlay()
+            players[side] = player
+            durations[side] = player.duration
+        }
+
+        guard let path = url.filePath else { return }
+        Task {
+            guard let art = await audioCoverArt(from: path) else { return }
+            await MainActor.run { self.coverArt[side] = art }
+        }
+    }
+
+    func duration(_ side: AudioSide) -> Double { durations[side] ?? 0 }
+
+    func isPlaying(_ side: AudioSide) -> Bool { activeSide == side }
+
+    /// Where to draw a side's playhead: its live position while it's the audible one, otherwise the
+    /// shared anchor (so both idle sides show where playback will begin).
+    func displayTime(for side: AudioSide) -> Double {
+        activeSide == side ? currentTime : min(startTime, duration(side))
+    }
+
+    func toggle(_ side: AudioSide) {
+        guard let player = players[side] else { return }
+
+        if activeSide == side {
+            player.pause()
+            stopTimer()
+            activeSide = nil
+            return
+        }
+
+        if let active = activeSide {
+            players[active]?.pause()
+        }
+
+        // Cross-side switch (or first play) begins from the shared anchor, clamped into this side's
+        // bounds (the other file may be shorter); resuming the same side after a pause continues from
+        // where it left off.
+        if lastPlayedSide != side {
+            player.currentTime = min(max(startTime, 0), duration(side))
+        }
+        player.play()
+        activeSide = side
+        lastPlayedSide = side
+        currentTime = player.currentTime
+        startTimer()
+    }
+
+    /// Scrub a side to `time`, storing it as the shared start for the other side.
+    func scrub(_ side: AudioSide, to time: Double) {
+        let clamped = max(0, min(time, duration(side)))
+        startTime = clamped
+        lastPlayedSide = side
+        players[side]?.currentTime = clamped
+        if activeSide == side {
+            currentTime = clamped
+        }
+    }
+
+    func stopAll() {
+        stopTimer()
+        for player in players.values { player.stop() }
+        activeSide = nil
+    }
+
+    private var players: [AudioSide: AVAudioPlayer] = [:]
+    private var urls: [AudioSide: URL] = [:]
+    private var lastPlayedSide: AudioSide?
+    private var timer: Timer?
+
+    private func startTimer() {
+        stopTimer()
+        let t = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            mainActor { self?.tick() }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func tick() {
+        guard let side = activeSide, let player = players[side] else { return }
+        currentTime = player.currentTime
+        if !player.isPlaying {
+            // Reached the end on its own. Clear lastPlayedSide so the next press of this side is a
+            // fresh play from the anchor rather than a resume from the finished position.
+            stopTimer()
+            activeSide = nil
+            lastPlayedSide = nil
+        }
+    }
+}
+
+func audioTimeString(_ seconds: Double) -> String {
+    guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+    let total = Int(seconds.rounded())
+    return String(format: "%d:%02d", total / 60, total % 60)
+}
+
 /// A view that allows the user to preview a comparison of the optimised and original image/video/PDF.
 struct CompareView: View {
     @ObservedObject var optimiser: Optimiser
@@ -276,6 +412,8 @@ struct CompareView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @Default(.compareMode) var compareMode
+
+    @StateObject private var audioController = AudioCompareController()
 
     var improvementColor: Color {
         colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue
@@ -319,6 +457,99 @@ struct CompareView: View {
             .coordinateSpace(name: "compareArea")
             .onContinuousHover(perform: trackHover(_:))
         }
+    }
+
+    var audioStack: some View {
+        HStack(alignment: .top, spacing: 16) {
+            if let url = optimiser.url, let originalURL = optimiser.comparisonOriginalURL {
+                audioSide(.original, url: originalURL, title: "Original", bytes: optimiser.oldBytes, bitrate: optimiser.oldBitrate)
+                audioSide(
+                    .optimised, url: url, title: "Optimised",
+                    bytes: optimiser.newBytes > 0 ? optimiser.newBytes : optimiser.oldBytes,
+                    bitrate: optimiser.newBitrate ?? optimiser.oldBitrate
+                )
+            }
+        }
+        .hfill()
+        .padding(.vertical)
+        .overlay(savingsBadge.allowsHitTesting(false))
+    }
+
+    func audioSide(_ side: AudioSide, url: URL, title: String, bytes: Int, bitrate: Int?) -> some View {
+        VStack(spacing: 12) {
+            paneHeader(title: title, url: url)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.regularMaterial)
+
+                if let art = audioController.coverArt[side] {
+                    SwiftUI.Image(nsImage: art)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .opacity(0.45)
+                } else {
+                    SwiftUI.Image(systemName: "waveform")
+                        .font(.system(size: 72, weight: .regular))
+                        .foregroundColor(.secondary.opacity(0.35))
+                }
+
+                Button {
+                    audioController.toggle(side)
+                } label: {
+                    SwiftUI.Image(systemName: audioController.isPlaying(side) ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 64))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
+                }
+                .buttonStyle(.plain)
+                .disabled(audioController.duration(side) <= 0)
+            }
+            .frame(
+                minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE, maxWidth: .infinity,
+                minHeight: 220, idealHeight: 300, maxHeight: .infinity
+            )
+            .contextMenu { fileActions(for: url) }
+
+            audioScrubber(side)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Size: \(bytes.humanSize)").mono(10)
+                    .hfill(.leading)
+                if let bitrate {
+                    Text("Bitrate: \(bitrate) kbps").mono(10)
+                        .hfill(.leading)
+                }
+            }
+            .foregroundColor(.secondary)
+            .padding(.top, 2)
+        }
+        .frame(minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE)
+        .onAppear { audioController.register(side, url: url) }
+    }
+
+    func audioScrubber(_ side: AudioSide) -> some View {
+        let duration = audioController.duration(side)
+        return VStack(spacing: 2) {
+            Slider(
+                value: Binding(
+                    get: { audioController.displayTime(for: side) },
+                    set: { audioController.scrub(side, to: $0) }
+                ),
+                in: 0 ... max(duration, 0.01)
+            )
+            .disabled(duration <= 0)
+
+            HStack {
+                Text(audioTimeString(audioController.displayTime(for: side))).mono(9)
+                Spacer()
+                Text(audioTimeString(duration)).mono(9)
+            }
+            .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: COMPARISON_VIEW_SIZE)
     }
 
     @ViewBuilder var savingsBadge: some View {
@@ -371,27 +602,36 @@ struct CompareView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if compareMode == .split {
-                splitStack
-            } else {
-                previewStack
-            }
+            if optimiser.type.isAudio {
+                audioStack
 
-            controls
-
-            if optimiser.type == .pdf, let url = optimiser.url ?? optimiser.comparisonOriginalURL, let pdf = PDFKitView.pdfViewCache[url]?.document {
-                pdfControls(pdf: pdf)
-            }
-
-            if compareMode == .split {
-                Text("Drag across the preview to move the split divider")
+                Text("Only one side plays at a time, scrub either side to set where both start")
                     .round(10).foregroundColor(.tertiaryLabel)
-                    .padding(.top, 6)
+                    .padding(.top, 10)
+            } else {
+                if compareMode == .split {
+                    splitStack
+                } else {
+                    previewStack
+                }
+
+                controls
+
+                if optimiser.type == .pdf, let url = optimiser.url ?? optimiser.comparisonOriginalURL, let pdf = PDFKitView.pdfViewCache[url]?.document {
+                    pdfControls(pdf: pdf)
+                }
+
+                if compareMode == .split {
+                    Text("Drag across the preview to move the split divider")
+                        .round(10).foregroundColor(.tertiaryLabel)
+                        .padding(.top, 6)
+                }
+                Text("Hold **⌘ Command** to zoom in, add **⌥ Option** to zoom further")
+                    .round(10).foregroundColor(.tertiaryLabel)
+                    .padding(.top, compareMode == .split ? 2 : 6)
             }
-            Text("Hold **⌘ Command** to zoom in, add **⌥ Option** to zoom further")
-                .round(10).foregroundColor(.tertiaryLabel)
-                .padding(.top, compareMode == .split ? 2 : 6)
         }
+        .onDisappear { audioController.stopAll() }
         .onChange(of: km.rcmd) { _ in flagsChanged(Set(km.flags)) }
         .onChange(of: km.lcmd) { _ in flagsChanged(Set(km.flags)) }
         .onChange(of: km.ralt) { _ in flagsChanged(Set(km.flags)) }
@@ -570,9 +810,14 @@ struct CompareView: View {
             let other = otherVideoURL?.filePath?.isVideo == true ? otherVideoURL : nil
             LoopingVideoPlayer(videoURL: url, otherVideoURL: other, playing: $videoPlaying)
         } else if url.filePath?.isPDF == true {
+            // No `.aspectRatio` here: PDFView already fits and centres the page via `autoScales`.
+            // Wrapping the representable in `.aspectRatio` made SwiftUI derive the aspect from the
+            // live view's measured size, which differs between the two panes depending on each
+            // PDFView's load/layout timing. In split mode the panes are overlaid, so that difference
+            // showed as the optimised page sitting higher than the original. Letting PDFView fill the
+            // exact frame it's given keeps both panes deterministic and aligned.
             PDFKitView(url: url)
                 .allowsHitTesting(false)
-                .aspectRatio(contentMode: fitOrFill)
         } else {
             PannableImage(url: url, fitOrFill: $fitOrFill)
         }
@@ -663,7 +908,8 @@ struct CompareView: View {
     }
 
     func flagsChanged(_ flags: Set<TriggerKey>) {
-        guard NSApp.isActive else { return }
+        // Audio has no zoomable preview, so the ⌘/⌥ zoom hotkeys don't apply.
+        guard NSApp.isActive, !optimiser.type.isAudio else { return }
         withAnimation(.fastSpring) {
             zoomed = flags.hasElements(from: [.lcmd, .rcmd, .cmd])
             zoom = zoomed ? (flags.hasElements(from: [.lalt, .ralt, .alt]) ? 8.0 : 3.0) : 1.0
@@ -722,10 +968,16 @@ struct ComparePreview: View {
         clipEnd.image = Image(nsImage: clipEnd.thumbnail!, data: Data(), type: .png, retinaDownscaled: false)
         clipEnd.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
 
+        let audioOpt = Optimiser(id: "Music/song.m4a", type: .audio(.mpeg4Audio))
+        audioOpt.url = "\(HOME)/Music/song.m4a".fileURL
+        audioOpt.originalURL = "\(HOME)/Music/song-before.m4a".fileURL
+        audioOpt.finish(oldBytes: 8_750_190, newBytes: 3_211_932, oldBitrate: 320, newBitrate: 128)
+
         o.optimisers = [
             clipEnd,
             videoOpt,
             noThumb,
+            audioOpt,
         ]
         for opt in o.optimisers {
             opt.isPreview = true
@@ -739,7 +991,7 @@ struct ComparePreview: View {
                 //         .first(where: { $0.id == "Movies/sonoma-from-above.mov" })!
                 // )
 //                .first(where: { $0.id == "pages.pdf" })!
-//        )
+//                .first(where: { $0.id == "Music/song.m4a" })!
                 .first(where: { $0.id == Optimiser.IDs.clipboardImage })!
         )
     }

@@ -577,7 +577,7 @@ class AppDelegate: AppDelegateParent {
             opt.collapseHoverOverlay = true
         case .r where !opt.running:
             opt.editingFilename = true
-        case .d where !opt.type.isAudio && opt.url != nil && opt.comparisonOriginalURL != nil:
+        case .d where opt.url != nil && opt.comparisonOriginalURL != nil:
             opt.compare()
         case .k where opt.canCrop() && !opt.running:
             opt.showCropWindow()

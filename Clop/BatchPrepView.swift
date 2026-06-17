@@ -12,6 +12,7 @@ import Defaults
 import Foundation
 import Lowtech
 import SwiftUI
+import System
 import UniformTypeIdentifiers
 
 // MARK: - Formatting
@@ -300,37 +301,120 @@ struct BatchPrepContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if manager.phase.isEmpty {
-                ScrollView {
-                    BatchParamColumns(form: form, present: present)
-                        .padding(16)
-                }
-            } else {
+            if !manager.phase.isEmpty {
                 Spacer()
                 ProgressView(manager.phase).controlSize(.small)
                 Spacer()
+            } else if manager.items.isEmpty {
+                dropZone
+            } else {
+                filesTable
+                Divider()
+                // The optimisation parameters, shown below the table like the results view with
+                // "Adjust optimisation parameters" expanded.
+                ScrollView {
+                    BatchParamColumns(form: form, present: present).padding(16)
+                }
+                .frame(maxHeight: 320)
             }
 
             Divider()
-            HStack {
-                Text(manager.phase.isEmpty ? "\(manager.items.count) file\(manager.items.count == 1 ? "" : "s")" : manager.phase)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Cancel") { manager.windowController?.window?.close() }
-                    .keyboardShortcut(.cancelAction)
-                Button("Optimise") { manager.beginProcessing(params: form.toBatchParams()) }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!manager.phase.isEmpty)
-            }
-            .padding(12)
+            footer
         }
         .onAppear { form.seedFromDefaults() }
+        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in handleDrop(providers) }
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3))
+                    .padding(6)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     @StateObject private var form = BatchParamsModel()
+    @State private var selection = Set<BatchItem.ID>()
+    @State private var dropTargeted = false
 
     private var present: PresentTypes { PresentTypes(manager.items) }
 
+    private var dropZone: some View {
+        VStack(spacing: 12) {
+            SwiftUI.Image(systemName: "square.and.arrow.down.on.square")
+                .font(.system(size: 52, weight: .light))
+                .foregroundStyle(.secondary)
+            Text("Drop files and folders here")
+                .font(.title2.weight(.medium))
+            Text("Images, videos, PDFs and audio are added; everything else is ignored. Drop more anytime to keep adding.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [9]))
+                .foregroundStyle(.quaternary)
+                .padding(24)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var filesTable: some View {
+        Table(manager.items, selection: $selection) {
+            TableColumn("Name") { item in
+                Text(item.name).lineLimit(1).truncationMode(.middle).help(item.source.string)
+            }
+            TableColumn("Type") { item in
+                Text(item.oldFormat ?? "").foregroundStyle(.secondary)
+            }.width(min: 70, ideal: 90)
+            TableColumn("Size") { item in
+                Text(humanBytes(item.oldBytes)).monospacedDigit().foregroundStyle(.secondary)
+            }.width(min: 90, ideal: 110)
+        }
+        .contextMenu(forSelectionType: BatchItem.ID.self) { ids in
+            Button("Remove from batch") { manager.remove(ids: Array(ids)); selection.subtract(ids) }
+                .disabled(ids.isEmpty)
+        }
+        .onDeleteCommand { if !selection.isEmpty { manager.remove(ids: Array(selection)); selection = [] } }
+    }
+
+    private var footer: some View {
+        HStack {
+            Text(manager.phase.isEmpty
+                ? "\(manager.items.count) file\(manager.items.count == 1 ? "" : "s")"
+                : manager.phase)
+                .foregroundStyle(.secondary)
+            Spacer()
+            if !manager.items.isEmpty {
+                Button("Reset") { manager.reset(); selection = [] }
+            }
+            Button("Cancel") { manager.windowController?.window?.close() }
+                .keyboardShortcut(.cancelAction)
+            Button("Optimise") { manager.beginProcessing(params: form.toBatchParams()) }
+                .keyboardShortcut(.defaultAction)
+                .disabled(manager.items.isEmpty || !manager.phase.isEmpty)
+        }
+        .padding(12)
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        let relevant = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+        guard !relevant.isEmpty else { return false }
+        Task {
+            var paths: [FilePath] = []
+            for provider in relevant {
+                guard let item = try? await provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier),
+                      let path = item.existingFilePath else { continue }
+                paths.append(path)
+            }
+            guard !paths.isEmpty else { return }
+            await MainActor.run { manager.add(paths: paths, source: .dropZone) }
+        }
+        return true
+    }
 }
 
 // MARK: - Param columns (shared by prepare + adjust)

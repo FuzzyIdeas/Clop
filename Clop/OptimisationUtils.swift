@@ -402,6 +402,25 @@ enum TempPipelineSegment {
         return nil
     }
 
+    /// The `AudioFormat` the result is currently in (e.g. `.aac` after a wav→m4a conversion).
+    var currentAudioFormat: AudioFormat? {
+        guard type.isAudio, let ut = type.utType else { return nil }
+        return AudioFormat.allCases.first { $0.utType == ut }
+    }
+
+    /// `currentAudioFormat`, but only when a conversion is actually in effect (the result's format
+    /// differs from `originalExtension`). Used as a `formatOverride` when re-encoding from the pristine
+    /// original so recompressing a converted file keeps the converted format instead of reverting to the
+    /// original's extension. Returns nil for a plain (non-converted) recompress so the pipeline resolves
+    /// the format normally and still honours the user's file-placement preference (a non-nil
+    /// `formatOverride` keeps the result pinned to the temp folder).
+    func audioConversionFormat(originalExtension: String?) -> AudioFormat? {
+        guard let cur = currentAudioFormat, let ext = originalExtension?.lowercased(),
+              !ext.isEmpty, ext != cur.fileExtension
+        else { return nil }
+        return cur
+    }
+
     @Published var editing = false {
         didSet {
             guard editing != oldValue else {
@@ -800,39 +819,48 @@ enum TempPipelineSegment {
                         }
                     } else if type.isAudio {
                         let audio = await (try? Audio.byFetchingMetadata(path: currentFile, thumb: !hidden)) ?? Audio(path: currentFile, thumb: !hidden)
-                        if let convertAction = actions.first(where: \.isConvert),
-                           case let .convert(format) = convertAction,
-                           let audioFormat = AudioFormat.allCases.first(where: { $0.utType == format })
-                        {
-                            if let converted = try? audio.convert(to: audioFormat, optimiser: self) {
-                                currentFile = converted.path
-                                self.audio = converted
-                                self.type = .audio(format)
-                                self.url = converted.path.url
-                                self.finish(oldBytes: self.oldBytes, newBytes: converted.fileSize, removeAfterMs: self.lastRemoveAfterMs)
+
+                        // Resolve the target format: an explicit `.convert` step wins, otherwise keep the
+                        // format the result is already in. Without this, recompressing a converted file
+                        // (e.g. after wav→m4a) would resolve the output format from the original's
+                        // extension and silently revert the conversion back to the original format.
+                        let convertFormat: AudioFormat? = actions.compactMap { action in
+                            if case let .convert(format) = action { return AudioFormat.allCases.first { $0.utType == format } }
+                            return nil
+                        }.first
+                        let targetFormat = convertFormat ?? audioConversionFormat(originalExtension: originalFilePath.extension)
+
+                        // Bitrate-reduction steps in the temp pipeline override the UI's bitrate override.
+                        var stepBitrate: Int?
+                        for step in steps {
+                            switch step {
+                            case let .lowerBitrate(kbps, _):
+                                if let clamped = audio.loweredBitrate(kbps: kbps) { stepBitrate = clamped }
+                            case let .downscale(factor, _):
+                                if stepBitrate == nil, let clamped = audio.loweredBitrate(factor: factor) { stepBitrate = clamped }
+                            default: break
                             }
-                        } else {
-                            // Bitrate-reduction steps in the temp pipeline override the UI's bitrate override.
-                            var stepBitrate: Int?
-                            for step in steps {
-                                switch step {
-                                case let .lowerBitrate(kbps, _):
-                                    if let clamped = audio.loweredBitrate(kbps: kbps) { stepBitrate = clamped }
-                                case let .downscale(factor, _):
-                                    if stepBitrate == nil, let clamped = audio.loweredBitrate(factor: factor) { stepBitrate = clamped }
-                                default: break
-                                }
-                            }
-                            if let result = try? await runAudioPipeline(
-                                audio, actions: actions,
-                                id: self.id,
-                                allowLarger: true,
-                                hideFloatingResult: hidden,
-                                bitrateOverride: stepBitrate ?? self.audioBitrateOverride,
-                                aggressiveOptimisation: aggressive ? true : nil
-                            ) {
-                                currentFile = result.path
-                                self.audio = result
+                        }
+
+                        // Format change and plain recompress both re-encode from the pristine original
+                        // through the same off-main pass, so a conversion shows progress and honours the
+                        // compression/bitrate override (`Audio.optimise` reads `formatOverride` +
+                        // `compressionOverride`), instead of blocking the main actor and ignoring both.
+                        if let result = try? await runAudioPipeline(
+                            audio, actions: [.optimise],
+                            id: self.id,
+                            allowLarger: true,
+                            hideFloatingResult: hidden,
+                            bitrateOverride: stepBitrate ?? self.audioBitrateOverride,
+                            aggressiveOptimisation: aggressive ? true : nil,
+                            formatOverride: targetFormat,
+                            operationOverride: convertFormat != nil ? "Converting to \(targetFormat?.name ?? "audio")" : nil
+                        ) {
+                            currentFile = result.path
+                            self.audio = result
+                            self.url = result.path.url
+                            if let ut = targetFormat?.utType {
+                                self.type = .audio(ut)
                             }
                         }
                     }
@@ -1407,6 +1435,10 @@ enum TempPipelineSegment {
 
         guard let path = originalURL?.filePath ?? self.path else { return }
 
+        // Re-encode from the original but keep the converted format (if any) so loudness normalisation
+        // doesn't revert a wav→m4a conversion. Only force the format for an actual conversion so a plain
+        // normalise still gets the user's file placement.
+        let targetFormat = audioConversionFormat(originalExtension: path.extension)
         Task.init {
             let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hidden)) ?? Audio(path: path, thumb: !hidden)
             let _ = try? await runAudioPipeline(
@@ -1416,6 +1448,7 @@ enum TempPipelineSegment {
                 allowLarger: true,
                 hideFloatingResult: hidden,
                 source: source,
+                formatOverride: targetFormat,
                 loudnormTarget: lufs
             )
         }
@@ -1434,6 +1467,10 @@ enum TempPipelineSegment {
 
         guard let path = originalURL?.filePath ?? self.path else { return }
 
+        // Re-encode from the original but keep the converted format (if any) so a bitrate change
+        // doesn't revert a wav→m4a conversion back to wav. Only force the format for an actual
+        // conversion so a plain bitrate change still gets the user's file placement.
+        let targetFormat = audioConversionFormat(originalExtension: path.extension)
         Task.init {
             let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hidden)) ?? Audio(path: path, thumb: !hidden)
             let _ = try? await runAudioPipeline(
@@ -1443,7 +1480,9 @@ enum TempPipelineSegment {
                 allowLarger: true,
                 hideFloatingResult: hidden,
                 source: source,
-                bitrateOverride: bitrate
+                bitrateOverride: bitrate,
+                formatOverride: targetFormat,
+                operationOverride: "Lowering bitrate to \(bitrate) kbps"
             )
         }
     }

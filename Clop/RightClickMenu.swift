@@ -157,13 +157,11 @@ struct RightClickMenuView: View {
         }
         .keyboardShortcut(" ")
 
-        if !optimiser.type.isAudio {
-            Button("Compare (diff)") {
-                optimiser.compare()
-            }
-            .disabled(optimiser.url == nil || optimiser.comparisonOriginalURL == nil)
-            .keyboardShortcut("d")
+        Button(optimiser.type.isAudio ? "Compare (A/B)" : "Compare (diff)") {
+            optimiser.compare()
         }
+        .disabled(optimiser.url == nil || optimiser.comparisonOriginalURL == nil)
+        .keyboardShortcut("d")
 
         if !optimiser.running {
             if optimiser.canDownscale() ||

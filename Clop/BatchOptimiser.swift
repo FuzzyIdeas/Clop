@@ -326,6 +326,76 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
         beginProcessing(params: resolved)
     }
 
+    /// Menubar entry: open the batch window ready to receive dropped files. Starts a fresh empty batch
+    /// when there's nothing in progress to preserve; otherwise just focuses the existing window (so a
+    /// running batch or an in-progress compose isn't wiped).
+    func presentForDropping() {
+        if !isRunning, !isPreparing, !isRestoring {
+            reset()
+        }
+        showWindow()
+    }
+
+    /// Append dropped files/folders to the current prepare-phase batch instead of replacing it, so the
+    /// window can be built up over several drops. Folders are expanded to their optimisable contents;
+    /// non-optimisable files and duplicates are dropped. Ignored while a run/restore is in progress.
+    func add(paths: [FilePath], source: OptimisationSource? = nil) {
+        guard !isRunning, !isRestoring else { return }
+        if self.source == nil { self.source = source }
+        // No `phase` spinner here (unlike `prepare`): keep the already-added files visible while the
+        // new drop's folders are expanded, so subsequent drops don't flash the table away.
+        isPreparing = true
+        publishNow()
+
+        let params = params
+        orchestrator = Task {
+            let expanded: [FilePath] = await Task.detached {
+                var out: [FilePath] = []
+                for path in paths where path.exists {
+                    if path.isDir {
+                        out.append(contentsOf: getURLsFromFolder(path.url, recursive: true, types: ALL_FORMATS).compactMap(\.existingFilePath))
+                    } else {
+                        out.append(path)
+                    }
+                }
+                return out
+            }.value
+            guard !Task.isCancelled else { return }
+            // Dedup against the live batch at append time (folder expansion above is async, so an
+            // up-front snapshot could be stale if drops overlap).
+            let existing = Set(self.backing.map(\.id))
+            let fresh = buildBatchItems(expanded, params: params).filter { !existing.contains($0.id) }
+            self.backing.append(contentsOf: fresh)
+            self.rebuildIndex()
+            self.publishNow()
+        }
+    }
+
+    /// Remove items from the prepare-phase batch (the table's "Remove from batch" / Delete key).
+    func remove(ids: [String]) {
+        guard !isRunning else { return }
+        let idset = Set(ids)
+        backing.removeAll { idset.contains($0.id) }
+        rebuildIndex()
+        publishNow()
+    }
+
+    /// Clear the batch back to zero files and return to the empty prepare/drop state, ready for new
+    /// drops. Stops any in-flight scan/run; leaves on-disk backups for the cleaner to handle.
+    func reset() {
+        cancel()
+        backing = []
+        rebuildIndex()
+        backup = nil
+        aggregate = BatchAggregate()
+        // `cancel()` clears isRunning/isPreparing/gates but not isRestoring; clear it here so a reset
+        // mid-restore can't leave the UI stuck with Apply/Restore disabled.
+        isRestoring = false
+        isPreparing = true
+        phase = ""
+        publishNow()
+    }
+
     /// Start processing a prepared batch with the chosen per-type config (the Optimise button).
     func beginProcessing(params: BatchParams) {
         guard isPreparing else { return }

@@ -60,6 +60,9 @@ struct MenuView: View {
             openWindow(id: "settings")
             focus()
         }.keyboardShortcut(",")
+        Button("Batch optimiser") {
+            BAT.presentForDropping()
+        }
         LaunchAtLogin.Toggle()
 
         Divider()

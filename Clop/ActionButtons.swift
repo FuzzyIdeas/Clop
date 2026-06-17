@@ -636,7 +636,27 @@ func downscaleFactorLabel(_ factor: Double) -> String {
 /// format and changes the size tradeoff.
 @MainActor func compressionLabel(for optimiser: Optimiser, quality: CompressionQuality? = nil, terse: Bool = false) -> String {
     let cq = quality ?? currentCompressionQuality(for: optimiser)
-    return terse ? CompressionScale.label(for: cq, type: optimiser.type) : CompressionScale.stepLabel(for: cq, type: optimiser.type)
+    let base = terse ? CompressionScale.label(for: cq, type: optimiser.type) : CompressionScale.stepLabel(for: cq, type: optimiser.type)
+    // For audio, surface the resulting kbps next to the compression percentage (the same way the
+    // downscale slider shows the resulting resolution), since the actual bitrate for a given factor
+    // differs per codec (Opus < AAC < MP3).
+    if let kbps = resultingAudioBitrate(for: optimiser, quality: cq) {
+        return "\(base) · \(kbps) kbps"
+    }
+    return base
+}
+
+/// The kbps the compression value `cq` produces for this audio result, using the format it will be
+/// encoded to: the converted format when a conversion is in effect, otherwise the user's audio-format
+/// setting resolved for the current file. Returns nil for non-audio or lossless formats (no bitrate axis).
+@MainActor func resultingAudioBitrate(for optimiser: Optimiser, quality cq: CompressionQuality) -> Int? {
+    guard optimiser.type.isAudio else { return nil }
+    let format: AudioFormat = if let cur = optimiser.currentAudioFormat, cur.bitrateRange != nil {
+        cur
+    } else {
+        Defaults[.audioFormat].resolved(forInputExtension: (optimiser.url ?? optimiser.originalURL)?.filePath?.extension ?? "")
+    }
+    return cq.audioBitrate(for: format)
 }
 
 /// The format a compression value produces for an image, as `(original, result)`. The original is the
