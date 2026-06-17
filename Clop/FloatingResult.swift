@@ -1200,9 +1200,19 @@ struct FloatingResult: View {
                 .resizable()
                 .scaledToFill()
                 .overlay(
+                    // The bottom band sits on a flat, fully-opaque blur (covers the size diff over bright
+                    // thumbnails where the white text would otherwise wash out) that fades softly upward.
                     VisualEffectBlur(material: .popover, blendingMode: .withinWindow, state: .active, appearance: .vibrantDark)
                         .clipped()
-                        .mask(LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .init(x: 0.5, y: 0.95), endPoint: .init(x: 0.5, y: 0.38)))
+                        .mask(LinearGradient(
+                            stops: [
+                                .init(color: .black, location: 0.0),
+                                .init(color: .black, location: 0.42),
+                                .init(color: .black.opacity(0), location: 0.88),
+                            ],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        ))
                 )
                 // Hardware blur of the thumbnail on hover (NSVisualEffectView .withinWindow blurs the
                 // image behind it — no gaussian pixelation), appearing instantly, no animation. Same
