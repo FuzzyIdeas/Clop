@@ -1547,12 +1547,14 @@ enum TempPipelineSegment {
         if remove {
             // stop() is always an explicit termination (swipe, close button, cancellation),
             // so the removal must go through even while another result is hovered.
-            // animateRemoval gates BOTH the 300ms slide-out delay and the inRemoval slide
-            // itself: with it off the result is dropped on the next tick (just the 0.2s fade
+            // animateRemoval gates BOTH the short slide-out delay and the inRemoval slide
+            // itself: with it off the result is dropped on the next tick (just the fade
             // from the list removal), so a close-button press feels instant instead of
-            // sliding 500px off-screen first.
+            // sliding 500px off-screen first. The delay is kept short so the gap starts
+            // closing (the results above falling in) while the dismissed result is still
+            // sliding/fading out, rather than after it has fully gone.
             let animate = animateRemoval && !OM.compactResults
-            self.remove(after: animate ? 300 : 0, withAnimation: animate, force: true)
+            self.remove(after: animate ? 60 : 0, withAnimation: animate, force: true)
         }
     }
 
@@ -1978,10 +1980,14 @@ enum TempPipelineSegment {
                 return
             }
             self.editingFilename = false
+            // Suppress the floating cards' hover overlay while the gap closes, so a card sliding under a
+            // stationary cursor mid-drop doesn't pop its controls and interfere with the fall.
+            OM.markRemovalAnimating()
             // Honour the withAnimation flag: a forced button dismissal (withAnimation: false)
             // drops the result on the spot; swipe/clear-all (withAnimation: true) keep the fade.
             if withAnimation {
-                SwiftUI.withAnimation(.easeOut(duration: 0.2)) {
+                // The results above the freed slot snap down into the gap.
+                SwiftUI.withAnimation(resultFallAnimation) {
                     OM.optimisers = OM.optimisers.filter { $0.id != self.id }
                 }
             } else {
@@ -2117,6 +2123,11 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var failedCount = 0
     @Published var visibleCount = 0
 
+    /// True while results are dropping/closing the gap after a removal. The floating cards suppress their
+    /// hover overlay while this is set, so a card sliding under a stationary cursor mid-drop doesn't pop its
+    /// controls and interfere with the animation. Cleared a beat after the last removal settles.
+    @Published var animatingRemoval = false
+    var animatingRemovalClearer: DispatchWorkItem?
     var lastRemoveAfterMs: Int? = nil
 
     @Published var removedOptimisers: [Optimiser] = [] {
@@ -2200,6 +2211,14 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 
     var clipboardImageOptimisers: [Optimiser] {
         optimisers.filter { $0.id.hasPrefix(Optimiser.IDs.clipboardImage) && $0.url != nil && !$0.running }
+    }
+
+    func markRemovalAnimating() {
+        animatingRemoval = true
+        animatingRemovalClearer?.cancel()
+        let work = DispatchWorkItem { self.animatingRemoval = false }
+        animatingRemovalClearer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
     func copyAllClipboardImagesToClipboard() {
@@ -3090,6 +3109,14 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     guard Defaults[.enableFloatingResults] || DM.showDropZone, !floatingResultsWindow.isVisible || force else {
         return
     }
+
+    // Pin the panel to a concrete screen so its `windowDidResize` delegate re-anchors the corner
+    // synchronously on every content-size change. Without a `screenPlacement` the delegate early-returns
+    // and only a 10ms-throttled observer re-pins, so removing a result lets the window display risen
+    // (AppKit keeps the top-left fixed when the content shrinks) before it snaps back down — the up-then-down
+    // jolt on bottom corners. A concrete screen (not the dynamic `.withMouse`) keeps the panel on its own
+    // display even if the cursor wanders to another one.
+    floatingResultsWindow.screenPlacement = NSScreen.withMouse ?? NSScreen.main
 
     floatingResultsWindow.show(closeAfter: 0, fadeAfter: 0, fadeDuration: 0.2, corner: Defaults[.floatingResultsCorner], margin: FLOAT_MARGIN, marginHorizontal: 0)
 }

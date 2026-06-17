@@ -74,6 +74,21 @@ extension View {
     }
 }
 
+/// Drop animation when a result is removed: the gap closing and the results above falling in. Uses
+/// SwiftUI's `.snappy` spring where available (macOS 14+), with a close equivalent on macOS 13.
+var resultFallAnimation: Animation {
+    if #available(macOS 14.0, *) {
+        return .snappy(duration: 0.2, extraBounce: 0.1)
+    }
+    return .spring(response: 0.2, dampingFraction: 0.75)
+}
+
+private struct FloatingListHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct FloatingResultList: View {
     var optimisers: [Optimiser]
 
@@ -81,6 +96,14 @@ struct FloatingResultList: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showCopyClearButtons) var showCopyClearButtons
     @Environment(\.preview) var preview
+
+    // Measured natural height of the stack, and the height it's pinned to while a result is being removed.
+    // Holding the pre-removal height (bottom-anchored) keeps the window from shrinking mid-drop, so the
+    // results below the removed one stay put like a brick wall while those above fall into the freed slot.
+    @State private var naturalHeight: CGFloat = 0
+    @State private var heldHeight: CGFloat? = nil
+    @State private var lastCount = 0
+    @State private var releaseWork: DispatchWorkItem? = nil
 
     var dragAllButton: some View {
         SwiftUI.Image(systemName: "line.3.horizontal")
@@ -156,8 +179,11 @@ struct FloatingResultList: View {
     var clearAllButton: some View {
         Button("Clear all") {
             guard !preview else { return }
+            // Explicit user action: drop the hover state and force removal so it fires immediately even
+            // while the cursor is over the list (the hover deferral is only meant for auto-hide timers).
+            hoveredOptimiserID = nil
             for optimiser in optimisers {
-                optimiser.remove(after: 100, withAnimation: true)
+                optimiser.remove(after: 100, withAnimation: true, force: true)
             }
         }
         .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary, radius: 7, verticalPadding: 2))
@@ -179,7 +205,7 @@ struct FloatingResultList: View {
                         }
                     })
             }
-            if optimisers.count > 1, showCopyClearButtons {
+            if showCopyClearButtons, optimisers.isNotEmpty {
                 HStack {
                     dragAllButton
                     copyAllButton
@@ -191,8 +217,36 @@ struct FloatingResultList: View {
                 // Every card carries a zIndex >= 1 (for the piled look), so without this the row sits
                 // underneath them and the card just above steals the drag-handle's clicks/drags.
                 .zIndex(Double(optimisers.count + 1))
+                // Keep the row's footprint with a single result so the layout doesn't shift going 2->1;
+                // just hide it and let clicks fall through (it only does anything with more than one result).
+                .opacity(optimisers.count > 1 ? 1 : 0)
+                .allowsHitTesting(optimisers.count > 1)
             }
         }
+        // While a result is being removed, pin the stack to its pre-removal height (anchored to the active
+        // corner) so the window doesn't shrink mid-drop: the results below the removed one stay put like a
+        // brick wall while those above fall into the freed slot. The empty space opens at the far (invisible)
+        // edge and is reclaimed a moment after the drop settles.
+        .frame(height: heldHeight, alignment: floatingResultsCorner.isTop ? .top : .bottom)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: FloatingListHeightKey.self, value: proxy.size.height)
+            }
+        )
+        .onPreferenceChange(FloatingListHeightKey.self) { h in
+            if heldHeight == nil, h > 0 { naturalHeight = h }
+        }
+        .onChange(of: optimisers.count) { newCount in
+            if newCount < lastCount, newCount > 0, naturalHeight > 0 {
+                heldHeight = naturalHeight
+                releaseWork?.cancel()
+                let work = DispatchWorkItem { heldHeight = nil }
+                releaseWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+            }
+            lastCount = newCount
+        }
+        .onAppear { lastCount = optimisers.count }
     }
 }
 
@@ -688,6 +742,7 @@ struct FloatingResult: View {
     static let red = Color(.displayP3, red: 1, green: 0.015, blue: 0.2, opacity: 1)
 
     @ObservedObject var optimiser: Optimiser
+    @ObservedObject var om = OM
     @Environment(\.preview) var preview
 
     @State var linear = false
@@ -696,7 +751,9 @@ struct FloatingResult: View {
     @State var editingFilename = false
 
     var isExpanded: Bool {
-        (hovering && !optimiser.collapseHoverOverlay) || optimiser.editingResolution
+        // While results are dropping after a removal, keep the overlay collapsed so a card sliding under the
+        // cursor doesn't reveal its controls mid-fall. It re-evaluates the instant the drop settles.
+        !om.animatingRemoval && ((hovering && !optimiser.collapseHoverOverlay) || optimiser.editingResolution)
     }
 
     @Default(.floatingResultsCorner) var floatingResultsCorner
@@ -1376,7 +1433,8 @@ struct FloatingResult: View {
         // intact during the slide-out; the gap closes afterwards via the animated removal
         // from `OM.optimisers`, so the two motions don't fight each other.
         .allowsHitTesting(!optimiser.inRemoval)
-        .animation(.easeOut(duration: 0.3), value: optimiser.inRemoval)
+        // Match the list-collapse curve so the slide-out and the gap closing behind it move as one motion.
+        .animation(resultFallAnimation, value: optimiser.inRemoval)
         .onAppear {
             optimiser.ensurePlaceholderThumbnail()
             if optimiser.editingFilename {
