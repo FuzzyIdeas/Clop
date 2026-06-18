@@ -362,7 +362,9 @@ final class AudioCompareController: ObservableObject {
 
     func stopAll() {
         stopTimer()
-        for player in players.values { player.stop() }
+        for player in players.values {
+            player.stop()
+        }
         activeSide = nil
     }
 
@@ -412,8 +414,6 @@ struct CompareView: View {
     @Environment(\.colorScheme) var colorScheme
 
     @Default(.compareMode) var compareMode
-
-    @StateObject private var audioController = AudioCompareController()
 
     var improvementColor: Color {
         colorScheme == .dark ? FloatingResult.lightBlue : FloatingResult.darkBlue
@@ -473,83 +473,6 @@ struct CompareView: View {
         .hfill()
         .padding(.vertical)
         .overlay(savingsBadge.allowsHitTesting(false))
-    }
-
-    func audioSide(_ side: AudioSide, url: URL, title: String, bytes: Int, bitrate: Int?) -> some View {
-        VStack(spacing: 12) {
-            paneHeader(title: title, url: url)
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.regularMaterial)
-
-                if let art = audioController.coverArt[side] {
-                    SwiftUI.Image(nsImage: art)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .opacity(0.45)
-                } else {
-                    SwiftUI.Image(systemName: "waveform")
-                        .font(.system(size: 72, weight: .regular))
-                        .foregroundColor(.secondary.opacity(0.35))
-                }
-
-                Button {
-                    audioController.toggle(side)
-                } label: {
-                    SwiftUI.Image(systemName: audioController.isPlaying(side) ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 64))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
-                }
-                .buttonStyle(.plain)
-                .disabled(audioController.duration(side) <= 0)
-            }
-            .frame(
-                minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE, maxWidth: .infinity,
-                minHeight: 220, idealHeight: 300, maxHeight: .infinity
-            )
-            .contextMenu { fileActions(for: url) }
-
-            audioScrubber(side)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Size: \(bytes.humanSize)").mono(10)
-                    .hfill(.leading)
-                if let bitrate {
-                    Text("Bitrate: \(bitrate) kbps").mono(10)
-                        .hfill(.leading)
-                }
-            }
-            .foregroundColor(.secondary)
-            .padding(.top, 2)
-        }
-        .frame(minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE)
-        .onAppear { audioController.register(side, url: url) }
-    }
-
-    func audioScrubber(_ side: AudioSide) -> some View {
-        let duration = audioController.duration(side)
-        return VStack(spacing: 2) {
-            Slider(
-                value: Binding(
-                    get: { audioController.displayTime(for: side) },
-                    set: { audioController.scrub(side, to: $0) }
-                ),
-                in: 0 ... max(duration, 0.01)
-            )
-            .disabled(duration <= 0)
-
-            HStack {
-                Text(audioTimeString(audioController.displayTime(for: side))).mono(9)
-                Spacer()
-                Text(audioTimeString(duration)).mono(9)
-            }
-            .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: COMPARISON_VIEW_SIZE)
     }
 
     @ViewBuilder var savingsBadge: some View {
@@ -691,6 +614,83 @@ struct CompareView: View {
             }
         }
         .padding(.top, 10)
+    }
+
+    func audioSide(_ side: AudioSide, url: URL, title: String, bytes: Int, bitrate: Int?) -> some View {
+        VStack(spacing: 12) {
+            paneHeader(title: title, url: url)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.regularMaterial)
+
+                if let art = audioController.coverArt[side] {
+                    SwiftUI.Image(nsImage: art)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .opacity(0.45)
+                } else {
+                    SwiftUI.Image(systemName: "waveform")
+                        .font(.system(size: 72, weight: .regular))
+                        .foregroundColor(.secondary.opacity(0.35))
+                }
+
+                Button {
+                    audioController.toggle(side)
+                } label: {
+                    SwiftUI.Image(systemName: audioController.isPlaying(side) ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 64))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
+                }
+                .buttonStyle(.plain)
+                .disabled(audioController.duration(side) <= 0)
+            }
+            .frame(
+                minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE, maxWidth: .infinity,
+                minHeight: 220, idealHeight: 300, maxHeight: .infinity
+            )
+            .contextMenu { fileActions(for: url) }
+
+            audioScrubber(side)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Size: \(bytes.humanSize)").mono(10)
+                    .hfill(.leading)
+                if let bitrate {
+                    Text("Bitrate: \(bitrate) kbps").mono(10)
+                        .hfill(.leading)
+                }
+            }
+            .foregroundColor(.secondary)
+            .padding(.top, 2)
+        }
+        .frame(minWidth: COMPARISON_VIEW_SIZE / 2, idealWidth: COMPARISON_VIEW_SIZE)
+        .onAppear { audioController.register(side, url: url) }
+    }
+
+    func audioScrubber(_ side: AudioSide) -> some View {
+        let duration = audioController.duration(side)
+        return VStack(spacing: 2) {
+            Slider(
+                value: Binding(
+                    get: { audioController.displayTime(for: side) },
+                    set: { audioController.scrub(side, to: $0) }
+                ),
+                in: 0 ... max(duration, 0.01)
+            )
+            .disabled(duration <= 0)
+
+            HStack {
+                Text(audioTimeString(audioController.displayTime(for: side))).mono(9)
+                Spacer()
+                Text(audioTimeString(duration)).mono(9)
+            }
+            .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: COMPARISON_VIEW_SIZE)
     }
 
     func splitPreview(originalURL: URL, optimisedURL: URL) -> some View {
@@ -928,6 +928,8 @@ struct CompareView: View {
             }
         }
     }
+
+    @StateObject private var audioController = AudioCompareController()
 
     @State private var pdfPage = 1.0
 

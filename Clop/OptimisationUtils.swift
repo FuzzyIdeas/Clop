@@ -408,19 +408,6 @@ enum TempPipelineSegment {
         return AudioFormat.allCases.first { $0.utType == ut }
     }
 
-    /// `currentAudioFormat`, but only when a conversion is actually in effect (the result's format
-    /// differs from `originalExtension`). Used as a `formatOverride` when re-encoding from the pristine
-    /// original so recompressing a converted file keeps the converted format instead of reverting to the
-    /// original's extension. Returns nil for a plain (non-converted) recompress so the pipeline resolves
-    /// the format normally and still honours the user's file-placement preference (a non-nil
-    /// `formatOverride` keeps the result pinned to the temp folder).
-    func audioConversionFormat(originalExtension: String?) -> AudioFormat? {
-        guard let cur = currentAudioFormat, let ext = originalExtension?.lowercased(),
-              !ext.isEmpty, ext != cur.fileExtension
-        else { return nil }
-        return cur
-    }
-
     @Published var editing = false {
         didSet {
             guard editing != oldValue else {
@@ -587,6 +574,19 @@ enum TempPipelineSegment {
 
     nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {
         lhs.id == rhs.id
+    }
+
+    /// `currentAudioFormat`, but only when a conversion is actually in effect (the result's format
+    /// differs from `originalExtension`). Used as a `formatOverride` when re-encoding from the pristine
+    /// original so recompressing a converted file keeps the converted format instead of reverting to the
+    /// original's extension. Returns nil for a plain (non-converted) recompress so the pipeline resolves
+    /// the format normally and still honours the user's file-placement preference (a non-nil
+    /// `formatOverride` keeps the result pinned to the temp folder).
+    func audioConversionFormat(originalExtension: String?) -> AudioFormat? {
+        guard let cur = currentAudioFormat, let ext = originalExtension?.lowercased(),
+              !ext.isEmpty, ext != cur.fileExtension
+        else { return nil }
+        return cur
     }
 
     /// Guarantee at least a placeholder thumbnail (the file's QuickLook / system icon) so a result never

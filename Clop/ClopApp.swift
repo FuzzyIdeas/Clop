@@ -1422,6 +1422,7 @@ struct ClopApp: App {
 
     @AppStorage("showMenubarIcon") var showMenubarIcon = Defaults[.showMenubarIcon]
     @AppStorage("useClassicMenubarIcon") var useClassicMenubarIcon = Defaults[.useClassicMenubarIcon]
+    @AppStorage("useGeometricMenubarIcon") var useGeometricMenubarIcon = Defaults[.useGeometricMenubarIcon]
 
     @ObservedObject var om = OM
     @ObservedObject var wm = WM
@@ -1454,8 +1455,8 @@ struct ClopApp: App {
             let badge = !proactive && !om.ignoreProErrorBadge && om.skippedBecauseNotPro.isNotEmpty
             SwiftUI.Image(nsImage: NSImage(
                 resource: badge
-                    ? (useClassicMenubarIcon ? .menubarIconBadgeClassic : .menubarIconBadge)
-                    : (useClassicMenubarIcon ? .menubarIconClassic : .menubarIcon)
+                    ? (useGeometricMenubarIcon ? .menubarIconBadgeGeometric : useClassicMenubarIcon ? .menubarIconBadgeClassic : .menubarIconBadge)
+                    : (useGeometricMenubarIcon ? .menubarIconGeometric : useClassicMenubarIcon ? .menubarIconClassic : .menubarIcon)
             ))
         })
         .menuBarExtraStyle(.menu)

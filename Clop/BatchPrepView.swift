@@ -308,20 +308,25 @@ struct BatchPrepContent: View {
             } else if manager.items.isEmpty {
                 dropZone
             } else {
-                filesTable
+                // Extracted into its own view so dragging a parameter slider (which republishes
+                // `form`) doesn't re-run this body and re-sort/re-render the whole file table.
+                BatchPrepFilesTable(manager: manager)
                 Divider()
-                // The optimisation parameters, shown below the table like the results view with
-                // "Adjust optimisation parameters" expanded.
-                ScrollView {
-                    BatchParamColumns(form: form, present: present).padding(16)
-                }
-                .frame(maxHeight: 320)
+                // Fixed-size inline panel (no scroll), like the results view's "Adjust optimisation
+                // parameters" panel. The window min height (set below) keeps the cards fully visible.
+                BatchParamColumns(form: form, present: present).padding(16)
             }
 
             Divider()
             footer
         }
-        .onAppear { form.seedFromDefaults() }
+        .onAppear {
+            form.seedFromDefaults()
+            setWindowMinHeight(manager.items.isEmpty ? 500 : 650)
+        }
+        .onChange(of: manager.items.isEmpty) { empty in
+            setWindowMinHeight(empty ? 500 : 650)
+        }
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in handleDrop(providers) }
         .overlay {
             if dropTargeted {
@@ -334,7 +339,6 @@ struct BatchPrepContent: View {
     }
 
     @StateObject private var form = BatchParamsModel()
-    @State private var selection = Set<BatchItem.ID>()
     @State private var dropTargeted = false
 
     private var present: PresentTypes { PresentTypes(manager.items) }
@@ -362,34 +366,21 @@ struct BatchPrepContent: View {
         .contentShape(Rectangle())
     }
 
-    private var filesTable: some View {
-        Table(manager.items, selection: $selection) {
-            TableColumn("Name") { item in
-                Text(item.name).lineLimit(1).truncationMode(.middle).help(item.source.string)
-            }
-            TableColumn("Type") { item in
-                Text(item.oldFormat ?? "").foregroundStyle(.secondary)
-            }.width(min: 70, ideal: 90)
-            TableColumn("Size") { item in
-                Text(humanBytes(item.oldBytes)).monospacedDigit().foregroundStyle(.secondary)
-            }.width(min: 90, ideal: 110)
-        }
-        .contextMenu(forSelectionType: BatchItem.ID.self) { ids in
-            Button("Remove from batch") { manager.remove(ids: Array(ids)); selection.subtract(ids) }
-                .disabled(ids.isEmpty)
-        }
-        .onDeleteCommand { if !selection.isEmpty { manager.remove(ids: Array(selection)); selection = [] } }
-    }
-
     private var footer: some View {
-        HStack {
-            Text(manager.phase.isEmpty
-                ? "\(manager.items.count) file\(manager.items.count == 1 ? "" : "s")"
-                : manager.phase)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            if !manager.phase.isEmpty {
+                Text(manager.phase).foregroundStyle(.secondary)
+            } else {
+                Text("\(manager.items.count) file\(manager.items.count == 1 ? "" : "s")")
+                    .foregroundStyle(.secondary)
+                if !manager.items.isEmpty {
+                    Text("·  drop to add more, select and ⌫ to remove files")
+                        .foregroundStyle(.tertiary)
+                }
+            }
             Spacer()
             if !manager.items.isEmpty {
-                Button("Reset") { manager.reset(); selection = [] }
+                Button("Reset") { manager.reset() }
             }
             Button("Cancel") { manager.windowController?.window?.close() }
                 .keyboardShortcut(.cancelAction)
@@ -398,6 +389,17 @@ struct BatchPrepContent: View {
                 .disabled(manager.items.isEmpty || !manager.phase.isEmpty)
         }
         .padding(12)
+    }
+
+    private func setWindowMinHeight(_ h: CGFloat) {
+        guard let window = manager.windowController?.window else { return }
+        window.contentMinSize.height = h
+        if window.frame.height < h {
+            var frame = window.frame
+            frame.origin.y -= (h - frame.height)
+            frame.size.height = h
+            window.setFrame(frame, display: true, animate: true)
+        }
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -415,6 +417,36 @@ struct BatchPrepContent: View {
         }
         return true
     }
+}
+
+// MARK: - Prepare file table (extracted so parameter-slider changes don't re-render/re-sort it)
+
+private struct BatchPrepFilesTable: View {
+    @ObservedObject var manager: BatchManager
+
+    var body: some View {
+        // Sortable columns so you can group by type/size and quickly select-and-remove specific kinds.
+        Table(manager.items.sorted(using: sortOrder), selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("Name", value: \.name) { item in
+                Text(item.name).lineLimit(1).truncationMode(.middle).help(item.source.string)
+            }
+            TableColumn("Type", value: \.formatKey) { item in
+                Text(item.oldFormat ?? "").foregroundStyle(.secondary)
+            }.width(min: 70, ideal: 90)
+            TableColumn("Size", value: \.sizeKey) { item in
+                Text(humanBytes(item.oldBytes)).monospacedDigit().foregroundStyle(.secondary)
+            }.width(min: 90, ideal: 110)
+        }
+        .contextMenu(forSelectionType: BatchItem.ID.self) { ids in
+            Button("Remove from batch") { manager.remove(ids: Array(ids)); selection.subtract(ids) }
+                .disabled(ids.isEmpty)
+        }
+        .onDeleteCommand { if !selection.isEmpty { manager.remove(ids: Array(selection)); selection = [] } }
+    }
+
+    @State private var selection = Set<BatchItem.ID>()
+    @State private var sortOrder = [KeyPathComparator(\BatchItem.name, order: .forward)]
+
 }
 
 // MARK: - Param columns (shared by prepare + adjust)
@@ -647,18 +679,50 @@ private func choicePicker<C: CaseIterable & Identifiable & Hashable>(
     .fixedSize()
 }
 
-private func compressionSlider(_ value: Binding<Double>) -> some View {
-    HStack(spacing: 8) {
-        Slider(value: value, in: 0 ... 100).frame(width: 120)
-        Text("\(Int(value.wrappedValue))").monospacedDigit().foregroundStyle(.secondary).frame(width: 26, alignment: .trailing)
+private func compressionSlider(_ value: Binding<Double>) -> some View { CommitCompressionSlider(value: value) }
+private func downscaleSlider(_ value: Binding<Double>) -> some View { CommitDownscaleSlider(value: value) }
+
+// The batch parameter panel is a deep tree of Pickers/Toggles/styled cards, so binding a Slider straight
+// to the form re-rendered the WHOLE panel on every drag tick (~1000 sub-view updates per tick in the
+// Instruments trace → visible lag). These wrappers keep the drag in local @State and only write the form
+// on release, so a drag re-renders just the slider. Batch sliders don't auto-reoptimise on change, so
+// deferring the commit has no functional downside.
+private struct CommitCompressionSlider: View {
+    @Binding var value: Double
+
+    var body: some View {
+        let shown = drag ?? value
+        HStack(spacing: 8) {
+            Slider(
+                value: Binding(get: { drag ?? value }, set: { drag = $0 }),
+                in: 0 ... 100,
+                onEditingChanged: { editing in if !editing, let d = drag { value = d; drag = nil } }
+            )
+            .frame(width: 120)
+            Text("\(Int(shown))").monospacedDigit().foregroundStyle(.secondary).frame(width: 26, alignment: .trailing)
+        }
     }
+
+    @State private var drag: Double?
 }
 
-private func downscaleSlider(_ value: Binding<Double>) -> some View {
-    HStack(spacing: 8) {
-        Slider(value: value, in: 0 ... 1).frame(width: 120)
-        Text(String(format: "%.2f×", 1.0 - value.wrappedValue * 0.95)).monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
+private struct CommitDownscaleSlider: View {
+    @Binding var value: Double
+
+    var body: some View {
+        let shown = drag ?? value
+        HStack(spacing: 8) {
+            Slider(
+                value: Binding(get: { drag ?? value }, set: { drag = $0 }),
+                in: 0 ... 1,
+                onEditingChanged: { editing in if !editing, let d = drag { value = d; drag = nil } }
+            )
+            .frame(width: 120)
+            Text(String(format: "%.2f×", 1.0 - shown * 0.95)).monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
+        }
     }
+
+    @State private var drag: Double?
 }
 
 private func numberField(_ value: Binding<Int>) -> some View {
@@ -671,13 +735,27 @@ private func numberField(_ value: Binding<Int>) -> some View {
 /// Continuous bitrate slider (2 kbps steps) that snaps to the common bitrates. 0 = Auto (use the
 /// compression factor instead). Range follows the chosen output format.
 private func bitrateSlider(_ value: Binding<Int>, range: ClosedRange<Int>) -> some View {
-    HStack(spacing: 8) {
-        Slider(
-            value: Binding(get: { Double(value.wrappedValue) }, set: { value.wrappedValue = snapBitrate(Int($0.rounded()), range: range) }),
-            in: 0 ... Double(range.upperBound), step: 2
-        ).frame(width: 120)
-        Text(value.wrappedValue == 0 ? "Auto" : "\(value.wrappedValue)").monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
+    CommitBitrateSlider(value: value, range: range)
+}
+
+private struct CommitBitrateSlider: View {
+    @Binding var value: Int
+
+    let range: ClosedRange<Int>
+
+    var body: some View {
+        let shown = drag.map { snapBitrate(Int($0.rounded()), range: range) } ?? value
+        HStack(spacing: 8) {
+            Slider(
+                value: Binding(get: { drag ?? Double(value) }, set: { drag = $0 }),
+                in: 0 ... Double(range.upperBound), step: 2,
+                onEditingChanged: { editing in if !editing, let d = drag { value = snapBitrate(Int(d.rounded()), range: range); drag = nil } }
+            ).frame(width: 120)
+            Text(shown == 0 ? "Auto" : "\(shown)").monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
+        }
     }
+
+    @State private var drag: Double?
 }
 
 private func snapBitrate(_ v: Int, range: ClosedRange<Int>) -> Int {
@@ -702,7 +780,9 @@ struct BatchResultsContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            table
+            // Extracted into its own view so changing a slider in the adjust panel (which republishes
+            // `adjustForm`) doesn't re-run the whole results body and re-sort/re-render the table.
+            BatchResultsTable(manager: manager, selection: $selection)
             if showAdjust {
                 Divider()
                 adjustPanel
@@ -732,11 +812,9 @@ struct BatchResultsContent: View {
     @State private var showAdjust = false
     @State private var showFailures = false
     @State private var confirmDeleteBackups = false
-    @State private var sortOrder = [KeyPathComparator(\BatchItem.sortRank, order: .forward)]
     @State private var spaceMonitor: Any?
 
     private var selectedItems: [BatchItem] { manager.items.filter { selection.contains($0.id) } }
-    private var sortedItems: [BatchItem] { manager.items.sorted(using: sortOrder) }
 
     // MARK: Change detection (only re-optimise file types whose params actually changed)
 
@@ -789,44 +867,6 @@ struct BatchResultsContent: View {
         }
     }
 
-    private var table: some View {
-        Table(sortedItems, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("", value: \.sortRank) { BatchStatusCell(item: $0) }.width(40)
-            TableColumn("Name", value: \.name) { Text($0.name).lineLimit(1).truncationMode(.middle).help($0.source.string) }
-            TableColumn("Format", value: \.formatKey) { item in
-                Text(formatText(item)).foregroundStyle(item.newFormat != nil && item.newFormat != item.oldFormat ? .primary : .secondary)
-            }.width(min: 90, ideal: 120)
-            TableColumn("Size", value: \.sizeKey) { item in
-                Text(sizeText(item)).monospacedDigit().foregroundStyle(item.status == .done && item.newBytes > 0 ? .primary : .secondary)
-            }.width(min: 120, ideal: 160)
-            TableColumn("Saved", value: \.savedKey) { item in savedView(item) }.width(70)
-            TableColumn("Details", value: \.detailKey) { item in
-                Text(detailText(item)).monospacedDigit().foregroundStyle(item.status == .failed ? Color.orange : .secondary).lineLimit(1)
-            }.width(min: 110, ideal: 170)
-        }
-        .contextMenu(forSelectionType: BatchItem.ID.self) { ids in
-            let items = manager.items.filter { ids.contains($0.id) }
-            Button("Quick Look") { BatchQuickLooker.quicklook(resultURLs(items)) }
-                .disabled(items.isEmpty)
-            Button("Show in Finder") { reveal(items) }
-                .disabled(items.isEmpty)
-            Button("Copy") { copyFiles(items) }
-                .disabled(items.isEmpty)
-            if ids.count == 1, let id = ids.first, let item = items.first {
-                Divider()
-                Button("Compare before / after") { manager.compareItem(id: id) }
-                    .disabled(!manager.canReapply || item.status != .done)
-            }
-            if manager.canReapply {
-                Divider()
-                Button("Restore original\(ids.count > 1 ? "s" : "")") { manager.restoreFromBackup(toSelection: Array(ids)) }
-                    .disabled(manager.isRunning || manager.isRestoring)
-            }
-        } primaryAction: { ids in
-            BatchQuickLooker.quicklook(resultURLs(manager.items.filter { ids.contains($0.id) }))
-        }
-    }
-
     private var controlsBar: some View {
         HStack(spacing: 12) {
             batchProgress
@@ -871,9 +911,9 @@ struct BatchResultsContent: View {
 
     private var actionBar: some View {
         HStack(spacing: 10) {
-            Button("Show in Finder") { reveal(selectedItems) }.disabled(selection.isEmpty)
-            Button("Open") { BatchQuickLooker.quicklook(resultURLs(selectedItems)) }.disabled(selection.isEmpty)
-            Button("Copy") { copyFiles(selectedItems) }.disabled(selection.isEmpty)
+            Button("Show in Finder") { batchReveal(selectedItems) }.disabled(selection.isEmpty)
+            Button("Open") { BatchQuickLooker.quicklook(batchResultURLs(selectedItems)) }.disabled(selection.isEmpty)
+            Button("Copy") { batchCopyFiles(selectedItems) }.disabled(selection.isEmpty)
             if manager.aggregate.failed > 0 {
                 Button {
                     showFailures = true
@@ -901,16 +941,6 @@ struct BatchResultsContent: View {
         .padding(12)
     }
 
-    @ViewBuilder private func savedView(_ item: BatchItem) -> some View {
-        if item.status == .done, let pct = savedPercent(old: item.oldBytes, new: item.newBytes) {
-            Text(pct > 0 ? "−\(pct)%" : (pct < 0 ? "+\(-pct)%" : "0%"))
-                .monospacedDigit()
-                .foregroundStyle(pct > 0 ? Color.green : (pct < 0 ? Color.red : Color.secondary))
-        } else {
-            Text("")
-        }
-    }
-
     private func pill(_ text: String, _ color: Color, prominent: Bool = false) -> some View {
         Text(text)
             .font(.system(size: 11, weight: prominent ? .semibold : .regular)).monospacedDigit()
@@ -935,7 +965,7 @@ struct BatchResultsContent: View {
         spaceMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.keyCode == 49, event.window === manager.windowController?.window else { return event }
             if let responder = event.window?.firstResponder, responder is NSText || responder is NSTextView { return event }
-            let urls = resultURLs(selectedItems)
+            let urls = batchResultURLs(selectedItems)
             guard !urls.isEmpty else { return event }
             BatchQuickLooker.quicklook(urls)
             return nil
@@ -972,24 +1002,85 @@ struct BatchResultsContent: View {
         }.map(\.id)
     }
 
-    private func resultURLs(_ items: [BatchItem]) -> [URL] {
-        items.map { ($0.resultPath ?? $0.source).url }.filter { FileManager.default.fileExists(atPath: $0.path) }
+}
+
+// MARK: - Results table (extracted so adjust-panel slider changes don't re-render/re-sort it)
+
+private struct BatchResultsTable: View {
+    @ObservedObject var manager: BatchManager
+    @Binding var selection: Set<BatchItem.ID>
+
+    var body: some View {
+        Table(sortedItems, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("", value: \.sortRank) { BatchStatusCell(item: $0) }.width(40)
+            TableColumn("Name", value: \.name) { Text($0.name).lineLimit(1).truncationMode(.middle).help($0.source.string) }
+            TableColumn("Format", value: \.formatKey) { item in
+                Text(formatText(item)).foregroundStyle(item.newFormat != nil && item.newFormat != item.oldFormat ? .primary : .secondary)
+            }.width(min: 90, ideal: 120)
+            TableColumn("Size", value: \.sizeKey) { item in
+                Text(sizeText(item)).monospacedDigit().foregroundStyle(item.status == .done && item.newBytes > 0 ? .primary : .secondary)
+            }.width(min: 120, ideal: 160)
+            TableColumn("Saved", value: \.savedKey) { item in batchSavedView(item) }.width(70)
+            TableColumn("Details", value: \.detailKey) { item in
+                Text(detailText(item)).monospacedDigit().foregroundStyle(item.status == .failed ? Color.orange : .secondary).lineLimit(1)
+            }.width(min: 110, ideal: 170)
+        }
+        .contextMenu(forSelectionType: BatchItem.ID.self) { ids in
+            let items = manager.items.filter { ids.contains($0.id) }
+            Button("Quick Look") { BatchQuickLooker.quicklook(batchResultURLs(items)) }
+                .disabled(items.isEmpty)
+            Button("Show in Finder") { batchReveal(items) }
+                .disabled(items.isEmpty)
+            Button("Copy") { batchCopyFiles(items) }
+                .disabled(items.isEmpty)
+            if ids.count == 1, let id = ids.first, let item = items.first {
+                Divider()
+                Button("Compare before / after") { manager.compareItem(id: id) }
+                    .disabled(!manager.canReapply || item.status != .done)
+            }
+            if manager.canReapply {
+                Divider()
+                Button("Restore original\(ids.count > 1 ? "s" : "")") { manager.restoreFromBackup(toSelection: Array(ids)) }
+                    .disabled(manager.isRunning || manager.isRestoring)
+            }
+        } primaryAction: { ids in
+            BatchQuickLooker.quicklook(batchResultURLs(manager.items.filter { ids.contains($0.id) }))
+        }
     }
 
-    private func reveal(_ items: [BatchItem]) {
-        let urls = resultURLs(items)
-        if !urls.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(urls) }
-    }
+    @State private var sortOrder = [KeyPathComparator(\BatchItem.sortRank, order: .forward)]
 
-    private func copyFiles(_ items: [BatchItem]) {
-        let urls = resultURLs(items)
-        guard !urls.isEmpty else { return }
-        let pb = NSPasteboard.general
-        let type = NSPasteboard.PasteboardType("NSFilenamesPboardType")
-        pb.clearContents()
-        pb.declareTypes([type], owner: nil)
-        pb.setPropertyList(urls.map(\.path), forType: type)
+    private var sortedItems: [BatchItem] { manager.items.sorted(using: sortOrder) }
+
+}
+
+@ViewBuilder private func batchSavedView(_ item: BatchItem) -> some View {
+    if item.status == .done, let pct = savedPercent(old: item.oldBytes, new: item.newBytes) {
+        Text(pct > 0 ? "−\(pct)%" : (pct < 0 ? "+\(-pct)%" : "0%"))
+            .monospacedDigit()
+            .foregroundStyle(pct > 0 ? Color.green : (pct < 0 ? Color.red : Color.secondary))
+    } else {
+        Text("")
     }
+}
+
+private func batchResultURLs(_ items: [BatchItem]) -> [URL] {
+    items.map { ($0.resultPath ?? $0.source).url }.filter { FileManager.default.fileExists(atPath: $0.path) }
+}
+
+private func batchReveal(_ items: [BatchItem]) {
+    let urls = batchResultURLs(items)
+    if !urls.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(urls) }
+}
+
+private func batchCopyFiles(_ items: [BatchItem]) {
+    let urls = batchResultURLs(items)
+    guard !urls.isEmpty else { return }
+    let pb = NSPasteboard.general
+    let type = NSPasteboard.PasteboardType("NSFilenamesPboardType")
+    pb.clearContents()
+    pb.declareTypes([type], owner: nil)
+    pb.setPropertyList(urls.map(\.path), forType: type)
 }
 
 // MARK: - Status cell
