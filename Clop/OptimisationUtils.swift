@@ -1021,6 +1021,7 @@ enum TempPipelineSegment {
             backing: .buffered, defer: false
         )
         window.title = "Comparison: \(filename)"
+        window.identifier = COMPARISON_WINDOW_IDENTIFIER
         // The window controller owns the window; releasing on close too would double-release.
         window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = true

@@ -252,6 +252,7 @@ class AppDelegate: AppDelegateParent {
     lazy var onboardingWindowController: NSWindowController? = {
         let window = NSWindow(contentViewController: NSHostingController(rootView: OnboardingView()))
         window.title = "Onboarding"
+        window.identifier = ONBOARDING_WINDOW_IDENTIFIER
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.styleMask = [.closable, .resizable, .titled]
@@ -820,22 +821,29 @@ class AppDelegate: AppDelegateParent {
         focus()
     }
 
+    /// `.regular` (Dock icon + Cmd-Tab) while any of the app's real windows is open; back to a menu-bar
+    /// `.accessory` only once the last one closes. Cooperative, so closing one window (e.g. Settings)
+    /// doesn't strand another that's still open (e.g. the batch window). During `windowWillClose` the
+    /// closing window is still in `NSApp.windows`, so pass it as `excluding`.
+    @MainActor func syncActivationPolicy(excluding closing: NSWindow? = nil) {
+        let hasRealWindow = NSApp.windows.contains { w in
+            w !== closing && (w.isVisible || w.isMiniaturized) && w.isActivatingAppWindow
+        }
+        NSApp.setActivationPolicy(hasRealWindow ? .regular : .accessory)
+    }
+
     @objc func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
 
-        if window.isSettingsWindow || window.title == "Comparison" {
-            mainActor {
-                settingsViewManager.windowOpen = false
-                NSApp.setActivationPolicy(.accessory)
-            }
+        if window.isSettingsWindow {
+            mainActor { settingsViewManager.windowOpen = false }
         }
 
-        if window.title == "Onboarding" {
+        if window.identifier == ONBOARDING_WINDOW_IDENTIFIER {
             mainActor {
                 self.finishedOnboarding = true
                 Defaults[.finishedOnboarding] = true
                 self.initOptimisers()
-                NSApp.setActivationPolicy(.accessory)
                 self.onboardingWindowController?.window = nil
                 self.onboardingWindowController = nil
             }
@@ -847,9 +855,12 @@ class AppDelegate: AppDelegateParent {
                 // the backups, which persist until "Delete backups").
                 BAT.cancel()
                 BAT.windowController = nil
-                NSApp.setActivationPolicy(.accessory)
             }
         }
+
+        // Keep the Dock icon + Cmd-Tab entry while any other real window is still open; only fall back
+        // to a menu-bar accessory once the last one closes.
+        mainActor { self.syncActivationPolicy(excluding: window) }
     }
 
     @objc func windowDidBecomeMainNotification(_ notification: Notification) {
@@ -873,25 +884,20 @@ class AppDelegate: AppDelegateParent {
             return
         }
 
-        if window.title == "Comparison" {
-            NSApp.setActivationPolicy(.regular)
-            return
-        }
-
-        if window.identifier == BATCH_WINDOW_IDENTIFIER {
-            NSApp.setActivationPolicy(.regular)
-            return
-        }
-
         if window.isSettingsWindow {
             mainActor {
                 print(FloatingPreview.om, CompactPreview.om)
                 settingsViewManager.windowOpen = true
-                NSApp.setActivationPolicy(.regular)
 
                 log.debug("Starting settings tab key monitor")
                 tabKeyMonitor.start()
             }
+        }
+
+        // Any of Clop's real windows (Settings, Batch, Comparison, Onboarding, Crop) becoming main
+        // needs the app in `.regular` so it shows a Dock icon and a Cmd-Tab entry.
+        if window.isActivatingAppWindow {
+            NSApp.setActivationPolicy(.regular)
         }
     }
 
@@ -947,6 +953,18 @@ class AppDelegate: AppDelegateParent {
         // Fires when the app is launched again while already running (Finder double-click, dock
         // click, `open`), but NOT on plain re-activation like QuickLook making the app key, so
         // surfacing settings here means it won't pop up when you QuickLook a floating result.
+
+        // If one of Clop's real windows is already open (e.g. the batch/crop/comparison window covered
+        // by other apps' windows), a dock click should bring the frontmost one forward rather than
+        // popping Settings on top of it.
+        if let window = NSApp.orderedWindows.first(where: { ($0.isVisible || $0.isMiniaturized) && $0.isActivatingAppWindow }) {
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            focus()
+            return true
+        }
+
         WM.open("settings")
         focus()
         return true
@@ -1318,6 +1336,12 @@ extension NSPasteboardItem {
     optimiser.finish(error: "You've optimised 5 files this session", notice: "Get Clop Pro to remove the limit and unlock all features.\nRelaunch the app to reset the counter.", keepFor: 5000)
 }
 
+// Stable identifiers for Clop's AppKit windows (the batch window's lives in BatchWindow.swift). Used to
+// drive the activation policy by identity rather than by title, which carries the file name / tab name.
+let COMPARISON_WINDOW_IDENTIFIER = NSUserInterfaceItemIdentifier("clop.comparison.window")
+let ONBOARDING_WINDOW_IDENTIFIER = NSUserInterfaceItemIdentifier("clop.onboarding.window")
+let CROP_WINDOW_IDENTIFIER = NSUserInterfaceItemIdentifier("clop.crop.window")
+
 extension NSWindow {
     /// The Settings scene is declared as `Window("Settings", id: "settings")`; SwiftUI maps that
     /// scene `id` into the AppKit window identifier. Match on that instead of the title, which the
@@ -1325,6 +1349,18 @@ extension NSWindow {
     /// so we tolerate any prefix/suffix SwiftUI may wrap around the scene id.
     var isSettingsWindow: Bool {
         identifier?.rawValue.contains("settings") ?? false
+    }
+
+    /// Clop's real windows — Settings, Batch, Comparison, Onboarding, Crop — the ones that should give
+    /// the app a Dock icon + Cmd-Tab entry while open (vs. the floating-result panels and the menu-bar
+    /// item, which shouldn't). Matched by stable identifier, not title.
+    var isActivatingAppWindow: Bool {
+        if isSettingsWindow { return true }
+        guard let id = identifier else { return false }
+        return id == BATCH_WINDOW_IDENTIFIER
+            || id == COMPARISON_WINDOW_IDENTIFIER
+            || id == ONBOARDING_WINDOW_IDENTIFIER
+            || id == CROP_WINDOW_IDENTIFIER
     }
 }
 
