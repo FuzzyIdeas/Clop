@@ -473,20 +473,18 @@ struct BatchParamColumns: View {
         VStack(alignment: .leading, spacing: 16) {
             OutputRow(form: form)
             HStack(alignment: .top, spacing: 16) {
-                if present.image || present.pdf {
-                    VStack(spacing: 16) {
-                        if present.image { imageCard }
-                        if present.pdf { pdfCard }
-                    }
+                VStack(spacing: 16) {
+                    imageCard
+                    pdfCard
                 }
-                if present.video { videoCard }
-                if present.audio { audioCard }
+                videoCard
+                audioCard
             }
         }
     }
 
     private var imageCard: some View {
-        ParamCard("Images", icon: "photo") {
+        ParamCard("Images", icon: "photo", dimmed: !present.image) {
             ParamRow("Compression") { compressionSlider($form.imageCompression) }
             Divider()
             ParamRow("Convert to") { choicePicker($form.imageConvert, ImageConvertChoice.allCases) { $0.title } }
@@ -503,14 +501,14 @@ struct BatchParamColumns: View {
     }
 
     private var pdfCard: some View {
-        ParamCard("PDF", icon: "doc.text") {
+        ParamCard("PDF", icon: "doc.text", dimmed: !present.pdf) {
             ParamRow("Resolution") { choicePicker($form.pdfDPI, PDFDPIChoice.allCases) { $0.title } }
         }
         .frame(width: 330)
     }
 
     private var videoCard: some View {
-        ParamCard("Video", icon: "film") {
+        ParamCard("Video", icon: "film", dimmed: !present.video) {
             ParamRow("Compression", disabled: form.videoCompressionDisabled) { compressionSlider($form.videoCompression) }
             Divider()
             ParamRow("Convert to") { choicePicker($form.videoConvert, VideoConvertChoice.allCases) { $0.title } }
@@ -537,7 +535,7 @@ struct BatchParamColumns: View {
     }
 
     private var audioCard: some View {
-        ParamCard("Audio", icon: "music.note") {
+        ParamCard("Audio", icon: "music.note", dimmed: !present.audio) {
             ParamRow("Compression", disabled: form.audioCompressionDisabled) { compressionSlider($form.audioCompression) }
             Divider()
             ParamRow("Format") { choicePicker($form.audioFormat, AudioFormatChoice.allCases) { $0.title } }
@@ -592,20 +590,22 @@ private struct OutputRow: View {
 // MARK: - Grouped card primitives (System Settings look)
 
 struct ParamCard<Content: View>: View {
-    init(_ title: String, icon: String, @ViewBuilder content: @escaping () -> Content) {
+    init(_ title: String, icon: String, dimmed: Bool = false, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.icon = icon
+        self.dimmed = dimmed
         self.content = content
     }
 
     let title: String
     let icon: String
+    let dimmed: Bool
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                SwiftUI.Image(systemName: icon).foregroundStyle(.tint)
+                SwiftUI.Image(systemName: icon).foregroundStyle(dimmed ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.tint))
                 Text(title)
             }
             .font(.system(size: 14, weight: .semibold))
@@ -617,6 +617,8 @@ struct ParamCard<Content: View>: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary, lineWidth: 1))
         }
+        .disabled(dimmed)
+        .opacity(dimmed ? 0.5 : 1)
     }
 }
 
