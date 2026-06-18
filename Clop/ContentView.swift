@@ -45,12 +45,7 @@ struct MenuView: View {
                 }
             }
             Button("Get Clop Pro") {
-                settingsViewManager.tab = .about
-                openWindow(id: "settings")
-
-                PRO?.manageLicence()
-                focus()
-                NSApp.windows.first(where: { $0.isSettingsWindow })?.makeKeyAndOrderFront(nil)
+                manageLicenceInSettings()
             }
         }
     }
@@ -222,12 +217,7 @@ struct MenuView: View {
         }
 
         Button("Manage license") {
-            settingsViewManager.tab = .about
-            openWindow(id: "settings")
-
-            PRO?.manageLicence()
-            focus()
-            NSApp.windows.first(where: { $0.isSettingsWindow })?.makeKeyAndOrderFront(nil)
+            manageLicenceInSettings()
         }
 
         Button(um.newVersion != nil ? "v\(um.newVersion!) update available" : "Check for updates") {

@@ -57,6 +57,26 @@ class WindowManager: ObservableObject {
 }
 let WM = WindowManager()
 
+/// Open the Settings window on the About tab and present the Paddle licence dialog as a sheet
+/// attached to it. The Settings window opens asynchronously, so wait for it to exist before asking
+/// Paddle to present — otherwise `AppDelegate.willShowPaddle` finds no parent window and the dialog
+/// falls back to a standalone (previously unclickable) window.
+@MainActor func manageLicenceInSettings() {
+    settingsViewManager.tab = .about
+    WM.open("settings")
+    focus()
+
+    func present(retriesLeft: Int) {
+        if let window = NSApp.windows.first(where: { $0.isSettingsWindow }) {
+            window.makeKeyAndOrderFront(nil)
+            PRO?.manageLicence()
+        } else if retriesLeft > 0 {
+            mainAsyncAfter(ms: 50) { present(retriesLeft: retriesLeft - 1) }
+        }
+    }
+    present(retriesLeft: 20)
+}
+
 var TRANSIENT_TYPES: Set<NSPasteboard.PasteboardType> = [
     .init("org.nspasteboard.TransientType"),
     .init("org.nspasteboard.ConcealedType"),
@@ -143,8 +163,17 @@ extension String {
 
 class AppDelegate: AppDelegateParent {
     @MainActor
-    override public func willShowPaddle(_: PADUIType, product _: PADProduct) -> PADDisplayConfiguration? {
-        PADDisplayConfiguration(.window, hideNavigationButtons: false, parentWindow: nil)
+    override public func willShowPaddle(_ uiType: PADUIType, product _: PADProduct) -> PADDisplayConfiguration? {
+        // Present the licence / product-access dialogs as a sheet on the Settings window when it is
+        // open: as standalone windows they were sometimes not clickable. Checkout and alerts keep
+        // their own window.
+        if uiType == .product || uiType == .license, let settingsWindow = NSApp.windows.first(where: { $0.isSettingsWindow }) {
+            settingsViewManager.tab = .about
+            focus()
+            settingsWindow.makeKeyAndOrderFront(nil)
+            return PADDisplayConfiguration(.sheet, hideNavigationButtons: false, parentWindow: settingsWindow)
+        }
+        return PADDisplayConfiguration(.window, hideNavigationButtons: false, parentWindow: nil)
     }
 
     var proDebugCancellables = Set<AnyCancellable>()

@@ -78,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alin23/PaddleSPM",
       "state" : {
-        "revision" : "d5446f4274ed2f01701758f40c9253b93fc43dd9",
-        "version" : "4.4.3"
+        "revision" : "7de514e10acd65e13eec1f5b75b7f18f64dbd775",
+        "version" : "4.5.1"
       }
     },
     {
