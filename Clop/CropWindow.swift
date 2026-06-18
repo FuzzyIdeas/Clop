@@ -27,6 +27,7 @@ extension Optimiser {
             backing: .buffered, defer: false
         )
         window.title = "Crop: \(filename)"
+        window.identifier = CROP_WINDOW_IDENTIFIER
         // The window controller owns the window; releasing on close too would double-release.
         window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = true

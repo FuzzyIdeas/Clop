@@ -72,6 +72,13 @@ final class BatchWindowController: NSWindowController {
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
+        // Opened from the MenuBarExtra (a tracking run-loop): switching .accessory→.regular there often
+        // doesn't register the app in the Cmd-Tab switcher / Dock until the next run-loop cycle. Re-assert
+        // on the next tick (after menu tracking ends) so the batch window is reliably Cmd-Tab-able.
+        DispatchQueue.main.async {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }
 
