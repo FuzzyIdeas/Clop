@@ -212,11 +212,7 @@ struct CompactResult: View {
                 if proError {
                     HStack {
                         Button("Get Clop Pro") {
-                            settingsViewManager.tab = .about
-                            openWindow(id: "settings")
-
-                            PRO?.manageLicence()
-                            focus()
+                            manageLicenceInSettings()
                         }
                         .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish, radius: 5, verticalPadding: 2))
                         .font(.round(10, weight: .heavy))

@@ -947,10 +947,7 @@ struct FloatingResult: View {
                     }
                     HStack(spacing: 8) {
                         Button("Get Clop Pro") {
-                            settingsViewManager.tab = .about
-                            openWindow(id: "settings")
-                            PRO?.manageLicence()
-                            focus()
+                            manageLicenceInSettings()
                         }
                         .buttonStyle(FlatButton(color: .inverted, textColor: .mauvish, radius: 6, verticalPadding: 3))
                         .font(.round(11, weight: .semibold))
