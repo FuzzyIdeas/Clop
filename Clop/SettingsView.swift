@@ -1405,8 +1405,57 @@ struct IconPickerView: View {
 struct DropZoneSettingsView: View {
     @Default(.enableDragAndDrop) var enableDragAndDrop
     @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
-    @Default(.onlyShowPresetZonesOnControlTapped) var onlyShowPresetZonesOnControlTapped
     @Default(.autoCopyToClipboard) var autoCopyToClipboard
+    @Default(.floatingResultsCorner) var floatingResultsCorner
+
+    var settings: some View {
+        Form {
+            Toggle(isOn: $enableDragAndDrop) {
+                Text("Enable drop zone").regular(13)
+                    + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
+            }
+            Toggle(isOn: $onlyShowDropZoneOnOption) {
+                Text("Require pressing ⌥ Option to show drop zone").regular(13)
+                    + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
+            }
+            .padding(.leading, 20)
+            .disabled(!enableDragAndDrop)
+            Toggle(isOn: $autoCopyToClipboard) {
+                Text("Auto Copy optimised files to clipboard").regular(13)
+                    + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
+            }
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top) {
+            ScrollView(.vertical, showsIndicators: false) {
+                settings
+            }
+
+            VStack(spacing: 8) {
+                DropZoneView()
+                    .disabled(!enableDragAndDrop)
+                    .saturation(enableDragAndDrop ? 1 : 0.5)
+                    .preview(true)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+                    .fixedSize()
+
+                Text("Drag files onto the drop zone\nto optimise them")
+                    .font(.system(size: 12))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .hfill()
+        .padding(.top)
+    }
+}
+
+struct PresetZonesSettingsView: View {
+    @Default(.enableDragAndDrop) var enableDragAndDrop
+    @Default(.onlyShowPresetZonesOnControlTapped) var onlyShowPresetZonesOnControlTapped
     @Default(.presetZones) var presetZones
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
@@ -1506,20 +1555,6 @@ struct DropZoneSettingsView: View {
     }
     var settings: some View {
         Form {
-            Toggle(isOn: $enableDragAndDrop) {
-                Text("Enable drop zone").regular(13)
-                    + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
-            }
-            Toggle(isOn: $onlyShowDropZoneOnOption) {
-                Text("Require pressing ⌥ Option to show drop zone").regular(13)
-                    + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
-            }
-            .padding(.leading, 20)
-            .disabled(!enableDragAndDrop)
-            Toggle(isOn: $autoCopyToClipboard) {
-                Text("Auto Copy optimised files to clipboard").regular(13)
-                    + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
-            }
             zones
         }
     }
@@ -1551,7 +1586,6 @@ struct DropZoneSettingsView: View {
                         DropZoneView(presetFileType: .image)
                         dropZoneSection("Audio preset zones")
                         DropZoneView(presetFileType: .audio)
-                        DropZoneView()
                     }
                     .frame(width: THUMB_SIZE.width - 50, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
                     .padding(.vertical, 8)
@@ -1800,17 +1834,7 @@ struct EditorAppRow: View {
     }
 }
 
-struct GeneralSettingsView: View {
-    enum MenubarIconStyle { case new, geometric, classic, hidden }
-
-    static let menubarIconNew = templatedMenubarIcon("MenubarIcon")
-    static let menubarIconGeometric = templatedMenubarIcon("MenubarIconGeometric")
-    static let menubarIconClassic = templatedMenubarIcon("MenubarIconClassic")
-
-    @Default(.showMenubarIcon) var showMenubarIcon
-    @Default(.useClassicMenubarIcon) var useClassicMenubarIcon
-    @Default(.useGeometricMenubarIcon) var useGeometricMenubarIcon
-    @Default(.defaultLinkExpiration) var defaultLinkExpiration
+struct ClipboardSettingsView: View {
     @Default(.optimiseTIFF) var optimiseTIFF
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
     @Default(.optimiseAudioClipboard) var optimiseAudioClipboard
@@ -1821,82 +1845,10 @@ struct GeneralSettingsView: View {
     @Default(.appendClipboardResults) var appendClipboardResults
     @Default(.copyConsecutiveClipboardImages) var copyConsecutiveClipboardImages
     @Default(.clipboardAccumulationTimeout) var clipboardAccumulationTimeout
-    @Default(.stripMetadata) var stripMetadata
-    @Default(.preserveColorMetadata) var preserveColorMetadata
-    @Default(.preserveDates) var preserveDates
-    @Default(.syncSettingsCloud) var syncSettingsCloud
-    @Default(.optimisedFileProtectionMs) var optimisedFileProtectionMs
-    @Default(.useBatchModeForFolders) var useBatchModeForFolders
-    @Default(.batchModeFileCountThreshold) var batchModeFileCountThreshold
-
-    @Default(.workdir) var workdir
-    @Default(.workdirCleanupInterval) var workdirCleanupInterval
-
-    var workdirBinding: Binding<String> {
-        Binding(
-            get: { workdir.shellString },
-            set: { value in
-                guard !value.isEmpty, let path = value.existingFilePath else {
-                    return
-                }
-                workdir = path.string
-            }
-        )
-    }
-
-    /// Maps the four-way picker onto the stored bools: the icon choice only touches the
-    /// style bools so the new/geometric/classic preference is remembered while hidden.
-    /// `useGeometricMenubarIcon` takes precedence over `useClassicMenubarIcon`.
-    var menubarIconStyle: Binding<MenubarIconStyle> {
-        Binding(
-            get: {
-                guard showMenubarIcon else { return .hidden }
-                if useGeometricMenubarIcon { return .geometric }
-                return useClassicMenubarIcon ? .classic : .new
-            },
-            set: { style in
-                showMenubarIcon = style != .hidden
-                if style != .hidden {
-                    useClassicMenubarIcon = style == .classic
-                    useGeometricMenubarIcon = style == .geometric
-                }
-            }
-        )
-    }
 
     var body: some View {
         Form {
-            HStack {
-                Text("Menubar icon")
-                Spacer()
-                menubarIconButton(.new) { SwiftUI.Image(nsImage: Self.menubarIconNew).resizable() }
-                menubarIconButton(.geometric) { SwiftUI.Image(nsImage: Self.menubarIconGeometric).resizable() }
-                menubarIconButton(.classic) { SwiftUI.Image(nsImage: Self.menubarIconClassic).resizable() }
-                menubarIconButton(.hidden) { SwiftUI.Image(systemName: "eye.slash").resizable() }
-            }
-            LaunchAtLogin.Toggle()
-            Toggle("Sync settings with other Macs via iCloud", isOn: $syncSettingsCloud)
-            HStack {
-                Text("Secure send links expire after")
-                Spacer()
-                Picker("", selection: $defaultLinkExpiration) {
-                    ForEach(LINK_EXPIRATION_PRESETS, id: \.self) { preset in
-                        Text(expirationDurationLabel(preset)).tag(preset)
-                    }
-                    Divider()
-                    Text("Never").tag(LINK_EXPIRATION_NEVER)
-                }
-                .frame(width: 150)
-            }
-
-            Section(header: SectionHeader(title: "Edit with external app", subtitle: "Hand an optimised file to an editor of your choice with ⌘E or the right-click menu")) {
-                EditorAppRow(label: "Images", systemImage: "photo", key: .editorAppImage)
-                EditorAppRow(label: "Videos", systemImage: "video", key: .editorAppVideo)
-                EditorAppRow(label: "Audio", systemImage: "waveform", key: .editorAppAudio)
-                EditorAppRow(label: "PDFs", systemImage: "doc", key: .editorAppPDF)
-            }
-
-            Section(header: SectionHeader(title: "Clipboard")) {
+            Section(header: SectionHeader(title: "Clipboard", subtitle: "Watch for copied data and optimise it automatically")) {
                 Toggle(isOn: $enableClipboardOptimiser) {
                     Text("Enable clipboard optimiser").regular(13)
                         + Text("\nWatch for copied data and optimise it automatically").round(11, weight: .regular).foregroundColor(.secondary)
@@ -1970,6 +1922,98 @@ struct GeneralSettingsView: View {
                     }
                     .padding(.leading, 20)
                 }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .padding(.horizontal, 50)
+        .padding(.vertical, 20)
+    }
+}
+
+struct GeneralSettingsView: View {
+    enum MenubarIconStyle { case new, geometric, classic, hidden }
+
+    static let menubarIconNew = templatedMenubarIcon("MenubarIcon")
+    static let menubarIconGeometric = templatedMenubarIcon("MenubarIconGeometric")
+    static let menubarIconClassic = templatedMenubarIcon("MenubarIconClassic")
+
+    @Default(.showMenubarIcon) var showMenubarIcon
+    @Default(.useClassicMenubarIcon) var useClassicMenubarIcon
+    @Default(.useGeometricMenubarIcon) var useGeometricMenubarIcon
+    @Default(.defaultLinkExpiration) var defaultLinkExpiration
+    @Default(.stripMetadata) var stripMetadata
+    @Default(.preserveColorMetadata) var preserveColorMetadata
+    @Default(.preserveDates) var preserveDates
+    @Default(.syncSettingsCloud) var syncSettingsCloud
+    @Default(.optimisedFileProtectionMs) var optimisedFileProtectionMs
+    @Default(.useBatchModeForFolders) var useBatchModeForFolders
+    @Default(.batchModeFileCountThreshold) var batchModeFileCountThreshold
+
+    @Default(.workdir) var workdir
+    @Default(.workdirCleanupInterval) var workdirCleanupInterval
+
+    var workdirBinding: Binding<String> {
+        Binding(
+            get: { workdir.shellString },
+            set: { value in
+                guard !value.isEmpty, let path = value.existingFilePath else {
+                    return
+                }
+                workdir = path.string
+            }
+        )
+    }
+
+    /// Maps the four-way picker onto the stored bools: the icon choice only touches the
+    /// style bools so the new/geometric/classic preference is remembered while hidden.
+    /// `useGeometricMenubarIcon` takes precedence over `useClassicMenubarIcon`.
+    var menubarIconStyle: Binding<MenubarIconStyle> {
+        Binding(
+            get: {
+                guard showMenubarIcon else { return .hidden }
+                if useGeometricMenubarIcon { return .geometric }
+                return useClassicMenubarIcon ? .classic : .new
+            },
+            set: { style in
+                showMenubarIcon = style != .hidden
+                if style != .hidden {
+                    useClassicMenubarIcon = style == .classic
+                    useGeometricMenubarIcon = style == .geometric
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        Form {
+            HStack {
+                Text("Menubar icon")
+                Spacer()
+                menubarIconButton(.new) { SwiftUI.Image(nsImage: Self.menubarIconNew).resizable() }
+                menubarIconButton(.geometric) { SwiftUI.Image(nsImage: Self.menubarIconGeometric).resizable() }
+                menubarIconButton(.classic) { SwiftUI.Image(nsImage: Self.menubarIconClassic).resizable() }
+                menubarIconButton(.hidden) { SwiftUI.Image(systemName: "eye.slash").resizable() }
+            }
+            LaunchAtLogin.Toggle()
+            Toggle("Sync settings with other Macs via iCloud", isOn: $syncSettingsCloud)
+            HStack {
+                Text("Secure send links expire after")
+                Spacer()
+                Picker("", selection: $defaultLinkExpiration) {
+                    ForEach(LINK_EXPIRATION_PRESETS, id: \.self) { preset in
+                        Text(expirationDurationLabel(preset)).tag(preset)
+                    }
+                    Divider()
+                    Text("Never").tag(LINK_EXPIRATION_NEVER)
+                }
+                .frame(width: 150)
+            }
+
+            Section(header: SectionHeader(title: "Edit with external app", subtitle: "Hand an optimised file to an editor of your choice with ⌘E or the right-click menu")) {
+                EditorAppRow(label: "Images", systemImage: "photo", key: .editorAppImage)
+                EditorAppRow(label: "Videos", systemImage: "video", key: .editorAppVideo)
+                EditorAppRow(label: "Audio", systemImage: "waveform", key: .editorAppAudio)
+                EditorAppRow(label: "PDFs", systemImage: "doc", key: .editorAppPDF)
             }
 
             Section(header: SectionHeader(title: "Working directory", subtitle: "Where temporary files and backups are stored and where the optimised files are saved")) {
@@ -2144,7 +2188,7 @@ struct SettingsSidebarRow: View {
 
 struct SettingsView: View {
     enum Tabs: Int, Hashable, CaseIterable, Identifiable {
-        case general, video, audio, images, pdf, dropzone, floating, keys, automation, licenseUpdates, about
+        case general, clipboard, video, audio, images, pdf, dropzone, presetZones, floating, keys, pipelines, automation, licenseUpdates, about
 
         var id: Int { rawValue }
 
@@ -2159,13 +2203,16 @@ struct SettingsView: View {
         var title: String {
             switch self {
             case .general: "General"
+            case .clipboard: "Clipboard"
             case .video: "Video"
             case .audio: "Audio"
             case .images: "Images"
             case .pdf: "PDF"
             case .dropzone: "Drop Zone"
+            case .presetZones: "Preset Zones"
             case .floating: "Floating Results"
             case .keys: "Keyboard Shortcuts"
+            case .pipelines: "Pipelines"
             case .automation: "Automation"
             case .licenseUpdates: "License & updates"
             case .about: "About"
@@ -2175,13 +2222,16 @@ struct SettingsView: View {
         var symbol: String {
             switch self {
             case .general: "gearshape"
+            case .clipboard: "doc.on.clipboard"
             case .video: "video"
             case .audio: "waveform"
             case .images: "photo"
             case .pdf: "doc"
             case .dropzone: "square.stack.3d.up"
+            case .presetZones: "square.grid.2x2"
             case .floating: "rectangle.stack"
             case .keys: "command.square"
+            case .pipelines: "arrow.triangle.branch"
             case .automation: "hammer"
             case .licenseUpdates: "key"
             case .about: "info.circle"
@@ -2191,13 +2241,16 @@ struct SettingsView: View {
         var tint: Color {
             switch self {
             case .general: .gray
+            case .clipboard: .cyan
             case .video: .blue
             case .audio: .indigo
             case .images: .green
             case .pdf: .red
             case .dropzone: .orange
+            case .presetZones: .mint
             case .floating: .teal
             case .keys: .brown
+            case .pipelines: .purple
             case .automation: .pink
             case .licenseUpdates: .yellow
             case .about: .pink
@@ -2205,8 +2258,11 @@ struct SettingsView: View {
         }
     }
 
+    static let topTabs: [Tabs] = [.general, .clipboard]
+    static let fileTypeTabs: [Tabs] = [.video, .audio, .images, .pdf]
+    static let dropTabs: [Tabs] = [.dropzone, .presetZones, .floating]
+    static let automationTabs: [Tabs] = [.keys, .pipelines, .automation]
     static let supportTabs: [Tabs] = [.licenseUpdates, .about]
-    static let mainTabs: [Tabs] = Tabs.allCases.filter { !supportTabs.contains($0) }
 
     @ObservedObject var svm = settingsViewManager
 
@@ -2218,8 +2274,23 @@ struct SettingsView: View {
 
     var sidebar: some View {
         List(selection: $svm.tab) {
-            ForEach(Self.mainTabs, id: \.self) { tab in
+            ForEach(Self.topTabs, id: \.self) { tab in
                 SettingsSidebarRow(tab: tab)
+            }
+            Section("File types") {
+                ForEach(Self.fileTypeTabs, id: \.self) { tab in
+                    SettingsSidebarRow(tab: tab)
+                }
+            }
+            Section("Drops & Results") {
+                ForEach(Self.dropTabs, id: \.self) { tab in
+                    SettingsSidebarRow(tab: tab)
+                }
+            }
+            Section("Shortcuts & Automation") {
+                ForEach(Self.automationTabs, id: \.self) { tab in
+                    SettingsSidebarRow(tab: tab)
+                }
             }
             Section("Support") {
                 ForEach(Self.supportTabs, id: \.self) { tab in
@@ -2262,13 +2333,16 @@ struct SettingsView: View {
     private var detailView: some View {
         switch svm.tab {
         case .general: GeneralSettingsView()
+        case .clipboard: ClipboardSettingsView()
         case .video: VideoSettingsView()
         case .audio: AudioSettingsView()
         case .images: ImagesSettingsView()
         case .pdf: PDFSettingsView()
         case .dropzone: DropZoneSettingsView()
+        case .presetZones: PresetZonesSettingsView()
         case .floating: FloatingSettingsView()
         case .keys: KeysSettingsView()
+        case .pipelines: PipelinesSettingsView()
         case .automation: AutomationSettingsView()
         case .licenseUpdates: LicenseUpdatesSettingsView()
         case .about:

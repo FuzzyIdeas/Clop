@@ -1261,7 +1261,8 @@ struct FloatingResult: View {
                         .mask(LinearGradient(
                             stops: [
                                 .init(color: .black, location: 0.0),
-                                .init(color: .black, location: 0.42),
+                                .init(color: .black, location: 0.25),
+                                .init(color: .black.opacity(0.7), location: 0.42),
                                 .init(color: .black.opacity(0), location: 0.88),
                             ],
                             startPoint: .bottom,
