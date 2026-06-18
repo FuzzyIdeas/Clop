@@ -180,7 +180,7 @@ struct DropZonePresetsViewDelegate: DropDelegate {
 
         guard let preset else {
             if isNextPreset {
-                settingsViewManager.tab = .dropzone
+                settingsViewManager.tab = .presetZones
                 WM.open("settings")
                 focus()
             }
@@ -242,7 +242,7 @@ struct DropZonePresetsView: View {
 
     func zoneAction(zone: PresetZone?) {
         guard let w = NSApp.keyWindow, w.isSettingsWindow else {
-            settingsViewManager.tab = .dropzone
+            settingsViewManager.tab = .presetZones
             WM.open("settings")
             focus()
             return

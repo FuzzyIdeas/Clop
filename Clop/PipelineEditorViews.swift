@@ -708,12 +708,71 @@ struct SavedPipelineRow: View {
 
 // MARK: - Automation Settings View
 
+struct PipelinesSettingsView: View {
+    @Default(.savedPipelines) var savedPipelines
+
+    var grouped: [(String, ClopFileType?, [Pipeline])] {
+        var result: [(String, ClopFileType?, [Pipeline])] = []
+        let types: [ClopFileType?] = [.image, .video, .audio, .pdf, nil]
+        for t in types {
+            let matching = savedPipelines.filter { $0.fileType == t }
+            if !matching.isEmpty {
+                let label = t.map { $0 == .pdf ? "PDF" : $0.description.capitalized } ?? "Any type"
+                result.append((label, t, matching))
+            }
+        }
+        return result
+    }
+
+    var body: some View {
+        Form {
+            Section(header: SectionHeader(
+                title: "Saved Pipelines",
+                subtitle: "Reusable pipelines available in automation, preset zones and right-click menus"
+            )) {
+                if savedPipelines.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No saved pipelines yet").medium(13)
+                        Text("Save a pipeline from Automation, a preset zone or the right-click menu to reuse it across Clop.")
+                            .round(11, weight: .regular)
+                            .foregroundColor(.secondary)
+                    }
+                    .hfill(.leading)
+                    .padding(.vertical, 8)
+                } else {
+                    ForEach(grouped, id: \.0) { label, fileType, pipelines in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(label)
+                                .semibold(10)
+                                .foregroundColor(fileType?.color ?? .secondary)
+                                .padding(.top, 4)
+                            ForEach(pipelines) { pipeline in
+                                SavedPipelineRow(
+                                    pipeline: pipeline,
+                                    onUpdate: { updated in
+                                        if let idx = savedPipelines.firstIndex(where: { $0.id == pipeline.id }) {
+                                            savedPipelines[idx] = updated
+                                        }
+                                    },
+                                    onDelete: {
+                                        savedPipelines.removeAll { $0.id == pipeline.id }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(4)
+    }
+}
+
 struct AutomationSettingsView: View {
     @Default(.pipelinesToRunOnImage) var imagePipelines
     @Default(.pipelinesToRunOnVideo) var videoPipelines
     @Default(.pipelinesToRunOnPdf) var pdfPipelines
     @Default(.pipelinesToRunOnAudio) var audioPipelines
-    @Default(.savedPipelines) var savedPipelines
 
     @ObservedObject var svm = settingsViewManager
 
@@ -735,48 +794,6 @@ struct AutomationSettingsView: View {
                     Divider()
                     PipelineTypeSectionView(fileType: .pdf, pipelines: $pdfPipelines)
                         .id(ClopFileType.pdf)
-                }
-
-                if !savedPipelines.isEmpty {
-                    Section(header: SectionHeader(
-                        title: "Saved Pipelines",
-                        subtitle: "Reusable pipelines available in automation, preset zones and right-click menus"
-                    )) {
-                        let grouped: [(String, ClopFileType?, [Pipeline])] = {
-                            var result: [(String, ClopFileType?, [Pipeline])] = []
-                            let types: [ClopFileType?] = [.image, .video, .audio, .pdf, nil]
-                            for t in types {
-                                let matching = savedPipelines.filter { $0.fileType == t }
-                                if !matching.isEmpty {
-                                    let label = t.map { $0 == .pdf ? "PDF" : $0.description.capitalized } ?? "Any type"
-                                    result.append((label, t, matching))
-                                }
-                            }
-                            return result
-                        }()
-
-                        ForEach(grouped, id: \.0) { label, fileType, pipelines in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(label)
-                                    .semibold(10)
-                                    .foregroundColor(fileType?.color ?? .secondary)
-                                    .padding(.top, 4)
-                                ForEach(pipelines) { pipeline in
-                                    SavedPipelineRow(
-                                        pipeline: pipeline,
-                                        onUpdate: { updated in
-                                            if let idx = savedPipelines.firstIndex(where: { $0.id == pipeline.id }) {
-                                                savedPipelines[idx] = updated
-                                            }
-                                        },
-                                        onDelete: {
-                                            savedPipelines.removeAll { $0.id == pipeline.id }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
             .padding(4)
