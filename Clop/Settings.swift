@@ -68,6 +68,9 @@ extension Defaults.Keys {
     // false = the new (default) menubar icon, true = the classic pre-3.0 icon. Paired with
     // `showMenubarIcon` to drive the New / Classic / Hidden picker in General settings.
     static let useClassicMenubarIcon = Key<Bool>("useClassicMenubarIcon", default: false)
+    // true = the geometric all-black menubar icon variant. Takes precedence over
+    // `useClassicMenubarIcon` when deriving the New / Classic / Geometric / Hidden picker.
+    static let useGeometricMenubarIcon = Key<Bool>("useGeometricMenubarIcon", default: false)
     // Seconds after which a "Send securely" link auto-stops (0 = never). Starting value for the
     // expiration picker and the fallback for the copyLinkForSending step. Default 1 hour.
     static let defaultLinkExpiration = Key<TimeInterval>("defaultLinkExpiration", default: 3600)
@@ -279,6 +282,7 @@ public enum OptimisedFileBehaviour: String, Defaults.Serializable {
 let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     Defaults.Keys.showMenubarIcon,
     .useClassicMenubarIcon,
+    .useGeometricMenubarIcon,
     .defaultLinkExpiration,
     .adaptiveImageSize,
     .imageCompression,

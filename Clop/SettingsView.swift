@@ -1801,13 +1801,15 @@ struct EditorAppRow: View {
 }
 
 struct GeneralSettingsView: View {
-    enum MenubarIconStyle { case new, classic, hidden }
+    enum MenubarIconStyle { case new, geometric, classic, hidden }
 
     static let menubarIconNew = templatedMenubarIcon("MenubarIcon")
+    static let menubarIconGeometric = templatedMenubarIcon("MenubarIconGeometric")
     static let menubarIconClassic = templatedMenubarIcon("MenubarIconClassic")
 
     @Default(.showMenubarIcon) var showMenubarIcon
     @Default(.useClassicMenubarIcon) var useClassicMenubarIcon
+    @Default(.useGeometricMenubarIcon) var useGeometricMenubarIcon
     @Default(.defaultLinkExpiration) var defaultLinkExpiration
     @Default(.optimiseTIFF) var optimiseTIFF
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
@@ -1842,14 +1844,22 @@ struct GeneralSettingsView: View {
         )
     }
 
-    /// Maps the three-way picker onto the two stored bools: the icon choice only touches
-    /// `useClassicMenubarIcon` so the new/classic preference is remembered while hidden.
+    /// Maps the four-way picker onto the stored bools: the icon choice only touches the
+    /// style bools so the new/geometric/classic preference is remembered while hidden.
+    /// `useGeometricMenubarIcon` takes precedence over `useClassicMenubarIcon`.
     var menubarIconStyle: Binding<MenubarIconStyle> {
         Binding(
-            get: { !showMenubarIcon ? .hidden : (useClassicMenubarIcon ? .classic : .new) },
+            get: {
+                guard showMenubarIcon else { return .hidden }
+                if useGeometricMenubarIcon { return .geometric }
+                return useClassicMenubarIcon ? .classic : .new
+            },
             set: { style in
                 showMenubarIcon = style != .hidden
-                if style != .hidden { useClassicMenubarIcon = style == .classic }
+                if style != .hidden {
+                    useClassicMenubarIcon = style == .classic
+                    useGeometricMenubarIcon = style == .geometric
+                }
             }
         )
     }
@@ -1860,6 +1870,7 @@ struct GeneralSettingsView: View {
                 Text("Menubar icon")
                 Spacer()
                 menubarIconButton(.new) { SwiftUI.Image(nsImage: Self.menubarIconNew).resizable() }
+                menubarIconButton(.geometric) { SwiftUI.Image(nsImage: Self.menubarIconGeometric).resizable() }
                 menubarIconButton(.classic) { SwiftUI.Image(nsImage: Self.menubarIconClassic).resizable() }
                 menubarIconButton(.hidden) { SwiftUI.Image(systemName: "eye.slash").resizable() }
             }
@@ -2067,7 +2078,14 @@ struct GeneralSettingsView: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(style == .hidden ? "Hide the menubar icon" : (style == .classic ? "Use the classic menubar icon" : "Use the new menubar icon"))
+        .help({
+            switch style {
+            case .hidden: "Hide the menubar icon"
+            case .classic: "Use the classic menubar icon"
+            case .geometric: "Use the geometric menubar icon"
+            case .new: "Use the new menubar icon"
+            }
+        }())
     }
 
     /// Copy the menubar asset, mark it as a template and size it down so it tints and fits the picker buttons.
