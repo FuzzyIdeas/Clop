@@ -360,13 +360,17 @@ func isPDFValid(path: FilePath) -> Bool {
 }
 
 class PDF: Optimisable {
-    override class var dir: FilePath { .pdfs }
+    override class var dir: FilePath {
+        .pdfs
+    }
 
     lazy var document: PDFDocument? = PDFDocument(url: path.url)
     lazy var size: NSSize? = document?.page(at: 1)?.bounds(for: .cropBox).size
     lazy var originalSize: NSSize? = document?.page(at: 1)?.bounds(for: .mediaBox).size
 
-    var pageCount: Int { document?.pageCount ?? 0 }
+    var pageCount: Int {
+        document?.pageCount ?? 0
+    }
 
     @discardableResult
     func uncrop(saveTo newPath: FilePath? = nil) -> Bool {
@@ -537,9 +541,9 @@ class PDF: Optimisable {
     return true
 }
 
-// gs is now a static build with all resources (fonts, ICC profiles, init files)
-// embedded via its %rom% filesystem, so it needs neither GS_LIB nor the on-disk
-// share/ghostscript Resource tree.
+/// gs is now a static build with all resources (fonts, ICC profiles, init files)
+/// embedded via its %rom% filesystem, so it needs neither GS_LIB nor the on-disk
+/// share/ghostscript Resource tree.
 let GHOSTSCRIPT_ENV: [String: String] = [:]
 
 // MARK: - Parallel PDF optimisation

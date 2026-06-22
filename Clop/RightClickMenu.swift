@@ -315,10 +315,10 @@ struct RightClickMenuView: View {
                 }
             }
 
-            Menu("Run pipeline") {
+            Menu("Pass file through pipeline") {
                 RunPipelineMenu(optimiser: optimiser)
             }
-            Menu("Run Shortcut") {
+            Menu("Pass file through Shortcut") {
                 WorkflowMenu(optimiser: optimiser)
             }
         }
@@ -649,8 +649,8 @@ struct LoudnessMenu: View {
 struct CompressionMenu: View {
     @ObservedObject var optimiser: Optimiser
 
-    // Same round factor steps the compression slider snaps to, as discrete menu entries.
-    // Higher factor = more compression = smaller file.
+    /// Same round factor steps the compression slider snaps to, as discrete menu entries.
+    /// Higher factor = more compression = smaller file.
     let factors = Array(stride(from: 10, through: 90, by: 10))
 
     var body: some View {

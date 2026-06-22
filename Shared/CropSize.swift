@@ -128,11 +128,21 @@ struct CropSize: Codable, Hashable, Identifiable {
     var fractionalAspectRatio: Double {
         min(width, height).d / max(width, height).d
     }
-    var id: String { "\(width == 0 ? "Auto" : width.s)×\(height == 0 ? "Auto" : height.s)" }
-    var area: Int { (width == 0 ? height : width) * (height == 0 ? width : height) }
-    var ns: NSSize { NSSize(width: width, height: height) }
-    var cg: CGSize { CGSize(width: width, height: height) }
-    var aspectRatio: Double { width.d / height.d }
+    var id: String {
+        "\(width == 0 ? "Auto" : width.s)×\(height == 0 ? "Auto" : height.s)"
+    }
+    var area: Int {
+        (width == 0 ? height : width) * (height == 0 ? width : height)
+    }
+    var ns: NSSize {
+        NSSize(width: width, height: height)
+    }
+    var cg: CGSize {
+        CGSize(width: width, height: height)
+    }
+    var aspectRatio: Double {
+        width.d / height.d
+    }
 
     func withLongEdge(_ longEdge: Bool) -> CropSize {
         CropSize(width: width, height: height, name: name, longEdge: longEdge, smartCrop: smartCrop, isAspectRatio: isAspectRatio)
@@ -193,12 +203,20 @@ struct CropSizeGroup: Identifiable, Hashable {
     let width: Int
     let height: Int
     let members: [String]
-    var summary: String? = nil
+    var summary: String?
 
-    var id: String { name }
-    var size: NSSize { NSSize(width: width, height: height) }
-    var cropSize: CropSize { CropSize(width: width, height: height, name: name, isAspectRatio: true) }
-    var subtitle: String { summary ?? members.joined(separator: ", ") }
+    var id: String {
+        name
+    }
+    var size: NSSize {
+        NSSize(width: width, height: height)
+    }
+    var cropSize: CropSize {
+        CropSize(width: width, height: height, name: name, isAspectRatio: true)
+    }
+    var subtitle: String {
+        summary ?? members.joined(separator: ", ")
+    }
 
     func matches(_ name: String) -> Bool {
         let needle = name.lowercased()

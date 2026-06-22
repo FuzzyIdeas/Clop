@@ -271,8 +271,8 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     case runShortcut(Shortcut)
     case copyToClipboard(format: ClipboardCopyFormat = .path, relativeTo: String? = nil)
     case copyLinkForSending(expiration: TimeInterval? = nil)
-    // Branch off the current result as a second floating result card. No location → the card's
-    // file lives in temp (drag it out to keep it); a location persists it like other steps.
+    /// Branch off the current result as a second floating result card. No location → the card's
+    /// file lives in temp (drag it out to keep it); a location persists it like other steps.
     case fork(location: String? = nil)
 
     // App integration
@@ -482,24 +482,34 @@ enum StepCategory {
 }
 
 extension PipelineStep {
-    var categoryNSColor: NSColor { category.nsColor }
+    var categoryNSColor: NSColor {
+        category.nsColor
+    }
 }
 
 // MARK: - Backward-compatible Decodable
 
-// Custom decoder that uses decodeIfPresent with defaults for all defaultable
-// parameters. This ensures old encoded data (missing newly added fields like
-// `location`) decodes correctly instead of failing.
-// Encodable is auto-synthesized on the enum declaration.
+/// Custom decoder that uses decodeIfPresent with defaults for all defaultable
+/// parameters. This ensures old encoded data (missing newly added fields like
+/// `location`) decodes correctly instead of failing.
+/// Encodable is auto-synthesized on the enum declaration.
 extension PipelineStep: Decodable {
     private struct DynKey: CodingKey {
-        init(_ s: String) { stringValue = s }
-        init?(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue: Int) { nil }
+        init(_ s: String) {
+            stringValue = s
+        }
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+        }
+        init?(intValue: Int) {
+            nil
+        }
 
         var stringValue: String
 
-        var intValue: Int? { nil }
+        var intValue: Int? {
+            nil
+        }
     }
 
     init(from decoder: Decoder) throws {

@@ -28,7 +28,9 @@ let TEXT_FIELD_SCALE: CGFloat = if #available(macOS 15.0, *) {
 let TEXT_FIELD_WIDTH: CGFloat = 550
 
 extension String: @retroactive Identifiable {
-    public var id: String { self }
+    public var id: String {
+        self
+    }
 }
 
 let NOT_ALLOWED_TO_WATCH = [FilePath.clopBackups.string, FilePath.images.string, FilePath.videos.string, FilePath.forResize.string, FilePath.conversions.string, FilePath.downloads.string]
@@ -67,22 +69,10 @@ struct DirListView: View {
     @State var chooseFile = false
     @State var clopignoreHelpVisible = false
     @State var automationsExpanded = true
+
     var hideIgnoreRules = false
 
     @Default(.dirsHideFloatingResult) var dirsHideFloatingResult
-
-    func showFloatingBinding(for dir: String) -> Binding<Bool> {
-        Binding(
-            get: { !dirsHideFloatingResult.contains(dir) },
-            set: { show in
-                if show {
-                    dirsHideFloatingResult.remove(dir)
-                } else {
-                    dirsHideFloatingResult.insert(dir)
-                }
-            }
-        )
-    }
 
     @ViewBuilder var ignoreRulesView: some View {
         if selectedDirs.count == 1, let dir = selectedDirs.first {
@@ -160,19 +150,6 @@ struct DirListView: View {
                 .opacity(0.8)
         }
 
-    }
-
-    func dirHasAutomation(_ dir: String) -> Bool {
-        Defaults[fileType.pipelineKey][dir]?.isEmpty == false
-    }
-
-    func showAutomations(folder: String, addNew: Bool) {
-        selectedDirs = [folder]
-        withAnimation(.easeOut(duration: 0.15)) { automationsExpanded = true }
-        guard addNew else { return }
-        var dict = Defaults[fileType.pipelineKey]
-        dict[folder, default: []].append(Pipeline(steps: []))
-        Defaults[fileType.pipelineKey] = dict
     }
 
     var body: some View {
@@ -265,6 +242,32 @@ struct DirListView: View {
         }
     }
 
+    func showFloatingBinding(for dir: String) -> Binding<Bool> {
+        Binding(
+            get: { !dirsHideFloatingResult.contains(dir) },
+            set: { show in
+                if show {
+                    dirsHideFloatingResult.remove(dir)
+                } else {
+                    dirsHideFloatingResult.insert(dir)
+                }
+            }
+        )
+    }
+
+    func dirHasAutomation(_ dir: String) -> Bool {
+        Defaults[fileType.pipelineKey][dir]?.isEmpty == false
+    }
+
+    func showAutomations(folder: String, addNew: Bool) {
+        selectedDirs = [folder]
+        withAnimation(.easeOut(duration: 0.15)) { automationsExpanded = true }
+        guard addNew else { return }
+        var dict = Defaults[fileType.pipelineKey]
+        dict[folder, default: []].append(Pipeline(steps: []))
+        Defaults[fileType.pipelineKey] = dict
+    }
+
     func saveIgnoreRules(text: String, dir: String? = nil) {
         guard let dir = dir ?? selectedDirs.first else { return }
 
@@ -294,7 +297,6 @@ struct FolderAutomationsSection: View {
     @Default(.pipelinesToRunOnVideo) var videoPipelines
     @Default(.pipelinesToRunOnPdf) var pdfPipelines
     @Default(.pipelinesToRunOnAudio) var audioPipelines
-    @State private var editingKey: String?
 
     var pipelinesBinding: Binding<[String: [Pipeline]]> {
         switch fileType {
@@ -305,7 +307,9 @@ struct FolderAutomationsSection: View {
         }
     }
 
-    var count: Int { pipelinesBinding.wrappedValue[folder]?.count ?? 0 }
+    var count: Int {
+        pipelinesBinding.wrappedValue[folder]?.count ?? 0
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -337,6 +341,9 @@ struct FolderAutomationsSection: View {
         }
         .padding(.top, 6)
     }
+
+    @State private var editingKey: String?
+
 }
 
 /// Reusable automation editor scoped to a single non-folder `OptimisationSource`
@@ -355,16 +362,6 @@ struct SourceAutomationsSection: View {
     @Default(.pipelinesToRunOnVideo) var videoPipelines
     @Default(.pipelinesToRunOnPdf) var pdfPipelines
     @Default(.pipelinesToRunOnAudio) var audioPipelines
-    @State private var editingKey: String?
-
-    func binding(for fileType: ClopFileType) -> Binding<[String: [Pipeline]]> {
-        switch fileType {
-        case .image: $imagePipelines
-        case .video: $videoPipelines
-        case .pdf: $pdfPipelines
-        case .audio: $audioPipelines
-        }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -394,6 +391,18 @@ struct SourceAutomationsSection: View {
         }
         .padding(.top, 6)
     }
+
+    func binding(for fileType: ClopFileType) -> Binding<[String: [Pipeline]]> {
+        switch fileType {
+        case .image: $imagePipelines
+        case .video: $videoPipelines
+        case .pdf: $pdfPipelines
+        case .audio: $audioPipelines
+        }
+    }
+
+    @State private var editingKey: String?
+
 }
 
 struct PDFSettingsView: View {
@@ -498,34 +507,15 @@ struct VideoSettingsView: View {
 
     @Default(.videoEncoder) var videoEncoder
     @Default(.videoCompression) var videoCompression
-    @State private var lastVideoFactor = 50
-
-    var videoResolvedTier: CompressionTier {
-        videoCompression.tier == .custom ? .smaller : videoCompression.tier
-    }
-
-    func videoCompressionTitle(_ tier: CompressionTier) -> String {
-        switch tier {
-        case .adaptive: "Adaptive"
-        case .lossless: "Visually lossless"
-        case .fast: "Hardware encoder"
-        default: "Software encoder"
-        }
-    }
-
-    func videoCompressionSubtitle(_ tier: CompressionTier) -> String {
-        switch tier {
-        case .adaptive: "Picks the best encoder and amount of compression for each file"
-        case .lossless: "No perceptible quality loss"
-        case .fast: "Fast, battery efficient, no CPU usage, modest size gains"
-        default: "Slower, higher CPU usage, better quality and size gains"
-        }
-    }
     #if arch(arm64)
         @Default(.useCPUIntensiveEncoder) var useCPUIntensiveEncoder
     #endif
     @Default(.useAggressiveOptimisationMP4) var useAggressiveOptimisationMP4
     @Default(.enableAutomaticVideoOptimisations) var enableAutomaticVideoOptimisations
+
+    var videoResolvedTier: CompressionTier {
+        videoCompression.tier == .custom ? .smaller : videoCompression.tier
+    }
 
     var body: some View {
         Form {
@@ -702,11 +692,32 @@ struct VideoSettingsView: View {
                 .multilineTextAlignment(.center)
         }
     }
+
+    func videoCompressionTitle(_ tier: CompressionTier) -> String {
+        switch tier {
+        case .adaptive: "Adaptive"
+        case .lossless: "Visually lossless"
+        case .fast: "Hardware encoder"
+        default: "Software encoder"
+        }
+    }
+
+    func videoCompressionSubtitle(_ tier: CompressionTier) -> String {
+        switch tier {
+        case .adaptive: "Picks the best encoder and amount of compression for each file"
+        case .lossless: "No perceptible quality loss"
+        case .fast: "Fast, battery efficient, no CPU usage, modest size gains"
+        default: "Slower, higher CPU usage, better quality and size gains"
+        }
+    }
+
+    @State private var lastVideoFactor = 50
+
 }
 
 struct SectionHeader: View {
     var title: String
-    var subtitle: String? = nil
+    var subtitle: String?
 
     var body: some View {
         Text(title).round(15, weight: .semibold)
@@ -720,6 +731,7 @@ let DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE = "%P/optimised/%f"
 
 struct OptimisedFileBehaviourView: View {
     let type: ClopFileType
+
     @Binding var optimisedBehaviour: OptimisedFileBehaviour
     @Binding var sameFolderNameTemplate: String
     @Binding var specificFolderNameTemplate: String
@@ -769,6 +781,7 @@ struct OptimisedFileBehaviourView: View {
 
 struct SameFolderNameTemplate: View {
     let type: ClopFileType
+
     @Binding var template: String
 
     var body: some View {
@@ -826,6 +839,7 @@ struct SameFolderNameTemplate: View {
 }
 struct SpecificFolderNameTemplate: View {
     let type: ClopFileType
+
     @Binding var template: String
 
     var body: some View {
@@ -1328,10 +1342,7 @@ struct KeysSettingsView: View {
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Trigger keys")) {
-                HStack {
-                    DirectionalModifierView(triggerKeys: $keyComboModifiers, showFnCaps: false, allowShiftAlone: false)
-                    Text(" + ")
-                }
+                DirectionalModifierView(triggerKeys: $keyComboModifiers, showFnCaps: false, allowShiftAlone: false)
             }
             Section(header: SectionHeader(title: "Action keys")) {
                 keyToggle(.minus, actionName: "Downscale", description: "Decrease resolution of the last image or video")
@@ -1347,10 +1358,15 @@ struct KeysSettingsView: View {
                 keyToggle(.a, actionName: "Optimise aggressively", description: "Apply aggressive optimisations on the copied image, URL or path")
             }.padding(.leading, 20)
             Section(header: SectionHeader(title: "Resize keys")) {
-                HStack(alignment: .bottom, spacing: 14) {
+                HStack(alignment: .bottom, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Press number key").round(12, weight: .regular)
-                        Text("to downscale to").mono(10).foregroundColor(.secondary)
+                        Text("Hold the trigger keys and").round(12, weight: .regular)
+                        Text("press a number to downscale to").mono(10).foregroundColor(.secondary)
+                    }
+                    VStack(spacing: 1) {
+                        triggerKeyCap
+                        // Kept for vertical alignment with the number keys' percentage labels, but hidden.
+                        Text("hold").mono(10).foregroundColor(.secondary).hidden()
                     }
                     resizeKeys
                 }.fixedSize()
@@ -1361,6 +1377,23 @@ struct KeysSettingsView: View {
         .environmentObject(keyEnv)
     }
 
+    /// A static key-cap rendering of the configured trigger modifiers, one separate cap per modifier (e.g.
+    /// ⌃ ⇧), shown to the left of each action/resize key so it's obvious those modifiers must be held
+    /// together with that key. Styled lighter than the action keys (secondary text, fainter fill) so it
+    /// reads as the held prefix, not the key itself.
+    var triggerKeyCap: some View {
+        HStack(spacing: 3) {
+            ForEach(keyComboModifiers) { key in
+                Text(key.str)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.08)))
+            }
+        }
+    }
+
     @ViewBuilder
     func keyToggle(_ key: SauceKey, actionName: String, description: String) -> some View {
         let binding = Binding(
@@ -1369,6 +1402,7 @@ struct KeysSettingsView: View {
         )
         Toggle(isOn: binding, label: {
             HStack {
+                triggerKeyCap
                 DynamicKey(key: .constant(key))
                     .font(.mono(15, weight: SauceKey.ALPHANUMERIC_KEYS.contains(key) ? .medium : .heavy))
                 VStack(alignment: .leading, spacing: -1) {
@@ -1378,6 +1412,7 @@ struct KeysSettingsView: View {
             }
         })
     }
+
 }
 
 import LowtechIndie
@@ -1526,10 +1561,11 @@ struct DropZoneSettingsView: View {
                     SectionHeader(title: "Automation", subtitle: "Run actions on files dropped here: convert, crop, copy, rename and more")
                     SourceAutomationsSection(source: .dropZone)
                         .disabled(!enableDragAndDrop)
-                        .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                 }
-                .hfill()
+                .padding(.horizontal, 16)
+                .frame(maxWidth: 780)
+                .frame(maxWidth: .infinity)
             }
             .padding(.top)
         }
@@ -1541,154 +1577,79 @@ struct PresetZonesSettingsView: View {
     @Default(.enableDragAndDrop) var enableDragAndDrop
     @Default(.onlyShowPresetZonesOnControlTapped) var onlyShowPresetZonesOnControlTapped
     @Default(.presetZones) var presetZones
-    @Default(.floatingResultsCorner) var floatingResultsCorner
 
-    @State var editingZone: PresetZone? = nil
-    @ObservedObject var shortcutsManager = SHM
+    @ObservedObject var svm = settingsViewManager
 
-    var zones: some View {
-        Section(header: SectionHeader(title: "Preset zones", subtitle: "Drag files to these zones to run actions like crop, convert, copy and more")) {
-            Toggle(isOn: $onlyShowPresetZonesOnControlTapped) {
-                Text("Tap ^ Control to show preset zones").regular(13)
-                    + Text("\nToggle preset zones by tapping ^ Control instead of by holding it").round(11, weight: .regular).foregroundColor(.secondary)
+    var previews: some View {
+        Grid(horizontalSpacing: 16, verticalSpacing: 14) {
+            GridRow {
+                zonePreview(.image)
+                zonePreview(.video)
             }
-
-            VStack(spacing: 6) {
-                let types: [ClopFileType?] = [.image, .video, .audio, .pdf, nil]
-                ForEach(types.indices, id: \.self) { i in
-                    let t = types[i]
-                    let matching = presetZones.filter { $0.type == t }
-                    if !matching.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(t.map { $0 == .pdf ? "PDF" : $0.description.capitalized } ?? "Any type")
-                                .semibold(10)
-                                .foregroundColor(t?.color ?? .secondary)
-                                .padding(.top, i > 0 ? 4 : 0)
-                            ForEach(matching) { zone in
-                                if let editingZone, editingZone.id == zone.id {
-                                    PresetZoneEditor(zone: $editingZone)
-                                } else {
-                                    zoneItem(zone: zone)
-                                }
-                            }
-                        }
-                    }
-                }
-                if editingZone == nil {
-                    Divider().padding(.vertical, 8)
-                    Text("Create a new preset for a specific file type")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .hfill(.leading)
-                    PresetZoneEditor(zone: .constant(nil))
-                }
-            }
-        }
-    }
-
-    func zoneItem(zone: PresetZone) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                SwiftUI.Image(systemName: zone.icon)
-                    .font(.regular(13))
-                    .frame(width: 20, alignment: .center)
-                    .foregroundColor(.secondary)
-                Text(zone.name)
-                    .medium(12)
-                SwiftUI.Image(systemName: zone.pipeline.skipOptimisation ? "bolt.slash" : "bolt.fill")
-                    .font(.regular(8))
-                    .foregroundColor(zone.pipeline.skipOptimisation ? .secondary.opacity(0.3) : .orange.opacity(0.5))
-
-                Spacer()
-
-                Button(action: { editingZone = zone }) {
-                    SwiftUI.Image(systemName: "pencil")
-                        .font(.regular(10))
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                Button(role: .destructive, action: {
-                    presetZones = presetZones.filter { $0.id != zone.id }
-                }) {
-                    SwiftUI.Image(systemName: "trash")
-                        .foregroundColor(Color.systemRed.opacity(0.6))
-                        .font(.regular(10))
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-            }
-
-            let resolved = zone.resolvedPipeline
-            Text(resolved.displayText.isEmpty ? "no steps configured" : resolved.displayText)
-                .mono(10.5)
-                .foregroundColor(.secondary.opacity(0.7))
-                .lineLimit(2)
-                .truncationMode(.tail)
-                .padding(.leading, 26)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.025))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
-        )
-    }
-    var settings: some View {
-        Form {
-            zones
-        }
-    }
-
-    func dropZoneSection(_ title: String) -> some View {
-        HStack {
-            Text(title).semibold(11)
-                .frame(width: DROPZONE_SIZE.width + DROPZONE_PADDING.width * 2, alignment: floatingResultsCorner.isTrailing ? .bottomLeading : .bottomTrailing)
-                .padding(1)
-        }
-        .frame(width: THUMB_SIZE.width - 20, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
-        .offset(x: floatingResultsCorner.isTrailing ? -HAT_ICON_SIZE : HAT_ICON_SIZE, y: 5)
-    }
-
-    var body: some View {
-        HStack(alignment: .top) {
-            ScrollView(.vertical, showsIndicators: false) {
-                settings
-            }
-
-            VStack(spacing: 4) {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        dropZoneSection("PDF preset zones")
-                        DropZoneView(presetFileType: .pdf)
-                        dropZoneSection("Video preset zones")
-                        DropZoneView(presetFileType: .video)
-                        dropZoneSection("Image preset zones")
-                        DropZoneView(presetFileType: .image)
-                        dropZoneSection("Audio preset zones")
-                        DropZoneView(presetFileType: .audio)
-                    }
-                    .frame(width: THUMB_SIZE.width - 50, alignment: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading)
-                    .padding(.vertical, 8)
-                }
-                .frame(width: THUMB_SIZE.width - 50, height: WINDOW_MIN_SIZE.height - 100)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
-                .disabled(!enableDragAndDrop)
-                .saturation(enableDragAndDrop ? 1 : 0.5)
-                .preview(true)
-
-                Text("Hold **`^ Control`** while dragging\nto show preset zones")
-                    .font(.system(size: 12))
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
+            GridRow {
+                zonePreview(.audio)
+                zonePreview(.pdf)
             }
         }
         .hfill()
-        .padding(.top)
+        .padding(.vertical, 4)
     }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            Form {
+                Section(header: SectionHeader(title: "Showing preset zones", subtitle: "How the preset zones reveal themselves over the drop zone")) {
+                    Picker("Show preset zones by holding or tapping the **⌃ Control** key", selection: $onlyShowPresetZonesOnControlTapped) {
+                        Text("Hold").tag(false)
+                        Text("Tap").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Section(header: SectionHeader(title: "Preset zones", subtitle: "Click a zone to assign or create a pipeline. Drag files onto a zone to run its actions.")) {
+                    previews
+
+                    if let id = svm.editingPresetZoneID, let zone = presetZones.first(where: { $0.id == id }) {
+                        PresetZoneRow(zone: zone) { svm.editingPresetZoneID = nil }
+                            .id("editor-\(id)")
+                            .padding(.top, 6)
+                    }
+                }
+            }
+            .padding(4)
+            .disabled(!enableDragAndDrop)
+            .saturation(enableDragAndDrop ? 1 : 0.5)
+            .onChange(of: svm.editingPresetZoneID) { id in
+                guard let id else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation { proxy.scrollTo("editor-\(id)", anchor: .center) }
+                }
+            }
+        }
+        .hfill()
+    }
+
+    func zonePreview(_ type: ClopFileType) -> some View {
+        VStack(spacing: 6) {
+            DropZoneView(presetFileType: type)
+                .preview(true)
+            HStack(spacing: 4) {
+                SwiftUI.Image(systemName: type.symbolName)
+                Text(typeName(type))
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(type.color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(type.color.opacity(0.15)))
+            .padding(.top, 1)
+        }
+    }
+
+    func typeName(_ t: ClopFileType) -> String {
+        t == .pdf ? "PDF" : t.description.capitalized
+    }
+
 }
 
 struct FloatingSettingsView: View {
@@ -1700,6 +1661,7 @@ struct FloatingSettingsView: View {
     @Default(.autoClearAllCompactResultsAfter) var autoClearAllCompactResultsAfter
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.alwaysShowCompactResults) var alwaysShowCompactResults
+    @Default(.hideFloatingResultTooltips) var hideFloatingResultTooltips
     @Default(.floatingResultActions) var floatingResultActions
     @Default(.compactResultActions) var compactResultActions
     @Default(.showCopyClearButtons) var showCopyClearButtons
@@ -1725,6 +1687,12 @@ struct FloatingSettingsView: View {
                     Text("Bottom left").tag(ScreenCorner.bottomLeft)
                     Text("Top right").tag(ScreenCorner.topRight)
                     Text("Top left").tag(ScreenCorner.topLeft)
+                }
+                Toggle(isOn: $hideFloatingResultTooltips) {
+                    Text("Hide button tooltips").regular(13)
+                        + Text("\n\nDon't show the action name labels that pop up while hovering result buttons")
+                        .round(10, weight: .regular)
+                        .foregroundColor(.secondary)
                 }
                 Toggle(isOn: $alwaysShowCompactResults) {
                     Text("Always use compact layout").regular(13)
@@ -1799,7 +1767,7 @@ struct FloatingSettingsView: View {
             VStack {
                 if compact {
                     CompactPreview()
-                        .frame(width: THUMB_SIZE.width + 60, height: 450, alignment: .center)
+                        .frame(width: THUMB_SIZE.width + 60, height: 550, alignment: .center)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
                         .disabled(!enableFloatingResults)
                         .saturation(enableFloatingResults ? 1 : 0.5)
@@ -1813,7 +1781,7 @@ struct FloatingSettingsView: View {
                                 Color.clear.frame(height: 1).id("previewBottom")
                             }
                         }
-                        .frame(width: THUMB_SIZE.width + 60, height: 450)
+                        .frame(width: THUMB_SIZE.width + 60, height: 550)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
                         .disabled(!enableFloatingResults)
                         .saturation(enableFloatingResults ? 1 : 0.5)
@@ -2248,6 +2216,9 @@ class SettingsViewManager: ObservableObject {
     @Published var windowOpen = false
     @Published var scrollToFileType: ClopFileType?
     @Published var highlightFolder: HighlightedFolderRequest?
+    /// Set by a preset-zone menu in the inline preview to open (and scroll to) that zone's editor row in
+    /// the same Preset Zones tab. Cleared once the row has reacted.
+    @Published var editingPresetZoneID: String?
 }
 
 let settingsViewManager = SettingsViewManager()
@@ -2284,7 +2255,9 @@ struct SettingsView: View {
     enum Tabs: Int, Hashable, CaseIterable, Identifiable {
         case general, clipboard, video, audio, images, pdf, dropzone, presetZones, floating, keys, pipelines, automation, licenseUpdates, about
 
-        var id: Int { rawValue }
+        var id: Int {
+            rawValue
+        }
 
         var next: Tabs {
             Tabs(rawValue: rawValue + 1) ?? .general
@@ -2583,11 +2556,9 @@ struct SingleKnobSlider: View {
 /// File size skip range. min is stored in KB, max in MB; 0 disables that bound. Log-scaled.
 struct FileSizeRangeRow: View {
     var label = "File size"
+
     @Binding var minKB: Int
     @Binding var maxMB: Int
-
-    private let lo = 1000.0 // 1 KB
-    private let hi = 10_000_000_000.0 // 10 GB
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -2605,6 +2576,9 @@ struct FileSizeRangeRow: View {
         }
     }
 
+    private let lo = 1000.0 // 1 KB
+    private let hi = 10_000_000_000.0 // 10 GB
+
     private var caption: String {
         let minS = formatSkipFileSize(Double(minKB) * 1000)
         let maxS = formatSkipFileSize(Double(maxMB) * 1_000_000)
@@ -2621,19 +2595,23 @@ struct FileSizeRangeRow: View {
         return (log2(b) - log2(lo)) / (log2(hi) - log2(lo))
     }
 
-    private func bytes(_ f: Double) -> Double { lo * pow(hi / lo, f) }
-    private func setLow(_ f: Double) { minKB = f <= 0 ? 0 : Int((bytes(f) / 1000).rounded()) }
-    private func setHigh(_ f: Double) { maxMB = f >= 1 ? 0 : Swift.max(1, Int((bytes(f) / 1_000_000).rounded())) }
+    private func bytes(_ f: Double) -> Double {
+        lo * pow(hi / lo, f)
+    }
+    private func setLow(_ f: Double) {
+        minKB = f <= 0 ? 0 : Int((bytes(f) / 1000).rounded())
+    }
+    private func setHigh(_ f: Double) {
+        maxMB = f >= 1 ? 0 : Swift.max(1, Int((bytes(f) / 1_000_000).rounded()))
+    }
 }
 
 /// Resolution skip range (px on either side). 0 disables that bound. Linear scale to 8000px.
 struct ResolutionRangeRow: View {
     var label = "Resolution"
+
     @Binding var minRes: Int
     @Binding var maxRes: Int
-
-    private let lo = 16.0
-    private let hi = 30000.0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -2651,6 +2629,9 @@ struct ResolutionRangeRow: View {
         }
     }
 
+    private let lo = 16.0
+    private let hi = 30000.0
+
     private var caption: String {
         switch (minRes > 0, maxRes > 0) {
         case (true, true): "Only optimises files with width and height between \(minRes) and \(maxRes)px"
@@ -2665,22 +2646,29 @@ struct ResolutionRangeRow: View {
         return (log2(p) - log2(lo)) / (log2(hi) - log2(lo))
     }
 
-    private func pixels(_ f: Double) -> Double { lo * pow(hi / lo, f) }
-    // Round to nicer steps: 10px under 1000, 50px above, where the slider gets coarse.
+    private func pixels(_ f: Double) -> Double {
+        lo * pow(hi / lo, f)
+    }
+    /// Round to nicer steps: 10px under 1000, 50px above, where the slider gets coarse.
     private func snap(_ f: Double) -> Int {
         let px = pixels(f)
         let step = px < 1000 ? 10.0 : 50.0
         return Int((px / step).rounded()) * Int(step)
     }
 
-    private func setLow(_ f: Double) { minRes = f <= 0 ? 0 : snap(f) }
-    private func setHigh(_ f: Double) { maxRes = f >= 1 ? 0 : Swift.max(10, snap(f)) }
+    private func setLow(_ f: Double) {
+        minRes = f <= 0 ? 0 : snap(f)
+    }
+    private func setHigh(_ f: Double) {
+        maxRes = f >= 1 ? 0 : Swift.max(10, snap(f))
+    }
 }
 
 /// One-knob stepped slider for integer counts.
 struct CountSliderRow: View {
     var label = "File count"
     @Binding var count: Int
+
     var range: ClosedRange<Int> = 1 ... 100
     var caption: (Int) -> String = { _ in "" }
 

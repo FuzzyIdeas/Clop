@@ -1,7 +1,7 @@
 import Foundation
 import PDFKit
 
-enum PageLayout: String, Codable, CaseIterable, Sendable {
+enum PageLayout: String, Codable, CaseIterable {
     case portrait
     case landscape
     case auto
@@ -313,7 +313,7 @@ func findPaperSize(named name: String) -> NSSize? {
     return paperSizeGroup(named: name)?.size
 }
 
-enum PaperSize: String, Codable, Sendable, CaseIterable {
+enum PaperSize: String, Codable, CaseIterable {
     case a0 = "A0"
     case a1 = "A1"
     case a2 = "A2"

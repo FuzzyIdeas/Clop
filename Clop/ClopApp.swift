@@ -5,8 +5,6 @@
 //  Created by Alin Panaitiu on 16.07.2022.
 //
 
-import SwiftUI
-
 import Atomics
 import Cocoa
 import Combine
@@ -22,6 +20,7 @@ import QuickLookUI
 import Sentry
 import ServiceManagement
 import Sparkle
+import SwiftUI
 import System
 import UniformTypeIdentifiers
 
@@ -177,20 +176,6 @@ extension String {
 }
 
 class AppDelegate: AppDelegateParent {
-    @MainActor
-    override public func willShowPaddle(_ uiType: PADUIType, product _: PADProduct) -> PADDisplayConfiguration? {
-        // Present the licence / product-access dialogs as a sheet on the Settings window when it is
-        // open: as standalone windows they were sometimes not clickable. Checkout and alerts keep
-        // their own window.
-        if uiType == .product || uiType == .license, let settingsWindow = NSApp.windows.first(where: { $0.isSettingsWindow }) {
-            settingsViewManager.tab = .about
-            focus()
-            settingsWindow.makeKeyAndOrderFront(nil)
-            return PADDisplayConfiguration(.sheet, hideNavigationButtons: false, parentWindow: settingsWindow)
-        }
-        return PADDisplayConfiguration(.window, hideNavigationButtons: false, parentWindow: nil)
-    }
-
     var proDebugCancellables = Set<AnyCancellable>()
 
     var videoWatcher: FileOptimisationWatcher?
@@ -310,6 +295,20 @@ class AppDelegate: AppDelegateParent {
     var sentryCrashExceptionApplicationType: AnyClass?
 
     var fileCleaner: Timer?
+
+    @MainActor
+    override func willShowPaddle(_ uiType: PADUIType, product _: PADProduct) -> PADDisplayConfiguration? {
+        // Present the licence / product-access dialogs as a sheet on the Settings window when it is
+        // open: as standalone windows they were sometimes not clickable. Checkout and alerts keep
+        // their own window.
+        if uiType == .product || uiType == .license, let settingsWindow = NSApp.windows.first(where: { $0.isSettingsWindow }) {
+            settingsViewManager.tab = .about
+            focus()
+            settingsWindow.makeKeyAndOrderFront(nil)
+            return PADDisplayConfiguration(.sheet, hideNavigationButtons: false, parentWindow: settingsWindow)
+        }
+        return PADDisplayConfiguration(.window, hideNavigationButtons: false, parentWindow: nil)
+    }
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
         sentryCrashExceptionApplicationType = SentryCrashExceptionApplication.self
@@ -493,7 +492,7 @@ class AppDelegate: AppDelegateParent {
             .store(in: &observers)
         initMachPortListener()
 
-        let _ = invalidReq(PRODUCTS, nil)
+        _ = invalidReq(PRODUCTS, nil)
         setupServiceProvider()
         startShortcutWatcher()
         DROPSHARE.fetchAppURL()
@@ -542,16 +541,18 @@ class AppDelegate: AppDelegateParent {
         return resp.jsonData
     }
 
-    func allowedChannels(for _: SPUUpdater) -> Set<String> { lowtechAllowedChannels() }
+    func allowedChannels(for _: SPUUpdater) -> Set<String> {
+        lowtechAllowedChannels()
+    }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        Task.init {
+        Task {
             await handleURLs(application, urls)
         }
     }
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
-        Task.init {
+        Task {
             await handleURLs(sender, filenames.compactMap(\.url))
         }
     }
@@ -692,14 +693,14 @@ class AppDelegate: AppDelegateParent {
             } else {
                 guard scalingFactor > 0.1 else { return }
                 scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
-                Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
+                Task { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
             }
         case .x:
             if let opt = OM.current, opt.canChangePlaybackSpeed() {
                 guard opt.changePlaybackSpeedFactor < 10 else { return }
                 opt.changePlaybackSpeed()
             } else {
-                Task.init { try? await optimiseLastClipboardItem(changePlaybackSpeedBy: 1.25) }
+                Task { try? await optimiseLastClipboardItem(changePlaybackSpeedBy: 1.25) }
             }
         case .r:
             if let opt = OM.current, !opt.running {
@@ -722,7 +723,7 @@ class AppDelegate: AppDelegateParent {
             if let opt = OM.current, !opt.inRemoval {
                 opt.quicklook()
             } else {
-                Task.init { try? await quickLookLastClipboardItem() }
+                Task { try? await quickLookLastClipboardItem() }
             }
         case .z:
             if let opt = OM.current, !opt.inRemoval, !opt.isOriginal {
@@ -741,7 +742,7 @@ class AppDelegate: AppDelegateParent {
                 showNotice("Running • **Paused** • Stopped\nNext clipboard event will be ignored")
             }
         case .c:
-            Task.init { try? await optimiseLastClipboardItem() }
+            Task { try? await optimiseLastClipboardItem() }
         case .a:
             if let opt = OM.current, !opt.inRemoval {
                 guard !opt.aggressive else { return }
@@ -751,7 +752,7 @@ class AppDelegate: AppDelegateParent {
                     opt.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
                 }
             } else {
-                Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
+                Task { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
             }
         case SauceKey.NUMBER_KEYS.suffix(from: 1).arr:
             guard let number = key.QWERTYCharacter.d else { break }
@@ -759,7 +760,7 @@ class AppDelegate: AppDelegateParent {
             if let opt = OM.current, !opt.inRemoval {
                 opt.downscale(toFactor: number / 10.0)
             } else {
-                Task.init { try? await optimiseLastClipboardItem(downscaleTo: number / 10.0) }
+                Task { try? await optimiseLastClipboardItem(downscaleTo: number / 10.0) }
             }
         default:
             break
@@ -1034,7 +1035,7 @@ class AppDelegate: AppDelegateParent {
             else {
                 return
             }
-            Task.init {
+            Task {
                 // Skip videos outside the resolution range (metadata is only fetched when a bound is set).
                 let minRes = Defaults[.minVideoResolution]
                 let maxRes = Defaults[.maxVideoResolution]
@@ -1084,7 +1085,7 @@ class AppDelegate: AppDelegateParent {
             else {
                 return
             }
-            Task.init {
+            Task {
                 let matchedDir = Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
@@ -1123,7 +1124,7 @@ class AppDelegate: AppDelegateParent {
             else {
                 return
             }
-            Task.init {
+            Task {
                 let matchedDir = Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
@@ -1161,7 +1162,7 @@ class AppDelegate: AppDelegateParent {
             else {
                 return
             }
-            Task.init {
+            Task {
                 let matchedDir = Defaults[.audioDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
@@ -1191,7 +1192,7 @@ class AppDelegate: AppDelegateParent {
             initClipboardOptimiser()
         }
 
-        let _ = invalidReq(PRODUCTS, nil)
+        _ = invalidReq(PRODUCTS, nil)
     }
 
     @MainActor func initClipboardOptimiser() {
@@ -1240,14 +1241,14 @@ class AppDelegate: AppDelegateParent {
                         let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
                         let pipelines = pipelinesFor(type: type, source: .clipboard)
                         if !pipelines.isEmpty {
-                            Task.init {
+                            Task {
                                 let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
                                 optimiser.url = path.url
                                 await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
                             }
                         }
                     } else {
-                        Task.init {
+                        Task {
                             let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
                             var resultPath = path
                             if let result = try? await runVideoPipeline(Video(path: path), actions: [.optimise], source: .clipboard) {
@@ -1266,14 +1267,14 @@ class AppDelegate: AppDelegateParent {
                         let type: ItemType = .pdf
                         let pipelines = pipelinesFor(type: type, source: .clipboard)
                         if !pipelines.isEmpty {
-                            Task.init {
+                            Task {
                                 let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
                                 optimiser.url = path.url
                                 await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
                             }
                         }
                     } else {
-                        Task.init {
+                        Task {
                             var resultPath = path
                             if let result = try? await runPDFPipeline(PDF(path), actions: [.optimise], source: .clipboard) {
                                 resultPath = result.path
@@ -1298,14 +1299,14 @@ class AppDelegate: AppDelegateParent {
                         let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
                         let pipelines = pipelinesFor(type: type, source: .clipboard)
                         if !pipelines.isEmpty {
-                            Task.init {
+                            Task {
                                 let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
                                 optimiser.url = path.url
                                 await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
                             }
                         }
                     } else {
-                        Task.init {
+                        Task {
                             let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
                             var resultPath = path
                             if let result = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], source: .clipboard) {
@@ -1467,7 +1468,7 @@ func migrateSettings() {
         Defaults[.compressionModelMigratedVersion] = 3
     }
     if Defaults[.compressionModelMigratedVersion] < 4 {
-        // Surface the new draggable compression button by default in place of the aggressive button.
+        /// Surface the new draggable compression button by default in place of the aggressive button.
         func withCompression(_ list: [FloatingAction]) -> [FloatingAction] {
             var l = list
             if let i = l.firstIndex(of: .aggressiveOptimisation) {
@@ -1641,7 +1642,7 @@ class ContextualMenuServiceProvider: NSObject {
             guard item != .unknown else {
                 continue
             }
-            Task.init {
+            Task {
                 try await optimiseItem(
                     item,
                     id: item.id,

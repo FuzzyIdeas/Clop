@@ -274,11 +274,11 @@ enum TempPipelineSegment {
     /// Cached pristine, full-resolution cover art extracted on first use. Every cover downscale
     /// scales from this so resizing is absolute (no compounding) and 100% restores the original.
     /// In-place re-muxing changes the file's `clopBackupPath` hash, so we can't rely on the backup.
-    var coverArtOriginalPath: FilePath? = nil
+    var coverArtOriginalPath: FilePath?
 
     @Published var error: String? = nil
     /// The real command line + stdout/stderr of the failing tool, captured for the batch failures view.
-    var errorLog: String? = nil
+    var errorLog: String?
     @Published var notice: String? = nil
     @Published var info: String? = nil
     @Published var thumbnail: NSImage?
@@ -327,7 +327,7 @@ enum TempPipelineSegment {
     lazy var filename: String =
         id == IDs.clipboardImage ? id : (url?.lastPathComponent ?? FilePath(stringLiteral: id).name.string)
 
-    var lastRemoveAfterMs: Int? = nil
+    var lastRemoveAfterMs: Int?
 
     @Published var inRemoval = false
     /// Set the instant the close button is pressed so the floating result drops its expensive
@@ -504,11 +504,13 @@ enum TempPipelineSegment {
         }
     }
 
-    @Published var operation = "Optimising" { didSet {
-        if !progress.isIndeterminate {
-            progress.localizedDescription = operation
+    @Published var operation = "Optimising" {
+        didSet {
+            if !progress.isIndeterminate {
+                progress.localizedDescription = operation
+            }
         }
-    }}
+    }
 
     /// While a manual scale and/or compression change is applied, describe both dimensions so the
     /// operation text reads e.g. "Scale: 50% | Compression: 80%" instead of hiding the one you
@@ -530,12 +532,16 @@ enum TempPipelineSegment {
         "\(operation) \(id) [\(running ? "RUNNING" : "FINISHED")]"
     }
 
-    var remover: DispatchWorkItem? { didSet {
-        oldValue?.cancel()
-    }}
-    var deleter: DispatchWorkItem? { didSet {
-        oldValue?.cancel()
-    }}
+    var remover: DispatchWorkItem? {
+        didSet {
+            oldValue?.cancel()
+        }
+    }
+    var deleter: DispatchWorkItem? {
+        didSet {
+            oldValue?.cancel()
+        }
+    }
 
     /// The DPI shown as "current" in PDF UI (sliders, indicators) when the user
     /// hasn't dragged a manual override. Resolves the Adaptive sentinel via the
@@ -728,7 +734,7 @@ enum TempPipelineSegment {
             ? originalFilePath.clopBackupPath
             : convertedFromURL?.existingFilePath
         if !originalFilePath.exists, let backupPath {
-            let _ = try? backupPath.copy(to: originalFilePath)
+            _ = try? backupPath.copy(to: originalFilePath)
         }
         if let templatedPath = templatedPathForManualOptimisation(originalFilePath) {
             originalFilePath = templatedPath
@@ -740,7 +746,7 @@ enum TempPipelineSegment {
 
         let segments = segmentTempPipeline()
         let optimiserSource = source ?? .cli
-        let fileType = self.fileType ?? .image
+        let fileType = fileType ?? .image
 
         // Extract video encoder override from the pipeline
         let videoEncoderOverride: VideoEncoder? = tempPipeline.compactMap { step in
@@ -748,7 +754,7 @@ enum TempPipelineSegment {
             return nil
         }.last
 
-        Task.init {
+        Task {
             var currentFile = originalFilePath
 
             for segment in segments {
@@ -944,7 +950,7 @@ enum TempPipelineSegment {
 
         switch self.type {
         case .image:
-            guard let image = self.image else {
+            guard let image else {
                 return
             }
             imageOptimisationQueue.addOperation { [weak self] in
@@ -1251,9 +1257,9 @@ enum TempPipelineSegment {
 
             guard let self else { return }
             try video.removeAudio(optimiser: self)
-            self.isVideoWithAudio = false
-            self.progress.completedUnitCount = self.progress.totalUnitCount
-            finish(oldBytes: oldBytes, newBytes: path.fileSize() ?? self.newBytes)
+            isVideoWithAudio = false
+            progress.completedUnitCount = progress.totalUnitCount
+            finish(oldBytes: oldBytes, newBytes: path.fileSize() ?? newBytes)
         }
     }
 
@@ -1296,7 +1302,7 @@ enum TempPipelineSegment {
             // absolute (1.5x then 2x means 2x of the original, not 3x), matching the menu.
             running = true
             operation = effectiveFactor == 1.0 ? "Restoring speed" : "Changing speed to \(effectiveFactor)x"
-            let oldBytes = self.oldBytes
+            let oldBytes = oldBytes
             let speedSource = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath! : path
             let optimiser = self
             audioOptimisationQueue.addOperation {
@@ -1318,16 +1324,16 @@ enum TempPipelineSegment {
 
         let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath
         if !path.exists, let originalPath {
-            let _ = try? originalPath.copy(to: path)
+            _ = try? originalPath.copy(to: path)
         }
 
-        Task.init {
+        Task {
             let videoPath = self.path ?? path
             guard let video = try await Video.byFetchingMetadata(path: videoPath, fileSize: oldBytes, id: self.id) else {
                 return
             }
 
-            let _ = try? await runVideoPipeline(
+            _ = try? await runVideoPipeline(
                 video,
                 actions: [.changePlaybackSpeed(factor: effectiveFactor)],
                 id: self.id,
@@ -1418,11 +1424,11 @@ enum TempPipelineSegment {
         notice = nil
         info = nil
 
-        guard let path = originalURL?.filePath ?? self.path else { return }
+        guard let path = originalURL?.filePath ?? path else { return }
 
-        Task.init {
+        Task {
             let pdf = PDF(path)
-            let _ = try? await runPDFPipeline(
+            _ = try? await runPDFPipeline(
                 pdf,
                 actions: [.optimise],
                 id: self.id,
@@ -1446,15 +1452,15 @@ enum TempPipelineSegment {
         notice = nil
         info = nil
 
-        guard let path = originalURL?.filePath ?? self.path else { return }
+        guard let path = originalURL?.filePath ?? path else { return }
 
         // Re-encode from the original but keep the converted format (if any) so loudness normalisation
         // doesn't revert a wav→m4a conversion. Only force the format for an actual conversion so a plain
         // normalise still gets the user's file placement.
         let targetFormat = audioConversionFormat(originalExtension: path.extension)
-        Task.init {
+        Task {
             let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hidden)) ?? Audio(path: path, thumb: !hidden)
-            let _ = try? await runAudioPipeline(
+            _ = try? await runAudioPipeline(
                 audio,
                 actions: [.optimise],
                 id: self.id,
@@ -1478,15 +1484,15 @@ enum TempPipelineSegment {
         notice = nil
         info = nil
 
-        guard let path = originalURL?.filePath ?? self.path else { return }
+        guard let path = originalURL?.filePath ?? path else { return }
 
         // Re-encode from the original but keep the converted format (if any) so a bitrate change
         // doesn't revert a wav→m4a conversion back to wav. Only force the format for an actual
         // conversion so a plain bitrate change still gets the user's file placement.
         let targetFormat = audioConversionFormat(originalExtension: path.extension)
-        Task.init {
+        Task {
             let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hidden)) ?? Audio(path: path, thumb: !hidden)
-            let _ = try? await runAudioPipeline(
+            _ = try? await runAudioPipeline(
                 audio,
                 actions: [.optimise],
                 id: self.id,
@@ -1539,10 +1545,10 @@ enum TempPipelineSegment {
 
         let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath
         if !path.exists, let originalPath {
-            let _ = try? originalPath.copy(to: path)
+            _ = try? originalPath.copy(to: path)
         }
 
-        Task.init {
+        Task {
             if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
                 if !hidden, thumbnail == nil {
                     thumbnail = image.image
@@ -1564,7 +1570,7 @@ enum TempPipelineSegment {
                 }
                 guard let video else { return }
 
-                let _ = try? await runVideoPipeline(
+                _ = try? await runVideoPipeline(
                     video,
                     actions: [.downscale(factor: effectiveFactor, cropSize: nil)],
                     id: self.id,
@@ -1695,28 +1701,28 @@ enum TempPipelineSegment {
         } else if aggressive {
             shouldUseAggressiveOptimisation = true
         }
-        if type.isImage, let img = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
-            Task.init { try? await runImagePipeline(img, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+        if type.isImage, let img = Image(path: path, retinaDownscaled: retinaDownscaled) {
+            Task { try? await runImagePipeline(img, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
             return
         }
         if type.isVideo, path.exists {
-            Task.init {
+            Task {
                 let video = if let oldSize {
                     Video(path: path, metadata: VideoMetadata(resolution: oldSize, fps: 0, hasAudio: isVideoWithAudio), fileSize: oldBytes, thumb: false)
                 } else {
                     try? await Video.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)
                 }
                 guard let video else { return }
-                let _ = try? await runVideoPipeline(video, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
+                _ = try? await runVideoPipeline(video, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
             }
         }
         if type.isPDF, path.exists, let pdf {
-            Task.init { try? await runPDFPipeline(pdf, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
+            Task { try? await runPDFPipeline(pdf, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation) }
         }
         if type.isAudio, path.exists {
-            Task.init {
+            Task {
                 let aud = await (try? Audio.byFetchingMetadata(path: path, fileSize: oldBytes, id: id)) ?? Audio(path: path, id: id)
-                let _ = try? await runAudioPipeline(aud, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
+                _ = try? await runAudioPipeline(aud, actions: [.optimise], id: id, allowLarger: allowLarger, hideFloatingResult: hideFloatingResult, aggressiveOptimisation: shouldUseAggressiveOptimisation)
             }
         }
     }
@@ -1768,19 +1774,19 @@ enum TempPipelineSegment {
         } else {
             restore(path)
         }
-        self.oldBytes = path.fileSize() ?? self.oldBytes
-        self.newBytes = -1
-        self.newSize = nil
+        oldBytes = path.fileSize() ?? oldBytes
+        newBytes = -1
+        newSize = nil
         // Clear the optimised-vs-original deltas so audio/PDF results stop showing the stale
         // "183kbps → 160kbps" / DPI comparison after the original is restored.
-        self.newBitrate = nil
-        self.newDPI = nil
+        newBitrate = nil
+        newDPI = nil
         // Re-derive the type from the RESTORED file's own extension rather than preserving the prior
         // category, so a cross-media conversion reverts correctly in both directions: a GIF produced
         // from a video comes back as .video, and a video produced from an animated GIF comes back as
         // .image(.gif).
         if let utType = path.url.utType() {
-            self.type = if path.isVideo {
+            type = if path.isVideo {
                 .video(utType)
             } else if path.isAudio {
                 .audio(utType)
@@ -1789,10 +1795,10 @@ enum TempPipelineSegment {
             } else if path.isImage {
                 .image(utType)
             } else {
-                self.type
+                type
             }
         }
-        if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled), id == IDs.clipboardImage {
+        if type.isImage, let image = Image(path: path, retinaDownscaled: retinaDownscaled), id == IDs.clipboardImage {
             image.copyToClipboard()
         }
         isOriginal = true
@@ -1806,7 +1812,7 @@ enum TempPipelineSegment {
 
     func copyToClipboard(withPath: Bool? = nil) {
         guard let url, let path else { return }
-        if type.isImage, let image = Image(path: path, retinaDownscaled: self.retinaDownscaled) {
+        if type.isImage, let image = Image(path: path, retinaDownscaled: retinaDownscaled) {
             image.copyToClipboard(withPath: withPath)
             return
         }
@@ -1862,18 +1868,18 @@ enum TempPipelineSegment {
         // Batch runs read results straight off the optimiser and own its lifetime; they never touch
         // the floating-result removal machinery (which would reassign OM.optimisers and churn the UI).
         if batchSilent { return }
-        self.removeDebouncer()
+        removeDebouncer()
 
         guard !OM.compactResults else { return }
-        self.remove(after: removeAfterMs)
+        remove(after: removeAfterMs)
     }
 
     func finish(notice: String) {
         self.notice = notice
         self.running = false
-        self.removeDebouncer()
+        removeDebouncer()
 
-        self.remove(after: 2500)
+        remove(after: 2500)
     }
 
     /// Capture the failing process's command line and output, then finish with a generic error.
@@ -1892,11 +1898,11 @@ enum TempPipelineSegment {
             if let newSize { self.newSize = newSize }
             if let oldBitrate { self.oldBitrate = oldBitrate }
             if let newBitrate { self.newBitrate = newBitrate }
-            self.running = false
+            running = false
             return
         }
-        guard !self.inRemoval else { return }
-        self.stopRemover()
+        guard !inRemoval else { return }
+        stopRemover()
         withAnimation(.easeOut(duration: 0.5)) {
             self.oldBytes = oldBytes
             self.newBytes = newBytes
@@ -1906,39 +1912,39 @@ enum TempPipelineSegment {
             if let newBitrate { self.newBitrate = newBitrate }
             self.running = false
         }
-        self.removeDebouncer()
+        removeDebouncer()
 
-        guard !self.hidden else {
-            self.remove(after: removeAfterMs ?? 2500)
+        guard !hidden else {
+            remove(after: removeAfterMs ?? 2500)
             return
         }
 
         guard let removeAfterMs, removeAfterMs > 0, !OM.compactResults else { return }
 
-        self.remove(after: removeAfterMs)
+        remove(after: removeAfterMs)
     }
 
     func stopRemover() {
         guard !hidden else { return }
 
-        self.remover = nil
-        self.inRemoval = false
-        self.lastRemoveAfterMs = nil
+        remover = nil
+        inRemoval = false
+        lastRemoveAfterMs = nil
         OM.remover = nil
         OM.lastRemoveAfterMs = nil
     }
 
     func resetRemover() {
-        guard !self.hidden, !self.inRemoval, self.remover != nil, let lastRemoveAfterMs = self.lastRemoveAfterMs else {
+        guard !hidden, !inRemoval, remover != nil, let lastRemoveAfterMs else {
             return
         }
 
-        self.remove(after: lastRemoveAfterMs)
+        remove(after: lastRemoveAfterMs)
     }
 
     func bringBack() {
-        self.stopRemover()
-        self.dismissing = false
+        stopRemover()
+        dismissing = false
         OM.optimisers = OM.optimisers.with(self)
     }
 
@@ -1958,7 +1964,7 @@ enum TempPipelineSegment {
 
         let clip = ClipboardType.fromURL(url)
 
-        Task.init {
+        Task {
             // re-crops run from the pristine original: make sure it's reachable at the
             // backup path the pipelines resolve, even after in-place changes renamed it
             if size.cropRect != nil, let path = self.url?.filePath, let backup = path.clopBackupPath, !backup.exists,
@@ -2009,8 +2015,8 @@ enum TempPipelineSegment {
     func remove(after ms: Int, withAnimation: Bool = false, force: Bool = false) {
         guard !inRemoval, !SWIFTUI_PREVIEW, !SM.selecting, !SHARING_MANAGER.isShowingPicker, !sharing else { return }
 
-        self.lastRemoveAfterMs = ms
-        self.remover = mainAsyncAfter(ms: ms) { [weak self] in
+        lastRemoveAfterMs = ms
+        remover = mainAsyncAfter(ms: ms) { [weak self] in
             guard let self else { return }
             guard !hidden else {
                 OM.optimisers = OM.optimisers.filter { $0.id != self.id }
@@ -2024,14 +2030,14 @@ enum TempPipelineSegment {
             // button) pass force=true: deferring those would set inRemoval=false and slide the
             // already-dismissed result back into view when another result is hovered.
             guard force || (hoveredOptimiserID == nil && !DM.dragging && !editingFilename && !SM.selecting && !SHARING_MANAGER.isShowingPicker && !sharing) else {
-                if editingFilename, let lastRemoveAfterMs = self.lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
+                if editingFilename, let lastRemoveAfterMs, lastRemoveAfterMs < 1000 * 120 {
                     self.lastRemoveAfterMs = 1000 * 120
                 }
-                self.inRemoval = false
-                self.resetRemover()
+                inRemoval = false
+                resetRemover()
                 return
             }
-            self.editingFilename = false
+            editingFilename = false
             // Suppress the floating cards' hover overlay while the gap closes, so a card sliding under a
             // stationary cursor mid-drop doesn't pop its controls and interfere with the fall.
             OM.markRemovalAnimating()
@@ -2048,7 +2054,7 @@ enum TempPipelineSegment {
             if url != nil {
                 OM.removedOptimisers = OM.removedOptimisers.without(self).with(self).filter { !$0.hidden && !$0.isPreview }
 
-                self.deleter = mainAsyncAfter(ms: 600_000) { [weak self] in
+                deleter = mainAsyncAfter(ms: 600_000) { [weak self] in
                     guard let self else { return }
 
                     if OM.removedOptimisers.contains(self) {
@@ -2059,7 +2065,7 @@ enum TempPipelineSegment {
         }
 
         if withAnimation, force || (hoveredOptimiserID == nil && !DM.dragging) {
-            self.inRemoval = true
+            inRemoval = true
         }
     }
 
@@ -2180,7 +2186,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     /// controls and interfere with the animation. Cleared a beat after the last removal settles.
     @Published var animatingRemoval = false
     var animatingRemovalClearer: DispatchWorkItem?
-    var lastRemoveAfterMs: Int? = nil
+    var lastRemoveAfterMs: Int?
 
     @Published var removedOptimisers: [Optimiser] = [] {
         didSet {
@@ -2223,9 +2229,11 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         }
     }
 
-    var remover: DispatchWorkItem? { didSet {
-        oldValue?.cancel()
-    }}
+    var remover: DispatchWorkItem? {
+        didSet {
+            oldValue?.cancel()
+        }
+    }
     var hovered: Optimiser? {
         guard let hoveredOptimiserID else { return nil }
         return opt(hoveredOptimiserID)
@@ -2259,7 +2267,9 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         SM.selecting ? SM.optimisers.filter { $0.url != nil } : optimisers.filter { $0.url != nil }
     }
 
-    var clipboardImageOptimiser: Optimiser? { optimisers.first(where: { $0.id.hasPrefix(Optimiser.IDs.clipboardImage) }) }
+    var clipboardImageOptimiser: Optimiser? {
+        optimisers.first(where: { $0.id.hasPrefix(Optimiser.IDs.clipboardImage) })
+    }
 
     var clipboardImageOptimisers: [Optimiser] {
         optimisers.filter { $0.id.hasPrefix(Optimiser.IDs.clipboardImage) && $0.url != nil && !$0.running }
@@ -2337,11 +2347,11 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
         lastRemoveAfterMs = ms
         remover = mainAsyncAfter(ms: ms) { [self] in
             guard hoveredOptimiserID == nil, !DM.dragging, !visibleOptimisers.contains(where: { $0.editingFilename || $0.sharing }), !SHARING_MANAGER.isShowingPicker, !SM.selecting else {
-                self.resetRemover()
+                resetRemover()
                 return
             }
 
-            self.clearVisibleOptimisers()
+            clearVisibleOptimisers()
         }
     }
 
@@ -2418,7 +2428,7 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
 }
 
 func tryAsync(_ action: @escaping () async throws -> Void, onError: (() async throws -> Void)? = nil) {
-    Task.init {
+    Task {
         do {
             try await action()
         } catch {
@@ -3129,7 +3139,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 throw ClopError.unknownType
             }
         case let .url(url):
-            let result = try await proGuard(count: &optimisationCount, limit: 5, url: url) {
+            return try await proGuard(count: &optimisationCount, limit: 5, url: url) {
                 try await optimiseURL(
                     url,
                     copyToClipboard: copyToClipboard,
@@ -3144,7 +3154,6 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     removeAudio: removeAudio
                 )
             }
-            return result
         default:
             nope(notice: "Clipboard contents can't be optimised")
             throw ClopError.unknownType

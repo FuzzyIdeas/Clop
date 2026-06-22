@@ -14,7 +14,9 @@ var FFMPEG = BIN_DIR.appendingPathComponent("ffmpeg").filePath!
 var GIFSKI = BIN_DIR.appendingPathComponent("gifski").filePath!
 
 extension Double {
-    var i64: Int64 { Int64(self) }
+    var i64: Int64 {
+        Int64(self)
+    }
 }
 
 class Video: Optimisable {
@@ -29,7 +31,7 @@ class Video: Optimisable {
         if let metadata {
             self.metadata = metadata
         } else {
-            Task.init {
+            Task {
                 self.metadata = try? await getVideoMetadata(path: path)
                 await MainActor.run {
                     if let optimiser, optimiser.oldSize == nil {
@@ -44,18 +46,26 @@ class Video: Optimisable {
         self.init(path: path, thumb: thumb, id: id)
     }
 
-    override class var dir: FilePath { .videos }
+    override class var dir: FilePath {
+        .videos
+    }
 
     var convertedFrom: Video?
     var metadata: VideoMetadata?
 
-    var size: CGSize? { metadata?.resolution }
-    var duration: TimeInterval? { metadata?.duration }
+    var size: CGSize? {
+        metadata?.resolution
+    }
+    var duration: TimeInterval? {
+        metadata?.duration
+    }
     var fps: Float? {
         guard let fps = metadata?.fps, fps > 0 else { return nil }
         return fps
     }
-    var hasAudio: Bool { metadata?.hasAudio ?? false }
+    var hasAudio: Bool {
+        metadata?.hasAudio ?? false
+    }
 
     override func copyWithPath(_ path: FilePath) -> Self {
         Video(path: path, metadata: metadata, fileSize: path.fileSize() ?? fileSize, convertedFrom: convertedFrom, thumb: true, id: id) as! Self

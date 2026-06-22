@@ -195,8 +195,12 @@ extension UTType {
 }
 
 extension NSImage {
-    var type: UTType? { cgImage(forProposedRect: nil, context: nil, hints: nil)?.utType.flatMap { t in UTType(t as String) } }
-    var imgType: NSBitmapImageRep.FileType? { type?.imgType }
+    var type: UTType? {
+        cgImage(forProposedRect: nil, context: nil, hints: nil)?.utType.flatMap { t in UTType(t as String) }
+    }
+    var imgType: NSBitmapImageRep.FileType? {
+        type?.imgType
+    }
 
     var data: Data? {
         guard size != .zero, let imgType,
@@ -255,8 +259,12 @@ extension NSImage {
 }
 
 extension CGImage {
-    var type: UTType? { utType.flatMap { t in UTType(t as String) } }
-    var imgType: NSBitmapImageRep.FileType? { type?.imgType }
+    var type: UTType? {
+        utType.flatMap { t in UTType(t as String) }
+    }
+    var imgType: NSBitmapImageRep.FileType? {
+        type?.imgType
+    }
 }
 
 extension NSPasteboard.PasteboardType {
@@ -399,7 +407,9 @@ class Image: CustomStringConvertible {
     var description: String {
         "<Image: \(path) (\(size.s)) [\(optimised ? "" : "NOT ")OPTIMIZED]>"
     }
-    var size: NSSize { image.realSize }
+    var size: NSSize {
+        image.realSize
+    }
 
     var canBeOptimised: Bool {
         [UTType.png, .jpeg, .gif, .tiff].contains(type)
@@ -1333,7 +1343,7 @@ class Image: CustomStringConvertible {
         }
     }()
 
-    Task.init {
+    Task {
         var optimisedImages: [Image] = []
 
         let images = getPhotos(for: identifiers)
@@ -1375,7 +1385,7 @@ class Image: CustomStringConvertible {
         let type: ItemType = .image(img.type)
         let pipelines = pipelinesFor(type: type, source: .clipboard)
         if !pipelines.isEmpty {
-            Task.init {
+            Task {
                 let optimiser = OM.optimiser(id: img.path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
                 optimiser.url = img.path.url
                 await runPipelinesAfterOptimisation(file: img.path, type: type, source: .clipboard, optimiser: optimiser)
@@ -1420,7 +1430,7 @@ class Image: CustomStringConvertible {
     let copyToClipboard = !appendResults || Defaults[.copyConsecutiveClipboardImages]
     let type: ItemType = .image(img.type)
     let imgPath = img.path
-    Task.init {
+    Task {
         // When every clipboard pipeline skips optimisation (e.g. a `downscale(0.5)`-only
         // pipeline), don't run a separate visible optimise pass: it would show its own
         // floating result alongside the pipeline's final result. Mirror the file-watcher
@@ -1580,7 +1590,6 @@ func calculateShannonEntropy(from cgImage: CGImage) -> Double? {
         histogramRed.withUnsafeMutableBufferPointer { onePtr in
             histogramGreen.withUnsafeMutableBufferPointer { twoPtr in
                 histogramBlue.withUnsafeMutableBufferPointer { threePtr in
-
                     var histogramBins = [
                         zeroPtr.baseAddress,
                         onePtr.baseAddress,

@@ -157,7 +157,9 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?) -> NSAttribu
 
 struct PipelineTextView: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
-        init(_ parent: PipelineTextView) { self.parent = parent }
+        init(_ parent: PipelineTextView) {
+            self.parent = parent
+        }
 
         var parent: PipelineTextView
         weak var textView: NSTextView?
@@ -524,7 +526,6 @@ struct PipelineTextView: NSViewRepresentable {
     }
 
     @Binding var text: String
-    @Environment(\.colorScheme) private var colorScheme
 
     let fileType: ClopFileType?
     let placeholder: String
@@ -532,7 +533,9 @@ struct PipelineTextView: NSViewRepresentable {
     var onPrefixChanged: ((String) -> Void)?
     var coordinatorRef: ((Coordinator) -> Void)?
 
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
@@ -586,6 +589,8 @@ struct PipelineTextView: NSViewRepresentable {
             context.coordinator.applySyntaxHighlighting()
         }
     }
+
+    @Environment(\.colorScheme) private var colorScheme
 
 }
 

@@ -22,7 +22,9 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     static let defaultFloating: [FloatingAction] = [.downscale, .restoreOptimise, .compression, .aggressiveOptimisation, .share, .sendSecurely]
     static let defaultCompact: [FloatingAction] = [.downscale, .compression, .crop, .quickLook, .restoreOptimise, .showInFinder, .saveAs, .copyToClipboard, .share]
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var label: String {
         switch self {
@@ -75,10 +77,12 @@ extension View {
     /// grid buttons, name·format pill). Deliberately NOT Liquid Glass: glass picks up the colours
     /// of whatever thumbnail sits under it, while a tinted material stays consistent. `stroke`
     /// (not `strokeBorder`) because the shape is a generic `some Shape`, not `InsettableShape`.
-    @ViewBuilder func warmControlBackground(in shape: some Shape) -> some View {
+    func warmControlBackground(in shape: some Shape) -> some View {
         background {
             shape.fill(.regularMaterial)
-            shape.fill(Color.bg.warm.opacity(0.4))
+            // Near-opaque warm fill (warmWhite in light, warmBlack in dark) so the controls read as a
+            // clean white/black chip instead of the mushy gray that a thin tint over the material gave.
+            shape.fill(Color.bg.warm.opacity(0.92))
         }
         .overlay { shape.stroke(Color.primary.opacity(0.12), lineWidth: 0.5) }
     }
@@ -97,7 +101,7 @@ struct FloatingCornerButtonStyle: ButtonStyle {
             .contentShape(Circle())
             .brightness(hovering ? 0.08 : 0)
             .scaleEffect(configuration.isPressed ? 0.9 : (hovering ? 1.08 : 1))
-            .onHover { h in withAnimation(.fastTransition) { hovering = h } }
+            .onHover { h in withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) { hovering = h } }
     }
 
     @State private var hovering = false
@@ -116,7 +120,7 @@ struct FloatingGridButtonStyle: ButtonStyle {
             .contentShape(shape)
             .brightness(hovering ? 0.08 : 0)
             .scaleEffect(configuration.isPressed ? 0.92 : (hovering ? 1.06 : 1))
-            .onHover { h in withAnimation(.fastTransition) { hovering = h } }
+            .onHover { h in withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) { hovering = h } }
     }
 
     @State private var hovering = false
@@ -594,7 +598,9 @@ enum CompressionScale {
     /// (`value = 1 - position*0.9`): the named tiers plus round factor milestones, so the knob clicks onto
     /// Adaptive / Lossless / Fast and the common factors while staying free to sit anywhere between them.
     static func magneticValues(for type: ItemType) -> [Double] {
-        func value(_ p: Double) -> Double { 1 - p * 0.9 }
+        func value(_ p: Double) -> Double {
+            1 - p * 0.9
+        }
         // 5 is the minimum factor (right after the named tiers): including it makes the tier ↔ 5% boundary
         // a clean snap, so the knob can't linger in the gap between e.g. Adaptive and 5%.
         let factors = [5, 25, 50, 75, 100]
@@ -668,7 +674,9 @@ func downscaleFactorLabel(_ factor: Double) -> String {
 /// selected quality. Returns nil for non-images (where the compression value never changes the format).
 @MainActor func compressionFormatDisplay(for optimiser: Optimiser, selectedQuality: CompressionQuality?) -> (original: String, result: String)? {
     guard optimiser.type.isImage else { return nil }
-    func fmt(_ ext: String) -> String { ["jpg", "jpeg"].contains(ext.lowercased()) ? "JPEG" : ext.uppercased() }
+    func fmt(_ ext: String) -> String {
+        ["jpg", "jpeg"].contains(ext.lowercased()) ? "JPEG" : ext.uppercased()
+    }
     let originalURL = optimiser.startingURL ?? optimiser.originalURL ?? optimiser.convertedFromURL
     guard let origExt = originalURL?.filePath?.extension ?? optimiser.url?.filePath?.extension else { return nil }
     let original = fmt(origExt)
@@ -937,8 +945,12 @@ struct BitrateSlider: View {
     @Default(.audioBitrate) var defaultBitrate
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
-    var bitrates: [Int] { audioFormat.allowedBitrates }
-    var currentBitrate: Int { dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate }
+    var bitrates: [Int] {
+        audioFormat.allowedBitrates
+    }
+    var currentBitrate: Int {
+        dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -1042,8 +1054,12 @@ struct HorizontalBitrateSlider: View {
     @Default(.audioFormat) var audioFormat
     @Default(.audioBitrate) var defaultBitrate
 
-    var bitrates: [Int] { audioFormat.allowedBitrates }
-    var currentBitrate: Int { dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate }
+    var bitrates: [Int] {
+        audioFormat.allowedBitrates
+    }
+    var currentBitrate: Int {
+        dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -1145,8 +1161,8 @@ struct HorizontalBitrateSlider: View {
 /// shared downscale-style factor (0.1…1.0) which each wrapper maps to its own domain.
 struct CardSlider: View {
     let hint: String
-    var formatChangeOptimiser: Optimiser? = nil
-    var formatChangeQuality: CompressionQuality? = nil
+    var formatChangeOptimiser: Optimiser?
+    var formatChangeQuality: CompressionQuality?
     var snapPoints: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
     let position: Double
     let anchors: [Double]
@@ -1215,7 +1231,9 @@ struct CardSlider: View {
 struct CardDownscaleSlider: View {
     @ObservedObject var optimiser: Optimiser
 
-    var factor: Double { dragFactor ?? optimiser.downscaleFactor }
+    var factor: Double {
+        dragFactor ?? optimiser.downscaleFactor
+    }
     var hint: String {
         let f = downscaleFactorLabel(factor)
         if let res = downscaleResolutionString(for: optimiser, factor: factor) { return "\(f) · \(res)" }
@@ -1249,7 +1267,9 @@ struct CardDownscaleSlider: View {
 struct CardCoverArtSlider: View {
     @ObservedObject var optimiser: Optimiser
 
-    var factor: Double { dragFactor ?? optimiser.coverDownscaleFactor }
+    var factor: Double {
+        dragFactor ?? optimiser.coverDownscaleFactor
+    }
     var hint: String {
         let f = downscaleFactorLabel(factor)
         guard let base = optimiser.coverArtSize, base.width > 0, base.height > 0 else { return "Cover art \(f)" }
@@ -1285,7 +1305,9 @@ struct CardCoverArtSlider: View {
 struct CardCompressionSlider: View {
     @ObservedObject var optimiser: Optimiser
 
-    var pos: Double { dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type) }
+    var pos: Double {
+        dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
+    }
     var displayQuality: CompressionQuality? {
         dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
     }
@@ -1326,8 +1348,12 @@ struct CardBitrateSlider: View {
     @Default(.audioFormat) var audioFormat
     @Default(.audioBitrate) var defaultBitrate
 
-    var bitrates: [Int] { audioFormat.allowedBitrates }
-    var current: Int { dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate }
+    var bitrates: [Int] {
+        audioFormat.allowedBitrates
+    }
+    var current: Int {
+        dragBitrate ?? optimiser.audioBitrateOverride ?? defaultBitrate
+    }
 
     var body: some View {
         CardSlider(
@@ -1365,8 +1391,12 @@ struct CardBitrateSlider: View {
 struct CardPDFDPISlider: View {
     @ObservedObject var optimiser: Optimiser
 
-    var stops: [Int] { PDF_DPI_STOPS }
-    var current: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
+    var stops: [Int] {
+        PDF_DPI_STOPS
+    }
+    var current: Int {
+        dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI
+    }
 
     var body: some View {
         CardSlider(
@@ -1415,8 +1445,12 @@ struct PDFDPISlider: View {
     @Default(.pdfDPI) var defaultDPI
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
-    var stops: [Int] { PDF_DPI_STOPS }
-    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
+    var stops: [Int] {
+        PDF_DPI_STOPS
+    }
+    var currentDPI: Int {
+        dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -1525,8 +1559,12 @@ struct HorizontalPDFDPISlider: View {
 
     @Default(.pdfDPI) var defaultDPI
 
-    var stops: [Int] { PDF_DPI_STOPS }
-    var currentDPI: Int { dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI }
+    var stops: [Int] {
+        PDF_DPI_STOPS
+    }
+    var currentDPI: Int {
+        dragDPI ?? optimiser.pdfDPIOverride ?? optimiser.effectiveBasePDFDPI
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -1631,8 +1669,12 @@ private struct SliderEventOverlay: NSViewRepresentable {
     class SliderEventView: NSView {
         static let snapDistance = 0.04
 
-        override var isFlipped: Bool { true }
-        override var acceptsFirstResponder: Bool { true }
+        override var isFlipped: Bool {
+            true
+        }
+        override var acceptsFirstResponder: Bool {
+            true
+        }
 
         /// Magnetic snap targets in factor/value space. The drag is otherwise continuous; the knob clicks
         /// onto one of these only while within `snapDistance`. Defaults to the downscale factor anchors;
@@ -1649,9 +1691,11 @@ private struct SliderEventOverlay: NSViewRepresentable {
         var didDrag = false
         var dragMonitor: Any?
 
-        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
 
-        // Direct interaction (user clicks on the slider itself)
+        /// Direct interaction (user clicks on the slider itself)
         override func mouseDown(with event: NSEvent) {
             directTracking = true
             didDrag = false
@@ -1682,7 +1726,7 @@ private struct SliderEventOverlay: NSViewRepresentable {
             else { super.keyDown(with: event) }
         }
 
-        // Monitor for drags that started outside (on the button)
+        /// Monitor for drags that started outside (on the button)
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard window != nil, dragMonitor == nil else { return }
@@ -1826,8 +1870,10 @@ private struct RightClickCatcher: NSViewRepresentable {
             super.removeFromSuperview()
         }
 
-        // Transparent to all normal hit testing (left clicks pass through to SwiftUI)
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        /// Transparent to all normal hit testing (left clicks pass through to SwiftUI)
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
     }
 
     var action: () -> Void
@@ -1868,7 +1914,9 @@ private struct MouseDownCatcher: NSViewRepresentable {
             super.removeFromSuperview()
         }
 
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
     }
 
     var action: () -> Void
@@ -2063,14 +2111,15 @@ struct VideoEncoderButton: View {
 
 struct WarpDropActiveButton: View {
     let session: WarpDropSession
+
     @ObservedObject var optimiser: Optimiser
     @ObservedObject var wdm = WDM
     @Environment(\.preview) var preview
 
-    @State private var glowing = false
-
     /// The current session from the manager (the passed-in copy goes stale after rescheduling).
-    var liveSession: WarpDropSession { wdm.sessions.first { $0.id == session.id } ?? session }
+    var liveSession: WarpDropSession {
+        wdm.sessions.first { $0.id == session.id } ?? session
+    }
 
     var body: some View {
         Menu {
@@ -2133,6 +2182,9 @@ struct WarpDropActiveButton: View {
         .onAppear { withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) { glowing = true } }
         .onDisappear { glowing = false }
     }
+
+    @State private var glowing = false
+
 }
 
 /// Binding that maps the optimiser's `sendExpiration` seconds onto the preset index used by the
@@ -2150,8 +2202,8 @@ func sendExpirationIndexBinding(_ optimiser: Optimiser) -> Binding<Double> {
 struct SendSecurelyStartButton: View {
     @ObservedObject var optimiser: Optimiser
     var inFloatingCard = false
+
     @Environment(\.preview) var preview
-    @State private var showPopover = false
 
     var body: some View {
         Button(action: {
@@ -2170,12 +2222,16 @@ struct SendSecurelyStartButton: View {
             SendExpirationPopover(optimiser: optimiser) { showPopover = false }
         }
     }
+
+    @State private var showPopover = false
+
 }
 
 /// Compact-result popover: pick an expiration then create + copy the link.
 struct SendExpirationPopover: View {
     @ObservedObject var optimiser: Optimiser
     var onSend: () -> Void
+
     @Environment(\.preview) var preview
 
     var body: some View {
@@ -2249,6 +2305,7 @@ struct ActionButton: View {
     /// In the floating card the send button opens the in-card expiration overlay; elsewhere (compact)
     /// it opens a popover instead.
     var inFloatingCard = false
+
     @Environment(\.preview) var preview
 
     var body: some View {
@@ -2328,11 +2385,12 @@ struct ActionButton: View {
 struct SideButtons: View {
     @ObservedObject var optimiser: Optimiser
     var size: CGFloat
-    var actions: [FloatingAction]? = nil
+    var actions: [FloatingAction]?
 
     @Environment(\.preview) var preview
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.floatingResultActions) var floatingResultActions
+    @Default(.hideFloatingResultTooltips) var hideFloatingResultTooltips
 
     @State var hoveringAction: FloatingAction?
 
@@ -2349,7 +2407,7 @@ struct SideButtons: View {
                     btn
                         .onHover { h in hoveringAction = h ? action : nil }
                         .helpTag(
-                            isPresented: .init(get: { hoveringAction == action && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
+                            isPresented: .init(get: { hoveringAction == action && !hideFloatingResultTooltips && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
                             alignment: isTrailing ? .trailing : .leading,
                             offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
                             action.label(for: optimiser.type)
@@ -2390,9 +2448,10 @@ struct SideButtons: View {
 struct FloatingGridActionButton: View {
     let action: FloatingAction
     @ObservedObject var optimiser: Optimiser
+
     let onRemove: () -> Void
 
-    @State private var hovering = false
+    @Default(.hideFloatingResultTooltips) var hideFloatingResultTooltips
 
     var body: some View {
         let button = ActionButton(action: action, optimiser: optimiser, inFloatingCard: true)
@@ -2401,11 +2460,16 @@ struct FloatingGridActionButton: View {
             .disabled(!button.isAvailable())
             .opacity(button.isAvailable() ? 1 : 0.4)
             .onHover { hovering = $0 }
-            .topHelpTag(isPresented: $hovering, action.label)
+            .topHelpTag(isPresented: .init(get: { hovering && !hideFloatingResultTooltips }, set: { hovering = $0 }), action.label)
             .contextMenu {
                 Button("Remove from buttons", action: onRemove)
+                Divider()
+                Toggle("Hide tooltip", isOn: $hideFloatingResultTooltips)
             }
     }
+
+    @State private var hovering = false
+
 }
 
 struct ActionPickerButton: View {
@@ -2464,10 +2528,12 @@ struct FloatingActionGridPicker: View {
         }
     }
 
-    // Same metrics as the overlay grid (FloatingGridButtonStyle: 34pt cells, 8pt gaps).
+    /// Same metrics as the overlay grid (FloatingGridButtonStyle: 34pt cells, 8pt gaps).
     private let side: CGFloat = 34
 
-    private var configured: [FloatingAction] { actions.filter { $0 != .crop } }
+    private var configured: [FloatingAction] {
+        actions.filter { $0 != .crop }
+    }
     private var slots: [FloatingAction?] {
         var s: [FloatingAction?] = Array(configured.prefix(6)).map { Optional($0) }
         while s.count < 6 {
@@ -2541,13 +2607,16 @@ private struct GridPickerButton: View {
 struct ActionListPicker: View {
     let label: String
     let vertical: Bool
+
     @Binding var actions: [FloatingAction]
 
     var available: [FloatingAction] {
         FloatingAction.allCases.filter { !actions.contains($0) }
     }
 
-    var buttonSize: CGFloat { vertical ? 22 : 18 }
+    var buttonSize: CGFloat {
+        vertical ? 22 : 18
+    }
 
     var addMenu: some View {
         Menu {
@@ -2604,6 +2673,7 @@ struct ActionButtons: View {
 
     @Environment(\.preview) var preview
     @Default(.compactResultActions) var compactResultActions
+    @Default(.hideFloatingResultTooltips) var hideFloatingResultTooltips
 
     @State var hoveringAction: FloatingAction?
 
@@ -2616,7 +2686,7 @@ struct ActionButtons: View {
                         .hfill()
                         .onHover { h in hoveringAction = h ? action : nil }
                         .topHelpTag(
-                            isPresented: .init(get: { hoveringAction == action && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
+                            isPresented: .init(get: { hoveringAction == action && !hideFloatingResultTooltips && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
                             action.label(for: optimiser.type)
                         )
                 }

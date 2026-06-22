@@ -36,7 +36,7 @@ struct MenuView: View {
 
     @State var cliInstallResult: String?
 
-    @ViewBuilder var proErrors: some View {
+    var proErrors: some View {
         Section("Skipped items because of free version limits") {
             ForEach(om.skippedBecauseNotPro, id: \.self) { url in
                 let str = url.isFileURL ? url.filePath!.shellString : url.absoluteString
@@ -64,7 +64,7 @@ struct MenuView: View {
 
         Section("Clipboard actions") {
             Button("Optimise") {
-                Task.init { try? await optimiseLastClipboardItem() }
+                Task { try? await optimiseLastClipboardItem() }
             }.hotkeyHint(.c, "c", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
 
             if !useAggressiveOptimisationGIF ||
@@ -73,16 +73,16 @@ struct MenuView: View {
                 videoEncoder != .slowHighQuality
             {
                 Button("Optimise (aggressive)") {
-                    Task.init { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
+                    Task { try? await optimiseLastClipboardItem(aggressiveOptimisation: true) }
                 }.hotkeyHint(.a, "a", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
             }
 
             Button("Downscale") {
                 scalingFactor = max(scalingFactor > 0.5 ? scalingFactor - 0.25 : scalingFactor - 0.1, 0.1)
-                Task.init { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
+                Task { try? await optimiseLastClipboardItem(downscaleTo: scalingFactor) }
             }.hotkeyHint(.minus, "-", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
             Button("Quicklook") {
-                Task.init { try? await quickLookLastClipboardItem() }
+                Task { try? await quickLookLastClipboardItem() }
             }.hotkeyHint(.space, " ", enabled: enabledKeys, modifiers: keyComboModifiers.eventModifiers)
 
             if let bundleID = lastApp.bundleId {

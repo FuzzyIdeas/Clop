@@ -243,7 +243,7 @@ class FileOptimisationWatcher {
                 cancelledFiles.remove(path)
                 DebugDump.record("[fsevent] >>> picked up by Clop \(typeName) watcher: \(path.string)")
 
-                Task.init { [weak self] in await self?.checkEventAndProcess(event) }
+                Task { [weak self] in await self?.checkEventAndProcess(event) }
             }
             watching = true
         } catch {
@@ -351,7 +351,7 @@ class FileOptimisationWatcher {
                 guard let path = ev.path.existingFilePath else { return false }
                 return !self.cancelledFiles.contains(path)
             }) {
-                Task.init { [weak self] in try await self?.process(event: event) }
+                Task { [weak self] in try await self?.process(event: event) }
             }
             justAddedFiles.removeAll()
             delayOptimiser?.remove(after: 0)

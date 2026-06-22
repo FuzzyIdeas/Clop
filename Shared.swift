@@ -43,7 +43,9 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case couldNotCreateOutputDirectory(String)
     case unknownType
 
-    var localizedDescription: String { description }
+    var localizedDescription: String {
+        description
+    }
     var description: String {
         switch self {
         case let .fileNotFound(p):
@@ -160,7 +162,9 @@ enum ClopError: Error, CustomStringConvertible, Codable {
 }
 
 extension UTType: @retroactive Identifiable {
-    public var id: String { identifier }
+    public var id: String {
+        identifier
+    }
 }
 
 extension UTType {
@@ -195,7 +199,7 @@ func printerr(_ msg: String, terminator: String = "\n") {
 
 func awaitSync(_ action: @escaping () async -> Void) {
     let sem = DispatchSemaphore(value: 0)
-    Task.init {
+    Task {
         await action()
         sem.signal()
     }
@@ -208,7 +212,7 @@ let OPTIMISATION_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceRes
 let OPTIMISATION_CLI_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponseCLI"
 
 func mainActor(_ action: @escaping @MainActor () -> Void) {
-    Task.init { await MainActor.run { action() }}
+    Task { await MainActor.run { action() }}
 }
 
 extension Encodable {
@@ -236,14 +240,16 @@ struct ProgressPayload: Codable {
 let PDF_DPI_NO_DOWNSAMPLE = 300
 let PDF_DPI_MIN = 48
 let PDF_DPI_MAX = 300
-// Sentinel value indicating the aggressive DPI should be picked adaptively per PDF.
+/// Sentinel value indicating the aggressive DPI should be picked adaptively per PDF.
 let PDF_DPI_ADAPTIVE = 0
-// Snap points used by the DPI slider, ordered high to low.
+/// Snap points used by the DPI slider, ordered high to low.
 let PDF_DPI_STOPS: [Int] = [300, 250, 200, 150, 100, 72, 48]
 
 // MARK: - Unified compression model
 
-private func cqClamp(_ v: Int, _ lo: Int, _ hi: Int) -> Int { Swift.max(lo, Swift.min(hi, v)) }
+private func cqClamp(_ v: Int, _ lo: Int, _ hi: Int) -> Int {
+    Swift.max(lo, Swift.min(hi, v))
+}
 
 /// Named per-format compression anchor. Not every case is valid for every format; the
 /// format-specific helpers only ever produce/consume the cases relevant to that format.
@@ -264,7 +270,7 @@ struct CompressionQuality: Codable, Hashable {
         self.factor = cqClamp(factor, 0, 100)
     }
 
-    // Tolerant decode so old/partial blobs round-trip through Defaults/iCloud without dropping.
+    /// Tolerant decode so old/partial blobs round-trip through Defaults/iCloud without dropping.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let t = (try? c.decode(CompressionTier.self, forKey: .tier)) ?? .custom
@@ -284,20 +290,28 @@ let COMPRESSION_FACTOR_AGGRESSIVE = 64
 
 // MARK: Image translation (factor 5..100, higher = more compression)
 
-// jpegoptim --max / pngquant --quality ceiling / cwebp,heif,jxl -q are QUALITY scales (inverted);
-// gifsicle -O/--lossy is a compression scale (direct).
+/// jpegoptim --max / pngquant --quality ceiling / cwebp,heif,jxl -q are QUALITY scales (inverted);
+/// gifsicle -O/--lossy is a compression scale (direct).
 extension CompressionQuality {
     /// Whether this resolves to the legacy "aggressive" preset (drives UI labels + adaptive thresholds).
-    var imageIsAggressive: Bool { tier != .adaptive && factor >= 50 }
+    var imageIsAggressive: Bool {
+        tier != .adaptive && factor >= 50
+    }
 
     /// jpegoptim --max quality ceiling. factor 30 -> 85 (legacy normal), ramping to 30 at max compression.
-    var jpegMaxQuality: Int { cqClamp(Int((85.0 - Double(factor - 30) * (55.0 / 70.0)).rounded()), 25, 95) }
+    var jpegMaxQuality: Int {
+        cqClamp(Int((85.0 - Double(factor - 30) * (55.0 / 70.0)).rounded()), 25, 95)
+    }
 
     /// jpegoptim --max for the old-binary fallback and the adaptive cross-test. factor 30 -> 90, 100 -> 30.
-    var jpegSecondaryMaxQuality: Int { cqClamp(Int((90.0 - Double(factor - 30) * (60.0 / 70.0)).rounded()), 25, 97) }
+    var jpegSecondaryMaxQuality: Int {
+        cqClamp(Int((90.0 - Double(factor - 30) * (60.0 / 70.0)).rounded()), 25, 97)
+    }
 
     /// pngquant --quality string "0-MAX". factor 30 -> "0-100" (legacy normal), ramping to "0-25" at 100.
-    var pngQuantQuality: String { "0-\(cqClamp(Int((100.0 - Double(factor - 30) * (75.0 / 70.0)).rounded()), 25, 100))" }
+    var pngQuantQuality: String {
+        "0-\(cqClamp(Int((100.0 - Double(factor - 30) * (75.0 / 70.0)).rounded()), 25, 100))"
+    }
 
     /// pngquant --speed (1 = slowest/best quality+compression, 11 = fastest). Spend more effort the
     /// harder we compress: the default 4 at low factors, ramping down to 1 at maximum compression.
@@ -323,23 +337,33 @@ extension CompressionQuality {
     }
 
     /// cwebp / heif-enc -q quality (0-100). factor 30 -> 60 (legacy hardcoded default).
-    var conversionQuality: Int { cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 90) }
+    var conversionQuality: Int {
+        cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 90)
+    }
     /// JXLCoder quality (0-100). factor 30 -> 60 (legacy).
-    var jxlQuality: Int { cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 95) }
+    var jxlQuality: Int {
+        cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 95)
+    }
     /// JXLCoder effort (1-9). factor <50 -> 7 (legacy), ramps to 9 at high compression.
-    var jxlEffort: Int { factor >= 70 ? 9 : (factor >= 50 ? 8 : 7) }
+    var jxlEffort: Int {
+        factor >= 70 ? 9 : (factor >= 50 ? 8 : 7)
+    }
 }
 
 // MARK: Video translation (default H.264 optimise path; factor 5..100, higher = more compression)
 
-// Only H.264 uses the compression factor; explicit codec conversions (hevc/x265/av1/vp9) keep
-// their own fixed args. The named tiers map to the legacy VideoEncoder presets.
+/// Only H.264 uses the compression factor; explicit codec conversions (hevc/x265/av1/vp9) keep
+/// their own fixed args. The named tiers map to the legacy VideoEncoder presets.
 extension CompressionQuality {
     /// libx264 CRF for the software path. factor 5 -> 18 (best), 100 -> 30 (smallest); 50 ≈ 24 (≈ legacy default 23).
-    var videoH264CRF: Int { cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 12.0).rounded()), 17, 32) }
+    var videoH264CRF: Int {
+        cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 12.0).rounded()), 17, 32)
+    }
 
     /// Whether the software encoder lets ffmpeg pick the CRF (the "Auto" toggle, factor 0).
-    var videoUsesAutoCRF: Bool { factor <= 0 }
+    var videoUsesAutoCRF: Bool {
+        factor <= 0
+    }
 
     /// libx264 -preset chosen from the compression percentage: slower presets the higher the factor
     /// (closer to 100), faster presets the lower (closer to 5).
@@ -399,7 +423,9 @@ struct OptimisationResponseError: Codable, Identifiable {
     let error: String
     let forURL: URL
 
-    var id: String { forURL.path }
+    var id: String {
+        forURL.path
+    }
 }
 
 struct OptimisationResponse: Codable, Identifiable {
@@ -419,8 +445,12 @@ struct OptimisationResponse: Codable, Identifiable {
     var oldDPI: Int? = nil
     var newDPI: Int? = nil
 
-    var id: String { path }
-    var percentageSaved: Double { 100 - (Double(newBytes) / Double(oldBytes == 0 ? 1 : oldBytes) * 100) }
+    var id: String {
+        path
+    }
+    var percentageSaved: Double {
+        100 - (Double(newBytes) / Double(oldBytes == 0 ? 1 : oldBytes) * 100)
+    }
 }
 
 struct StopOptimisationRequest: Codable {
@@ -588,8 +618,12 @@ extension NSSize {
         }
     }
 
-    var isLandscape: Bool { width > height }
-    var isPortrait: Bool { width < height }
+    var isLandscape: Bool {
+        width > height
+    }
+    var isPortrait: Bool {
+        width < height
+    }
 
     func cropTo(aspectRatio: Double, alwaysPortrait: Bool = false, alwaysLandscape: Bool = false) -> NSRect {
         if alwaysPortrait {
@@ -787,7 +821,9 @@ func isURLOptimisable(_ url: URL, type: UTType? = nil, types: [UTType]) -> Bool 
 }
 
 extension FilePath {
-    var exists: Bool { FileManager.default.fileExists(atPath: string) }
+    var exists: Bool {
+        FileManager.default.fileExists(atPath: string)
+    }
 
     @discardableResult
     func mkdir(withIntermediateDirectories: Bool, permissions: Int = 0o755) -> Bool {

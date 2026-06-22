@@ -101,7 +101,9 @@ extension String {
     var err: NSError {
         NSError(domain: self, code: 1)
     }
-    var url: URL { URL(fileURLWithPath: self) }
+    var url: URL {
+        URL(fileURLWithPath: self)
+    }
 
     var ns: NSString {
         self as NSString
@@ -118,14 +120,24 @@ extension String {
 }
 
 extension URL {
-    var filePath: FilePath? { FilePath(self) }
-    var existingFilePath: FilePath? { FileManager.default.fileExists(atPath: path) ? FilePath(self) : nil }
+    var filePath: FilePath? {
+        FilePath(self)
+    }
+    var existingFilePath: FilePath? {
+        FileManager.default.fileExists(atPath: path) ? FilePath(self) : nil
+    }
 }
 
 extension FilePath {
-    var name: FilePath.Component { lastComponent! }
-    var dir: FilePath { removingLastComponent() }
-    var url: URL { URL(filePath: self)! }
+    var name: FilePath.Component {
+        lastComponent!
+    }
+    var dir: FilePath {
+        removingLastComponent()
+    }
+    var url: URL {
+        URL(filePath: self)!
+    }
 
     var isDir: Bool {
         var isDirectory = ObjCBool(false)
@@ -139,7 +151,9 @@ let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPON
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
 
 extension NSSize {
-    var s: String { "\(width.i)×\(height.i)" }
+    var s: String {
+        "\(width.i)×\(height.i)"
+    }
 
     var aspectRatio: Double {
         width / height

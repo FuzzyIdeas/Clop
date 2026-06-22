@@ -60,7 +60,9 @@ enum BatchStatus: String {
     case failed
     case skipped
 
-    var isTerminal: Bool { self == .done || self == .failed || self == .skipped }
+    var isTerminal: Bool {
+        self == .done || self == .failed || self == .skipped
+    }
 }
 
 /// Where in an image/video convert step should target. Compatibility conversions (HEIC/WebP→JPEG,
@@ -166,9 +168,11 @@ struct BatchItem: Identifiable {
     var progressFraction: Double = 0
     var params: BatchParams
 
-    var name: String { source.lastComponent?.string ?? id }
+    var name: String {
+        source.lastComponent?.string ?? id
+    }
 
-    // Comparable keys for SwiftUI Table column sorting.
+    /// Comparable keys for SwiftUI Table column sorting.
     /// Active rows first, then done, then failed/skipped (the default order).
     var sortRank: Int {
         switch status {
@@ -180,9 +184,15 @@ struct BatchItem: Identifiable {
         }
     }
 
-    var formatKey: String { oldFormat ?? "" }
-    var sizeKey: Int { oldBytes }
-    var savedKey: Double { savedFraction }
+    var formatKey: String {
+        oldFormat ?? ""
+    }
+    var sizeKey: Int {
+        oldBytes
+    }
+    var savedKey: Double {
+        savedFraction
+    }
     var detailKey: Double {
         switch type {
         case .pdf: Double(newDPI ?? oldDPI ?? 0)
@@ -191,7 +201,9 @@ struct BatchItem: Identifiable {
         }
     }
 
-    var savedBytes: Int { max(0, oldBytes - newBytes) }
+    var savedBytes: Int {
+        max(0, oldBytes - newBytes)
+    }
     var savedFraction: Double {
         guard oldBytes > 0, newBytes > 0 else { return 0 }
         return Double(oldBytes - newBytes) / Double(oldBytes)
@@ -210,9 +222,15 @@ struct BatchAggregate {
     var totalOldBytes = 0
     var totalNewBytes = 0
 
-    var finished: Int { done + failed + skipped }
-    var overallFraction: Double { total > 0 ? Double(finished) / Double(total) : 0 }
-    var savedBytes: Int { max(0, totalOldBytes - totalNewBytes) }
+    var finished: Int {
+        done + failed + skipped
+    }
+    var overallFraction: Double {
+        total > 0 ? Double(finished) / Double(total) : 0
+    }
+    var savedBytes: Int {
+        max(0, totalOldBytes - totalNewBytes)
+    }
     var savedFraction: Double {
         guard totalOldBytes > 0 else { return 0 }
         return Double(totalOldBytes - totalNewBytes) / Double(totalOldBytes)
@@ -267,10 +285,14 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
 
     /// Re-running with new settings needs the pristine originals. Once the backups are deleted in
     /// Clop this is false, so the UI can disable Apply and explain instead of erroring on click.
-    var canReapply: Bool { backup != nil }
+    var canReapply: Bool {
+        backup != nil
+    }
 
     /// Location of this batch's backups, for "Show backups in Finder".
-    var backupDirURL: URL? { backup?.dir.url }
+    var backupDirURL: URL? {
+        backup?.dir.url
+    }
 
     func row(at idx: Int) -> BatchItem? {
         items.indices.contains(idx) ? items[idx] : nil

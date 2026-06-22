@@ -230,7 +230,7 @@ func findDeviceSize(named name: String) -> NSSize? {
     return deviceSizeGroup(named: name)?.size
 }
 
-enum Device: String, Codable, Sendable, CaseIterable {
+enum Device: String, Codable, CaseIterable {
     case iPhone17ProMax = "iPhone 17 Pro Max"
     case iPhone17Pro = "iPhone 17 Pro"
     case iPhone17 = "iPhone 17"

@@ -96,6 +96,7 @@ private struct ZonePreviewHoverModifier: ViewModifier {
     let disabled: Bool
     let index: Int
     let zone: PresetZone?
+
     @Binding var selectedPresetIndex: Int?
     @Binding var selectedPreset: PresetZone?
 
@@ -199,6 +200,7 @@ struct DropZonePresetsView: View {
 
     @Default(.presetZones) var presetZones
     @Default(.enableDragAndDrop) var enableDragAndDrop
+    @Default(.savedPipelines) var savedPipelines
 
     @State var imagePresetZones: [PresetZone] = []
     @State var videoPresetZones: [PresetZone] = []
@@ -208,6 +210,17 @@ struct DropZonePresetsView: View {
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject var dragManager = DM
     @ObservedObject var keysManager = KM
+
+    @State var selectedPresetIndex: Int?
+    @Binding var selectedPreset: PresetZone?
+
+    /// Library pipelines that can be assigned to a zone of this section's file type (type-specific or any).
+    var applicableLibraryPipelines: [Pipeline] {
+        savedPipelines.filter { p in
+            guard let n = p.name, !n.isEmpty else { return false }
+            return p.fileType == nil || p.fileType == type
+        }
+    }
 
     var presetZoneArray: [PresetZone] {
         switch type {
@@ -222,104 +235,9 @@ struct DropZonePresetsView: View {
         }
     }
 
-    @State var showPresetEditor = false
-    @State var editingZone: PresetZone?
-    @State var selectedPresetIndex: Int?
-    @Binding var selectedPreset: PresetZone?
-
-    @ViewBuilder
-    func zoneIcon(systemName: String) -> some View {
-        SwiftUI.Image(systemName: systemName)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 21, height: 21)
-            .padding(6)
-//            .background(
-//                roundRect(5, fill: .bg.warm.opacity(colorScheme == .dark ? 0.6 : 0.4))
-//                    .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 4)
-//            )
+    var cmdPressed: Bool {
+        keysManager.lcmd || keysManager.rcmd
     }
-
-    func zoneAction(zone: PresetZone?) {
-        guard let w = NSApp.keyWindow, w.isSettingsWindow else {
-            settingsViewManager.tab = .presetZones
-            WM.open("settings")
-            focus()
-            return
-        }
-        editingZone = zone
-        showPresetEditor = true
-    }
-
-    @ViewBuilder
-    func zoneLabel(zone: PresetZone?, nextPreset: Bool, hovered: Bool, index: Int) -> some View {
-        let isLeft = index % 2 == 0
-
-        VStack(spacing: 2) {
-            zoneIcon(systemName: zone.map(\.icon) ?? (nextPreset ? "plus.square.dashed" : "square.dashed"))
-                .rotation3DEffect(.degrees(hovered ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.2)
-
-            Text(zone.map(\.name) ?? (nextPreset ? "Add preset" : "No preset"))
-                .round(10)
-                .foregroundColor(nextPreset ? .fg.warm.opacity(0.7) : .secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.5)
-                .frame(width: DROPZONE_SIZE.width / 2, height: 14)
-        }
-        .frame(width: DROPZONE_SIZE.width / 2 - 2, height: DROPZONE_SIZE.height / 2)
-        .padding(.vertical, 4)
-        .padding(isLeft ? .trailing : .leading, 4)
-    }
-
-    @ViewBuilder
-    func zonePresetEditorSheet(zone: PresetZone?) -> some View {
-        Form {
-            PresetZoneEditor(zone: zone != nil ? $editingZone : .constant(nil), type: type) {
-                showPresetEditor = false
-            }
-            .frame(width: 560)
-        }.formStyle(.grouped)
-    }
-
-    @ViewBuilder
-    func zoneView(index: Int) -> some View {
-        let zone = presetZoneArray[safe: index]
-        let nextPreset = presetZoneArray.count == index
-        let disabled = !nextPreset && zone == nil
-        let hovered = selectedPresetIndex == index
-        let top = index < 2
-
-        Button(action: { zoneAction(zone: zone) }) {
-            zoneLabel(zone: zone, nextPreset: nextPreset, hovered: hovered, index: index)
-        }
-        .buttonStyle(.plain)
-        .sheet(isPresented: $showPresetEditor) {
-            zonePresetEditorSheet(zone: zone)
-        }
-        .modifier(ZonePreviewHoverModifier(
-            preview: preview, disabled: disabled, index: index, zone: zone,
-            selectedPresetIndex: $selectedPresetIndex, selectedPreset: $selectedPreset
-        ))
-        .background {
-            (cmdPressed ? Color.red : Color.peach).opacity(hovered ? 0.3 : 0.0)
-                .clipShape(DROPZONE_SHAPE)
-        }
-
-        .if(enableDragAndDrop && !preview) {
-            $0.dropZoneGlassBackground()
-                .onDrop(
-                    of: IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf],
-                    delegate: DropZonePresetsViewDelegate(preset: zone, isNextPreset: nextPreset) { h in
-                        selectedPresetIndex = h && !disabled ? index : nil
-                        selectedPreset = h && !disabled ? zone : nil
-                    }
-                )
-                .background(DragPileView().fill(.center))
-        }
-    }
-
-    var cmdPressed: Bool { keysManager.lcmd || keysManager.rcmd }
 
     var body: some View {
         Grid(horizontalSpacing: 2, verticalSpacing: 2) {
@@ -343,6 +261,156 @@ struct DropZonePresetsView: View {
         .onAppear { cachePresetZones() }
         .onChange(of: presetZones) { _ in cachePresetZones() }
 
+    }
+
+    func zoneIcon(systemName: String) -> some View {
+        SwiftUI.Image(systemName: systemName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 21, height: 21)
+            .padding(6)
+//            .background(
+//                roundRect(5, fill: .bg.warm.opacity(colorScheme == .dark ? 0.6 : 0.4))
+//                    .shadow(color: .black.opacity(0.5), radius: 5, x: 0, y: 4)
+//            )
+    }
+
+    /// Native menu shown when a zone is clicked in the settings preview: assign an existing pipeline, create
+    /// a new one (opens the inline editor row), or edit/remove the current one. Replaces the old sheet.
+    @ViewBuilder
+    func zoneMenuContent(zone: PresetZone?) -> some View {
+        if let zone {
+            Button("Edit pipeline") { settingsViewManager.editingPresetZoneID = zone.id }
+            if !applicableLibraryPipelines.isEmpty {
+                Menu("Replace with") {
+                    ForEach(applicableLibraryPipelines) { lib in
+                        Button { assignPresetZone(library: lib, type: zone.type, replacing: zone) } label: { libMenuLabel(lib) }
+                    }
+                }
+            }
+            Divider()
+            Button("Create new \(typeLabel(type)) pipeline") { settingsViewManager.editingPresetZoneID = appendPresetZone(type: type) }
+            Divider()
+            Button("Remove from zone", role: .destructive) { removePresetZone(zone) }
+        } else {
+            if !applicableLibraryPipelines.isEmpty {
+                Section("Assign existing pipeline") {
+                    ForEach(applicableLibraryPipelines) { lib in
+                        Button { assignPresetZone(library: lib, type: type) } label: { libMenuLabel(lib) }
+                    }
+                }
+                Divider()
+            }
+            Button("Create new \(typeLabel(type)) pipeline") { settingsViewManager.editingPresetZoneID = appendPresetZone(type: type) }
+        }
+    }
+
+    /// Menu row for a library pipeline: icon + name with the optional description as a subtitle. SwiftUI's
+    /// Menu rendering is finicky and the two cases need different tricks:
+    ///   • WITH a subtitle, the title+subtitle path strips a `Label`'s icon slot inside a nested submenu
+    ///     ("Replace with"), but DOES render an SF Symbol interpolated into the title Text.
+    ///   • WITHOUT a subtitle, that inline-image title is itself dropped, while a plain `Label` icon slot
+    ///     renders fine (top-level menus and submenus alike).
+    /// So pick the form per whether the pipeline has details. The subtitle Text must be a SIBLING of the
+    /// title (stacks get flattened/ignored). See [[swiftui-menu-item-subtitle-workaround]].
+    @ViewBuilder
+    func libMenuLabel(_ lib: Pipeline) -> some View {
+        let symbol = lib.icon.flatMap { $0.isEmpty ? nil : $0 } ?? "wand.and.sparkles"
+        if let d = lib.details, !d.isEmpty {
+            Text("\(SwiftUI.Image(systemName: symbol))  \(lib.name ?? lib.id)")
+            Text(d)
+        } else {
+            Label {
+                Text(lib.name ?? lib.id)
+            } icon: {
+                SwiftUI.Image(systemName: symbol)
+            }
+        }
+    }
+
+    @ViewBuilder
+    func zoneLabel(zone: PresetZone?, nextPreset: Bool, hovered: Bool, index: Int) -> some View {
+        let isLeft = index % 2 == 0
+
+        VStack(spacing: 2) {
+            zoneIcon(systemName: zone.map(\.icon) ?? (nextPreset ? "plus.square.dashed" : "square.dashed"))
+                .rotation3DEffect(.degrees(hovered ? 170 : 0), axis: (x: 0, y: 1, z: 0), perspective: 1.2)
+
+            Text(zone.map(\.name) ?? (nextPreset ? "Add preset" : "No preset"))
+                .round(10)
+                .foregroundColor(nextPreset ? .fg.warm.opacity(0.7) : .secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.5)
+                .frame(width: DROPZONE_SIZE.width / 2, height: 14)
+        }
+        .frame(width: DROPZONE_SIZE.width / 2 - 2, height: DROPZONE_SIZE.height / 2)
+        .padding(.vertical, 4)
+        .padding(isLeft ? .trailing : .leading, 4)
+        // Make the whole quadrant the hit target (so the menu opens anywhere on the zone, not just on the
+        // icon/label pixels).
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    func zoneView(index: Int) -> some View {
+        let zone = presetZoneArray[safe: index]
+        let nextPreset = presetZoneArray.count == index
+        let disabled = !nextPreset && zone == nil
+        let hovered = selectedPresetIndex == index
+
+        Group {
+            if preview, !disabled {
+                // In the settings preview the zone itself IS the add/remove/edit surface: a native menu.
+                Menu {
+                    zoneMenuContent(zone: zone)
+                } label: {
+                    zoneLabel(zone: zone, nextPreset: nextPreset, hovered: hovered, index: index)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+            } else {
+                Button(action: { zoneAction(zone: zone) }) {
+                    zoneLabel(zone: zone, nextPreset: nextPreset, hovered: hovered, index: index)
+                }
+                .buttonStyle(.plain)
+                .disabled(disabled)
+            }
+        }
+        .modifier(ZonePreviewHoverModifier(
+            preview: preview, disabled: disabled, index: index, zone: zone,
+            selectedPresetIndex: $selectedPresetIndex, selectedPreset: $selectedPreset
+        ))
+        .background {
+            (cmdPressed ? Color.red : Color.peach).opacity(hovered ? 0.3 : 0.0)
+                .clipShape(DROPZONE_SHAPE)
+        }
+
+        .if(enableDragAndDrop && !preview) {
+            $0.dropZoneGlassBackground()
+                .onDrop(
+                    of: IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf],
+                    delegate: DropZonePresetsViewDelegate(preset: zone, isNextPreset: nextPreset) { h in
+                        selectedPresetIndex = h && !disabled ? index : nil
+                        selectedPreset = h && !disabled ? zone : nil
+                    }
+                )
+                .background(DragPileView().fill(.center))
+        }
+    }
+
+    /// Used by the real floating drop zone (not the settings preview): jump to the Preset Zones tab and,
+    /// if a specific zone was clicked, open its editor row there.
+    func zoneAction(zone: PresetZone?) {
+        settingsViewManager.tab = .presetZones
+        WM.open("settings")
+        focus()
+        if let zone { settingsViewManager.editingPresetZoneID = zone.id }
+    }
+
+    func typeLabel(_ t: ClopFileType?) -> String {
+        t.map { $0 == .pdf ? "PDF" : $0.description } ?? "any-type"
     }
 
     func cachePresetZones() {
@@ -383,15 +451,21 @@ struct DropZoneView: View {
     @State var rotation: Angle = .degrees(0)
     @State var hovering = false
     @State var selectedPreset: PresetZone? = nil
-    var ctrlPressed: Bool { keysManager.lctrl || keysManager.rctrl }
-    var cmdPressed: Bool { keysManager.lcmd || keysManager.rcmd }
+
     var presetFileType: ClopFileType?
+
+    var ctrlPressed: Bool {
+        keysManager.lctrl || keysManager.rctrl
+    }
+    var cmdPressed: Bool {
+        keysManager.lcmd || keysManager.rcmd
+    }
 
     var hoverState: Bool {
         (preview ? hovering : dragManager.dragHovering) || dragManager.showPresetZones || presetFileType != nil
     }
 
-    @ViewBuilder var draggingOutsideView: some View {
+    var draggingOutsideView: some View {
         VStack {
             if dragManager.showPresetZones || presetFileType != nil {
                 DropZonePresetsView(type: presetFileType ?? dragManager.fileType, selectedPreset: $selectedPreset)

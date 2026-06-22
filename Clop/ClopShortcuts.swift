@@ -56,7 +56,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
     static var description = IntentDescription("Optimises a video received as input and changes its playback speed by the specific factor.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
-        When(\.$playbackSpeedFactor, ComparableComparisonOperator.greaterThanOrEqualTo, 1.0, {
+        When(\.$playbackSpeedFactor, ComparableComparisonOperator.greaterThanOrEqualTo, 1.0) {
             Summary("Speed up \(\.$item) by \(\.$playbackSpeedFactor)x and optimise") {
                 \.$output
                 \.$hideFloatingResult
@@ -64,7 +64,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 \.$compressionFactor
                 \.$removeAudio
             }
-        }, otherwise: {
+        } otherwise: {
             Summary("Slow down \(\.$item) by \(\.$playbackSpeedFactor)x and optimise") {
                 \.$output
                 \.$hideFloatingResult
@@ -72,7 +72,7 @@ struct ChangePlaybackSpeedOptimiseFileIntent: AppIntent {
                 \.$compressionFactor
                 \.$removeAudio
             }
-        })
+        }
     }
 
     @Parameter(title: "Video")
@@ -308,7 +308,7 @@ struct CropOptimiseFileIntent: AppIntent {
     )
 
     static var parameterSummary: some ParameterSummary {
-        When(\.$longEdge, .equalTo, true, {
+        When(\.$longEdge, .equalTo, true) {
             Summary("Crop \(\.$item) to \(\.$size) over the longest edge and optimise") {
                 \.$output
                 \.$hideFloatingResult
@@ -318,8 +318,8 @@ struct CropOptimiseFileIntent: AppIntent {
                 \.$longEdge
                 \.$removeAudio
             }
-        }, otherwise: {
-            When(\.$isAspectRatio, .equalTo, true, {
+        } otherwise: {
+            When(\.$isAspectRatio, .equalTo, true) {
                 Summary("Crop \(\.$item) to \(\.$isAspectRatio) \(\.$width):\(\.$height) and optimise") {
                     \.$output
                     \.$hideFloatingResult
@@ -329,7 +329,7 @@ struct CropOptimiseFileIntent: AppIntent {
                     \.$longEdge
                     \.$removeAudio
                 }
-            }, otherwise: {
+            } otherwise: {
                 Summary("Crop \(\.$item) to \(\.$isAspectRatio) \(\.$width)×\(\.$height) and optimise") {
                     \.$output
                     \.$hideFloatingResult
@@ -339,8 +339,8 @@ struct CropOptimiseFileIntent: AppIntent {
                     \.$longEdge
                     \.$removeAudio
                 }
-            })
-        })
+            }
+        }
     }
 
     @Parameter(title: "Video, image or PDF file")
@@ -467,19 +467,19 @@ struct CropPDFIntent: AppIntent {
     static var description = IntentDescription("Crops a PDF for a specific device, paper size or aspect ratio.", categoryName: "PDF")
 
     static var parameterSummary: some ParameterSummary {
-        When(\.$overwrite, .equalTo, true, {
-            When(\.$usePaperSize, .equalTo, true, {
+        When(\.$overwrite, .equalTo, true) {
+            When(\.$usePaperSize, .equalTo, true) {
                 Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite)") { \.$pageLayout; \.$extend }
-            }, otherwise: {
+            } otherwise: {
                 Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite)") { \.$pageLayout; \.$extend }
-            })
-        }, otherwise: {
-            When(\.$usePaperSize, .equalTo, true, {
+            }
+        } otherwise: {
+            When(\.$usePaperSize, .equalTo, true) {
                 Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$paperSize) and \(\.$overwrite) \(\.$output)") { \.$pageLayout; \.$extend }
-            }, otherwise: {
+            } otherwise: {
                 Summary("Crop \(\.$item) \(\.$usePaperSize) \(\.$device) and \(\.$overwrite) \(\.$output)") { \.$pageLayout; \.$extend }
-            })
-        })
+            }
+        }
     }
 
     @Parameter(title: "PDF")
@@ -553,7 +553,7 @@ struct OptimiseFileIntent: AppIntent {
     static var description = IntentDescription("Optimises an image, video, PDF or audio file received as input.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
-        When(\.$overwrite, .equalTo, true, {
+        When(\.$overwrite, .equalTo, true) {
             Summary("Optimise \(\.$item) and \(\.$overwrite)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
@@ -564,7 +564,7 @@ struct OptimiseFileIntent: AppIntent {
                 \.$copyToClipboard
                 \.$removeAudio
             }
-        }, otherwise: {
+        } otherwise: {
             Summary("Optimise \(\.$item) and \(\.$overwrite) \(\.$output)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
@@ -575,7 +575,7 @@ struct OptimiseFileIntent: AppIntent {
                 \.$copyToClipboard
                 \.$removeAudio
             }
-        })
+        }
     }
 
     @Parameter(title: "Video, image, PDF or audio file")
@@ -698,7 +698,7 @@ struct DownscaleFileIntent: AppIntent {
     static var description = IntentDescription("Downscales an image or video received as input. For audio files, lowers the bitrate by the same factor.", categoryName: "Optimisation")
 
     static var parameterSummary: some ParameterSummary {
-        When(\.$overwrite, .equalTo, true, {
+        When(\.$overwrite, .equalTo, true) {
             Summary("Downscale \(\.$item) to \(\.$downscaleFactor)x and \(\.$overwrite)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
@@ -706,7 +706,7 @@ struct DownscaleFileIntent: AppIntent {
                 \.$copyToClipboard
                 \.$removeAudio
             }
-        }, otherwise: {
+        } otherwise: {
             Summary("Downscale \(\.$item) to \(\.$downscaleFactor)x and \(\.$overwrite) \(\.$output)") {
                 \.$hideFloatingResult
                 \.$aggressiveOptimisation
@@ -714,7 +714,7 @@ struct DownscaleFileIntent: AppIntent {
                 \.$copyToClipboard
                 \.$removeAudio
             }
-        })
+        }
     }
 
     @Parameter(title: "Video, image or audio file")
@@ -1185,15 +1185,15 @@ struct RunPipelineIntent: AppIntent {
     """, categoryName: "Pipelines")
 
     static var parameterSummary: some ParameterSummary {
-        When(\.$useCustomSteps, .equalTo, true, {
+        When(\.$useCustomSteps, .equalTo, true) {
             Summary("Run \(\.$useCustomSteps) \(\.$steps) on \(\.$item)") {
                 \.$hideFloatingResult
             }
-        }, otherwise: {
+        } otherwise: {
             Summary("Run \(\.$useCustomSteps) \(\.$pipeline) on \(\.$item)") {
                 \.$hideFloatingResult
             }
-        })
+        }
     }
 
     @Parameter(title: "Image, video, PDF or audio file")

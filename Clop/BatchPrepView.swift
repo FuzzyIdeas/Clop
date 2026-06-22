@@ -23,7 +23,9 @@ private let batchByteFormatter: ByteCountFormatter = {
     return f
 }()
 
-func humanBytes(_ n: Int) -> String { batchByteFormatter.string(fromByteCount: Int64(max(0, n))) }
+func humanBytes(_ n: Int) -> String {
+    batchByteFormatter.string(fromByteCount: Int64(max(0, n)))
+}
 
 func savedPercent(old: Int, new: Int) -> Int? {
     guard old > 0, new > 0 else { return nil }
@@ -40,37 +42,63 @@ private func dimensions(_ size: CGSize?) -> String? {
 enum ImageConvertChoice: String, CaseIterable, Identifiable {
     case keep, jpeg, png, webp, jxl
 
-    var id: String { rawValue }
-    var title: String { switch self { case .keep: "Keep format"; case .jpeg: "JPEG"; case .png: "PNG"; case .webp: "WebP"; case .jxl: "JPEG XL" } }
-    var target: ImageConvertTarget? { switch self { case .keep: nil; case .jpeg: .jpeg; case .png: .png; case .webp: .webp; case .jxl: .jxl } }
+    var id: String {
+        rawValue
+    }
+    var title: String {
+        switch self { case .keep: "Keep format"; case .jpeg: "JPEG"; case .png: "PNG"; case .webp: "WebP"; case .jxl: "JPEG XL" }
+    }
+    var target: ImageConvertTarget? {
+        switch self { case .keep: nil; case .jpeg: .jpeg; case .png: .png; case .webp: .webp; case .jxl: .jxl }
+    }
 
-    static func from(_ t: ImageConvertTarget?) -> ImageConvertChoice { switch t { case nil: .keep; case .jpeg: .jpeg; case .png: .png; case .webp: .webp; case .jxl: .jxl } }
+    static func from(_ t: ImageConvertTarget?) -> ImageConvertChoice {
+        switch t { case nil: .keep; case .jpeg: .jpeg; case .png: .png; case .webp: .webp; case .jxl: .jxl }
+    }
 }
 
 enum VideoEncoderChoice: String, CaseIterable, Identifiable {
     case adaptive, faster, smaller, lossless
 
-    var id: String { rawValue }
-    var title: String { switch self { case .adaptive: "Adaptive"; case .faster: "Faster"; case .smaller: "Smaller file"; case .lossless: "Visually lossless" } }
-    var tier: CompressionTier { switch self { case .adaptive: .adaptive; case .faster: .fast; case .smaller: .smaller; case .lossless: .lossless } }
+    var id: String {
+        rawValue
+    }
+    var title: String {
+        switch self { case .adaptive: "Adaptive"; case .faster: "Faster"; case .smaller: "Smaller file"; case .lossless: "Visually lossless" }
+    }
+    var tier: CompressionTier {
+        switch self { case .adaptive: .adaptive; case .faster: .fast; case .smaller: .smaller; case .lossless: .lossless }
+    }
 
-    static func from(_ tier: CompressionTier) -> VideoEncoderChoice { switch tier { case .adaptive: .adaptive; case .fast: .faster; case .smaller, .custom: .smaller; case .lossless: .lossless } }
+    static func from(_ tier: CompressionTier) -> VideoEncoderChoice {
+        switch tier { case .adaptive: .adaptive; case .fast: .faster; case .smaller, .custom: .smaller; case .lossless: .lossless }
+    }
 }
 
 enum VideoConvertChoice: String, CaseIterable, Identifiable {
     case keep, mp4, hevc, av1, webm
 
-    var id: String { rawValue }
-    var title: String { switch self { case .keep: "Keep format"; case .mp4: "MP4"; case .hevc: "HEVC"; case .av1: "AV1"; case .webm: "WebM" } }
-    var target: VideoConvertTarget? { switch self { case .keep: nil; case .mp4: .mp4; case .hevc: .hevc; case .av1: .av1; case .webm: .webm } }
+    var id: String {
+        rawValue
+    }
+    var title: String {
+        switch self { case .keep: "Keep format"; case .mp4: "MP4"; case .hevc: "HEVC"; case .av1: "AV1"; case .webm: "WebM" }
+    }
+    var target: VideoConvertTarget? {
+        switch self { case .keep: nil; case .mp4: .mp4; case .hevc: .hevc; case .av1: .av1; case .webm: .webm }
+    }
 
-    static func from(_ t: VideoConvertTarget?) -> VideoConvertChoice { switch t { case nil: .keep; case .mp4: .mp4; case .hevc: .hevc; case .av1: .av1; case .webm: .webm } }
+    static func from(_ t: VideoConvertTarget?) -> VideoConvertChoice {
+        switch t { case nil: .keep; case .mp4: .mp4; case .hevc: .hevc; case .av1: .av1; case .webm: .webm }
+    }
 }
 
 enum PDFDPIChoice: String, CaseIterable, Identifiable {
     case adaptive, dpi300, dpi250, dpi200, dpi150, dpi100, dpi72, dpi48, stepDown
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
     var title: String {
         switch self {
         case .adaptive: "Adaptive"; case .stepDown: "Step down per file"
@@ -102,9 +130,15 @@ enum PDFDPIChoice: String, CaseIterable, Identifiable {
 enum AudioFormatChoice: String, CaseIterable, Identifiable {
     case keep, aac, mp3, opus, wav, flac
 
-    var id: String { rawValue }
-    var title: String { switch self { case .keep: "Keep format"; case .aac: "AAC"; case .mp3: "MP3"; case .opus: "Opus"; case .wav: "WAV"; case .flac: "FLAC" } }
-    var format: AudioFormat? { switch self { case .keep: nil; case .aac: .aac; case .mp3: .mp3; case .opus: .opus; case .wav: .wav; case .flac: .flac } }
+    var id: String {
+        rawValue
+    }
+    var title: String {
+        switch self { case .keep: "Keep format"; case .aac: "AAC"; case .mp3: "MP3"; case .opus: "Opus"; case .wav: "WAV"; case .flac: "FLAC" }
+    }
+    var format: AudioFormat? {
+        switch self { case .keep: nil; case .aac: .aac; case .mp3: .mp3; case .opus: .opus; case .wav: .wav; case .flac: .flac }
+    }
 
     static func from(_ f: AudioFormat?) -> AudioFormatChoice {
         switch f { case nil, .sameAsInput: .keep; case .aac: .aac; case .mp3: .mp3; case .opus: .opus; case .wav: .wav; case .flac: .flac; case .aiff: .keep }
@@ -114,9 +148,15 @@ enum AudioFormatChoice: String, CaseIterable, Identifiable {
 enum LoudnessChoice: String, CaseIterable, Identifiable {
     case off, streaming, appleMusic, podcast, broadcast
 
-    var id: String { rawValue }
-    var title: String { switch self { case .off: "No normalisation"; case .streaming: "Streaming (−14 LUFS)"; case .appleMusic: "Apple Music (−16)"; case .podcast: "Podcast (−19)"; case .broadcast: "Broadcast (−23)" } }
-    var lufs: Double? { switch self { case .off: nil; case .streaming: -14; case .appleMusic: -16; case .podcast: -19; case .broadcast: -23 } }
+    var id: String {
+        rawValue
+    }
+    var title: String {
+        switch self { case .off: "No normalisation"; case .streaming: "Streaming (−14 LUFS)"; case .appleMusic: "Apple Music (−16)"; case .podcast: "Podcast (−19)"; case .broadcast: "Broadcast (−23)" }
+    }
+    var lufs: Double? {
+        switch self { case .off: nil; case .streaming: -14; case .appleMusic: -16; case .podcast: -19; case .broadcast: -23 }
+    }
 
     static func from(_ lufs: Double?) -> LoudnessChoice {
         switch lufs { case -14: .streaming; case -16: .appleMusic; case -19: .podcast; case -23: .broadcast; default: .off }
@@ -157,20 +197,46 @@ enum LoudnessChoice: String, CaseIterable, Identifiable {
     @Published var videoKeepIfLarger = true
     @Published var audioKeepIfLarger = true
 
-    // Greying mirrors the engine's real precedence.
-    var audioLossless: Bool { audioFormat.format?.isLossless ?? false }
-    var audioCompressionDisabled: Bool { audioLossless || audioBitrate > 0 }
-    var audioBitrateDisabled: Bool { audioLossless }
-    var audioCoverDisabled: Bool { !(audioFormat.format?.supportsCoverArt ?? true) }
-    var audioCoverSizeDisabled: Bool { audioCoverDisabled || audioCover != .optimise }
-    var videoCompressionDisabled: Bool { videoEncoder == .lossless }
-    var imageDownscaleDisabled: Bool { imageLongEdge > 0 }
-    var imageLongEdgeDisabled: Bool { imageDownscale > 0.001 }
-    var videoDownscaleDisabled: Bool { videoLongEdge > 0 }
-    var videoLongEdgeDisabled: Bool { videoDownscale > 0.001 }
-    var imageKeepIfLargerDisabled: Bool { imageConvert == .keep }
-    var videoKeepIfLargerDisabled: Bool { videoConvert == .keep }
-    var audioKeepIfLargerDisabled: Bool { audioFormat == .keep }
+    /// Greying mirrors the engine's real precedence.
+    var audioLossless: Bool {
+        audioFormat.format?.isLossless ?? false
+    }
+    var audioCompressionDisabled: Bool {
+        audioLossless || audioBitrate > 0
+    }
+    var audioBitrateDisabled: Bool {
+        audioLossless
+    }
+    var audioCoverDisabled: Bool {
+        !(audioFormat.format?.supportsCoverArt ?? true)
+    }
+    var audioCoverSizeDisabled: Bool {
+        audioCoverDisabled || audioCover != .optimise
+    }
+    var videoCompressionDisabled: Bool {
+        videoEncoder == .lossless
+    }
+    var imageDownscaleDisabled: Bool {
+        imageLongEdge > 0
+    }
+    var imageLongEdgeDisabled: Bool {
+        imageDownscale > 0.001
+    }
+    var videoDownscaleDisabled: Bool {
+        videoLongEdge > 0
+    }
+    var videoLongEdgeDisabled: Bool {
+        videoDownscale > 0.001
+    }
+    var imageKeepIfLargerDisabled: Bool {
+        imageConvert == .keep
+    }
+    var videoKeepIfLargerDisabled: Bool {
+        videoConvert == .keep
+    }
+    var audioKeepIfLargerDisabled: Bool {
+        audioFormat == .keep
+    }
 
     var audioBitrateRange: ClosedRange<Int> {
         if let r = audioFormat.format?.bitrateRange { return r.lo ... r.hi }
@@ -341,7 +407,9 @@ struct BatchPrepContent: View {
     @StateObject private var form = BatchParamsModel()
     @State private var dropTargeted = false
 
-    private var present: PresentTypes { PresentTypes(manager.items) }
+    private var present: PresentTypes {
+        PresentTypes(manager.items)
+    }
 
     private var dropZone: some View {
         VStack(spacing: 12) {
@@ -681,14 +749,18 @@ private func choicePicker<C: CaseIterable & Identifiable & Hashable>(
     .fixedSize()
 }
 
-private func compressionSlider(_ value: Binding<Double>) -> some View { CommitCompressionSlider(value: value) }
-private func downscaleSlider(_ value: Binding<Double>) -> some View { CommitDownscaleSlider(value: value) }
+private func compressionSlider(_ value: Binding<Double>) -> some View {
+    CommitCompressionSlider(value: value)
+}
+private func downscaleSlider(_ value: Binding<Double>) -> some View {
+    CommitDownscaleSlider(value: value)
+}
 
-// The batch parameter panel is a deep tree of Pickers/Toggles/styled cards, so binding a Slider straight
-// to the form re-rendered the WHOLE panel on every drag tick (~1000 sub-view updates per tick in the
-// Instruments trace → visible lag). These wrappers keep the drag in local @State and only write the form
-// on release, so a drag re-renders just the slider. Batch sliders don't auto-reoptimise on change, so
-// deferring the commit has no functional downside.
+/// The batch parameter panel is a deep tree of Pickers/Toggles/styled cards, so binding a Slider straight
+/// to the form re-rendered the WHOLE panel on every drag tick (~1000 sub-view updates per tick in the
+/// Instruments trace → visible lag). These wrappers keep the drag in local @State and only write the form
+/// on release, so a drag re-renders just the slider. Batch sliders don't auto-reoptimise on change, so
+/// deferring the commit has no functional downside.
 private struct CommitCompressionSlider: View {
     @Binding var value: Double
 
@@ -816,7 +888,9 @@ struct BatchResultsContent: View {
     @State private var confirmDeleteBackups = false
     @State private var spaceMonitor: Any?
 
-    private var selectedItems: [BatchItem] { manager.items.filter { selection.contains($0.id) } }
+    private var selectedItems: [BatchItem] {
+        manager.items.filter { selection.contains($0.id) }
+    }
 
     // MARK: Change detection (only re-optimise file types whose params actually changed)
 
@@ -849,9 +923,11 @@ struct BatchResultsContent: View {
         return "Will re-optimise " + parts.joined(separator: ", ")
     }
 
-    private var canTune: Bool { manager.canReapply && !manager.isRunning && !manager.isRestoring }
+    private var canTune: Bool {
+        manager.canReapply && !manager.isRunning && !manager.isRestoring
+    }
 
-    // Fixed-size inline panel (no scroll): the per-type cards fit the window width.
+    /// Fixed-size inline panel (no scroll): the per-type cards fit the window width.
     private var adjustPanel: some View {
         VStack(spacing: 0) {
             BatchParamColumns(form: adjustForm, present: PresentTypes(manager.items)).padding(16)
@@ -962,7 +1038,7 @@ struct BatchResultsContent: View {
         }
     }
 
-    // Space quick-looks the selection — but never steal space from a focused text field (Adjust panel).
+    /// Space quick-looks the selection — but never steal space from a focused text field (Adjust panel).
     private func installSpaceMonitor() {
         spaceMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.keyCode == 49, event.window === manager.windowController?.window else { return event }
@@ -1052,7 +1128,9 @@ private struct BatchResultsTable: View {
 
     @State private var sortOrder = [KeyPathComparator(\BatchItem.sortRank, order: .forward)]
 
-    private var sortedItems: [BatchItem] { manager.items.sorted(using: sortOrder) }
+    private var sortedItems: [BatchItem] {
+        manager.items.sorted(using: sortOrder)
+    }
 
 }
 
@@ -1185,7 +1263,9 @@ struct BatchFailuresSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    private var failures: [BatchItem] { manager.items.filter { $0.status == .failed } }
+    private var failures: [BatchItem] {
+        manager.items.filter { $0.status == .failed }
+    }
 
     private func copyFailures() {
         let text = failures.map { item in
