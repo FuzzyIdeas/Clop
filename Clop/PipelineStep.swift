@@ -271,6 +271,9 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     case runShortcut(Shortcut)
     case copyToClipboard(format: ClipboardCopyFormat = .path, relativeTo: String? = nil)
     case copyLinkForSending(expiration: TimeInterval? = nil)
+    // Branch off the current result as a second floating result card. No location → the card's
+    // file lives in temp (drag it out to keep it); a location persists it like other steps.
+    case fork(location: String? = nil)
 
     // App integration
     case shelveWith(app: String)
@@ -302,6 +305,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .runShortcut(shortcut): "runShortcut-\(shortcut.name)"
         case let .copyToClipboard(format, relativeTo): "copyToClipboard-\(format.rawValue)-\(relativeTo ?? "")"
         case let .copyLinkForSending(expiration): "copyLinkForSending-\(expiration ?? -1)"
+        case let .fork(location): "fork-\(location ?? "")"
         case let .shelveWith(app): "shelveWith-\(app)"
         case let .uploadWith(app): "uploadWith-\(app)"
         case let .openWith(app): "openWith-\(app)"
@@ -333,6 +337,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case .runShortcut: "runShortcut"
         case .copyToClipboard: "copyToClipboard"
         case .copyLinkForSending: "copyLinkForSending"
+        case .fork: "fork"
         case .shelveWith: "shelveWith"
         case .uploadWith: "uploadWith"
         case .openWith: "openWith"
@@ -406,6 +411,9 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
             guard let expiration else { return "copyLinkForSending" }
             let token = expiration <= 0 ? "never" : expirationShortLabel(expiration)
             return "copyLinkForSending(expiration: \(token))"
+        case let .fork(location):
+            guard let location else { return "fork" }
+            return "fork(location: \(location))"
         case let .shelveWith(app): return "shelveWith(app: \(app))"
         case let .uploadWith(app): return "uploadWith(app: \(app))"
         case let .openWith(app): return "openWith(app: \(app))"
@@ -454,7 +462,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case .copy, .move, .rename, .delete: .fileOperation
         case .filterIf, .filterIfNot: .filter
         case .removeAudio, .changeSpeed, .capFps, .normalize: .mediaSpecific
-        case .runScript, .runShortcut, .copyToClipboard, .copyLinkForSending, .shelveWith, .uploadWith, .openWith: .action
+        case .runScript, .runShortcut, .copyToClipboard, .copyLinkForSending, .fork, .shelveWith, .uploadWith, .openWith: .action
         }
     }
 }
@@ -603,6 +611,9 @@ extension PipelineStep: Decodable {
         } else if container.contains(DynKey("copyLinkForSending")) {
             let c = try? container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("copyLinkForSending"))
             self = try .copyLinkForSending(expiration: c?.decodeIfPresent(TimeInterval.self, forKey: DynKey("expiration")) ?? nil)
+        } else if container.contains(DynKey("fork")) {
+            let c = try? container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("fork"))
+            self = try .fork(location: c?.decodeIfPresent(String.self, forKey: DynKey("location")) ?? nil)
         } else if container.contains(DynKey("shelveWith")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("shelveWith"))
             self = try .shelveWith(app: c.decode(String.self, forKey: DynKey("app")))

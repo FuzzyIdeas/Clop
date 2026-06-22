@@ -1164,7 +1164,10 @@ class Image: CustomStringConvertible {
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
         }
-        guard ext != path.extension else {
+        // Compare by UTType, not extension string, so `.jpg` and `.jpeg` (or `.tif`/`.tiff`)
+        // count as the same format: a same-format convert is a no-op instead of a wasteful
+        // re-encode at default quality.
+        guard type != self.type else {
             throw ClopError.alreadyOptimised(path)
         }
 

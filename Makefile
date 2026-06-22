@@ -22,7 +22,7 @@ RELEASE_NOTES_FILES := $(wildcard ReleaseNotes/*.md)
 ENV=Release
 DERIVED_DATA_DIR=$(shell ls -td $$HOME/Library/Developer/Xcode/DerivedData/Clop-* | head -1)
 
-.PHONY: build upload release setversion appcast bin
+.PHONY: build upload release setversion appcast bin changelog
 
 print-%  : ; @echo $* = $($*)
 
@@ -39,7 +39,7 @@ dmg:
 upload:
 	rsync -avzP Releases/*.{delta,dmg} hetzner:/static/lowtechguys/releases/ || true
 	rsync -avz Releases/*.html hetzner:/static/lowtechguys/ReleaseNotes/
-	rsync -avzP Releases/appcast.xml hetzner:/static/lowtechguys/clop/
+	rsync -avzP Releases/appcast.xml Releases/changelog.html hetzner:/static/lowtechguys/clop/
 	cfcli -d lowtechguys.com purge
 	$(MAKE) sentry
 
@@ -50,16 +50,24 @@ release:
 sentry:
 	op run -- sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/
 
-appcast: Releases/Clop-$(FULL_VERSION).html
+CHANGELOG.md: $(RELEASE_NOTES_FILES)
+	tail -n +1 $$(ls ReleaseNotes/*.md | egrep '/[0-9]+(\.[0-9]+)*\.md$$' $(if $(BETA),| egrep -v '/$(VERSION)\.md$$') | sort -Vr) | sd '==> ReleaseNotes/(.+)\.md <==' '# $$1\n\n**[Download Clop $$1 →](https://files.lowtechguys.com/releases/Clop-$$1.dmg)**' > CHANGELOG.md
+
+Releases/changelog.html: CHANGELOG.md
+	pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop Changelog" --css https://files.lowtechguys.com/release.css --include-in-header=ReleaseNotes/changelog-head.html CHANGELOG.md
+
+changelog: Releases/changelog.html
+
+appcast: Releases/Clop-$(FULL_VERSION).html changelog
 	rm Releases/Clop.dmg || true
 ifneq (, $(BETA))
 	rm Releases/Clop$(FULL_VERSION)*.delta >/dev/null 2>/dev/null || true
-	generate_appcast --channel beta --maximum-versions 10 --maximum-deltas $(DELTAS) --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
+	generate_appcast --channel beta --maximum-versions 10 --maximum-deltas $(DELTAS) --link "https://lowtechguys.com/clop" --full-release-notes-url "https://files.lowtechguys.com/clop/changelog.html" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
 else
 	rm Releases/Clop$(FULL_VERSION)*.delta >/dev/null 2>/dev/null || true
 	rm Releases/Clop-*b*.dmg >/dev/null 2>/dev/null || true
 	rm Releases/Clop*b*.delta >/dev/null 2>/dev/null || true
-	generate_appcast --maximum-versions 10 --maximum-deltas $(DELTAS) --link "https://lowtechguys.com/clop" --full-release-notes-url "https://github.com/FuzzyIdeas/Clop/releases" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
+	generate_appcast --maximum-versions 10 --maximum-deltas $(DELTAS) --link "https://lowtechguys.com/clop" --full-release-notes-url "https://files.lowtechguys.com/clop/changelog.html" --release-notes-url-prefix https://files.lowtechguys.com/ReleaseNotes/ --download-url-prefix "https://files.lowtechguys.com/releases/" -o Releases/appcast.xml Releases
 	cp Releases/Clop-$(FULL_VERSION).dmg Releases/Clop.dmg
 endif
 

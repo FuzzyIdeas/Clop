@@ -597,6 +597,20 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         create: { .copyLinkForSending() }
     ),
     StepTemplate(
+        name: "fork", description: "Also show the result so far as a second draggable card, then keep processing",
+        mandatoryParams: [],
+        optionalParams: [
+            ParamTemplate(
+                name: "location",
+                description: "where to save the forked card's file (defaults to a temp file you can drag out)",
+                suggestions: ["sameFolder", "temporaryFolder"],
+                freeText: true
+            ),
+        ],
+        applicableTypes: [.image, .video, .audio, .pdf],
+        create: { .fork() }
+    ),
+    StepTemplate(
         name: "shelveWith", description: "Send file to a shelf app",
         mandatoryParams: [
             ParamTemplate(
@@ -666,6 +680,7 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
     // Handle no-param steps
     if trimmed == "removeAudio" { return .removeAudio }
     if trimmed == "copyLinkForSending" { return .copyLinkForSending() }
+    if trimmed == "fork" { return .fork() }
     if trimmed == "copyToClipboard" { return .copyToClipboard() }
     if trimmed == "stripExif" { return .stripExif }
     if trimmed == "normalize" { return .normalize() }
@@ -801,6 +816,9 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
     case "copyLinkForSending":
         let expiration = params["expiration"].flatMap { parseExpirationDuration($0) }
         return .copyLinkForSending(expiration: expiration)
+
+    case "fork":
+        return .fork(location: params["location"])
 
     case "shelveWith":
         guard let app = params["app"], ["yoink", "dockside", "dropover"].contains(app.lowercased()) else { return nil }

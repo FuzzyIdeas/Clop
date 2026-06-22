@@ -1,0 +1,54 @@
+<style>
+/* Aggregate changelog only. pandoc --section-divs wraps each release in a
+   `section.level1`, which otherwise picks up release.css's per-version accent
+   rotation (`body > section:nth-of-type(6n + N)`) and turns every release into
+   a loud coloured card. A release should instead read as a quiet structural
+   separator, clearly different from the Features/Fixes/Improvements section
+   cards nested inside it. So: drop the accent fill/border/shadow and present
+   each release as a hairline divider plus a neutral version label. */
+body > section.level1 {
+    margin: 2.3rem 0 0;
+    padding: 1.3rem 0 0;
+    border: none;
+    border-top: 1px solid rgba(111, 101, 92, 0.2);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+body > section.level1:first-of-type {
+    margin-top: 0.3rem;
+    padding-top: 0;
+    border-top: none;
+}
+/* Header row: neutral version label on the left, download link on the far
+   right, both on the same line. The version heading and the download link are
+   separate sibling blocks (`<h1>` then `<p>`) emitted by pandoc, so float the
+   download right onto the version's line and clear the first content card. */
+body > section.level1 > h1 {
+    display: inline-block;
+    margin: 0 0 0.2rem;
+    padding: 0.1rem 0.55rem;
+    border-radius: 7px;
+    background: rgba(111, 101, 92, 0.12);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+body > section.level1 > h1 + p {
+    float: right;
+    margin: 0.18rem 0 0;
+    font-size: 0.85rem;
+}
+body > section.level1 > h1 + p + * {
+    clear: both;
+}
+@media screen and (prefers-color-scheme: dark) {
+    body > section.level1 {
+        border-top-color: rgba(182, 168, 154, 0.2);
+    }
+    body > section.level1 > h1 {
+        background: rgba(182, 168, 154, 0.16);
+    }
+}
+</style>

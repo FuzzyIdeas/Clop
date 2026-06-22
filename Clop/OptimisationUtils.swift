@@ -1086,6 +1086,7 @@ enum TempPipelineSegment {
     func refetch() {
         if let image, image.path != self.url?.filePath {
             self.image = fetchImage()
+            refreshImageThumbnail()
             return
         }
         if let video, video.path != self.url?.filePath {
@@ -1102,6 +1103,7 @@ enum TempPipelineSegment {
         }
         if let image = fetchImage() {
             self.image = image
+            refreshImageThumbnail()
             return
         }
         if let video = fetchVideo() {
@@ -1116,6 +1118,16 @@ enum TempPipelineSegment {
             self.audio = audio
             return
         }
+    }
+
+    /// Refresh the floating-result thumbnail from the current image file.
+    /// `Image` is not an `Optimisable`, so re-fetching it never regenerates the card
+    /// thumbnail the way video/pdf/audio do (they pass `thumb:`). Without this, a crop
+    /// or downscale that changes the pixels leaves the card showing the original,
+    /// un-cropped preview.
+    func refreshImageThumbnail() {
+        guard !hidden, let newThumbnail = image?.image else { return }
+        thumbnail = newThumbnail
     }
 
     func checkIfVideoHasAudio() async throws {

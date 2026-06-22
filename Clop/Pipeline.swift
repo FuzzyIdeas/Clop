@@ -12,6 +12,13 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Pipeline")
 
 /// A discrete action in the optimisation pipeline.
 
+/// Single source of truth for the two pipeline-flag tooltips shown in the editor
+/// and library toggles. Each string describes both options of its picker.
+enum PipelineFlagCopy {
+    static let skipOptimisation = "Which file your steps run on. Optimised compresses it first, then runs the steps on the result. Original feeds the untouched file straight in, which is what you want when the steps already re-encode it (convert, downscale, crop) and a second pass would only cost quality."
+    static let hideResult = "Whether the floating result shows up. Show pops a thumbnail when the pipeline finishes. Hide runs quietly in the background, handy for automations you don't need to watch."
+}
+
 // MARK: - Pipeline
 
 struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
@@ -68,6 +75,19 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
         guard let libraryID else { return self }
         return Defaults[.savedPipelines].first(where: { $0.id == libraryID }) ?? self
     }
+
+    /// True when this pipeline is NOT a dangling reference: either it is a plain
+    /// inline pipeline, or it is a reference whose `libraryID` still resolves to a
+    /// saved pipeline. UI uses this to show a "Missing" badge instead of silently
+    /// rendering the stale fallback that `resolved` returns.
+    var resolves: Bool {
+        guard let libraryID else { return true }
+        return Defaults[.savedPipelines].contains(where: { $0.id == libraryID })
+    }
+
+    /// Built-in library pipelines have a stable `builtin-` prefixed id
+    /// (see BUILTIN_PIPELINE_DEFS). Used to show a "Built-in" badge.
+    var isBuiltin: Bool { id.hasPrefix("builtin-") }
 
     var displayText: String {
         if isLibraryReference {
@@ -374,6 +394,46 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     }
 }
 
+/// Whether a file is a renderable media file we can show on the floating card (a real,
+/// non-empty file of a known image/video/pdf/audio type). Uses the same predicate the
+/// shortcut/script steps trust (`UTType.from(filePath:)?.fileType`).
+func isRenderableMediaFile(_ file: FilePath) -> Bool {
+    file.exists && (file.fileSize() ?? 0) > 0 && UTType.from(filePath: file)?.fileType != nil
+}
+
+/// Whether a pipeline step produced a genuinely new renderable result. Steps that leave the
+/// file unchanged (pure side effects: send-link, clipboard copy), delete/move it, or emit a
+/// non-media path (a URL, script stdout) are NOT renderable, and the card must keep its
+/// previous thumbnail + size/resolution/bitrate/DPI data rather than being blanked.
+func isRenderableResult(_ resultFile: FilePath, from inputFile: FilePath) -> Bool {
+    resultFile != inputFile && isRenderableMediaFile(resultFile)
+}
+
+extension Optimiser {
+    /// Present `file` as an unchanged result: its thumbnail, byte size and resolution, with a
+    /// short note and no savings badge. Used when a pipeline produced no rendered change (a
+    /// no-op crop/downscale already within target, an unmet filter, a side-effect-only pipeline)
+    /// so dropping a file always gives visible feedback instead of a placeholder or nothing.
+    /// Returns false if the file can't be rendered (e.g. it was deleted), so the caller can drop
+    /// the card entirely.
+    @discardableResult
+    @MainActor func showAsUnchanged(file: FilePath, notice: String = "No changes needed") -> Bool {
+        guard isRenderableMediaFile(file) else { return false }
+        url = file.url // triggers refetch() → loads the media wrapper + thumbnail
+        type = .from(filePath: file)
+        var size: CGSize? = image?.size
+        if size == nil, let videoSize = video?.size { size = videoSize }
+        if thumbnail == nil {
+            if let img = image?.image { thumbnail = img } else { ensurePlaceholderThumbnail() }
+        }
+        newSize = nil
+        info = notice
+        let bytes = file.fileSize() ?? oldBytes
+        finish(oldBytes: bytes, newBytes: bytes, oldSize: size)
+        return true
+    }
+}
+
 /// Filter steps stop the pipeline silently if the condition fails.
 /// File operation steps resolve template variables before acting.
 @MainActor func executePipeline(
@@ -488,6 +548,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             exec.handleCopyToClipboard(format: format, relativeTo: relativeTo)
         case let .copyLinkForSending(expiration):
             await exec.handleCopyLinkForSending(expiration: expiration)
+        case let .fork(location):
+            await exec.handleFork(location: location, followingSteps: Array(pipeline.steps.dropFirst(stepIndex + 1)))
         case let .shelveWith(app):
             try await exec.handleShelveWith(app: app)
         case let .uploadWith(app):
@@ -498,6 +560,8 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
 
         if exec.shouldStop { break }
 
+        // Keep the single result card pointed at this step's final renderable file.
+        exec.syncRenderTarget()
         if !step.isFilter { exec.didWork = true }
         log.debug("Pipeline: step[\(stepIndex)] \(stepDesc) completed, file: \(exec.currentFile.string)")
         stepIndex += 1
@@ -573,12 +637,18 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
             // If no step showed a visible result, show one via the parent optimiser.
             // Respect the pipeline's hideResult toggle: keep the optimiser hidden when set.
             // A pipeline stopped by an unmet filter did nothing: leave the optimiser alone.
-            if !shownVisible, didWork {
+            // Only turn the parent into the result for a genuinely renderable file. A
+            // non-renderable last step (send-link, clipboard copy, deleted/moved file,
+            // script/URL output) must NOT clobber url/thumbnail; the card keeps its last
+            // good thumbnail + deltas and is settled by the end-block below.
+            if !shownVisible, didWork, isRenderableResult(resultFile, from: file) {
                 let resultSize = resultFile.fileSize() ?? 0
                 let originalSize = file.fileSize() ?? 0
                 optimiser.url = resultFile.url
                 optimiser.hidden = pipeline.hideResult || forceHide
-                optimiser.thumbnail = NSImage(contentsOf: resultFile.url)
+                if let img = NSImage(contentsOf: resultFile.url) {
+                    optimiser.thumbnail = img
+                }
                 optimiser.finish(oldBytes: originalSize, newBytes: resultSize)
                 anyVisibleResult = true
             }
@@ -591,21 +661,22 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
     // different file than the one any earlier optimisation pass already copied, so the copy
     // has to happen here on `finalFile` rather than in the per-type pipelines.
     if copyToClipboard, anyRan, finalFile.exists {
-        optimiser.url = finalFile.url
+        if finalFile.url != optimiser.url, isRenderableMediaFile(finalFile) {
+            optimiser.url = finalFile.url
+        }
         optimiser.copyToClipboard()
     }
 
     // If the optimiser was created just for pipeline execution (skipOptimisation case),
     // and some step already showed a visible result, just remove the parent silently.
-    if optimiser.operation == "Running pipeline" {
-        if anyVisibleResult {
-            optimiser.remove(after: 0)
-        } else if anyRan {
-            optimiser.finish(notice: "Pipeline completed")
-        } else {
-            // Nothing matched: remove the parent synchronously so a fallback
-            // optimisation pass can reuse the same id without racing the
-            // deferred removal in `remove(after:)`.
+    if optimiser.operation == "Running pipeline", !anyVisibleResult {
+        // The operation is still "Running pipeline" and nothing rendered a result into this
+        // placeholder (steps that render change the operation to their own label): a no-op
+        // crop/downscale already within target, an unmet filter, or a side-effect-only pipeline.
+        // Still show the file unchanged (size + resolution) so a drop always gives feedback; only
+        // remove the placeholder if the file can't be rendered at all (synchronous removal so a
+        // fallback optimisation pass can reuse the id without racing `remove(after:)`).
+        if !optimiser.showAsUnchanged(file: finalFile) {
             OM.optimisers = OM.optimisers.filter { $0.id != optimiser.id }
         }
     }

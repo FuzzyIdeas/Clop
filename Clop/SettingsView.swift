@@ -339,6 +339,63 @@ struct FolderAutomationsSection: View {
     }
 }
 
+/// Reusable automation editor scoped to a single non-folder `OptimisationSource`
+/// (drop zone, clipboard). Stacks one `PipelineEditorRow` per file type, each
+/// bound to the matching `pipelinesToRunOn<Type>` Defaults dict keyed by
+/// `source.string`. Writes the SAME storage as the Automation tab, so both
+/// views update live. Per-file-type editors are always shown (no collapse).
+///
+/// Produces interface (consumed by the clipboard pane in a later phase):
+///   SourceAutomationsSection(source: .dropZone)
+struct SourceAutomationsSection: View {
+    let source: OptimisationSource
+    var disabledTypes: Set<ClopFileType> = []
+
+    @Default(.pipelinesToRunOnImage) var imagePipelines
+    @Default(.pipelinesToRunOnVideo) var videoPipelines
+    @Default(.pipelinesToRunOnPdf) var pdfPipelines
+    @Default(.pipelinesToRunOnAudio) var audioPipelines
+    @State private var editingKey: String?
+
+    func binding(for fileType: ClopFileType) -> Binding<[String: [Pipeline]]> {
+        switch fileType {
+        case .image: $imagePipelines
+        case .video: $videoPipelines
+        case .pdf: $pdfPipelines
+        case .audio: $audioPipelines
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(ClopFileType.allCases, id: \.self) { fileType in
+                let isDisabled = disabledTypes.contains(fileType)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        SwiftUI.Image(systemName: fileType.symbolName)
+                            .frame(width: 14)
+                        Text(fileType == .pdf ? "PDF" : fileType.description.capitalized)
+                            .semibold(10)
+                    }
+                    .foregroundColor(fileType.color)
+                    PipelineEditorRow(
+                        source: source,
+                        fileType: fileType,
+                        pipelines: binding(for: fileType),
+                        editingKey: $editingKey,
+                        onRemoveSource: nil,
+                        hideInertRemoveButton: true
+                    )
+                }
+                .disabled(isDisabled)
+                .saturation(isDisabled ? 0 : 1)
+                .opacity(isDisabled ? 0.5 : 1)
+            }
+        }
+        .padding(.top, 6)
+    }
+}
+
 struct PDFSettingsView: View {
     @Default(.pdfDirs) var pdfDirs
     @Default(.maxPDFSizeMB) var maxPDFSizeMB
@@ -1353,7 +1410,7 @@ struct LicenseUpdatesSettingsView: View {
     var body: some View {
         if let pro = pm.pro, let updater = um.updater {
             Form {
-                LicenseAndUpdatesView(pro: pro, updater: updater, appName: "Clop")
+                LicenseAndUpdatesView(pro: pro, updater: updater, appName: "Clop", changelogURL: URL(string: "https://files.lowtechguys.com/clop/changelog.html"))
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
@@ -1376,7 +1433,8 @@ struct AboutSettingsView: View {
             websiteURL: URL(string: "https://lowtechguys.com/clop"),
             contactURL: URL(string: "https://lowtechguys.com/contact?app=Clop"),
             discordURL: URL(string: "https://discord.gg/YeTuy6adXk"),
-            sourceURL: URL(string: "https://github.com/FuzzyIdeas/Clop")
+            sourceURL: URL(string: "https://github.com/FuzzyIdeas/Clop"),
+            changelogURL: URL(string: "https://files.lowtechguys.com/clop/changelog.html")
         )
         .fill()
     }
@@ -1408,48 +1466,74 @@ struct DropZoneSettingsView: View {
     @Default(.autoCopyToClipboard) var autoCopyToClipboard
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
-    var settings: some View {
-        Form {
-            Toggle(isOn: $enableDragAndDrop) {
-                Text("Enable drop zone").regular(13)
-                    + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
+    var toggles: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: "Drop zone", subtitle: "Drag files, paths and URLs onto a global zone to optimise them")
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(isOn: $enableDragAndDrop) {
+                    Text("Enable drop zone").regular(13)
+                        + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                Toggle(isOn: $onlyShowDropZoneOnOption) {
+                    Text("Require pressing ⌥ Option to show drop zone").regular(13)
+                        + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                .padding(.leading, 20)
+                .disabled(!enableDragAndDrop)
+                Toggle(isOn: $autoCopyToClipboard) {
+                    Text("Auto Copy optimised files to clipboard").regular(13)
+                        + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
+                }
             }
-            Toggle(isOn: $onlyShowDropZoneOnOption) {
-                Text("Require pressing ⌥ Option to show drop zone").regular(13)
-                    + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
-            }
-            .padding(.leading, 20)
-            .disabled(!enableDragAndDrop)
-            Toggle(isOn: $autoCopyToClipboard) {
-                Text("Auto Copy optimised files to clipboard").regular(13)
-                    + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
+    var preview: some View {
+        VStack(spacing: 8) {
+            DropZoneView()
+                .disabled(!enableDragAndDrop)
+                .saturation(enableDragAndDrop ? 1 : 0.5)
+                .preview(true)
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
+                .fixedSize()
+
+            Text("Drag files onto the drop zone\nto optimise them")
+                .font(.system(size: 12))
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
         }
     }
 
     var body: some View {
-        HStack(alignment: .top) {
-            ScrollView(.vertical, showsIndicators: false) {
-                settings
-            }
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center, spacing: 24) {
+                    toggles
+                    Spacer()
+                    preview
+                }
+                .frame(height: 250)
+                .padding(.horizontal)
+                .frame(maxWidth: 780)
+                .frame(maxWidth: .infinity)
 
-            VStack(spacing: 8) {
-                DropZoneView()
-                    .disabled(!enableDragAndDrop)
-                    .saturation(enableDragAndDrop ? 1 : 0.5)
-                    .preview(true)
-                    .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.gray.opacity(0.2), lineWidth: 2))
-                    .fixedSize()
+                Divider()
 
-                Text("Drag files onto the drop zone\nto optimise them")
-                    .font(.system(size: 12))
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    SectionHeader(title: "Automation", subtitle: "Run actions on files dropped here: convert, crop, copy, rename and more")
+                    SourceAutomationsSection(source: .dropZone)
+                        .disabled(!enableDragAndDrop)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                }
+                .hfill()
             }
+            .padding(.top)
         }
         .hfill()
-        .padding(.top)
     }
 }
 
@@ -1846,6 +1930,15 @@ struct ClipboardSettingsView: View {
     @Default(.copyConsecutiveClipboardImages) var copyConsecutiveClipboardImages
     @Default(.clipboardAccumulationTimeout) var clipboardAccumulationTimeout
 
+    var disabledClipboardTypes: Set<ClopFileType> {
+        guard enableClipboardOptimiser else { return Set(ClopFileType.allCases) }
+        var disabled: Set<ClopFileType> = []
+        if !optimiseVideoClipboard { disabled.insert(.video) }
+        if !optimiseAudioClipboard { disabled.insert(.audio) }
+        if !optimisePDFClipboard { disabled.insert(.pdf) }
+        return disabled
+    }
+
     var body: some View {
         Form {
             Section(header: SectionHeader(title: "Clipboard", subtitle: "Watch for copied data and optimise it automatically")) {
@@ -1882,18 +1975,6 @@ struct ClipboardSettingsView: View {
                 .disabled(!enableClipboardOptimiser)
                 .padding(.leading, 20)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Ignored apps").regular(13)
-                    Text("Skip clipboard optimisation when one of these apps is in the foreground")
-                        .round(11, weight: .regular)
-                        .foregroundColor(.secondary)
-                    IgnoredAppsPicker(bundleIds: $clipboardIgnoredAppBundleIds, enabled: enableClipboardOptimiser)
-                        .padding(.top, 2)
-                }
-                .padding(.leading, 20)
-                .disabled(!enableClipboardOptimiser)
-                .opacity(enableClipboardOptimiser ? 1 : 0.6)
-
                 Toggle(isOn: $appendClipboardResults) {
                     Text("Keep all clipboard results").regular(13)
                         + Text("\nShow each clipboard optimisation as a separate result instead of replacing the previous one").round(11, weight: .regular).foregroundColor(.secondary)
@@ -1922,6 +2003,19 @@ struct ClipboardSettingsView: View {
                     }
                     .padding(.leading, 20)
                 }
+            }
+
+            Section(header: SectionHeader(title: "Ignored apps", subtitle: "Skip clipboard optimisation while one of these apps is in front")) {
+                VStack(alignment: .leading, spacing: 4) {
+                    IgnoredAppsPicker(bundleIds: $clipboardIgnoredAppBundleIds, enabled: enableClipboardOptimiser)
+                        .padding(.top, 2)
+                }
+                .disabled(!enableClipboardOptimiser)
+                .opacity(enableClipboardOptimiser ? 1 : 0.6)
+            }
+
+            Section(header: SectionHeader(title: "Automation", subtitle: "Run actions on every file you copy")) {
+                SourceAutomationsSection(source: .clipboard, disabledTypes: disabledClipboardTypes)
             }
         }
         .scrollContentBackground(.hidden)

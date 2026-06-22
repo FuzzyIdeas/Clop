@@ -49,7 +49,17 @@ final class PipelineExecution {
     let optimiser: Optimiser
     let forceHide: Bool
 
-    var hide: Bool { forceHide || currentFile.string.contains("/pipeline-") }
+    // A pipeline shows ONE morphing result card by default: every step renders into the
+    // parent optimiser (renderTargetID) and the card stays visible across steps, so `hide`
+    // depends only on the pipeline-level toggle, not on whether the working file is a temp
+    // copy. (The old `/pipeline-` check hid intermediate steps, which is what produced the
+    // flickering per-step cards.)
+    var hide: Bool { forceHide }
+
+    /// The optimiser every step renders into, so a multi-step pipeline shows one card that
+    /// morphs through its stages instead of spawning a separate result per step. The `fork`
+    /// step is the explicit way to also produce a second card.
+    var renderTargetID: String { optimiser.id }
 
     /// Save destination for clipboard re-encode steps so the visible result tracks a stable
     /// file (matches `optimiser.downscale` / `executeTempPipeline`). nil for non-clipboard.
@@ -70,7 +80,7 @@ final class PipelineExecution {
     /// source, reuse the parent optimiser id; for file/dir sources the optimiser id already
     /// equals the file path so this is a no-op.
     func encodeID(forLocation location: String) -> String? {
-        (source == .clipboard && location == "inPlace") ? optimiser.id : nil
+        renderTargetID
     }
 
     /// After `applyLocation` copies the result somewhere outside the temp cache,
@@ -81,6 +91,15 @@ final class PipelineExecution {
     func retargetChildOptimiser(originalID: String, to dest: FilePath) {
         guard let child = opt(originalID), child.url != dest.url else { return }
         child.url = dest.url
+    }
+
+    /// Point the single result card at the step's final file when it's a renderable media
+    /// file, so the one card follows the file as steps convert/move it. No-op for side-effect
+    /// or non-renderable steps (send-link, clipboard copy, delete), so the card keeps its last
+    /// good thumbnail + size/resolution/bitrate/DPI deltas.
+    func syncRenderTarget() {
+        guard isRenderableMediaFile(currentFile) else { return }
+        retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
     }
 
     // MARK: - Compiled Batch Execution
@@ -154,7 +173,7 @@ final class PipelineExecution {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
-                    retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+                    retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
                 } else {
                     log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for image \(inputFile.string)")
                     if location != "inPlace" {
@@ -165,7 +184,7 @@ final class PipelineExecution {
         case .video:
             let vid = Video(inputFile)
             if let result = try? await runVideoPipeline(
-                vid, actions: [.optimise],
+                vid, actions: [.optimise], id: renderTargetID,
                 allowLarger: false,
                 hideFloatingResult: hide,
                 aggressiveOptimisation: aggressive,
@@ -175,7 +194,7 @@ final class PipelineExecution {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
-                retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+                retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(inputFile.string)")
                 if location != "inPlace" {
@@ -186,7 +205,7 @@ final class PipelineExecution {
             let pdf = PDF(inputFile)
             let pdfDPI = dpi ?? pdfDPIForEncoder(encoder)
             if let result = try? await runPDFPipeline(
-                pdf, actions: [.optimise],
+                pdf, actions: [.optimise], id: renderTargetID,
                 allowLarger: false,
                 hideFloatingResult: hide,
                 aggressiveOptimisation: aggressive ? true : nil,
@@ -196,7 +215,7 @@ final class PipelineExecution {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
-                retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+                retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for PDF \(inputFile.string)")
                 if location != "inPlace" {
@@ -206,14 +225,14 @@ final class PipelineExecution {
         case .audio:
             let audio = Audio(inputFile)
             if let result = try? await runAudioPipeline(
-                audio, actions: [.optimise],
+                audio, actions: [.optimise], id: renderTargetID,
                 hideFloatingResult: hide,
                 source: source
             ) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
-                retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+                retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio \(inputFile.string)")
                 if location != "inPlace" {
@@ -372,7 +391,7 @@ final class PipelineExecution {
         currentFile = applyLocation(location, to: result, original: currentFile, context: context)
         if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
         if !hide { shownVisibleResult = true }
-        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+        retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
     }
 
     // MARK: - Metadata & Overlay Steps
@@ -493,7 +512,7 @@ final class PipelineExecution {
         }
         let vid = Video(currentFile)
         if let result = try? await runVideoPipeline(
-            vid, actions: [.optimise],
+            vid, actions: [.optimise], id: renderTargetID,
             allowLarger: true, hideFloatingResult: hide,
             source: source, fpsOverride: fps
         ) {
@@ -511,7 +530,7 @@ final class PipelineExecution {
         }
         let audio = await (try? Audio.byFetchingMetadata(path: currentFile, thumb: !hide)) ?? Audio(path: currentFile, thumb: !hide)
         if let result = try? await runAudioPipeline(
-            audio, actions: [.optimise],
+            audio, actions: [.optimise], id: renderTargetID,
             allowLarger: true, hideFloatingResult: hide,
             source: source, loudnormTarget: lufs
         ) {
@@ -550,7 +569,7 @@ final class PipelineExecution {
             }
         case .video:
             let vid = Video(inputFile)
-            if let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source) {
+            if let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
@@ -652,7 +671,7 @@ final class PipelineExecution {
                 }
             case .video:
                 let vid = Video(inputFile)
-                if let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: true, hideFloatingResult: hide, source: source, compression: optimiser.compressionOverride) {
+                if let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source, compression: optimiser.compressionOverride) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
@@ -666,7 +685,7 @@ final class PipelineExecution {
                 }
                 let audio = await (try? Audio.byFetchingMetadata(path: inputFile, thumb: !hide)) ?? Audio(path: inputFile, thumb: !hide)
                 if let result = try? await runAudioPipeline(
-                    audio, actions: [action],
+                    audio, actions: [action], id: renderTargetID,
                     allowLarger: true, hideFloatingResult: hide,
                     source: source, bitrateOverride: optimiser.audioBitrateOverride,
                     formatOverride: format, compression: optimiser.compressionOverride
@@ -732,7 +751,7 @@ final class PipelineExecution {
             let needsCrop = useLongEdge
                 ? (targetW > 0 && maxDim > targetW)
                 : (targetW > 0 && vidSize.width > targetW) || (targetH > 0 && vidSize.height > targetH)
-            if needsCrop, let result = try? await runVideoPipeline(vid, actions: [action], allowLarger: false, hideFloatingResult: hide, source: source) {
+            if needsCrop, let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: false, hideFloatingResult: hide, source: source) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
@@ -829,7 +848,7 @@ final class PipelineExecution {
     func handleRemoveAudio() async {
         if fileType == .video {
             let vid = Video(currentFile)
-            if let result = try? await runVideoPipeline(vid, actions: [.removeAudio], allowLarger: true, hideFloatingResult: hide, source: source) {
+            if let result = try? await runVideoPipeline(vid, actions: [.removeAudio], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
                 currentFile = result.path
                 if !hide { shownVisibleResult = true }
             } else {
@@ -842,7 +861,7 @@ final class PipelineExecution {
         switch fileType {
         case .video:
             let vid = Video(currentFile)
-            if let result = try? await runVideoPipeline(vid, actions: [.changePlaybackSpeed(factor: factor)], allowLarger: true, hideFloatingResult: hide, source: source) {
+            if let result = try? await runVideoPipeline(vid, actions: [.changePlaybackSpeed(factor: factor)], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
                 currentFile = result.path
                 if !hide { shownVisibleResult = true }
             } else {
@@ -879,6 +898,7 @@ final class PipelineExecution {
         log.debug("Pipeline: running script '\(scriptName)' with input \(inputPath)")
 
         let currentFile = currentFile
+        let fileType = fileType
         let scriptResult: (newPath: FilePath?, error: String?) = await Task.detached {
             let task = Process()
             if let inlineCode {
@@ -927,8 +947,15 @@ final class PipelineExecution {
             }
 
             let trimmedOutput = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmedOutput.isEmpty, let outputPath = trimmedOutput.existingFilePath {
-                return (outputPath, nil)
+            if !trimmedOutput.isEmpty, let outputPath = trimmedOutput.existingFilePath, outputPath != currentFile {
+                // Only adopt the script's output path as the new working file if it is the
+                // same media kind we're processing; a non-media stdout path would poison
+                // currentFile for later steps (mirrors handleRunShortcut's guard).
+                let outputType = UTType.from(filePath: outputPath)?.fileType
+                if outputType == nil || outputType == fileType {
+                    return (outputPath, nil)
+                }
+                log.warning("Pipeline: script '\(scriptName)' output path is \(String(describing: outputType)) but expected \(fileType), ignoring")
             }
             return (currentFile, nil)
         }.value
@@ -1064,6 +1091,88 @@ final class PipelineExecution {
         }
     }
 
+    // MARK: - Fork
+
+    /// Branch off the current result as a SECOND floating result card, then let the main line
+    /// (card B) keep going into the one morphing card. `currentFile` is never changed, so the
+    /// next step's input is preserved.
+    ///
+    /// - No `location`: the user only cares about the floating result, so card A's file lives in
+    ///   temp. We avoid copying when we can: if no following step would overwrite/delete/move the
+    ///   current file, card A just references it in place; only when a later step would clobber it
+    ///   do we snapshot it to a stable temp path.
+    /// - With `location`: card A's file is persisted there using the same rules as every other
+    ///   step's `location` (sameFolder / template), without disturbing the main line.
+    func handleFork(location: String?, followingSteps: [PipelineStep]) async {
+        let sourceFile = currentFile
+        guard isRenderableMediaFile(sourceFile) else {
+            log.debug("Pipeline: fork skipped, current file not renderable: \(sourceFile.string)")
+            return
+        }
+
+        let cardAFile: FilePath
+        if let location, location != "temporaryFolder", location != "inPlace" {
+            // Persist a copy at the requested location, leaving the main-line file untouched.
+            let tempCopy = (try? sourceFile.copy(to: forkTempPath(for: sourceFile), force: true)) ?? sourceFile
+            cardAFile = applyLocation(location, to: tempCopy, original: originalFile, context: context)
+        } else if forkNeedsCopy(after: followingSteps) {
+            // A later in-place / delete / move / rename step would clobber the current file, so
+            // snapshot it now to a stable temp path (no "pipeline-" prefix → survives cleanup).
+            cardAFile = (try? sourceFile.copy(to: forkTempPath(for: sourceFile), force: true)) ?? sourceFile
+        } else {
+            // Nothing downstream touches this file: card A can point at it directly, no copy.
+            cardAFile = sourceFile
+        }
+
+        spawnForkedResult(file: cardAFile)
+        log.debug("Pipeline: forked card from \(sourceFile.string) to \(cardAFile.string)")
+    }
+
+    private func forkTempPath(for file: FilePath) -> FilePath {
+        URL.temporaryDirectory.appendingPathComponent("clop-fork-\(Int.random(in: 1000 ... 10_000_000))-\(file.name.string)").filePath!
+    }
+
+    /// Whether a step after the fork would overwrite/delete/move the current file, meaning card A
+    /// must snapshot it to survive.
+    private func forkNeedsCopy(after followingSteps: [PipelineStep]) -> Bool {
+        for step in followingSteps {
+            switch step {
+            case .delete, .move, .rename:
+                return true
+            case .optimise, .downscale, .lowerBitrate, .crop, .targetSize, .stripExif, .watermark,
+                 .capFps, .normalize, .removeAudio, .changeSpeed:
+                if (step.location ?? "inPlace") == "inPlace" { return true }
+            case .convert:
+                if (step.location ?? "sameFolder") == "inPlace" { return true }
+            default:
+                break
+            }
+        }
+        return false
+    }
+
+    /// Create a finished, draggable result card seeded from the main line's current renderable
+    /// snapshot (thumbnail + size/resolution/bitrate/DPI deltas), so it shows the result-so-far.
+    private func spawnForkedResult(file: FilePath) {
+        let forkID = "\(renderTargetID)-fork-\(Int.random(in: 1000 ... 10_000_000))"
+        let cardA = OM.optimiser(id: forkID, type: .from(filePath: file), operation: "Forked", hidden: forceHide, source: source)
+        cardA.url = file.url
+        // Override whatever url.didSet refetched with the parent's current snapshot so both cards
+        // match at the fork point.
+        if let thumb = optimiser.thumbnail { cardA.thumbnail = thumb }
+        cardA.oldDPI = optimiser.oldDPI
+        cardA.newDPI = optimiser.newDPI
+        let newBytes = optimiser.newBytes > 0 ? optimiser.newBytes : (file.fileSize() ?? optimiser.oldBytes)
+        cardA.finish(
+            oldBytes: optimiser.oldBytes,
+            newBytes: newBytes,
+            oldSize: optimiser.oldSize,
+            newSize: optimiser.newSize,
+            oldBitrate: optimiser.oldBitrate,
+            newBitrate: optimiser.newBitrate
+        )
+    }
+
     // MARK: - App Integration Steps
 
     func handleShelveWith(app: String) async throws {
@@ -1143,7 +1252,7 @@ final class PipelineExecution {
 
         if let optimised = try? await runImagePipeline(
             img, actions: [.optimise],
-            allowLarger: false, hideFloatingResult: hide,
+            allowLarger: false, hideFloatingResult: true,
             aggressiveOptimisation: true, source: source
         ) {
             img = optimised
@@ -1156,7 +1265,7 @@ final class PipelineExecution {
             let fresh = Image(data: imgData, path: img.path, optimised: false, retinaDownscaled: false)
             guard let smaller = try? await runImagePipeline(
                 fresh, actions: [.downscale(factor: factor, cropSize: nil)],
-                allowLarger: true, hideFloatingResult: hide,
+                allowLarger: true, hideFloatingResult: true,
                 aggressiveOptimisation: true, source: source
             ) else { break }
             img = smaller
@@ -1169,7 +1278,7 @@ final class PipelineExecution {
         let vid = await (try? Video.byFetchingMetadata(path: inputFile)) ?? Video(inputFile)
         guard let duration = vid.duration, duration > 0 else {
             // No duration metadata: best effort with aggressive optimisation
-            return await (try? runVideoPipeline(vid, actions: [.optimise], allowLarger: true, hideFloatingResult: hide, aggressiveOptimisation: true, source: source))?.path
+            return await (try? runVideoPipeline(vid, actions: [.optimise], allowLarger: true, hideFloatingResult: true, aggressiveOptimisation: true, source: source))?.path
         }
 
         func encode(toFit target: Int, video: Video) async -> FilePath? {
@@ -1187,7 +1296,7 @@ final class PipelineExecution {
             ]
             return await (try? runVideoPipeline(
                 vid, actions: [.optimise],
-                allowLarger: true, hideFloatingResult: hide,
+                allowLarger: true, hideFloatingResult: true,
                 ffmpegEncoderOverride: encoderArgs, source: source
             ))?.path
         }
@@ -1210,7 +1319,7 @@ final class PipelineExecution {
             let pdf = PDF(inputFile)
             guard let optimised = try? await runPDFPipeline(
                 pdf, actions: [.optimise],
-                allowLarger: true, hideFloatingResult: hide,
+                allowLarger: true, hideFloatingResult: true,
                 aggressiveOptimisation: true, dpiOverride: stop, source: source
             ) else { continue }
             result = optimised.path
@@ -1227,7 +1336,7 @@ final class PipelineExecution {
         let clamped = audio.loweredBitrate(kbps: kbps) ?? kbps
         return await (try? runAudioPipeline(
             audio, actions: [.optimise],
-            allowLarger: true, hideFloatingResult: hide,
+            allowLarger: true, hideFloatingResult: true,
             source: source, bitrateOverride: clamped
         ))?.path
     }
@@ -1334,7 +1443,7 @@ final class PipelineExecution {
         }
 
         if let result = try? await runAudioPipeline(
-            audio, actions: [.optimise],
+            audio, actions: [.optimise], id: renderTargetID,
             allowLarger: true, hideFloatingResult: hide,
             source: source, bitrateOverride: targetBitrate
         ) {
@@ -1375,7 +1484,7 @@ final class PipelineExecution {
         }
 
         guard let result = try? await runVideoPipeline(
-            vid, actions: filteredActions,
+            vid, actions: filteredActions, id: renderTargetID,
             allowLarger: outExt != nil, hideFloatingResult: hide,
             aggressiveOptimisation: aggressive ? true : nil,
             videoEncoderOverride: videoEncoderOvr, ffmpegEncoderOverride: ffmpegEncoder,
@@ -1383,7 +1492,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+        retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
         return true
     }
 
@@ -1414,7 +1523,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+        retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
         return true
     }
 
@@ -1446,7 +1555,7 @@ final class PipelineExecution {
         }
 
         guard let result = try? await runAudioPipeline(
-            audio, actions: actions,
+            audio, actions: actions, id: renderTargetID,
             allowLarger: formatOverride != nil, hideFloatingResult: hide,
             source: source,
             bitrateOverride: bitrateOverride,
@@ -1455,7 +1564,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+        retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
         return true
     }
 
@@ -1463,7 +1572,7 @@ final class PipelineExecution {
         let pdf = PDF(inputFile)
 
         guard let result = try? await runPDFPipeline(
-            pdf, actions: actions,
+            pdf, actions: actions, id: renderTargetID,
             allowLarger: false, hideFloatingResult: hide,
             aggressiveOptimisation: aggressive ? true : nil,
             dpiOverride: dpi,
@@ -1471,7 +1580,7 @@ final class PipelineExecution {
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-        retargetChildOptimiser(originalID: inputFile.string, to: currentFile)
+        retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
         return true
     }
 

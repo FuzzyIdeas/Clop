@@ -596,7 +596,10 @@ func nsalert(error: String) {
             mainActor { BM.decompressingBinaries = false }
         }
 
-        let cliDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("ClopCLI")
+        // The standalone `clop` CLI resolves `applicationScriptsDirectory` to its own
+        // bundle id (com.lowtechguys.Clop.CLI), so symlink that directory to the app's
+        // own Application Scripts directory to let the CLI find the bundled binaries.
+        let cliDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("\(GLOBAL_BIN_DIR_PARENT.lastPathComponent).CLI")
         if fm.fileExists(atPath: cliDir.path), (try? fm.destinationOfSymbolicLink(atPath: cliDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
             do {
                 try fm.removeItem(at: cliDir)
@@ -610,23 +613,6 @@ func nsalert(error: String) {
                 try fm.createSymbolicLink(at: cliDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
             } catch {
                 log.error("Error creating symbolic link \(cliDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
-            }
-        }
-
-        let finderOptimiserDir = GLOBAL_BIN_DIR_PARENT.deletingLastPathComponent().appendingPathComponent("\(GLOBAL_BIN_DIR_PARENT.lastPathComponent).FinderOptimiser")
-        if fm.fileExists(atPath: finderOptimiserDir.path), (try? fm.destinationOfSymbolicLink(atPath: finderOptimiserDir.path)) != GLOBAL_BIN_DIR_PARENT.path {
-            do {
-                try fm.removeItem(at: finderOptimiserDir)
-            } catch {
-                nsalert(error: "Error removing symbolic link \(finderOptimiserDir.path): \(error)")
-                exit(1)
-            }
-        }
-        if !fm.fileExists(atPath: finderOptimiserDir.path) {
-            do {
-                try fm.createSymbolicLink(at: finderOptimiserDir, withDestinationURL: GLOBAL_BIN_DIR_PARENT)
-            } catch {
-                log.error("Error creating symbolic link \(finderOptimiserDir.path) -> \(GLOBAL_BIN_DIR_PARENT.path): \(error)")
             }
         }
         mainActor { setBinPaths() }

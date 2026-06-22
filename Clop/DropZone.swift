@@ -630,18 +630,38 @@ private func skipOptimiseAndRunPipelineIfEncoding(
     await prepare(optimiser)
 
     do {
-        let (resultFile, _, _) = try await executePipeline(
+        let (resultFile, shownVisible, didWork) = try await executePipeline(
             pipeline, file: path, source: source, optimiser: optimiser, fileType: fileType
         )
-        if resultFile != path {
+        // Finalize the parent optimiser. With the single-card model the pipeline steps render
+        // into this same optimiser, so it IS the result; just make sure it's settled and not
+        // left showing progress.
+        if shownVisible {
+            // Steps rendered into this card (it morphed through the pipeline). The last
+            // renderable step already finished it; settle it if anything left it running.
+            if optimiser.running { optimiser.finish(notice: "Pipeline completed") }
+        } else if didWork, isRenderableResult(resultFile, from: path) {
+            // No step surfaced a result and the pipeline produced a renderable file: turn
+            // the parent into the result.
+            let oldSize = path.fileSize() ?? 0
+            let newSize = resultFile.fileSize() ?? 0
             optimiser.url = resultFile.url
             optimiser.type = .from(filePath: resultFile)
-            if let newSize = resultFile.fileSize() {
-                optimiser.newBytes = newSize
+            if let img = NSImage(contentsOf: resultFile.url) {
+                optimiser.thumbnail = img
+            }
+            optimiser.finish(oldBytes: oldSize, newBytes: newSize)
+        } else {
+            // No step rendered a result (a no-op crop/downscale already within target, an unmet
+            // filter, or a side-effect-only pipeline): still show the dropped file with its size +
+            // resolution so the drop always gives feedback; only remove if it can't be rendered.
+            if !optimiser.showAsUnchanged(file: resultFile) {
+                optimiser.remove(after: 0)
             }
         }
     } catch {
         log.error("Pipeline: preset pipeline failed: \(error)")
+        optimiser.finish(error: "Pipeline failed")
     }
     return true
 }
