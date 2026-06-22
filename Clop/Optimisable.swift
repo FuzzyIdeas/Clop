@@ -24,7 +24,9 @@ class Optimisable {
         }
     }
 
-    class var dir: FilePath { .tmp }
+    class var dir: FilePath {
+        .tmp
+    }
 
     let path: FilePath
     let id: String?

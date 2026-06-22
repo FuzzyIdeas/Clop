@@ -9,7 +9,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "DebugDump")
 
 /// Sendable bag of data captured on the main actor. Everything inside is
 /// already serialized so the background pipeline only needs to write bytes.
-private struct DebugDumpSnapshot: Sendable {
+private struct DebugDumpSnapshot {
     let appInfoText: String
     let settingsData: Data
     let optimisersText: String

@@ -11,15 +11,7 @@ struct BatchCropButton: View {
         case name
     }
 
-    @FocusState private var focused: Field?
     @ObservedObject var sm = SM
-
-    @State private var tempWidth = 0
-    @State private var tempHeight = 0
-    @State private var isAspectRatio = false
-    @State private var cropOrientation = CropOrientation.adaptive
-    @State private var cropSize: CropSize?
-
     @State var name = ""
     @State var cropping = false
 
@@ -27,7 +19,9 @@ struct BatchCropButton: View {
 
     @Environment(\.preview) var preview
 
-    @ViewBuilder var viewer: some View {
+    @Environment(\.colorScheme) var colorScheme
+
+    var viewer: some View {
         Button("Crop") {
             withAnimation(.easeOut(duration: 0.1)) { cropping = true }
         }
@@ -168,7 +162,26 @@ struct BatchCropButton: View {
         .defaultFocus($focused, .width)
     }
 
-    @State private var lastFocusState: Field?
+    var editorViewer: some View {
+        viewer
+            .popover(isPresented: $cropping, arrowEdge: .bottom) {
+                PaddedPopoverView(background: Color(light: Color.white, dark: Color.black).any) {
+                    editor
+                        .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.08 : 0.10), textColor: .primary, radius: 5, horizontalPadding: 3, verticalPadding: 1))
+                        .font(.mono(11, weight: .medium))
+                        .foregroundColor(.primary)
+                }
+            }
+    }
+
+    var body: some View {
+        editorViewer
+            .onChange(of: sm.selecting) { selecting in
+                if !selecting {
+                    cropping = false
+                }
+            }
+    }
 
     @ViewBuilder func aspectRatioButton(_ size: CropSize) -> some View {
         let selected = isAspectRatio && cropSize?.name == size.name
@@ -186,28 +199,6 @@ struct BatchCropButton: View {
                 .chipBackground(selected: selected)
         })
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder var editorViewer: some View {
-        viewer
-            .popover(isPresented: $cropping, arrowEdge: .bottom) {
-                PaddedPopoverView(background: Color(light: Color.white, dark: Color.black).any) {
-                    editor
-                        .buttonStyle(FlatButton(color: .primary.opacity(colorScheme == .dark ? 0.08 : 0.10), textColor: .primary, radius: 5, horizontalPadding: 3, verticalPadding: 1))
-                        .font(.mono(11, weight: .medium))
-                        .foregroundColor(.primary)
-                }
-            }
-    }
-
-    @Environment(\.colorScheme) var colorScheme
-    var body: some View {
-        editorViewer
-            .onChange(of: sm.selecting) { selecting in
-                if !selecting {
-                    cropping = false
-                }
-            }
     }
 
     @ViewBuilder func cropSizeButton(_ size: CropSize) -> some View {
@@ -250,10 +241,20 @@ struct BatchCropButton: View {
         }
     }
 
+    @FocusState private var focused: Field?
+
+    @State private var tempWidth = 0
+    @State private var tempHeight = 0
+    @State private var isAspectRatio = false
+    @State private var cropOrientation = CropOrientation.adaptive
+    @State private var cropSize: CropSize?
+
+    @State private var lastFocusState: Field?
+
 }
 
 private extension View {
-    @ViewBuilder func chipBackground(selected: Bool) -> some View {
+    func chipBackground(selected: Bool) -> some View {
         background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(selected ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.06))

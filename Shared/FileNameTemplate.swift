@@ -41,11 +41,15 @@ final class NanoID {
 }
 
 extension Int {
-    var u32: UInt32 { UInt32(self) }
+    var u32: UInt32 {
+        UInt32(self)
+    }
 }
 
 extension UInt32 {
-    var i: Int { Int(self) }
+    var i: Int {
+        Int(self)
+    }
 }
 
 // MARK: - NanoIDHelper

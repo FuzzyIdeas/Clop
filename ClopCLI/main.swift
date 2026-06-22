@@ -26,7 +26,9 @@ extension String {
     }
 }
 extension URL {
-    var shellString: String { isFileURL ? path.shellString : absoluteString }
+    var shellString: String {
+        isFileURL ? path.shellString : absoluteString
+    }
 }
 
 extension UserDefaults {
@@ -253,7 +255,7 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: 
 
     if !async {
         progressPrinter = ProgressPrinter(urls: urls)
-        Task.init {
+        Task {
             await progressPrinter!.startResponsesThread()
 
             guard showProgress else { return }
@@ -268,7 +270,7 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: 
 
     if showProgress, !async, let progressPrinter {
         for url in urls where url.isFileURL {
-            Task.init { await progressPrinter.startProgressListener(url: url) }
+            Task { await progressPrinter.startProgressListener(url: url) }
         }
     }
 
@@ -790,7 +792,7 @@ struct Clop: ParsableCommand {
         var compression: String?
 
         var urls: [URL] = []
-        var parsedCompression: CompressionQuality? = nil
+        var parsedCompression: CompressionQuality?
 
         @Argument(help: "Images, image folders or URLs to convert")
         var items: [String] = []
@@ -832,7 +834,7 @@ struct Clop: ParsableCommand {
         var compression: String?
 
         var urls: [URL] = []
-        var parsedCompression: CompressionQuality? = nil
+        var parsedCompression: CompressionQuality?
 
         @Argument(help: "Videos, video folders or URLs to convert")
         var items: [String] = []
@@ -877,7 +879,7 @@ struct Clop: ParsableCommand {
         var bitrate: Int?
 
         var urls: [URL] = []
-        var parsedCompression: CompressionQuality? = nil
+        var parsedCompression: CompressionQuality?
 
         @Argument(help: "Audio files, folders of audio files or URLs to convert")
         var items: [String] = []
@@ -1512,7 +1514,7 @@ struct Clop: ParsableCommand {
         var crop: NSSize? = nil
 
         var urls: [URL] = []
-        var parsedCompression: CompressionQuality? = nil
+        var parsedCompression: CompressionQuality?
 
         @Argument(help: "Images, videos, audio files, PDFs or URLs to optimise (can be a file, folder, or list of files)")
         var items: [String] = []
@@ -1572,7 +1574,7 @@ struct Clop: ParsableCommand {
         var crop: NSSize? = nil
 
         var urls: [URL] = []
-        var parsedCompression: CompressionQuality? = nil
+        var parsedCompression: CompressionQuality?
 
         @Argument(help: "Images, image folders or URLs to optimise")
         var items: [String] = []
@@ -1626,7 +1628,7 @@ struct Clop: ParsableCommand {
         var crop: NSSize? = nil
 
         var urls: [URL] = []
-        var parsedCompression: CompressionQuality? = nil
+        var parsedCompression: CompressionQuality?
 
         @Argument(help: "Videos, video folders or URLs to optimise")
         var items: [String] = []
@@ -1674,7 +1676,7 @@ struct Clop: ParsableCommand {
         var crop: NSSize? = nil
 
         var urls: [URL] = []
-        var parsedDPI: Int? = nil
+        var parsedDPI: Int?
 
         @Argument(help: "PDFs, folders of PDFs or URLs to optimise")
         var items: [String] = []
@@ -1712,7 +1714,7 @@ struct Clop: ParsableCommand {
         var bitrate: Int?
 
         var urls: [URL] = []
-        var parsedCompression: CompressionQuality? = nil
+        var parsedCompression: CompressionQuality?
 
         @Argument(help: "Audio files, folders of audio files or URLs to optimise")
         var items: [String] = []
@@ -1737,6 +1739,9 @@ struct Clop: ParsableCommand {
 
     struct PipelineCommand: ParsableCommand {
         struct List: ParsableCommand {
+            /// Why an automation row would be hidden by default. `nil` means show it normally.
+            enum HiddenReason: String { case orphaned, missing }
+
             static let configuration = CommandConfiguration(
                 abstract: "List saved pipelines and folder automations."
             )
@@ -1746,6 +1751,29 @@ struct Clop: ParsableCommand {
 
             @Flag(name: .long, help: "Also show hidden entries: orphaned folder automations (folder no longer watched), empty pipelines, and broken references")
             var all = false
+
+            /// Classify one automation row. `source` is the dict key (a dir path or a fixed
+            /// source name), `resolved` is the pipeline after following any library reference,
+            /// `isReference`/`resolvedExists` describe the reference state, `watchedDirs` is the
+            /// list of currently-watched folders for this file type.
+            static func hiddenReason(
+                source: String, resolved: CLIPipeline, raw: CLIPipeline,
+                watchedDirs: [String]
+            ) -> HiddenReason? {
+                // Broken reference: points at a library id that no longer exists.
+                if raw.provenance == .reference, raw.libraryID != nil, resolved.id == raw.id {
+                    return .missing
+                }
+                // Empty: no steps to run (displayText is the canonical "(no steps)" sentinel).
+                if resolved.displayText == "(no steps)" {
+                    return .missing
+                }
+                // Orphaned folder automation: source is an absolute path not in watchedDirs.
+                if source.hasPrefix("/"), !watchedDirs.contains(source) {
+                    return .orphaned
+                }
+                return nil
+            }
 
             mutating func run() throws {
                 let saved = readSavedPipelines()
@@ -1794,35 +1822,12 @@ struct Clop: ParsableCommand {
                     }
                     guard !lines.isEmpty else { continue }
                     print("\nAutomations for \(label.bold()):")
-                    for line in lines { print(line) }
+                    for line in lines {
+                        print(line)
+                    }
                 }
             }
 
-            /// Why an automation row would be hidden by default. `nil` means show it normally.
-            enum HiddenReason: String { case orphaned, missing }
-
-            /// Classify one automation row. `source` is the dict key (a dir path or a fixed
-            /// source name), `resolved` is the pipeline after following any library reference,
-            /// `isReference`/`resolvedExists` describe the reference state, `watchedDirs` is the
-            /// list of currently-watched folders for this file type.
-            static func hiddenReason(
-                source: String, resolved: CLIPipeline, raw: CLIPipeline,
-                watchedDirs: [String]
-            ) -> HiddenReason? {
-                // Broken reference: points at a library id that no longer exists.
-                if raw.provenance == .reference, raw.libraryID != nil, resolved.id == raw.id {
-                    return .missing
-                }
-                // Empty: no steps to run (displayText is the canonical "(no steps)" sentinel).
-                if resolved.displayText == "(no steps)" {
-                    return .missing
-                }
-                // Orphaned folder automation: source is an absolute path not in watchedDirs.
-                if source.hasPrefix("/"), !watchedDirs.contains(source) {
-                    return .orphaned
-                }
-                return nil
-            }
         }
 
         struct Show: ParsableCommand {
@@ -1873,13 +1878,9 @@ struct Clop: ParsableCommand {
             @Flag(name: .long, help: "Hide result. Run silently without showing the floating result thumbnail")
             var hideResult = false
 
-            // Backwards-compatible hidden alias for --show-result (was the only way before 3.1).
+            /// Backwards-compatible hidden alias for --show-result (was the only way before 3.1).
             @Flag(name: [.customShort("g"), .customLong("gui")], help: .hidden)
             var gui = false
-
-            /// Resolved visibility: hidden unless the user asked to show it. `--show-result`
-            /// and the legacy `--gui` both reveal it; `--hide-result` is the explicit default.
-            var resolvedHideResult: Bool { !(showResult || gui) }
 
             @Flag(name: .shortAndLong, help: "Don't print progress to stderr")
             var noProgress = false
@@ -1906,6 +1907,12 @@ struct Clop: ParsableCommand {
             var items: [String] = []
 
             var urls: [URL] = []
+
+            /// Resolved visibility: hidden unless the user asked to show it. `--show-result`
+            /// and the legacy `--gui` both reveal it; `--hide-result` is the explicit default.
+            var resolvedHideResult: Bool {
+                !(showResult || gui)
+            }
 
             mutating func validate() throws {
                 if showResult || gui, hideResult {
@@ -2061,20 +2068,27 @@ struct Clop: ParsableCommand {
 
                     clop pipeline prompt -c "shrink all my screenshots to webp under 500KB"
 
-                The LLM should reply with a single inline pipeline string you can run with
-                `clop pipeline run '<steps>' <files>` or save with `clop pipeline add <name> '<steps>'`.
+                The LLM should reply with a single line: a bare pipeline string to run with
+                `clop pipeline run`, or a full `clop pipeline add`/`attach` command when the request
+                is to save or automate it.
+
+                Use --compact for a much shorter prompt (~1.7k tokens) that fits small-context,
+                on-device models; the default prompt is richer (~5.3k tokens) and suits larger models.
                 """
             )
 
             @Flag(name: .shortAndLong, help: "Copy the generated prompt to the clipboard")
             var copy = false
 
+            @Flag(name: .long, help: "Emit a shorter prompt that fits small-context models (e.g. on-device models limited to ~4k tokens)")
+            var compact = false
+
             @Argument(help: "Optional task appended to the end as the request for the LLM")
             var task: [String] = []
 
             mutating func run() throws {
                 let taskText = task.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-                let text = pipelinePromptContext(task: taskText.isEmpty ? nil : taskText)
+                let text = pipelinePromptContext(task: taskText.isEmpty ? nil : taskText, compact: compact)
                 print(text)
                 if copy {
                     let pb = NSPasteboard.general
@@ -2112,7 +2126,7 @@ struct Clop: ParsableCommand {
                     throw ValidationError("Invalid --type '\(type)': must be image, video, pdf, or audio")
                 }
                 let (resolved, _) = resolvePipelineArg(pipeline)
-                if case .invalid(let unknown) = resolved {
+                if case let .invalid(unknown) = resolved {
                     let savedNames = readSavedPipelines().compactMap(\.name)
                     throw ValidationError("""
                     '\(pipeline)' is not a saved pipeline name/id and contains unknown steps: \(unknown.joined(separator: ", "))
@@ -2156,14 +2170,38 @@ struct Clop: ParsableCommand {
                     throw ValidationError("Invalid pipeline '\(pipeline)'")
                 }
 
+                // A folder source is keyed by its normalized absolute path, matching how the app
+                // stores watched dirs and looks up folder automations.
+                let folder = normalizedFolderSource(source)
+                let storedSource = folder ?? source
+
                 let key = automationKey(for: type)
                 var automationDict = defaults.dictionary(forKey: key) as? [String: [String]] ?? [:]
-                var list = automationDict[source] ?? []
+                var list = automationDict[storedSource] ?? []
                 list.append(pipelineJSON)
-                automationDict[source] = list
+                automationDict[storedSource] = list
                 defaults.set(automationDict, forKey: key)
 
-                print("\(CHECKMARK) Attached to \(source.yellow()) (\(type.green())): \(label)")
+                // A folder automation only fires while Clop watches the folder AND automatic
+                // processing for that type is enabled, so make sure both hold.
+                var notes: [String] = []
+                if let folder {
+                    let dirsKey = watchedDirsKey(for: type)
+                    var dirs = defaults.array(forKey: dirsKey) as? [String] ?? defaultWatchedDirs(for: type)
+                    if !dirs.contains(folder) {
+                        dirs.append(folder)
+                        defaults.set(dirs, forKey: dirsKey)
+                        notes.append("now watching this folder")
+                    }
+                    let (enabledKey, enabledDefault) = watcherEnabledKey(for: type)
+                    if !(defaults.object(forKey: enabledKey) as? Bool ?? enabledDefault) {
+                        defaults.set(true, forKey: enabledKey)
+                        notes.append("enabled automatic \(type) processing")
+                    }
+                }
+
+                let suffix = notes.isEmpty ? "" : " (\(notes.joined(separator: ", ")))".dim()
+                print("\(CHECKMARK) Attached to \(storedSource.yellow()) (\(type.green())): \(label)\(suffix)")
             }
         }
 
@@ -2207,27 +2245,48 @@ struct Clop: ParsableCommand {
 
                 let key = automationKey(for: type)
                 var automationDict = defaults.dictionary(forKey: key) as? [String: [String]] ?? [:]
-                guard var list = automationDict[source], !list.isEmpty else {
+
+                // Resolve the stored key: a folder source normalizes to an absolute path, but fall
+                // back to the raw source for automations saved before normalization existed.
+                let folder = normalizedFolderSource(source)
+                let storedSource: String = {
+                    if let folder, automationDict[folder] != nil { return folder }
+                    if automationDict[source] != nil { return source }
+                    return folder ?? source
+                }()
+
+                guard var list = automationDict[storedSource], !list.isEmpty else {
                     throw ValidationError("No pipelines attached to '\(source)' for \(type)")
                 }
 
                 if all {
                     let removed = list.count
-                    automationDict.removeValue(forKey: source)
+                    automationDict.removeValue(forKey: storedSource)
                     defaults.set(automationDict, forKey: key)
-                    print("\(CHECKMARK) Removed \(removed) pipeline\(removed == 1 ? "" : "s") from \(source.yellow()) (\(type.green()))")
+                    print("\(CHECKMARK) Removed \(removed) pipeline\(removed == 1 ? "" : "s") from \(storedSource.yellow()) (\(type.green()))")
                 } else if let idx = index {
                     guard list.indices.contains(idx) else {
                         throw ValidationError("Index \(idx) is out of range (0..\(list.count - 1))")
                     }
                     list.remove(at: idx)
                     if list.isEmpty {
-                        automationDict.removeValue(forKey: source)
+                        automationDict.removeValue(forKey: storedSource)
                     } else {
-                        automationDict[source] = list
+                        automationDict[storedSource] = list
                     }
                     defaults.set(automationDict, forKey: key)
-                    print("\(CHECKMARK) Removed pipeline at index \(idx) from \(source.yellow()) (\(type.green()))")
+                    print("\(CHECKMARK) Removed pipeline at index \(idx) from \(storedSource.yellow()) (\(type.green()))")
+                }
+
+                // If this was a folder and no automations remain for it, stop watching it for this
+                // type (only touch an explicitly-stored dirs list, so we never materialize defaults).
+                if let folder, automationDict[storedSource] == nil,
+                   var dirs = defaults.array(forKey: watchedDirsKey(for: type)) as? [String],
+                   dirs.contains(where: { $0 == folder || $0 == storedSource })
+                {
+                    dirs.removeAll { $0 == folder || $0 == storedSource }
+                    defaults.set(dirs, forKey: watchedDirsKey(for: type))
+                    print("  \("Stopped watching this folder for \(type)".dim())")
                 }
             }
         }
@@ -2235,12 +2294,6 @@ struct Clop: ParsableCommand {
         // MARK: - Preset
 
         struct Preset: ParsableCommand {
-            static let configuration = CommandConfiguration(
-                commandName: "preset",
-                abstract: "Manage drop zone preset zones.",
-                subcommands: [Add.self, Remove.self]
-            )
-
             struct Add: ParsableCommand {
                 static let configuration = CommandConfiguration(
                     abstract: "Add a preset zone to the drop zone."
@@ -2256,7 +2309,7 @@ struct Clop: ParsableCommand {
                 var type: String?
 
                 @Option(name: .long, help: "SF Symbol name for the preset zone icon.")
-                var icon: String = "wand.and.stars"
+                var icon = "wand.and.stars"
 
                 @Flag(name: .long, help: "Skip optimisation pass before the pipeline runs.")
                 var skipOptimisation = false
@@ -2272,7 +2325,7 @@ struct Clop: ParsableCommand {
                         throw ValidationError("Invalid --type '\(t)': must be image, video, pdf, or audio")
                     }
                     let (resolved, _) = resolvePipelineArg(pipeline)
-                    if case .invalid(let unknown) = resolved {
+                    if case let .invalid(unknown) = resolved {
                         let savedNames = readSavedPipelines().compactMap(\.name)
                         throw ValidationError("""
                         '\(pipeline)' is not a saved pipeline name/id and contains unknown steps: \(unknown.joined(separator: ", "))
@@ -2287,7 +2340,7 @@ struct Clop: ParsableCommand {
                         throw ValidationError("Can't access Clop defaults")
                     }
 
-                    let typeRawValue = type  // already validated as image/video/pdf/audio or nil
+                    let typeRawValue = type // already validated as image/video/pdf/audio or nil
                     let zoneID = "\(name)-\(typeRawValue ?? "all")"
 
                     let pipelineDict: [String: Any]
@@ -2377,6 +2430,13 @@ struct Clop: ParsableCommand {
                     print("\(CHECKMARK) Removed preset zone \(name.green()) (type: \(type ?? "all"))")
                 }
             }
+
+            static let configuration = CommandConfiguration(
+                commandName: "preset",
+                abstract: "Manage drop zone preset zones.",
+                subcommands: [Add.self, Remove.self]
+            )
+
         }
 
         static let configuration = CommandConfiguration(
@@ -2425,16 +2485,144 @@ let PIPELINE_AUTOMATION_KEYS = [
     ("pipelinesToRunOnAudio", "audio", "audioDirs"),
 ]
 
+/// Append the user's task (if any) to a generated prompt, with a shared closing instruction.
+func appendPipelineTask(_ task: String?, to out: String) -> String {
+    guard let task, !task.isEmpty else { return out }
+    return out + "\n\n---\n\n## Task\n\n\(task)\n\nReturn ONE line: a bare pipeline string, or a full `clop pipeline add`/`attach` command if the request is to save or automate it.\n"
+}
+
+/// Compact variant of `pipelinePromptContext`, ~1.7k tokens, for small-context (on-device) models.
+/// Keep in sync with the full prompt and with the steps in Automation.swift.
+func compactPipelinePromptContext(task: String?) -> String {
+    let out = #"""
+    # Clop pipeline DSL (compact)
+
+    You write Clop pipelines that transform image/video/pdf/audio files. Reply with ONE line, nothing
+    else (add a one-line note only if a caveat matters). That line is one of:
+    - a bare pipeline string (`crop(longEdge: 1600) -> convert(to: webp)`) for a one-off on named files;
+    - `clop pipeline attach '<steps>' --source <source> --type <type>` to run automatically on a source;
+    - `clop pipeline add [--file-type <type>] <name> '<steps>'` to save a reusable named pipeline.
+
+    Choosing the output:
+    - Request names a folder ("photos in Downloads", "PDFs in ~/Reports"): attach with `--source <folder>`
+      (`~` is fine). The folder starts being watched, so new files of that type run the pipeline.
+    - "when I copy", "clipboard": `--source clipboard`. "dropped on Clop": `--source dropZone`.
+    - "save a pipeline", "preset": `clop pipeline add` (or `clop pipeline preset add`).
+    - otherwise: a bare pipeline string.
+    With `--type`/`--file-type` the pipeline is ALREADY scoped to that broad type, so don't restate it
+    with `if(types: <t>)` (redundant). But `types:` also takes specific formats, so still use it to
+    NARROW further (e.g. `if(types: jpeg webp)` under `--type image`) or to split MIXED-type runs.
+
+    Syntax: steps joined by `->`, left to right. `name(key: value, ...)`; no-param steps can be bare.
+    Quote strings/paths/regex; bare values fine for enums/numbers. A step that doesn't fit the input type
+    is skipped. Inline `run` does EXACTLY your steps (no implicit optimise; add `optimise` for smaller files).
+    A saved/attached pipeline optimises first unless "skip optimisation" is set. Default location is
+    `inPlace`, except `convert`/`extractPagesAsImages` default to `sameFolder`.
+
+    ## Steps ([types]; defaults in (), value sets after :)
+    - optimise(encoder, adaptive, dpi, location) [all]. encoder img/pdf/audio: medium|aggressive|lossless;
+      video: fast|slowHighQuality|visuallyLossless. adaptive (img, may change ext). dpi (pdf): 300|150|72|48.
+    - downscale(factor 0..1, location) [image,video,audio] (for audio this lowers the bitrate).
+    - lowerBitrate(kbps) [audio]: 192|160|128|96|64 (never upscales; snaps to allowed).
+    - convert(to, location) [image,video,audio] (sameFolder). img: webp|avif|heic|jxl|jpeg|png|gif;
+      video: mp4|hevc|x265|av1|webm|gif (AV1 video = `av1`, NOT the `avif` image format);
+      audio: m4a|mp3|ogg|flac|wav|aiff. No-op if already that format.
+    - crop(width, height, longEdge, location) [image,video]. Give >=1; missing side keeps aspect; longEdge = longest side.
+    - extractPagesAsImages(format jpeg|png, quality low|medium|high, location) [pdf] (sameFolder).
+    - targetSize(size) [all]: iteratively compress under a limit, e.g. 500KB, 10MB, 25MB. No trailing `optimise`.
+    - stripExif [image,video]. watermark(image, position bottomRight|bottomLeft|topRight|topLeft|center,
+      opacity 0..1, scale 0.15, location) [image,video].
+    - removeAudio [video]. changeSpeed(factor) [video,audio]. capFps(fps) [video]. normalize(lufs -16) [audio].
+    - copy(to) / move(to) / rename(to) / delete(path)  (delete(path: "sourceFile") removes the input file).
+    - runScript(path | code): inline `code` is one line, no `->`; file is $1 / $CLOP_INPUT_FILE; a path it
+      prints replaces the file. runShortcut(name) [image,video,pdf].
+    - copyToClipboard(format path|imageData|markdown, relativeTo). copyLinkForSending(expiration 1m|15m|1h|6h|1d|3d|never).
+      fork(location) surfaces a second card. shelveWith(app yoink|dockside|dropover). uploadWith(app dropshare). openWith(app).
+
+    ## Filters (if / ifNot gate the rest of the pipeline; no else, no branch)
+    `if(...)` continues only when every key holds (AND); `ifNot(...)` inverts; a failed filter silently
+    stops the file. Keys: regex (filename, capture groups -> $1..), types (e.g. `jpeg png webp`),
+    nameContains, nameIs, fileSizeGreaterThan/fileSizeLowerThan (bytes), minFileSize (`2mb`),
+    widthGreaterThan/widthLowerThan, heightGreaterThan/heightLowerThan, minResolution (`640x480`),
+    dpiGreaterThan/dpiLowerThan, copiedBy (clipboard source app/bundle id).
+    Mixed types: filters don't branch, so `if(types: image) -> ... -> if(types: video) -> ...` is broken
+    (the 2nd gate never passes). "Do X to all, Y to one type" = narrow at the end:
+    `optimise -> if(types: image) -> convert(to: webp)`. "Different output per type" = TWO commands, one
+    per `--type` (no `--type image,video`): attach `convert(to: webp)` --type image, AND `convert(to: mp4)` --type video.
+
+    ## location & path tokens
+    location: inPlace | sameFolder | temporaryFolder | a path template. Tokens (usable in location,
+    copy/move/rename `to`, watermark `image`): %f name, %e ext, %P parent, %F full path, %y year,
+    %m month, %n month name, %d day, %w weekday, %H hour, %M min, %S sec, %p AM/PM, %r 5 random letters,
+    %i counter. $1.. = regex capture groups. ~ = home. No extension in a template -> it's appended.
+
+    ## Avoid double encoding
+    crop/downscale/convert already re-encode AND compress, so don't add a trailing `optimise`. Consecutive
+    inPlace steps batch into one pass; a non-inPlace location ends the batch and starts a new encode (this
+    is how multi-output pipelines are built).
+
+    ## Commands
+    - run now:  `clop pipeline run '<steps>' file...`
+    - save:     `clop pipeline add [--file-type t] [--skip-optimisation] [--hide-result] <name> '<steps>'`
+    - automate: `clop pipeline attach '<steps>' --source <clipboard|dropZone|folder> --type <t>`
+                (a folder source is auto-watched; remove with `clop pipeline detach --source <s> --type <t> --all`)
+    - preset:   `clop pipeline preset add '<name>' '<steps>' [--type t] [--icon <sf-symbol>]`
+
+    ## Examples
+    - `optimise -> convert(to: webp)`
+    - `targetSize(size: 10MB)`
+    - `changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)`
+    - `clop pipeline attach 'crop(longEdge: 1600) -> convert(to: webp, location: "~/Sync/Optimised/") -> copyToClipboard(format: markdown)' --source ~/Downloads --type image`
+    - `clop pipeline attach 'convert(to: webp)' --source clipboard --type image`
+    - `clop pipeline add --file-type image 'Web ready' 'convert(to: webp)'`
+    """#
+    return appendPipelineTask(task, to: out)
+}
+
 /// LLM-ready reference for the pipeline DSL, emitted by `clop pipeline prompt`.
 /// Hand-maintained mirror of `ALL_STEP_TEMPLATES` + `parsePipelineStep` in Automation.swift
 /// (which aren't in the CLI target). Keep in sync when steps/params change there.
-func pipelinePromptContext(task: String?) -> String {
+/// `compact` emits a shorter variant for small-context models (see `compactPipelinePromptContext`).
+func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
+    if compact { return compactPipelinePromptContext(task: task) }
     var out = #"""
     # Clop pipeline DSL
 
     You write Clop pipelines: ordered sequences of steps that transform image, video, PDF and
-    audio files. Your job is to translate a request into ONE pipeline string. Reply with just the
-    pipeline string (and a one-line note only if a caveat matters), nothing else.
+    audio files. Translate the request into ONE line and reply with just that line (plus a one-line
+    note only if a caveat matters), nothing else. That line is one of:
+
+    - a bare pipeline string like `crop(longEdge: 1600) -> convert(to: webp)`, for a one-off the user
+      runs now on specific files (they will wrap it in `clop pipeline run`);
+    - a full `clop pipeline attach '<steps>' --source <source> --type <type>` command, when the
+      request is to run automatically on a source (a folder, the clipboard, the drop zone);
+    - a full `clop pipeline add [--file-type <type>] <name> '<steps>'` command, when the request is
+      to save a reusable named pipeline to the library.
+
+    ## Choosing what to output
+
+    - The request names a folder ("every photo in Downloads", "all PDFs in ~/Reports", "whenever I
+      save a video to ~/Movies"): attach to that folder with `--source <that folder path>`. `~` is
+      fine; the folder starts being watched, so every new file of that type added to it runs the pipeline.
+    - "whenever I copy ...", "from the clipboard", "anything I paste": use `--source clipboard`.
+      "dropped on Clop", "the drop zone": use `--source dropZone`.
+    - "save a pipeline called X", "make a preset I can reuse": use `clop pipeline add` (or
+      `clop pipeline preset add` for a drop-zone preset zone).
+    - Anything else (a one-off on specific files the user names): a bare pipeline string.
+
+    Prefer ONE command. A single `attach` with inline steps both starts watching the folder and runs
+    the pipeline; you don't need a separate `add` first unless the user explicitly wants it saved by name.
+
+    ## File-type filtering (IMPORTANT)
+
+    When you emit `attach --type <t>` or `add --file-type <t>`, the pipeline is ALREADY scoped to that
+    broad type (image/video/pdf/audio), so do NOT restate the SAME broad type with `if(types: <t>)`:
+    `if(types: image)` under `--type image` is redundant noise, and a step that doesn't apply to the
+    input type is skipped on its own anyway. You SHOULD still use `if(types: ...)` when you need to
+    narrow FURTHER, because `types:` also takes specific formats/extensions: e.g. `if(types: jpeg png
+    webp)` to act only on those image formats even under `--type image`. And use it to discriminate
+    between types in a MIXED-type run (an all-types drop-zone preset, or a bare `clop pipeline run`
+    over a folder of mixed files).
 
     ## Syntax
 
@@ -2471,6 +2659,7 @@ func pipelinePromptContext(task: String?) -> String {
     - `convert(to, location)`: change format, then re-encode and compress to that format during the same pass. [image, video, audio] (default location: sameFolder)
       - `to`: image → webp, avif, heic, jxl, jpeg, png, gif; video → mp4 (H.264), hevc (H.265 hardware),
         x265 (software, smaller), av1, webm, gif; audio → m4a, mp3, ogg, flac, wav, aiff.
+        Watch the AV1 collision: the AV1 *video* codec is `av1`; `avif` is the still-*image* format.
       - Converting to the format the file is already in is an idempotent no-op: it does NO work and the
         file is passed through unchanged (jpg/jpeg and tif/tiff count as the same format). So `convert`
         only re-encodes when the input isn't already that format.
@@ -2480,6 +2669,7 @@ func pipelinePromptContext(task: String?) -> String {
     - `extractPagesAsImages(format, quality, location)`: render PDF pages to images. [pdf]
       - `format`: jpeg (default), png. `quality`: low (1x/72dpi), medium (2x/144dpi, default), high (3x/216dpi).
     - `targetSize(size, location)`: compress iteratively until the file fits under a limit. [image, video, pdf, audio]
+      Never follow it with `optimise`: it already compresses to fit, so a trailing `optimise` is wasteful double encoding.
       - `size`: `500KB`, `10MB`, `25MB` (kb/mb/gb or kib/mib/gib, or raw bytes). Handy limits:
         Discord/GitHub 10MB, WhatsApp 16MB, Gmail 25MB.
     - `stripExif`: remove EXIF and GPS metadata (privacy before sharing). [image, video]
@@ -2512,6 +2702,22 @@ func pipelinePromptContext(task: String?) -> String {
       - `minResolution`: `WxH`, e.g. `640x480` (images).
       - `dpiGreaterThan` / `dpiLowerThan`: DPI (images & PDFs).
       - `copiedBy`: app name or bundle id substring (clipboard source only), e.g. `copiedBy: "safari"`.
+
+    ### Mixed file types (filters do NOT branch, so handle each type separately)
+
+    Because a filter only gates the steps AFTER it and there is no `else`, you cannot give two file
+    types different treatment in one linear pipeline. Chaining gates like
+    `if(types: image) -> convert(to: webp) -> if(types: video) -> convert(to: mp4)` is broken: a video
+    fails the first gate and stops, an image that passes is no longer a video at the second gate, so the
+    second half never runs.
+
+    - "Do X to everything, then ALSO do Y to only one type": one pipeline works, narrow at the END.
+      e.g. optimise all, only images go on to webp: `optimise -> if(types: image) -> convert(to: webp)`.
+    - "Give each type a DIFFERENT output": emit TWO commands, one per `--type` (a `--type`/`--file-type`
+      can only be a single type). e.g. for a folder of images and videos:
+        clop pipeline attach 'convert(to: webp)' --source <folder> --type image
+        clop pipeline attach 'convert(to: mp4)'  --source <folder> --type video
+      (Output both lines; do not invent `--type image,video`.)
 
     ### File operations (template tokens supported, see below)
 
@@ -2558,7 +2764,9 @@ func pipelinePromptContext(task: String?) -> String {
     - Audio bitrate is never increased; `lowerBitrate` snaps to the format's allowed bitrates.
     - Filters are not branches: a failed `if` (or a matched `ifNot`) silently stops the file at that
       point; the remaining steps simply don't run. There is no `else` and no way to resume.
-    - Keep steps appropriate to the file type, or gate them with `if(types: ...)`.
+    - Keep steps appropriate to the file type. Only gate with `if(types: ...)` when the pipeline runs
+      over MIXED types; a pipeline attached/added with a fixed `--type`/`--file-type` is already scoped,
+      so type gating there is redundant.
 
     ## Avoiding double encoding
 
@@ -2600,11 +2808,14 @@ func pipelinePromptContext(task: String?) -> String {
     that source. The pipeline argument is either a saved pipeline's name or id (attached as a
     reference so it tracks library edits) or inline steps (validated and stored verbatim).
 
-    - `--source`: `clipboard`, `dropZone`, or an absolute folder path (e.g. `/Users/me/Downloads`).
+    - `--source`: `clipboard`, `dropZone`, or a folder path (`~` is expanded, e.g. `~/Downloads`).
     - `--type`: `image`, `video`, `pdf`, or `audio`.
     - `--skip-optimisation`: skip the implicit optimise pass before the pipeline runs (inline only).
     - `--hide-result`: suppress the floating result thumbnail (inline only).
     - A source can hold several attached pipelines for the same type; each `attach` appends one.
+    - Attaching to a FOLDER also starts watching it: the folder is added to Clop's watched folders for
+      that type and automatic processing for that type is enabled, so the pipeline fires on its own.
+      No `if(types: <type>)` step is needed: the attachment is already scoped to `--type`.
 
     Examples:
       # Auto-convert every clipboard image to WebP (inline)
@@ -2623,10 +2834,12 @@ func pipelinePromptContext(task: String?) -> String {
 
     - `--all`: remove every pipeline attached to that source/type pair.
     - `--index <n>`: remove only the pipeline at 0-based position `n` (use `clop pipeline list` to check order).
+    - When the last automation for a FOLDER/type is removed, Clop also stops watching that folder for
+      that type (the reverse of what `attach` set up).
 
     Examples:
       clop pipeline detach --source clipboard --type image --all
-      clop pipeline detach --source /Users/me/Downloads --type video --index 1
+      clop pipeline detach --source ~/Downloads --type video --index 1
 
     ### preset: manage drop zone preset zones
 
@@ -2672,19 +2885,28 @@ func pipelinePromptContext(task: String?) -> String {
     - Audio to 128k MP3:            `convert(to: mp3) -> lowerBitrate(kbps: 128)`
     - PDF pages to JPEGs:           `extractPagesAsImages(format: jpeg, quality: high)`
     - Watermark then optimise:      `watermark(image: "%P/logo.png", position: bottomRight) -> optimise`
+
+    ### As full commands (when the request names a folder / source)
+
+    - Every photo in Downloads to WebP at max 1600px, into a Sync folder, copy a markdown link:
+      `clop pipeline attach 'crop(longEdge: 1600) -> convert(to: webp, location: "~/Sync/Optimised/") -> copyToClipboard(format: markdown)' --source ~/Downloads --type image`
+      (no `if(types: image)` needed: `--type image` already scopes it.)
+    - Auto-convert every clipboard image to WebP:
+      `clop pipeline attach 'convert(to: webp)' --source clipboard --type image`
+    - Compress every video saved to ~/Movies for sharing:
+      `clop pipeline attach 'targetSize(size: 25MB)' --source ~/Movies --type video`
+    - Save a reusable "Web ready" image pipeline to the library:
+      `clop pipeline add --file-type image 'Web ready' 'convert(to: webp)'`
     """#
 
-    if let task, !task.isEmpty {
-        out += "\n\n---\n\n## Task\n\n\(task)\n\nReturn one pipeline string for this task.\n"
-    }
-    return out
+    return appendPipelineTask(task, to: out)
 }
 
 /// Resolution result for a pipeline argument that may be a saved pipeline name/id or inline steps.
 enum PipelineArgResolution {
-    case reference   // matches a saved pipeline by name or id
-    case inline      // not a saved pipeline; steps validated as known DSL
-    case invalid([String])  // not a saved pipeline and contains unknown step names
+    case reference // matches a saved pipeline by name or id
+    case inline // not a saved pipeline; steps validated as known DSL
+    case invalid([String]) // not a saved pipeline and contains unknown step names
 }
 
 /// Resolve a pipeline argument: check saved pipelines first (by name, case-insensitive, or by id),
@@ -2722,6 +2944,14 @@ func invalidPipelineSteps(_ text: String) -> [String] {
 /// Lightweight mirror of the app's `Pipeline` model, enough for listing and editing
 /// the JSON strings stored in the `savedPipelines` default.
 struct CLIPipeline: Codable {
+    /// How a list entry was created: a bundled built-in (stable `builtin-` id),
+    /// a user-saved pipeline (UUID id), or a reference to a library entry.
+    enum Provenance: String {
+        case builtin
+        case user
+        case reference
+    }
+
     var id: String
     var name: String?
     var rawText: String?
@@ -2753,28 +2983,6 @@ struct CLIPipeline: Codable {
         }.joined(separator: " -> ")
     }
 
-    static func from(json: String) -> CLIPipeline? {
-        guard let data = json.data(using: .utf8),
-              var pipeline = try? JSONDecoder().decode(CLIPipeline.self, from: data)
-        else { return nil }
-        pipeline.rawJSON = json
-        return pipeline
-    }
-
-    /// Follow a library reference to the saved pipeline it points at.
-    func resolve(in saved: [CLIPipeline]) -> CLIPipeline {
-        guard let libraryID else { return self }
-        return saved.first(where: { $0.id == libraryID }) ?? self
-    }
-
-    /// How a list entry was created: a bundled built-in (stable `builtin-` id),
-    /// a user-saved pipeline (UUID id), or a reference to a library entry.
-    enum Provenance: String {
-        case builtin
-        case user
-        case reference
-    }
-
     var provenance: Provenance {
         if libraryID != nil { return .reference }
         if id.hasPrefix("builtin-") { return .builtin }
@@ -2791,6 +2999,20 @@ struct CLIPipeline: Codable {
         return " " + tags.map { "[\($0)]".dim() }.joined(separator: " ")
     }
 
+    static func from(json: String) -> CLIPipeline? {
+        guard let data = json.data(using: .utf8),
+              var pipeline = try? JSONDecoder().decode(CLIPipeline.self, from: data)
+        else { return nil }
+        pipeline.rawJSON = json
+        return pipeline
+    }
+
+    /// Follow a library reference to the saved pipeline it points at.
+    func resolve(in saved: [CLIPipeline]) -> CLIPipeline {
+        guard let libraryID else { return self }
+        return saved.first(where: { $0.id == libraryID }) ?? self
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, name, rawText, skipOptimisation, hideResult, libraryID, fileType
     }
@@ -2804,12 +3026,61 @@ func readSavedPipelines() -> [CLIPipeline] {
 /// Return the `pipelinesToRunOn*` UserDefaults key for the given file type string.
 func automationKey(for type: String) -> String {
     switch type {
-    case "image": return "pipelinesToRunOnImage"
-    case "video": return "pipelinesToRunOnVideo"
-    case "pdf":   return "pipelinesToRunOnPdf"
-    case "audio": return "pipelinesToRunOnAudio"
-    default:      fatalError("unhandled file type: \(type)")
+    case "image": "pipelinesToRunOnImage"
+    case "video": "pipelinesToRunOnVideo"
+    case "pdf": "pipelinesToRunOnPdf"
+    case "audio": "pipelinesToRunOnAudio"
+    default: fatalError("unhandled file type: \(type)")
     }
+}
+
+/// Watched-dirs Defaults key for a file type (mirror of PIPELINE_AUTOMATION_KEYS).
+func watchedDirsKey(for type: String) -> String {
+    switch type {
+    case "image": "imageDirs"
+    case "video": "videoDirs"
+    case "pdf": "pdfDirs"
+    case "audio": "audioDirs"
+    default: fatalError("unhandled file type: \(type)")
+    }
+}
+
+/// Per-type folder-watcher toggle key and its registered default (mirror of Settings.swift).
+func watcherEnabledKey(for type: String) -> (key: String, default: Bool) {
+    switch type {
+    case "image": ("enableAutomaticImageOptimisations", true)
+    case "video": ("enableAutomaticVideoOptimisations", true)
+    case "pdf": ("enableAutomaticPDFOptimisations", true)
+    case "audio": ("enableAutomaticAudioOptimisations", false)
+    default: fatalError("unhandled file type: \(type)")
+    }
+}
+
+/// Registered default for a type's watched-dirs list (mirror of Settings.swift: image/video watch
+/// the Desktop by default, pdf/audio watch nothing). Used so the first explicit write from the CLI
+/// doesn't silently drop the implicit default folders.
+func defaultWatchedDirs(for type: String) -> [String] {
+    switch type {
+    case "image", "video": [URL.desktopDirectory.path]
+    default: []
+    }
+}
+
+/// Fixed source keywords understood by the automation system. Anything else is a folder path.
+let FIXED_AUTOMATION_SOURCES: Set = [
+    "clipboard", "dropZone", "drop-zone", "drop zone",
+    "fileWatcher", "file-watcher", "file watcher",
+    "openWith", "open-with", "open with",
+    "service", "photos", "shortcuts", "cli", "finder",
+]
+
+/// If `source` names a folder (not a fixed keyword), return its normalized absolute path
+/// (expanding `~`, standardizing). The app keys folder automations and watched dirs by this exact
+/// absolute path, so attach/detach must normalize identically. Returns nil for keyword sources.
+func normalizedFolderSource(_ source: String) -> String? {
+    guard !FIXED_AUTOMATION_SOURCES.contains(source) else { return nil }
+    let expanded = (source as NSString).expandingTildeInPath
+    return URL(fileURLWithPath: expanded).standardizedFileURL.path
 }
 
 let CHECKMARK = "✓".green()
@@ -2863,7 +3134,7 @@ actor ProgressPrinter {
 
     func addProgressSubscriber(url: URL, progress: Progress) {
         progressFractionObserver[url] = progress.observe(\.fractionCompleted) { _, change in
-            Task.init { await self.printProgress() }
+            Task { await self.printProgress() }
         }
         progressProxies[url] = progress
     }
@@ -2882,9 +3153,9 @@ actor ProgressPrinter {
 
     func startProgressListener(url: URL) {
         let sub = Progress.addSubscriber(forFileURL: url) { progress in
-            Task.init { await self.addProgressSubscriber(url: url, progress: progress) }
+            Task { await self.addProgressSubscriber(url: url, progress: progress) }
             return {
-                Task.init { await self.removeProgressSubscriber(url: url) }
+                Task { await self.removeProgressSubscriber(url: url) }
             }
         }
         progressSubscribers[url] = sub
@@ -2925,7 +3196,9 @@ actor ProgressPrinter {
 
     /// True when every item errored and none succeeded. Used to decide the CLI exit
     /// code: a partial success exits 0 so callers don't retry already-processed files.
-    var allItemsFailed: Bool { responses.isEmpty && !errors.isEmpty }
+    var allItemsFailed: Bool {
+        responses.isEmpty && !errors.isEmpty
+    }
 
     func printResults(json: Bool) {
         guard !json else {
@@ -3002,10 +3275,10 @@ actor ProgressPrinter {
                     return nil
                 }
                 if let resp = OptimisationResponse.from(data) {
-                    Task.init { await self.markDone(response: resp) }
+                    Task { await self.markDone(response: resp) }
                 }
                 if let resp = OptimisationResponseError.from(data) {
-                    Task.init { await self.markError(response: resp) }
+                    Task { await self.markError(response: resp) }
                 }
                 return nil
             }
@@ -3017,7 +3290,9 @@ actor ProgressPrinter {
 
 let HOME = FilePath(NSHomeDirectory())
 extension FilePath {
-    var shellString: String { string.replacingFirstOccurrence(of: HOME.string, with: "~") }
+    var shellString: String {
+        string.replacingFirstOccurrence(of: HOME.string, with: "~")
+    }
 }
 
 let LINE_UP = "\u{1B}[1A"

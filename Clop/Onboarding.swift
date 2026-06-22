@@ -98,7 +98,9 @@ struct DropZoneDemoAnimationView: View {
 }
 struct OnboardingView: View {
     @ObservedObject var bm = BM
-    @State private var fileDropped = true
+
+    @Default(.enableAutomaticImageOptimisations) var enableAutomaticImageOptimisations
+    @Default(.enableAutomaticVideoOptimisations) var enableAutomaticVideoOptimisations
 
     var clopLogo: some View {
         ZStack(alignment: .topLeading) {
@@ -241,14 +243,15 @@ struct OnboardingView: View {
         }
     }
 
+    @State private var fileDropped = true
+
     @State private var maskOpacity = 0.0
 
     @Environment(\.colorScheme) private var colorScheme
+
     @Default(.enableClipboardOptimiser) private var enableClipboardOptimiser
     @Default(.imageDirs) private var imageDirs
     @Default(.videoDirs) private var videoDirs
-    @Default(.enableAutomaticImageOptimisations) var enableAutomaticImageOptimisations
-    @Default(.enableAutomaticVideoOptimisations) var enableAutomaticVideoOptimisations
 }
 
 #Preview {

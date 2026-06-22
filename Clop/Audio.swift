@@ -62,7 +62,7 @@ class Audio: Optimisable {
         if let metadata {
             self.metadata = metadata
         } else {
-            Task.init {
+            Task {
                 self.metadata = try? await getAudioMetadata(path: path)
                 await MainActor.run {
                     if let optimiser = self.optimiser, optimiser.oldBitrate == nil, let kbps = self.bitrate {
@@ -77,14 +77,24 @@ class Audio: Optimisable {
         self.init(path: path, thumb: thumb, id: id)
     }
 
-    override class var dir: FilePath { .audios }
+    override class var dir: FilePath {
+        .audios
+    }
 
     var metadata: AudioMetadata?
 
-    var duration: TimeInterval? { metadata?.duration }
-    var bitrate: Int? { metadata?.bitrate }
-    var sampleRate: Double? { metadata?.sampleRate }
-    var codec: String? { metadata?.codec }
+    var duration: TimeInterval? {
+        metadata?.duration
+    }
+    var bitrate: Int? {
+        metadata?.bitrate
+    }
+    var sampleRate: Double? {
+        metadata?.sampleRate
+    }
+    var codec: String? {
+        metadata?.codec
+    }
 
     /// Resolve the output format for this audio (honouring `.sameAsInput`).
     var outputFormat: AudioFormat {

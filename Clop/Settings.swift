@@ -65,17 +65,18 @@ extension CompressionQuality: Defaults.Serializable {}
 extension Defaults.Keys {
     static let finishedOnboarding = Key<Bool>("finishedOnboarding", default: false)
     static let showMenubarIcon = Key<Bool>("showMenubarIcon", default: true)
-    // false = the new (default) menubar icon, true = the classic pre-3.0 icon. Paired with
-    // `showMenubarIcon` to drive the New / Classic / Hidden picker in General settings.
+    /// false = the new (default) menubar icon, true = the classic pre-3.0 icon. Paired with
+    /// `showMenubarIcon` to drive the New / Classic / Hidden picker in General settings.
     static let useClassicMenubarIcon = Key<Bool>("useClassicMenubarIcon", default: false)
-    // true = the geometric all-black menubar icon variant. Takes precedence over
-    // `useClassicMenubarIcon` when deriving the New / Classic / Geometric / Hidden picker.
+    /// true = the geometric all-black menubar icon variant. Takes precedence over
+    /// `useClassicMenubarIcon` when deriving the New / Classic / Geometric / Hidden picker.
     static let useGeometricMenubarIcon = Key<Bool>("useGeometricMenubarIcon", default: false)
     // Seconds after which a "Send securely" link auto-stops (0 = never). Starting value for the
     // expiration picker and the fallback for the copyLinkForSending step. Default 1 hour.
     static let defaultLinkExpiration = Key<TimeInterval>("defaultLinkExpiration", default: 3600)
     static let enableFloatingResults = Key<Bool>("enableFloatingResults", default: true)
     static let alwaysShowCompactResults = Key<Bool>("alwaysShowCompactResults", default: false)
+    static let hideFloatingResultTooltips = Key<Bool>("hideFloatingResultTooltips", default: false)
 
     static let optimiseTIFF = Key<Bool>("optimiseTIFF", default: true)
     static let enableClipboardOptimiser = Key<Bool>("enableClipboardOptimiser", default: true)
@@ -128,15 +129,15 @@ extension Defaults.Keys {
     static let useAggressiveOptimisationJPEG = Key<Bool>("useAggressiveOptimisationJPEG", default: false)
     static let useAggressiveOptimisationPNG = Key<Bool>("useAggressiveOptimisationPNG", default: false)
     static let useAggressiveOptimisationGIF = Key<Bool>("useAggressiveOptimisationGIF", default: false)
-    // Unified per-format compression value (tier + 5..100 factor). Source of truth for the
-    // compression slider; legacy aggressive/adaptive keys above are kept readable for back-compat.
+    /// Unified per-format compression value (tier + 5..100 factor). Source of truth for the
+    /// compression slider; legacy aggressive/adaptive keys above are kept readable for back-compat.
     static let imageCompression = Key<CompressionQuality>("imageCompression", default: CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_NORMAL))
-    // factor 35 reproduces the legacy default 192 kbps for AAC; tier is always .custom for audio
-    // (WAV/lossless stays the AudioFormat choice).
+    /// factor 35 reproduces the legacy default 192 kbps for AAC; tier is always .custom for audio
+    /// (WAV/lossless stays the AudioFormat choice).
     static let audioCompression = Key<CompressionQuality>("audioCompression", default: CompressionQuality(tier: .custom, factor: 35))
     // Video: tier (lossless/fast/smaller) + factor for the smaller/software CRF. .fast matches the legacy default.
     static let videoCompression = Key<CompressionQuality>("videoCompression", default: CompressionQuality(tier: .fast, factor: 50))
-    // Versioned guard so the legacy→unified migration runs exactly once.
+    /// Versioned guard so the legacy→unified migration runs exactly once.
     static let compressionModelMigratedVersion = Key<Int>("compressionModelMigratedVersion", default: 0)
     /// PDF target DPI. 0 = Adaptive (target chosen per-PDF from source image density),
     /// positive = a fixed stop from `PDF_DPI_STOPS`. Default Adaptive so it compresses out of the box.
@@ -311,6 +312,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .onlyShowPresetZonesOnControlTapped,
     .enableFloatingResults,
     .floatingResultsCorner,
+    .hideFloatingResultTooltips,
     .formatsToConvertToJPEG,
     .formatsToConvertToMP4,
     .formatsToConvertToPNG,

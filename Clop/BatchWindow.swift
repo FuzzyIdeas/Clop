@@ -21,7 +21,9 @@ let BATCH_WINDOW_IDENTIFIER = NSUserInterfaceItemIdentifier("clop.batch.window")
 /// QuickLooks several files in a single QuickLook window (so "Open" on a selection doesn't spawn a
 /// dozen app windows).
 final class BatchQuickLooker: NSObject, QLPreviewPanelDataSource {
-    init(urls: [URL]) { self.urls = urls }
+    init(urls: [URL]) {
+        self.urls = urls
+    }
 
     static var shared: BatchQuickLooker?
 
@@ -36,8 +38,12 @@ final class BatchQuickLooker: NSObject, QLPreviewPanelDataSource {
         panel.reloadData()
     }
 
-    func numberOfPreviewItems(in _: QLPreviewPanel!) -> Int { urls.count }
-    func previewPanel(_: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! { urls[index] as NSURL }
+    func numberOfPreviewItems(in _: QLPreviewPanel!) -> Int {
+        urls.count
+    }
+    func previewPanel(_: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+        urls[index] as NSURL
+    }
 }
 
 // MARK: - Window controller

@@ -7,6 +7,7 @@ struct FileNameField: View {
     /// The glass/material capsule behind the name. Used on the floating result card; the compact list
     /// rows keep a flat look (no glass), so this is turned off there.
     var glass = true
+
     @FocusState var focused: Bool
     @State var tempName = ""
     @Namespace var namespace

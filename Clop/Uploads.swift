@@ -8,50 +8,96 @@ extension NSWorkspace.OpenConfiguration: @retroactive @unchecked Sendable {}
 
 @MainActor
 class Dropover: AppIntegration {
-    override var BUNDLE_ID: String { "me.damir.dropover-mac" }
+    override var BUNDLE_ID: String {
+        "me.damir.dropover-mac"
+    }
 
-    override var appNameQuery: String { "kMDItemFSName == 'Dropover.app'" }
-    override var webURL: URL? { "https://dropoverapp.com/".url! }
-    override var appPath: String { "/Applications/Dropover.app" }
+    override var appNameQuery: String {
+        "kMDItemFSName == 'Dropover.app'"
+    }
+    override var webURL: URL? {
+        "https://dropoverapp.com/".url!
+    }
+    override var appPath: String {
+        "/Applications/Dropover.app"
+    }
 }
 
 @MainActor
 class Dropshare: AppIntegration {
-    override var BUNDLE_ID: String { "net.mkswap.Dropshare5" }
-    override var SETAPP_BUNDLE_ID: String? { "net.mkswap.Dropshare-setapp" }
+    override var BUNDLE_ID: String {
+        "net.mkswap.Dropshare5"
+    }
+    override var SETAPP_BUNDLE_ID: String? {
+        "net.mkswap.Dropshare-setapp"
+    }
 
-    override var appNameQuery: String { "(kMDItemFSName == 'Dropshare.app' || kMDItemFSName == 'Dropshare 5.app')" }
-    override var webURL: URL? { "https://dropshare.app/".url! }
-    override var appPath: String { "/Applications/Dropshare 5.app" }
-    override var setappAppPath: String { "Setapp/Dropshare.app" }
+    override var appNameQuery: String {
+        "(kMDItemFSName == 'Dropshare.app' || kMDItemFSName == 'Dropshare 5.app')"
+    }
+    override var webURL: URL? {
+        "https://dropshare.app/".url!
+    }
+    override var appPath: String {
+        "/Applications/Dropshare 5.app"
+    }
+    override var setappAppPath: String {
+        "Setapp/Dropshare.app"
+    }
 }
 
 @MainActor
 class Yoink: AppIntegration {
-    override var BUNDLE_ID: String { "at.EternalStorms.Yoink" }
-    override var SETAPP_BUNDLE_ID: String? { "at.EternalStorms.Yoink-setapp" }
+    override var BUNDLE_ID: String {
+        "at.EternalStorms.Yoink"
+    }
+    override var SETAPP_BUNDLE_ID: String? {
+        "at.EternalStorms.Yoink-setapp"
+    }
 
-    override var appNameQuery: String { "kMDItemFSName == 'Yoink.app'" }
-    override var webURL: URL? { "https://eternalstorms.at/yoink/mac/".url! }
-    override var appPath: String { "/Applications/Yoink.app" }
-    override var setappAppPath: String { "Setapp/Yoink.app" }
+    override var appNameQuery: String {
+        "kMDItemFSName == 'Yoink.app'"
+    }
+    override var webURL: URL? {
+        "https://eternalstorms.at/yoink/mac/".url!
+    }
+    override var appPath: String {
+        "/Applications/Yoink.app"
+    }
+    override var setappAppPath: String {
+        "Setapp/Yoink.app"
+    }
 }
 
 @MainActor
 class Dockside: AppIntegration {
-    override var BUNDLE_ID: String { "com.hachipoo.Dockside" }
+    override var BUNDLE_ID: String {
+        "com.hachipoo.Dockside"
+    }
 
-    override var appNameQuery: String { "kMDItemFSName == 'Dockside.app'" }
-    override var webURL: URL? { "https://hachipoo.com/dockside-app".url! }
-    override var appPath: String { "/Applications/Dockside.app" }
+    override var appNameQuery: String {
+        "kMDItemFSName == 'Dockside.app'"
+    }
+    override var webURL: URL? {
+        "https://hachipoo.com/dockside-app".url!
+    }
+    override var appPath: String {
+        "/Applications/Dockside.app"
+    }
 }
 
 @MainActor
 class Atoll: AppIntegration {
-    override var BUNDLE_ID: String { "com.Ebullioscopic.Atoll" }
+    override var BUNDLE_ID: String {
+        "com.Ebullioscopic.Atoll"
+    }
 
-    override var appNameQuery: String { "kMDItemFSName == 'Atoll.app'" }
-    override var appPath: String { "/Applications/Atoll.app" }
+    override var appNameQuery: String {
+        "kMDItemFSName == 'Atoll.app'"
+    }
+    override var appPath: String {
+        "/Applications/Atoll.app"
+    }
 }
 
 @MainActor let DROPSHARE = Dropshare()
@@ -75,14 +121,28 @@ class AppIntegration {
     lazy var appURL: URL? = runningApp()?.bundleURL
     var appQuery: MetaQuery?
 
-    var BUNDLE_ID: String { "" }
-    var SETAPP_BUNDLE_ID: String? { nil }
+    var BUNDLE_ID: String {
+        ""
+    }
+    var SETAPP_BUNDLE_ID: String? {
+        nil
+    }
 
-    var webURL: URL? { nil }
-    var appNameQuery: String { "" }
-    var appPath: String { "" }
-    var appName: String { FilePath(appPath).stem ?? "shelf app" }
-    var setappAppPath: String? { nil }
+    var webURL: URL? {
+        nil
+    }
+    var appNameQuery: String {
+        ""
+    }
+    var appPath: String {
+        ""
+    }
+    var appName: String {
+        FilePath(appPath).stem ?? "shelf app"
+    }
+    var setappAppPath: String? {
+        nil
+    }
 
     func open(optimisers: [Optimiser]? = nil) {
         let workingWithSelection = optimisers != nil

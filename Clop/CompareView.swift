@@ -312,9 +312,13 @@ final class AudioCompareController: ObservableObject {
         }
     }
 
-    func duration(_ side: AudioSide) -> Double { durations[side] ?? 0 }
+    func duration(_ side: AudioSide) -> Double {
+        durations[side] ?? 0
+    }
 
-    func isPlaying(_ side: AudioSide) -> Bool { activeSide == side }
+    func isPlaying(_ side: AudioSide) -> Bool {
+        activeSide == side
+    }
 
     /// Where to draw a side's playhead: its live position while it's the audible one, otherwise the
     /// shared anchor (so both idle sides show where playback will begin).
@@ -752,7 +756,6 @@ struct CompareView: View {
             .allowsHitTesting(false)
     }
 
-    @ViewBuilder
     func pdfControls(pdf: PDFDocument) -> some View {
         VStack {
             HStack(spacing: 10) {

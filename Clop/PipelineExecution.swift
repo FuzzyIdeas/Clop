@@ -49,17 +49,21 @@ final class PipelineExecution {
     let optimiser: Optimiser
     let forceHide: Bool
 
-    // A pipeline shows ONE morphing result card by default: every step renders into the
-    // parent optimiser (renderTargetID) and the card stays visible across steps, so `hide`
-    // depends only on the pipeline-level toggle, not on whether the working file is a temp
-    // copy. (The old `/pipeline-` check hid intermediate steps, which is what produced the
-    // flickering per-step cards.)
-    var hide: Bool { forceHide }
+    /// A pipeline shows ONE morphing result card by default: every step renders into the
+    /// parent optimiser (renderTargetID) and the card stays visible across steps, so `hide`
+    /// depends only on the pipeline-level toggle, not on whether the working file is a temp
+    /// copy. (The old `/pipeline-` check hid intermediate steps, which is what produced the
+    /// flickering per-step cards.)
+    var hide: Bool {
+        forceHide
+    }
 
     /// The optimiser every step renders into, so a multi-step pipeline shows one card that
     /// morphs through its stages instead of spawning a separate result per step. The `fork`
     /// step is the explicit way to also produce a second card.
-    var renderTargetID: String { optimiser.id }
+    var renderTargetID: String {
+        optimiser.id
+    }
 
     /// Save destination for clipboard re-encode steps so the visible result tracks a stable
     /// file (matches `optimiser.downscale` / `executeTempPipeline`). nil for non-clipboard.
@@ -1128,51 +1132,6 @@ final class PipelineExecution {
         log.debug("Pipeline: forked card from \(sourceFile.string) to \(cardAFile.string)")
     }
 
-    private func forkTempPath(for file: FilePath) -> FilePath {
-        URL.temporaryDirectory.appendingPathComponent("clop-fork-\(Int.random(in: 1000 ... 10_000_000))-\(file.name.string)").filePath!
-    }
-
-    /// Whether a step after the fork would overwrite/delete/move the current file, meaning card A
-    /// must snapshot it to survive.
-    private func forkNeedsCopy(after followingSteps: [PipelineStep]) -> Bool {
-        for step in followingSteps {
-            switch step {
-            case .delete, .move, .rename:
-                return true
-            case .optimise, .downscale, .lowerBitrate, .crop, .targetSize, .stripExif, .watermark,
-                 .capFps, .normalize, .removeAudio, .changeSpeed:
-                if (step.location ?? "inPlace") == "inPlace" { return true }
-            case .convert:
-                if (step.location ?? "sameFolder") == "inPlace" { return true }
-            default:
-                break
-            }
-        }
-        return false
-    }
-
-    /// Create a finished, draggable result card seeded from the main line's current renderable
-    /// snapshot (thumbnail + size/resolution/bitrate/DPI deltas), so it shows the result-so-far.
-    private func spawnForkedResult(file: FilePath) {
-        let forkID = "\(renderTargetID)-fork-\(Int.random(in: 1000 ... 10_000_000))"
-        let cardA = OM.optimiser(id: forkID, type: .from(filePath: file), operation: "Forked", hidden: forceHide, source: source)
-        cardA.url = file.url
-        // Override whatever url.didSet refetched with the parent's current snapshot so both cards
-        // match at the fork point.
-        if let thumb = optimiser.thumbnail { cardA.thumbnail = thumb }
-        cardA.oldDPI = optimiser.oldDPI
-        cardA.newDPI = optimiser.newDPI
-        let newBytes = optimiser.newBytes > 0 ? optimiser.newBytes : (file.fileSize() ?? optimiser.oldBytes)
-        cardA.finish(
-            oldBytes: optimiser.oldBytes,
-            newBytes: newBytes,
-            oldSize: optimiser.oldSize,
-            newSize: optimiser.newSize,
-            oldBitrate: optimiser.oldBitrate,
-            newBitrate: optimiser.newBitrate
-        )
-    }
-
     // MARK: - App Integration Steps
 
     func handleShelveWith(app: String) async throws {
@@ -1244,6 +1203,51 @@ final class PipelineExecution {
             optimiser.finish(error: "App '\(app)' not found")
             shouldStop = true
         }
+    }
+
+    private func forkTempPath(for file: FilePath) -> FilePath {
+        URL.temporaryDirectory.appendingPathComponent("clop-fork-\(Int.random(in: 1000 ... 10_000_000))-\(file.name.string)").filePath!
+    }
+
+    /// Whether a step after the fork would overwrite/delete/move the current file, meaning card A
+    /// must snapshot it to survive.
+    private func forkNeedsCopy(after followingSteps: [PipelineStep]) -> Bool {
+        for step in followingSteps {
+            switch step {
+            case .delete, .move, .rename:
+                return true
+            case .optimise, .downscale, .lowerBitrate, .crop, .targetSize, .stripExif, .watermark,
+                 .capFps, .normalize, .removeAudio, .changeSpeed:
+                if (step.location ?? "inPlace") == "inPlace" { return true }
+            case .convert:
+                if (step.location ?? "sameFolder") == "inPlace" { return true }
+            default:
+                break
+            }
+        }
+        return false
+    }
+
+    /// Create a finished, draggable result card seeded from the main line's current renderable
+    /// snapshot (thumbnail + size/resolution/bitrate/DPI deltas), so it shows the result-so-far.
+    private func spawnForkedResult(file: FilePath) {
+        let forkID = "\(renderTargetID)-fork-\(Int.random(in: 1000 ... 10_000_000))"
+        let cardA = OM.optimiser(id: forkID, type: .from(filePath: file), operation: "Forked", hidden: forceHide, source: source)
+        cardA.url = file.url
+        // Override whatever url.didSet refetched with the parent's current snapshot so both cards
+        // match at the fork point.
+        if let thumb = optimiser.thumbnail { cardA.thumbnail = thumb }
+        cardA.oldDPI = optimiser.oldDPI
+        cardA.newDPI = optimiser.newDPI
+        let newBytes = optimiser.newBytes > 0 ? optimiser.newBytes : (file.fileSize() ?? optimiser.oldBytes)
+        cardA.finish(
+            oldBytes: optimiser.oldBytes,
+            newBytes: newBytes,
+            oldSize: optimiser.oldSize,
+            newSize: optimiser.newSize,
+            oldBitrate: optimiser.oldBitrate,
+            newBitrate: optimiser.newBitrate
+        )
     }
 
     private func targetSizeImage(bytes: Int, inputFile: FilePath) async -> FilePath? {

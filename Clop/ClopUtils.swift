@@ -103,7 +103,9 @@ extension Process {
 enum ClopProcError: Error, CustomStringConvertible {
     case processError(Process)
 
-    var localizedDescription: String { description }
+    var localizedDescription: String {
+        description
+    }
     var description: String {
         switch self {
         case let .processError(proc):
@@ -136,10 +138,18 @@ extension URL {
         (try? Xattr.dataFor(named: "clop.optimisation.status", atPath: path))?.s ?? "false" == "true"
     }
 
-    var isImage: Bool { hasExtension(from: IMAGE_EXTENSIONS) }
-    var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
-    var isPDF: Bool { hasExtension(from: ["pdf"]) }
-    var isAudio: Bool { hasExtension(from: AUDIO_EXTENSIONS) }
+    var isImage: Bool {
+        hasExtension(from: IMAGE_EXTENSIONS)
+    }
+    var isVideo: Bool {
+        hasExtension(from: VIDEO_EXTENSIONS)
+    }
+    var isPDF: Bool {
+        hasExtension(from: ["pdf"])
+    }
+    var isAudio: Bool {
+        hasExtension(from: AUDIO_EXTENSIONS)
+    }
 
     func hasExtension(from exts: [String]) -> Bool {
         exts.contains((pathExtension.split(separator: "@").last?.s ?? pathExtension).lowercased())
@@ -148,10 +158,18 @@ extension URL {
 }
 
 extension FilePath {
-    var isImage: Bool { hasExtension(from: IMAGE_EXTENSIONS) }
-    var isVideo: Bool { hasExtension(from: VIDEO_EXTENSIONS) }
-    var isPDF: Bool { hasExtension(from: ["pdf"]) }
-    var isAudio: Bool { hasExtension(from: AUDIO_EXTENSIONS) }
+    var isImage: Bool {
+        hasExtension(from: IMAGE_EXTENSIONS)
+    }
+    var isVideo: Bool {
+        hasExtension(from: VIDEO_EXTENSIONS)
+    }
+    var isPDF: Bool {
+        hasExtension(from: ["pdf"])
+    }
+    var isAudio: Bool {
+        hasExtension(from: AUDIO_EXTENSIONS)
+    }
 
     static var workdir = FilePath.dir(Defaults[.workdir], permissions: 0o755) {
         didSet {
@@ -168,21 +186,45 @@ extension FilePath {
     var clopBackupPath: FilePath? {
         FilePath.clopBackups.appending(nameWithHash)
     }
-    static var clopBackups: FilePath { FilePath.dir(workdir / "backups", permissions: 0o755) }
+    static var clopBackups: FilePath {
+        FilePath.dir(workdir / "backups", permissions: 0o755)
+    }
     /// Batch-mode CoW backups, one `batch-<id>` subfolder per run. Deliberately a separate root that
     /// the `fileCleaner` never enumerates: batch backups are the only pristine copy after an in-place
     /// rewrite and must survive until an explicit "Delete backups" or a verified restore.
-    static var batchBackups: FilePath { FilePath.dir(workdir / "batch-backups", permissions: 0o755) }
-    static var videos: FilePath { FilePath.dir(workdir / "videos", permissions: 0o755) }
-    static var images: FilePath { FilePath.dir(workdir / "images", permissions: 0o755) }
-    static var pdfs: FilePath { FilePath.dir(workdir / "pdfs", permissions: 0o755) }
-    static var audios: FilePath { FilePath.dir(workdir / "audios", permissions: 0o755) }
-    static var conversions: FilePath { FilePath.dir(workdir / "conversions", permissions: 0o755) }
-    static var downloads: FilePath { FilePath.dir(workdir / "downloads", permissions: 0o755) }
-    static var forResize: FilePath { FilePath.dir(workdir / "for-resize", permissions: 0o755) }
-    static var forFilters: FilePath { FilePath.dir(workdir / "for-filters", permissions: 0o755) }
-    static var processLogs: FilePath { FilePath.dir(workdir / "process-logs", permissions: 0o755) }
-    static var finderQuickAction: FilePath { FilePath.dir(workdir / "finder-quick-action", permissions: 0o755) }
+    static var batchBackups: FilePath {
+        FilePath.dir(workdir / "batch-backups", permissions: 0o755)
+    }
+    static var videos: FilePath {
+        FilePath.dir(workdir / "videos", permissions: 0o755)
+    }
+    static var images: FilePath {
+        FilePath.dir(workdir / "images", permissions: 0o755)
+    }
+    static var pdfs: FilePath {
+        FilePath.dir(workdir / "pdfs", permissions: 0o755)
+    }
+    static var audios: FilePath {
+        FilePath.dir(workdir / "audios", permissions: 0o755)
+    }
+    static var conversions: FilePath {
+        FilePath.dir(workdir / "conversions", permissions: 0o755)
+    }
+    static var downloads: FilePath {
+        FilePath.dir(workdir / "downloads", permissions: 0o755)
+    }
+    static var forResize: FilePath {
+        FilePath.dir(workdir / "for-resize", permissions: 0o755)
+    }
+    static var forFilters: FilePath {
+        FilePath.dir(workdir / "for-filters", permissions: 0o755)
+    }
+    static var processLogs: FilePath {
+        FilePath.dir(workdir / "process-logs", permissions: 0o755)
+    }
+    static var finderQuickAction: FilePath {
+        FilePath.dir(workdir / "finder-quick-action", permissions: 0o755)
+    }
 
     func setOptimisationStatusXattr(_ value: String) throws {
         try Xattr.set(named: "clop.optimisation.status", data: value.data(using: .utf8)!, atPath: string)
@@ -335,9 +377,13 @@ func generateThumbnail(for url: URL, size: CGSize, onCompletion: @escaping (QLTh
 }
 
 extension Process {
-    var commandLine: String { "\(executableURL?.path ?? "") \(arguments?.joined(separator: " ") ?? "")" }
+    var commandLine: String {
+        "\(executableURL?.path ?? "") \(arguments?.joined(separator: " ") ?? "")"
+    }
 
-    var terminated: Bool { memoz._terminated }
+    var terminated: Bool {
+        memoz._terminated
+    }
     var _terminated: Bool {
         (terminationReason == .uncaughtSignal && [SIGKILL, SIGTERM].contains(terminationStatus)) ||
             mainThread { processTerminated.contains(processIdentifier) }
@@ -360,7 +406,9 @@ struct Proc: Hashable {
     let cmd: String
     let args: [String]
 
-    var cmdline: String { "\(cmd) \(args.joined(separator: " "))" }
+    var cmdline: String {
+        "\(cmd) \(args.joined(separator: " "))"
+    }
 }
 
 func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWait: (([Proc: Process]) -> Void)? = nil) throws -> [Proc: Process] {

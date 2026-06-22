@@ -12,6 +12,16 @@ struct PresetZone: Codable, Hashable, Identifiable, Defaults.Serializable {
         id = "\(name)-\(type?.rawValue ?? "all")"
     }
 
+    /// Init that keeps an explicit, stable id so renaming a zone (name/type) doesn't change its identity —
+    /// important for the single inline editor, which is looked up by id while you type.
+    init(id: String, name: String, icon: String, type: ClopFileType? = nil, pipeline: Pipeline) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.type = type
+        self.pipeline = pipeline
+    }
+
     init(name: String, icon: String, type: ClopFileType? = nil, shortcut: Shortcut) {
         self.init(name: name, icon: icon, type: type, pipeline: Pipeline(steps: [.runShortcut(shortcut)]))
     }
@@ -43,7 +53,20 @@ struct PresetZone: Codable, Hashable, Identifiable, Defaults.Serializable {
     var pipeline: Pipeline
 
     /// The effective pipeline, resolving library references.
-    var resolvedPipeline: Pipeline { pipeline.resolved }
+    var resolvedPipeline: Pipeline {
+        pipeline.resolved
+    }
+
+    /// A name not already used by another zone, so the derived `id` (name+type) stays unique.
+    static func uniqueName(_ base: String, in zones: [PresetZone]) -> String {
+        let used = Set(zones.map(\.name))
+        guard used.contains(base) else { return base }
+        var i = 2
+        while used.contains("\(base) \(i)") {
+            i += 1
+        }
+        return "\(base) \(i)"
+    }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
@@ -53,6 +76,44 @@ struct PresetZone: Codable, Hashable, Identifiable, Defaults.Serializable {
         try container.encodeIfPresent(type, forKey: .type)
         try container.encode(pipeline, forKey: .pipeline)
     }
+
+}
+
+// MARK: - Preset zone mutations
+
+//
+// Shared by the inline preview menus (the first-class spatial add/remove surface) and the editor rows.
+
+/// Append a new preset zone for `type` with an empty inline pipeline and a default icon/name, returning
+/// its id so the caller can open its editor row.
+@MainActor func appendPresetZone(type: ClopFileType?) -> String {
+    var zones = Defaults[.presetZones]
+    let zone = PresetZone(
+        id: UUID().uuidString,
+        name: PresetZone.uniqueName("New preset", in: zones),
+        icon: "wand.and.sparkles", type: type, pipeline: Pipeline(steps: [])
+    )
+    zones.append(zone)
+    Defaults[.presetZones] = zones
+    return zone.id
+}
+
+/// Append (or replace `existing` with) a preset zone for `type` that references the library `pipeline`.
+@MainActor func assignPresetZone(library pipeline: Pipeline, type: ClopFileType?, replacing existing: PresetZone? = nil) {
+    var zones = Defaults[.presetZones]
+    // Adopt the assigned pipeline's name and icon so the zone visibly reflects what it now runs.
+    let name = pipeline.name ?? existing?.name ?? PresetZone.uniqueName("Preset", in: zones)
+    let zone = PresetZone(id: existing?.id ?? UUID().uuidString, name: name, icon: pipeline.icon ?? "wand.and.sparkles", type: type, pipeline: Pipeline.reference(to: pipeline))
+    if let existing, let idx = zones.firstIndex(of: existing) {
+        zones[idx] = zone
+    } else {
+        zones.append(zone)
+    }
+    Defaults[.presetZones] = zones
+}
+
+@MainActor func removePresetZone(_ zone: PresetZone) {
+    Defaults[.presetZones] = Defaults[.presetZones].filter { $0.id != zone.id }
 }
 
 struct DropZoneSettingsView_Previews: PreviewProvider {
@@ -66,242 +127,168 @@ struct DropZoneSettingsView_Previews: PreviewProvider {
     }
 }
 
-struct PresetZoneEditor: View {
-    @Binding var zone: PresetZone?
-
-    @State var icon = "wand.and.sparkles"
-    @State var name = ""
-    @State var pipelineText = ""
-    @State var skipOptimisation = false
-    @State var type: ClopFileType? = nil
-    @State var coordHolder = RefHolder<PipelineTextView.Coordinator>()
-    @State var showBoltTip = false
-    @State var currentPrefix = ""
-    @State var savedPipelineText = ""
-
-    var onSubmit: (() -> Void)? = nil
-    var type_: ClopFileType? = nil
+/// The single inline editor shown when a preset zone is being added or edited (opened from a zone's menu in
+/// the preview). Always in editing mode and styled like the Pipelines-library row: icon + name, the
+/// file-type menu, Pass/Show-Hide toggles, and the steps editor. Done commits and closes; Cancel closes and
+/// discards a brand-new zone that never got any steps.
+struct PresetZoneRow: View {
+    let zone: PresetZone
+    var onClose: () -> Void
 
     @Default(.presetZones) var presetZones
     @Default(.savedPipelines) var savedPipelines
 
-    var editorFileType: ClopFileType { type ?? .image }
-    var isEditing: Bool { zone != nil }
-    var canSave: Bool { !name.isEmpty && !Pipeline.parseSteps(from: pipelineText).isEmpty }
-
-    var applicableLibraryPipelines: [Pipeline] {
-        savedPipelines.filter { p in
-            guard let name = p.name, !name.isEmpty else { return false }
-            return p.fileType == nil || p.fileType == type
+    var typeMenu: some View {
+        Menu {
+            let types: [(String, ClopFileType?)] = [("Image", .image), ("Video", .video), ("Audio", .audio), ("PDF", .pdf)]
+            ForEach(types, id: \.0) { label, t in
+                Button {
+                    if t != zone.type { replaceMeta(name: editName, icon: icon, type: t) }
+                } label: {
+                    HStack { Text(label); if zone.type == t { SwiftUI.Image(systemName: "checkmark") } }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                if let ft = zone.type {
+                    SwiftUI.Image(systemName: ft.symbolName).foregroundColor(ft.color)
+                } else {
+                    SwiftUI.Image(systemName: "doc").foregroundColor(.secondary)
+                }
+                Text(zone.type.map { $0 == .pdf ? "PDF" : $0.description.capitalized } ?? "Any type")
+                    .foregroundColor(.blue.opacity(0.7))
+            }
+            .font(.regular(10))
         }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .help("Move to another file type")
     }
 
-    var headerRow: some View {
-        HStack(spacing: 6) {
-            IconPickerView(icon: $icon)
-                .frame(width: 24, alignment: .center)
-
-            HStack(spacing: 0) {
-                TextField("", text: $name, prompt: Text("Name"))
-                    .textFieldStyle(.plain)
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-
-                if !applicableLibraryPipelines.isEmpty {
-                    Menu {
-                        ForEach(applicableLibraryPipelines) { lib in
-                            Button(lib.name ?? lib.id) {
-                                name = lib.name ?? name
-                                pipelineText = lib.displayText
-                                skipOptimisation = lib.skipOptimisation
-                            }
-                        }
-                    } label: {
-                        Color.clear
-                    }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                }
-            }
-            .card(radius: 4, fill: .primary.opacity(0.05), borderColor: .primary.opacity(0.3))
-            .frame(width: 120, alignment: .leading)
-
-            Picker("", selection: $type) {
-                Text("any").tag(nil as ClopFileType?)
-                ForEach(ClopFileType.allCases, id: \.self) { t in
-                    Text(t == .pdf ? "PDF" : t.description).tag(t as ClopFileType?)
-                }
-            }
-            .frame(width: 100, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
-            )
-
-            boltButton
-
-            Spacer()
-
-            Button(action: save) {
-                HStack(spacing: 3) {
-                    SwiftUI.Image(systemName: isEditing ? "checkmark.circle.fill" : "plus.circle.fill")
-                    Text(isEditing ? "Save" : "Add")
-                }
-                .font(.medium(11))
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(canSave ? .accentColor : .secondary.opacity(0.8))
-            .disabled(!canSave)
-            .contentShape(Rectangle())
-
+    var confirmCancel: some View {
+        HStack(spacing: 0) {
+            Button(action: commit) {
+                SwiftUI.Image(systemName: "checkmark").font(.regular(11)).foregroundColor(.green.opacity(0.8))
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+            }.buttonStyle(.plain).help("Done")
             Button(action: cancel) {
-                Text("Cancel")
-                    .regular(11)
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-            .contentShape(Rectangle())
+                SwiftUI.Image(systemName: "xmark").font(.regular(11)).foregroundColor(.red.opacity(0.8))
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+            }.buttonStyle(.plain).help("Cancel")
         }
-    }
-
-    var boltButton: some View {
-        Button(action: { skipOptimisation.toggle() }) {
-            SwiftUI.Image(systemName: skipOptimisation ? "bolt.slash.fill" : "bolt.fill")
-                .font(.regular(10))
-                .foregroundColor(skipOptimisation ? .secondary.opacity(0.4) : .orange.opacity(0.7))
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .scaleEffect(showBoltTip ? 1.3 : 1.0)
-        .animation(.easeOut(duration: 0.15), value: showBoltTip)
-        .onHover { showBoltTip = $0 }
-        .overlay(alignment: .top) {
-            if showBoltTip {
-                Text(
-                    skipOptimisation
-                        ? "Click to enable optimisation.\nOriginal file is passed directly into the pipeline."
-                        : "Click to skip optimisation.\nFile is optimised first, then passed into the pipeline."
-                )
-                .font(.caption)
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .padding(6)
-                .background(.black, in: RoundedRectangle(cornerRadius: 6))
-                .fixedSize()
-                .offset(y: -40)
-                .allowsHitTesting(false)
-                .zIndex(10)
-            }
-        }
-    }
-
-    var pipelineEditor: some View {
-        PipelineTextView(
-            text: $pipelineText,
-            fileType: editorFileType,
-            placeholder: "optimise, crop, copy, convert...",
-            onPrefixChanged: { currentPrefix = $0 },
-            coordinatorRef: { coordHolder.value = $0 }
-        )
-        .frame(height: max(isEditing ? 36 : 26, CGFloat(1 + pipelineText.count / 80) * 18))
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .card(radius: 6, fill: .primary.opacity(0.04), borderColor: Color(.separatorColor).opacity(0.12), borderWidth: 1)
-    }
-
-    @ViewBuilder var suggestionsView: some View {
-        if pipelineText != savedPipelineText {
-            let suggestions = pipelineSuggestions(prefix: currentPrefix, fileType: editorFileType)
-            if !suggestions.isEmpty {
-                CompletionPanel(suggestions: suggestions) { suggestion in
-                    coordHolder.value?.insertSuggestion(suggestion)
-                    coordHolder.value?.refocus()
-                }
-                .padding(.horizontal, 8)
-            }
-        }
-
-        StepActionGrid(fileType: editorFileType) { text in
-            coordHolder.value?.appendStep(text)
-            coordHolder.value?.refocus()
-        }
-        .padding(.horizontal, 8)
-        .padding(.top, 4)
+        .background(Capsule().fill(Color.primary.opacity(0.05)))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            VStack(alignment: .leading, spacing: 5) {
-                headerRow
-                pipelineEditor
-            }
-            .padding(8)
-            .card(radius: 8, fill: .primary.opacity(isEditing ? 0.04 : 0.025), borderColor: .primary.opacity(isEditing ? 0.12 : 0.06), borderWidth: isEditing ? 1 : 0.5)
-            .onAppear {
-                if let zone { setFields(zone: zone) }
-            }
-            .onChange(of: zone) { [zone] newZone in
-                if let z = newZone { setFields(zone: z) }
-                else if zone != nil { setFields(zone: nil) }
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                IconPickerView(icon: $icon)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 13))
+                    .onChange(of: icon) { newIcon in
+                        if newIcon != zone.icon { replaceMeta(name: editName, icon: newIcon, type: zone.type) }
+                    }
 
-            suggestionsView
+                InlineNameField(name: $editName, font: .system(size: 11)) {
+                    let trimmed = editName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty, trimmed != zone.name { replaceMeta(name: trimmed, icon: icon, type: zone.type) }
+                }
+
+                Spacer(minLength: 0)
+
+                typeMenu
+                PipelineFlagSegmentedToggle(
+                    leading: "Pass", options: ("optimised", "original"), trailing: "file",
+                    selection: resolved.skipOptimisation ? 1 : 0,
+                    help: PipelineFlagCopy.skipOptimisation, tint: .orange
+                ) { idx in setFlag(skip: idx == 1) }
+                PipelineFlagSegmentedToggle(
+                    leading: nil, options: ("Show", "Hide"), trailing: "floating result",
+                    selection: resolved.hideResult ? 1 : 0,
+                    help: PipelineFlagCopy.hideResult, tint: .red
+                ) { idx in setFlag(hide: idx == 1) }
+                confirmCancel
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.08))
+
+            Divider().opacity(0.5)
+
+            PipelineTextView(
+                text: $editText,
+                fileType: zone.type,
+                placeholder: "optimise, crop, copy, convert...",
+                coordinatorRef: { coordHolder.value = $0 }
+            )
+            .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.bg.warm.opacity(0.9))
+        }
+        .card(radius: 6, fill: .clear, borderColor: .primary.opacity(0.2), borderWidth: 1)
+        .onAppear {
+            editName = zone.name
+            icon = zone.icon
+            editText = resolved.displayText
         }
     }
 
-    func save() {
-        guard !name.isEmpty else { return }
-        let trimmedText = pipelineText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let libPipeline: Pipeline
-        if let existingLibID = zone?.pipeline.libraryID,
-           let idx = savedPipelines.firstIndex(where: { $0.id == existingLibID })
-        {
-            savedPipelines[idx].updateFromText(pipelineText)
-            savedPipelines[idx].name = name
-            savedPipelines[idx].fileType = type
-            savedPipelines[idx].skipOptimisation = skipOptimisation
-            libPipeline = savedPipelines[idx]
-        } else if let idx = savedPipelines.firstIndex(where: { $0.name == name && $0.fileType == type }) {
-            // Replace existing pipeline with same name and type
-            savedPipelines[idx].updateFromText(pipelineText)
-            savedPipelines[idx].skipOptimisation = skipOptimisation
-            libPipeline = savedPipelines[idx]
-        } else {
-            libPipeline = Pipeline(
-                steps: Pipeline.parseSteps(from: pipelineText),
-                name: name,
-                rawText: trimmedText.isEmpty ? nil : Pipeline.cleanupPipelineText(trimmedText),
-                skipOptimisation: skipOptimisation,
-                fileType: type
-            )
-            savedPipelines.append(libPipeline)
-        }
-        let pipeline = Pipeline.reference(to: libPipeline)
-        if let zone {
-            presetZones = presetZones.replacing(zone, with: PresetZone(name: name, icon: icon, type: type, pipeline: pipeline))
-            self.zone = nil
-        } else {
-            presetZones.append(PresetZone(name: name, icon: icon, type: type, pipeline: pipeline))
-        }
-        setFields(zone: nil)
-        onSubmit?()
+    func commit() {
+        updatePipelineText(editText)
+        onClose()
     }
 
     func cancel() {
-        zone = nil
-        setFields(zone: nil)
-        onSubmit?()
+        // A brand-new zone that never received any steps is noise; drop it on cancel.
+        if resolved.steps.isEmpty, (resolved.rawText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            removePresetZone(zone)
+        }
+        onClose()
     }
 
-    func setFields(zone: PresetZone?) {
-        icon = zone?.icon ?? "wand.and.sparkles"
-        name = zone?.name ?? ""
-        let resolved = zone?.resolvedPipeline
-        let text = resolved?.displayText ?? ""
-        pipelineText = text
-        savedPipelineText = text
-        skipOptimisation = resolved?.skipOptimisation ?? false
-        type = zone?.type
+    @State private var editText = ""
+    @State private var editName = ""
+    @State private var icon = "wand.and.sparkles"
+    @State private var coordHolder = RefHolder<PipelineTextView.Coordinator>()
+
+    private var resolved: Pipeline {
+        zone.resolvedPipeline
+    }
+
+    // MARK: - Persistence
+
+    private func replaceZone(_ newZone: PresetZone) {
+        guard let idx = presetZones.firstIndex(of: zone) else { return }
+        presetZones[idx] = newZone
+    }
+
+    private func replaceMeta(name: String, icon: String, type: ClopFileType?) {
+        replaceZone(PresetZone(id: zone.id, name: name, icon: icon, type: type, pipeline: zone.pipeline))
+    }
+
+    private func updatePipelineText(_ text: String) {
+        if zone.pipeline.isLibraryReference, let libID = zone.pipeline.libraryID,
+           let i = savedPipelines.firstIndex(where: { $0.id == libID })
+        {
+            savedPipelines[i].updateFromText(text)
+        } else {
+            var p = zone.pipeline
+            p.updateFromText(text)
+            replaceZone(PresetZone(id: zone.id, name: zone.name, icon: zone.icon, type: zone.type, pipeline: p))
+        }
+    }
+
+    private func setFlag(skip: Bool? = nil, hide: Bool? = nil) {
+        if zone.pipeline.isLibraryReference, let libID = zone.pipeline.libraryID,
+           let i = savedPipelines.firstIndex(where: { $0.id == libID })
+        {
+            if let skip { savedPipelines[i].skipOptimisation = skip }
+            if let hide { savedPipelines[i].hideResult = hide }
+        } else {
+            var p = zone.pipeline
+            if let skip { p.skipOptimisation = skip }
+            if let hide { p.hideResult = hide }
+            replaceZone(PresetZone(id: zone.id, name: zone.name, icon: zone.icon, type: zone.type, pipeline: p))
+        }
     }
 }

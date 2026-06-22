@@ -109,7 +109,9 @@ class WarpDropManager: ObservableObject {
     /// to stop a second trigger from creating a duplicate link for the same file.
     @Published private(set) var connectingPaths: Set<String> = []
 
-    var hasSessions: Bool { sessions.isNotEmpty }
+    var hasSessions: Bool {
+        sessions.isNotEmpty
+    }
 
     func session(forPath path: String) -> WarpDropSession? {
         sessions.first { s in s.files.contains { $0.path == path } }
@@ -371,7 +373,9 @@ func warpDropSendAndWait(url: URL, optimiser: Optimiser, expiration: TimeInterva
 
 /// Thread-safe mutable reference for sharing values across sendable closures.
 final class Ref<T>: @unchecked Sendable {
-    init(_ value: T) { _value = value }
+    init(_ value: T) {
+        _value = value
+    }
 
     var value: T {
         get { lock.lock(); defer { lock.unlock() }; return _value }

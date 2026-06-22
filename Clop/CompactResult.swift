@@ -33,6 +33,15 @@ struct CompactResult: View {
     @Environment(\.openURL) var openURL
     @Environment(\.colorScheme) var colorScheme
 
+    /// Per-file-type accent hue for the thumbnail ring.
+    var typeColor: Color {
+        if optimiser.type.isImage { return .blue }
+        if optimiser.type.isVideo { return .purple }
+        if optimiser.type.isPDF { return .orange }
+        if optimiser.type.isAudio { return .pink }
+        return .gray
+    }
+
     @ViewBuilder var pathView: some View {
         if let url = optimiser.url, url.isFileURL {
             Text(url.filePath!.shellString)
@@ -71,7 +80,7 @@ struct CompactResult: View {
             }
         }
     }
-    @ViewBuilder var progressView: some View {
+    var progressView: some View {
         VStack(alignment: .leading, spacing: 0) {
             if optimiser.progress.isIndeterminate {
                 VStack(alignment: .leading) {
@@ -232,14 +241,6 @@ struct CompactResult: View {
             .allowsTightening(true)
         }
     }
-    /// Per-file-type accent hue for the thumbnail ring.
-    var typeColor: Color {
-        if optimiser.type.isImage { return .blue }
-        if optimiser.type.isVideo { return .purple }
-        if optimiser.type.isPDF { return .orange }
-        if optimiser.type.isAudio { return .pink }
-        return .gray
-    }
 
     @ViewBuilder var thumbnail: some View {
         if showCompactImages {
@@ -285,27 +286,6 @@ struct CompactResult: View {
         }
     }
 
-    /// File drag for the whole row. Attached at the body ROOT (NOT a nested subview) so it bridges to the
-    /// SwiftUI List row's table drag session on macOS — `.onDrag` on a nested subview inside a List row
-    /// does not. A selected row (with a multi-selection) drags the whole selection; otherwise just this
-    /// file. Gated at the call site by `!showDownscaleSlider && !showCompressionSlider`, so pressing a
-    /// grid slider catches the press-drag instead of starting a row drag, exactly like the floating card.
-    func fileDragProvider(_ url: URL) -> NSItemProvider {
-        if selected, SM.selection.count > 1 {
-            let urls = SM.optimisers.compactMap(\.url).filter(\.isFileURL)
-            let provider = NSItemProvider()
-            for u in urls {
-                provider.registerObject(u as NSURL, visibility: .all)
-            }
-            return provider
-        }
-        log.debug("Dragging \(url)")
-        if Defaults[.dismissCompactResultOnDrop] {
-            optimiser.remove(after: 100, withAnimation: true)
-        }
-        return NSItemProvider(object: url as NSURL)
-    }
-
     @ViewBuilder var dragPreview: some View {
         if selected, SM.selection.count > 1 {
             DragPilePreview(optimisers: SM.optimisers)
@@ -317,7 +297,7 @@ struct CompactResult: View {
     /// Plain X (or stop) button pinned to the thumbnail's top-left corner. Fades in on row hover via
     /// opacity only, so it never shifts the row's geometry. Replaces the old "Close"/"Stop" text pill
     /// that used to sit in the top-right.
-    @ViewBuilder var closeButton: some View {
+    var closeButton: some View {
         Button {
             guard !preview else { return }
             hoveredOptimiserID = nil
@@ -418,7 +398,6 @@ struct CompactResult: View {
                     if !selecting {
                         ActionButtons(optimiser: optimiser, size: 18, revealed: hovering)
                             .padding(.top, 0)
-                            .padding(.bottom, 2)
                             .focusable(false)
                     }
                 }
@@ -465,6 +444,31 @@ struct CompactResult: View {
                 v.onDrag { fileDragProvider(url) } preview: { dragPreview }
             }
         }
+        // Uniform breathing room below every row (running rows render a tall progress/name stack that would
+        // otherwise crowd the bottom edge); replaces the per-row action-button bottom padding so the gap is
+        // consistent whether or not the buttons are shown.
+        .padding(.bottom, 8)
+    }
+
+    /// File drag for the whole row. Attached at the body ROOT (NOT a nested subview) so it bridges to the
+    /// SwiftUI List row's table drag session on macOS — `.onDrag` on a nested subview inside a List row
+    /// does not. A selected row (with a multi-selection) drags the whole selection; otherwise just this
+    /// file. Gated at the call site by `!showDownscaleSlider && !showCompressionSlider`, so pressing a
+    /// grid slider catches the press-drag instead of starting a row drag, exactly like the floating card.
+    func fileDragProvider(_ url: URL) -> NSItemProvider {
+        if selected, SM.selection.count > 1 {
+            let urls = SM.optimisers.compactMap(\.url).filter(\.isFileURL)
+            let provider = NSItemProvider()
+            for u in urls {
+                provider.registerObject(u as NSURL, visibility: .all)
+            }
+            return provider
+        }
+        log.debug("Dragging \(url)")
+        if Defaults[.dismissCompactResultOnDrop] {
+            optimiser.remove(after: 100, withAnimation: true)
+        }
+        return NSItemProvider(object: url as NSURL)
     }
 
     func updateHover(_ hovering: Bool) {
@@ -595,8 +599,12 @@ struct CompactNameField: View {
     @State private var hoveringName = false
     @State private var hoveringExt = false
 
-    private var stem: String { optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? "" }
-    private var ext: String { optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? "" }
+    private var stem: String {
+        optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
+    }
+    private var ext: String {
+        optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? ""
+    }
 
 }
 
@@ -651,7 +659,9 @@ class SelectionManager: ObservableObject {
             }
         }
     }
-    var optimisers: [Optimiser] { OM.optimisers.filter { selection.contains($0.id) } }
+    var optimisers: [Optimiser] {
+        OM.optimisers.filter { selection.contains($0.id) }
+    }
 
     func save() {
         let paths: [String: FilePath] = optimisers.dict { o in
@@ -762,6 +772,7 @@ struct DragPilePreview: View {
 struct CompactDragAllHandle: View {
     var optimisers: [Optimiser]
     var help: String
+
     @Environment(\.preview) var preview
 
     var body: some View {
@@ -884,8 +895,12 @@ struct CompactListBar: View {
     let isEven: Bool
     let index: Int
 
-    var id: String { optimiser.id }
-    var running: Bool { optimiser.running }
+    var id: String {
+        optimiser.id
+    }
+    var running: Bool {
+        optimiser.running
+    }
 
     var selected: Bool {
         SM.selection.contains(id)
@@ -928,27 +943,16 @@ struct DragHandle: View {
 }
 
 struct CompactResultList: View {
+    /// Height reserved at the bottom of the panel for the unified action bar (selection actions, or the
+    /// drag-all / clear-all controls), so the bar never covers the last row.
+    static let footerBand: CGFloat = 40
+
     var optimisers: [Optimiser]
     var progress: Progress?
 
     var doneCount: Int
     var failedCount: Int
     var visibleCount: Int
-
-    @Default(.floatingResultsCorner) private var floatingResultsCorner
-    @Default(.showCompactImages) private var showCompactImages
-    @Default(.keyComboModifiers) private var keyComboModifiers
-
-    @Environment(\.preview) private var preview
-    @Environment(\.colorScheme) private var colorScheme
-
-    @ObservedObject private var sm = SM
-
-    @State private var hovering = false
-    @State private var showList = false
-    @State private var size = NSSize(width: 50, height: 50)
-    @State private var opts: [CompactOptimiser] = []
-    @State private var hoveringBatchActions = false
 
     var body: some View {
         let isTrailing = floatingResultsCorner.isTrailing
@@ -983,34 +987,6 @@ struct CompactResultList: View {
             showList = preview || optimisers.count <= 3
             setSize()
         }
-    }
-
-    func filterOpts(_ optimisers: [Optimiser]? = nil) {
-        let optimisers = optimisers ?? self.optimisers
-        opts = optimisers.isEmpty
-            ? []
-            : optimisers
-                .dropLast().enumerated()
-                .map { n, x in
-                    CompactOptimiser(optimiser: x, isLast: false, isEven: (n + 1).isMultiple(of: 2), index: n)
-                } + [CompactOptimiser(optimiser: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2), index: optimisers.count - 1)]
-
-        // Drop selected ids whose row no longer exists (finished/auto-dismissed/closed), so selection
-        // mode can't get stuck on after the rows it referred to are gone.
-        let live = Set(opts.map(\.id))
-        let pruned = sm.selection.intersection(live)
-        if pruned != sm.selection { sm.selection = pruned }
-    }
-
-    /// Height reserved at the bottom of the panel for the unified action bar (selection actions, or the
-    /// drag-all / clear-all controls), so the bar never covers the last row.
-    static let footerBand: CGFloat = 34
-
-    func setSize(showList: Bool? = nil, count: Int? = nil, compactImages: Bool? = nil) {
-        size = NSSize(
-            width: (showList ?? self.showList) ? (THUMB_SIZE.width + ((compactImages ?? showCompactImages) ? 50 : 0)) : 50,
-            height: (showList ?? self.showList) ? min(360, ((count ?? optimisers.count) * 80).cg) + Self.footerBand : 50
-        )
     }
 
     /// The bordered list of results plus its overlays (progress bar, selection action bar), extracted
@@ -1064,24 +1040,6 @@ struct CompactResultList: View {
         .allowsHitTesting(showList)
     }
 
-    /// Selection drives the floating window's key state: take key focus when a selection starts (so the
-    /// keyboard shortcuts work) and release it when the selection is cleared.
-    func onSelectionChanged(_ sel: Set<String>) {
-        guard !sel.isEmpty else {
-            floatingResultsWindow.allowToBecomeKey = false
-            sm.selecting = false
-            return
-        }
-        sm.selecting = true
-        if !floatingResultsWindow.allowToBecomeKey {
-            floatingResultsWindow.allowToBecomeKey = true
-            focus()
-            floatingResultsWindow.becomeFirstResponder()
-            floatingResultsWindow.makeKeyAndOrderFront(nil)
-            floatingResultsWindow.orderFrontRegardless()
-        }
-    }
-
     /// Hidden buttons that bind ⌘A (select all) and Escape (clear) once the selection has the window key.
     @ViewBuilder var selectionKeyboardShortcuts: some View {
         Button("") { selectAll() }
@@ -1103,7 +1061,7 @@ struct CompactResultList: View {
     }
 
     /// One list row, extracted from `body` so the type-checker doesn't choke on the combined expression.
-    @ViewBuilder func row(for opt: CompactOptimiser) -> some View {
+    func row(for opt: CompactOptimiser) -> some View {
         CompactResult(
             optimiser: opt.optimiser,
             selecting: sm.selecting,
@@ -1141,6 +1099,48 @@ struct CompactResultList: View {
         .listRowBackground(opt.isEven ? Color.primary.opacity(0.04) : Color.clear)
     }
 
+    func filterOpts(_ optimisers: [Optimiser]? = nil) {
+        let optimisers = optimisers ?? self.optimisers
+        opts = optimisers.isEmpty
+            ? []
+            : optimisers
+                .dropLast().enumerated()
+                .map { n, x in
+                    CompactOptimiser(optimiser: x, isLast: false, isEven: (n + 1).isMultiple(of: 2), index: n)
+                } + [CompactOptimiser(optimiser: optimisers.last!, isLast: true, isEven: optimisers.count.isMultiple(of: 2), index: optimisers.count - 1)]
+
+        // Drop selected ids whose row no longer exists (finished/auto-dismissed/closed), so selection
+        // mode can't get stuck on after the rows it referred to are gone.
+        let live = Set(opts.map(\.id))
+        let pruned = sm.selection.intersection(live)
+        if pruned != sm.selection { sm.selection = pruned }
+    }
+
+    func setSize(showList: Bool? = nil, count: Int? = nil, compactImages: Bool? = nil) {
+        size = NSSize(
+            width: (showList ?? self.showList) ? (THUMB_SIZE.width + ((compactImages ?? showCompactImages) ? 50 : 0)) : 50,
+            height: (showList ?? self.showList) ? min(360, ((count ?? optimisers.count) * 80).cg) + Self.footerBand : 50
+        )
+    }
+
+    /// Selection drives the floating window's key state: take key focus when a selection starts (so the
+    /// keyboard shortcuts work) and release it when the selection is cleared.
+    func onSelectionChanged(_ sel: Set<String>) {
+        guard !sel.isEmpty else {
+            floatingResultsWindow.allowToBecomeKey = false
+            sm.selecting = false
+            return
+        }
+        sm.selecting = true
+        if !floatingResultsWindow.allowToBecomeKey {
+            floatingResultsWindow.allowToBecomeKey = true
+            focus()
+            floatingResultsWindow.becomeFirstResponder()
+            floatingResultsWindow.makeKeyAndOrderFront(nil)
+            floatingResultsWindow.orderFrontRegardless()
+        }
+    }
+
     /// Toggle one row's membership (the checkbox action). Holding Shift extends the range from the last
     /// toggled row, matching the usual list multi-select gesture. The anchor is tracked by id (not index)
     /// so it stays correct when the list reorders (results sort newest-first as new ones arrive).
@@ -1164,7 +1164,22 @@ struct CompactResultList: View {
         sm.selection = OM.visibleOptimisers.filter { !$0.running && $0.url != nil }.map(\.id).set
     }
 
+    @Environment(\.preview) private var preview
+    @Environment(\.colorScheme) private var colorScheme
+
+    @ObservedObject private var sm = SM
+
+    @State private var hovering = false
+    @State private var showList = false
+    @State private var size = NSSize(width: 50, height: 50)
+    @State private var opts: [CompactOptimiser] = []
+    @State private var hoveringBatchActions = false
+
     @State private var lastSelectedID: String?
+
+    @Default(.floatingResultsCorner) private var floatingResultsCorner
+    @Default(.showCompactImages) private var showCompactImages
+    @Default(.keyComboModifiers) private var keyComboModifiers
 
 }
 
@@ -1195,6 +1210,7 @@ struct DragPreview: View {
 
 struct ToggleCompactResultListButton: View {
     @Binding var showList: Bool
+
     var badge: String
     var progress: Progress?
 
@@ -1247,8 +1263,9 @@ struct ToggleCompactResultListButton: View {
         }
     }
 
-    @Default(.floatingResultsCorner) private var floatingResultsCorner
     @State private var hovering = false
+
+    @Default(.floatingResultsCorner) private var floatingResultsCorner
 
 }
 

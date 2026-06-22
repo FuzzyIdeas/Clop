@@ -19,7 +19,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "FloatingResult")
 let FLOAT_MARGIN: CGFloat = 64
 
 private struct PreviewKey: EnvironmentKey {
-    public static let defaultValue = false
+    static let defaultValue = false
 }
 
 extension EnvironmentValues {
@@ -41,7 +41,7 @@ extension View {
                 .overlay(shape.strokeBorder(Color.black.opacity(0.15), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
         } else if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
+            glassEffect(.regular, in: shape)
                 .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
         } else {
             background(.ultraThickMaterial, in: shape)
@@ -54,7 +54,7 @@ extension View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         if isError {
             if #available(macOS 26.0, *) {
-                self.background(.red.opacity(0.5), in: shape)
+                background(.red.opacity(0.5), in: shape)
                     .glassEffect(.regular, in: shape)
             } else {
                 background(.red.opacity(0.5), in: shape)
@@ -64,7 +64,7 @@ extension View {
             // Semi-opaque backing so the panel reads against the desktop instead of being see-through
             // (bare .glassEffect on macOS 26 has no fill of its own).
             if #available(macOS 26.0, *) {
-                self.background(Color.bg.primary.opacity(0.75), in: shape)
+                background(Color.bg.primary.opacity(0.75), in: shape)
                     .glassEffect(.regular, in: shape)
             } else {
                 background(Color.bg.primary.opacity(0.75), in: shape)
@@ -86,7 +86,9 @@ var resultFallAnimation: Animation {
 private struct FloatingListHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
 }
 
 struct FloatingResultList: View {
@@ -95,15 +97,8 @@ struct FloatingResultList: View {
     @State var copiedText = "Copy all"
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.showCopyClearButtons) var showCopyClearButtons
-    @Environment(\.preview) var preview
 
-    // Measured natural height of the stack, and the height it's pinned to while a result is being removed.
-    // Holding the pre-removal height (bottom-anchored) keeps the window from shrinking mid-drop, so the
-    // results below the removed one stay put like a brick wall while those above fall into the freed slot.
-    @State private var naturalHeight: CGFloat = 0
-    @State private var heldHeight: CGFloat? = nil
-    @State private var lastCount = 0
-    @State private var releaseWork: DispatchWorkItem? = nil
+    @Environment(\.preview) var preview
 
     var dragAllButton: some View {
         SwiftUI.Image(systemName: "line.3.horizontal")
@@ -248,10 +243,20 @@ struct FloatingResultList: View {
         }
         .onAppear { lastCount = optimisers.count }
     }
+
+    // Measured natural height of the stack, and the height it's pinned to while a result is being removed.
+    // Holding the pre-removal height (bottom-anchored) keeps the window from shrinking mid-drop, so the
+    // results below the removed one stay put like a brick wall while those above fall into the freed slot.
+    @State private var naturalHeight: CGFloat = 0
+    @State private var heldHeight: CGFloat? = nil
+    @State private var lastCount = 0
+    @State private var releaseWork: DispatchWorkItem? = nil
+
 }
 
 struct UpdateButton: View {
     var short = false
+
     @ObservedObject var um: UpdateManager = UM
     @State var hovering = false
 
@@ -618,14 +623,8 @@ struct OnboardingFloatingPreview: View {
 struct NameFormatPill: View {
     @ObservedObject var optimiser: Optimiser
     var fullWidth = false
+
     @Environment(\.preview) var preview
-
-    @FocusState private var focused: Bool
-    @State private var tempName = ""
-    @State private var hoveringExt = false
-
-    private var stem: String { optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? "" }
-    private var ext: String { optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? "" }
 
     var body: some View {
         Group {
@@ -682,7 +681,7 @@ struct NameFormatPill: View {
                     }
                 }
             } label: {
-                Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.primary)
+                Text(ext).font(.system(size: 9, weight: .bold)).foregroundColor(.primary)
                     .padding(.leading, 1).padding(.trailing, 4).padding(.vertical, 2)
                     .background(hoveringExt ? Color.primary.opacity(0.12) : .clear, in: Capsule())
             }
@@ -727,19 +726,41 @@ struct NameFormatPill: View {
         tempName = stem
         withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
     }
+
+    @FocusState private var focused: Bool
+    @State private var tempName = ""
+    @State private var hoveringExt = false
+
+    private var stem: String {
+        optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
+    }
+    private var ext: String {
+        optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? ""
+    }
+
 }
 
 // MARK: - FloatingResult
 
 struct FloatingResult: View {
-    // color(display-p3 0.9983 0.818 0.3296)
+    /// color(display-p3 0.9983 0.818 0.3296)
     static let yellow = Color(.displayP3, red: 1, green: 0.768, blue: 0.4296, opacity: 1)
-    // color(display-p3 0.0193 0.4224 0.646)
+    /// color(display-p3 0.0193 0.4224 0.646)
     static let darkBlue = Color(.displayP3, red: 0.0193, green: 0.4224, blue: 0.646, opacity: 1)
-    // color(display-p3 0.037 0.6578 0.9928)
+    /// color(display-p3 0.037 0.6578 0.9928)
     static let lightBlue = Color(.displayP3, red: 0.037, green: 0.6578, blue: 0.9928, opacity: 1)
-    // color(display-p3 1 0.015 0.3)
+    /// color(display-p3 1 0.015 0.3)
     static let red = Color(.displayP3, red: 1, green: 0.015, blue: 0.2, opacity: 1)
+
+    // MARK: - Overlay-grid thumbnail card
+
+    //
+    // Fixed-geometry card: the thumbnail is the background, all controls are layered over it and
+    // revealed by opacity on hover. Geometry never changes on hover (only a cheap dim + control
+    // opacity), so the Liquid Glass controls never trigger an expensive re-resolve.
+
+    static let cardW: CGFloat = 196
+    static let cardH: CGFloat = 148
 
     @ObservedObject var optimiser: Optimiser
     @ObservedObject var om = OM
@@ -750,12 +771,6 @@ struct FloatingResult: View {
     @State var hoveringThumbnail = false
     @State var editingFilename = false
 
-    var isExpanded: Bool {
-        // While results are dropping after a removal, keep the overlay collapsed so a card sliding under the
-        // cursor doesn't reveal its controls mid-fall. It re-evaluates the instant the drop settles.
-        !om.animatingRemoval && ((hovering && !optimiser.collapseHoverOverlay) || optimiser.editingResolution)
-    }
-
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.neverShowProError) var neverShowProError
     @Default(.floatingResultActions) var floatingResultActions
@@ -763,8 +778,50 @@ struct FloatingResult: View {
     @Environment(\.openWindow) var openWindow
     @Environment(\.colorScheme) var colorScheme
 
+    var isExpanded: Bool {
+        // While results are dropping after a removal, keep the overlay collapsed so a card sliding under the
+        // cursor doesn't reveal its controls mid-fall. It re-evaluates the instant the drop settles.
+        !om.animatingRemoval && ((hovering && !optimiser.collapseHoverOverlay) || optimiser.editingResolution)
+    }
+
     var showsThumbnail: Bool {
         optimiser.thumbnail != nil
+    }
+
+    /// Configured grid actions (crop is a dedicated corner button, so it's excluded here). When a
+    /// configured action is hidden for this file type (e.g. downscale on audio), backfill a Show in
+    /// Finder button so the grid keeps a useful action instead of an empty slot.
+    var gridConfigured: [FloatingAction] {
+        let shown = floatingResultActions.filter(gridApplies)
+        let configuredCount = floatingResultActions.filter { $0 != .crop }.count
+        if shown.count < configuredCount, !shown.contains(.showInFinder) {
+            return shown + [.showInFinder]
+        }
+        return shown
+    }
+
+    /// Always six slots: configured actions first, remaining slots are faint "+" add-placeholders.
+    var gridSlots: [FloatingAction?] {
+        var slots: [FloatingAction?] = Array(gridConfigured.prefix(6)).map { Optional($0) }
+        while slots.count < 6 {
+            slots.append(nil)
+        }
+        return slots
+    }
+
+    var addableActions: [FloatingAction] {
+        FloatingAction.allCases.filter { gridApplies($0) && !gridConfigured.contains($0) }
+    }
+
+    /// Bottom-anchored content: hidden while a slider is up; progress / error / notice while busy;
+    /// the unified name·format pill on hover; a full-width filename editor while editing; the
+    /// centered size-saving stats at rest.
+    /// Whether the filename renders fully at the pill's resting width, so hovering it shouldn't expand
+    /// the pill (and the crop button can stay put). Mirrors NameFormatPill's 9pt name segment / 92pt cap.
+    var filenameFits: Bool {
+        let stem = optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
+        let width = (stem as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 9, weight: .medium)]).width
+        return width <= 92
     }
 
     @ViewBuilder var progressURLView: some View {
@@ -893,7 +950,7 @@ struct FloatingResult: View {
         CloseStopButton(optimiser: optimiser)
     }
 
-    @ViewBuilder var noThumbnailView: some View {
+    var noThumbnailView: some View {
         ZStack(alignment: .topLeading) {
             if optimiser.running {
                 progressView
@@ -1039,58 +1096,6 @@ struct FloatingResult: View {
         }
     }
 
-    // MARK: - Overlay-grid thumbnail card
-
-    //
-    // Fixed-geometry card: the thumbnail is the background, all controls are layered over it and
-    // revealed by opacity on hover. Geometry never changes on hover (only a cheap dim + control
-    // opacity), so the Liquid Glass controls never trigger an expensive re-resolve.
-
-    static let cardW: CGFloat = 196
-    static let cardH: CGFloat = 148
-
-    /// Whether an action belongs in the in-card grid for this result. Crop is a dedicated corner
-    /// button; downscale is dropped for audio, which uses the compression button as its single
-    /// bitrate/quality axis.
-    func gridApplies(_ action: FloatingAction) -> Bool {
-        switch action {
-        case .crop: false
-        // Audio's downscale button is repurposed to resize the embedded cover art, so it's shown for
-        // every type now (bitrate lives on the compression button).
-        case .downscale: true
-        // PDF's downscale button already is the compression (DPI) control with the same icon, so a
-        // separate, always-disabled compression button is just a confusing duplicate; hide it like
-        // PDF does.
-        case .compression: !optimiser.type.isPDF
-        default: true
-        }
-    }
-
-    /// Configured grid actions (crop is a dedicated corner button, so it's excluded here). When a
-    /// configured action is hidden for this file type (e.g. downscale on audio), backfill a Show in
-    /// Finder button so the grid keeps a useful action instead of an empty slot.
-    var gridConfigured: [FloatingAction] {
-        let shown = floatingResultActions.filter(gridApplies)
-        let configuredCount = floatingResultActions.filter { $0 != .crop }.count
-        if shown.count < configuredCount, !shown.contains(.showInFinder) {
-            return shown + [.showInFinder]
-        }
-        return shown
-    }
-
-    /// Always six slots: configured actions first, remaining slots are faint "+" add-placeholders.
-    var gridSlots: [FloatingAction?] {
-        var slots: [FloatingAction?] = Array(gridConfigured.prefix(6)).map { Optional($0) }
-        while slots.count < 6 {
-            slots.append(nil)
-        }
-        return slots
-    }
-
-    var addableActions: [FloatingAction] {
-        FloatingAction.allCases.filter { gridApplies($0) && !gridConfigured.contains($0) }
-    }
-
     var actionGrid: some View {
         let cols = Array(repeating: GridItem(.fixed(34), spacing: 8), count: 3)
         return LazyVGrid(columns: cols, spacing: 8) {
@@ -1130,10 +1135,6 @@ struct FloatingResult: View {
         .disabled(addableActions.isEmpty)
     }
 
-    func sliderBand(@ViewBuilder _ slider: () -> some View) -> some View {
-        slider().frame(width: Self.cardW - 30)
-    }
-
     /// Center: the downscale/compression slider while active, otherwise the action grid on hover.
     /// The grid buttons flip showDownscaleSlider/showCompressionSlider on mouse-DOWN and the
     /// thin card slider's event overlay grabs the still-held drag, so press-and-drag is one gesture.
@@ -1157,17 +1158,6 @@ struct FloatingResult: View {
                 .opacity(optimiser.editingFilename ? 0.3 : 1)
                 .allowsHitTesting(!optimiser.editingFilename)
         }
-    }
-
-    /// Bottom-anchored content: hidden while a slider is up; progress / error / notice while busy;
-    /// the unified name·format pill on hover; a full-width filename editor while editing; the
-    /// centered size-saving stats at rest.
-    /// Whether the filename renders fully at the pill's resting width, so hovering it shouldn't expand
-    /// the pill (and the crop button can stay put). Mirrors NameFormatPill's 9pt name segment / 92pt cap.
-    var filenameFits: Bool {
-        let stem = optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
-        let width = (stem as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 9, weight: .medium)]).width
-        return width <= 92
     }
 
     @ViewBuilder var cardBottomContent: some View {
@@ -1232,7 +1222,7 @@ struct FloatingResult: View {
         }
     }
 
-    @ViewBuilder var thumbnailView: some View {
+    var thumbnailView: some View {
         ZStack {
             cardGrid
 
@@ -1314,47 +1304,6 @@ struct FloatingResult: View {
         // .primary (adaptive). White is applied only to content over the dark thumbnail below.
         .transition(.opacity.animation(.easeOut(duration: 0.2)))
         .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 8)
-    }
-
-    func topField(_ url: URL) -> some View {
-        ZStack {
-            if let info = optimiser.info {
-                Text(info)
-                    .hfill(.leading)
-                    .frame(height: 16)
-                    .lineLimit(1)
-                    .font(.medium(9))
-                    .minimumScaleFactor(0.5)
-                    .scaledToFit()
-                    .foregroundColor(.primary)
-                    .padding(.leading, 5)
-                    .background(
-                        VisualEffectBlur(material: .sidebar, blendingMode: .withinWindow, state: .active)
-                            .clipShape(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            )
-                    )
-                    .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
-                    .fixedSize()
-                    .padding(.horizontal, 5)
-                    .offset(y: isExpanded || SWIFTUI_PREVIEW ? 30 : 0)
-                    .opacity(isExpanded || SWIFTUI_PREVIEW ? 0 : 1)
-            }
-
-            FileNameField(optimiser: optimiser)
-                .font(.medium(9))
-                .foregroundColor(.primary)
-                .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
-                .fixedSize()
-                .padding(.horizontal, 5)
-                .offset(y: isExpanded || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
-                .opacity(isExpanded || editingFilename || SWIFTUI_PREVIEW ? 1 : 0)
-                .scaleEffect(
-                    x: optimiser.editingFilename ? 1.2 : 1,
-                    y: optimiser.editingFilename ? 1.2 : 1,
-                    anchor: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading
-                )
-        }
     }
 
     var body: some View {
@@ -1458,6 +1407,68 @@ struct FloatingResult: View {
                     editingFilename = false
                 }
             }
+        }
+    }
+
+    func sliderBand(@ViewBuilder _ slider: () -> some View) -> some View {
+        slider().frame(width: Self.cardW - 30)
+    }
+
+    func topField(_ url: URL) -> some View {
+        ZStack {
+            if let info = optimiser.info {
+                Text(info)
+                    .hfill(.leading)
+                    .frame(height: 16)
+                    .lineLimit(1)
+                    .font(.medium(9))
+                    .minimumScaleFactor(0.5)
+                    .scaledToFit()
+                    .foregroundColor(.primary)
+                    .padding(.leading, 5)
+                    .background(
+                        VisualEffectBlur(material: .sidebar, blendingMode: .withinWindow, state: .active)
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            )
+                    )
+                    .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
+                    .fixedSize()
+                    .padding(.horizontal, 5)
+                    .offset(y: isExpanded || SWIFTUI_PREVIEW ? 30 : 0)
+                    .opacity(isExpanded || SWIFTUI_PREVIEW ? 0 : 1)
+            }
+
+            FileNameField(optimiser: optimiser)
+                .font(.medium(9))
+                .foregroundColor(.primary)
+                .frame(width: THUMB_SIZE.width / 2, height: 16, alignment: .leading)
+                .fixedSize()
+                .padding(.horizontal, 5)
+                .offset(y: isExpanded || editingFilename || SWIFTUI_PREVIEW ? 0 : 30)
+                .opacity(isExpanded || editingFilename || SWIFTUI_PREVIEW ? 1 : 0)
+                .scaleEffect(
+                    x: optimiser.editingFilename ? 1.2 : 1,
+                    y: optimiser.editingFilename ? 1.2 : 1,
+                    anchor: floatingResultsCorner.isTrailing ? .bottomTrailing : .bottomLeading
+                )
+        }
+    }
+
+    /// Whether an action belongs in the in-card grid for this result. Crop is a dedicated corner
+    /// button; downscale is dropped for audio, which uses the compression button as its single
+    /// bitrate/quality axis.
+    func gridApplies(_ action: FloatingAction) -> Bool {
+        switch action {
+        case .crop: false
+        // Audio's downscale button is repurposed to resize the embedded cover art, so it's shown for
+        // every type now (bitrate lives on the compression button).
+        case .downscale: true
+        // PDF's downscale button already is the compression (DPI) control with the same icon, so a
+        // separate, always-disabled compression button is just a confusing duplicate; hide it like
+        // PDF does.
+        case .compression: !optimiser.type.isPDF
+        default: true
         }
     }
 

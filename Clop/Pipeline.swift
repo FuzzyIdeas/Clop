@@ -10,7 +10,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "Pipeline")
 
 // MARK: - Pipeline Action
 
-/// A discrete action in the optimisation pipeline.
+// A discrete action in the optimisation pipeline.
 
 /// Single source of truth for the two pipeline-flag tooltips shown in the editor
 /// and library toggles. Each string describes both options of its picker.
@@ -22,7 +22,18 @@ enum PipelineFlagCopy {
 // MARK: - Pipeline
 
 struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
-    init(id: String = UUID().uuidString, steps: [PipelineStep], name: String? = nil, rawText: String? = nil, skipOptimisation: Bool = false, hideResult: Bool = false, libraryID: String? = nil, fileType: ClopFileType? = nil) {
+    init(
+        id: String = UUID().uuidString,
+        steps: [PipelineStep],
+        name: String? = nil,
+        rawText: String? = nil,
+        skipOptimisation: Bool = false,
+        hideResult: Bool = false,
+        libraryID: String? = nil,
+        fileType: ClopFileType? = nil,
+        icon: String? = nil,
+        details: String? = nil
+    ) {
         self.id = id
         self.steps = steps
         self.name = name
@@ -31,6 +42,8 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
         self.hideResult = hideResult
         self.libraryID = libraryID
         self.fileType = fileType
+        self.icon = icon
+        self.details = details
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +60,8 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
         hideResult = try container.decodeIfPresent(Bool.self, forKey: .hideResult) ?? false
         libraryID = try container.decodeIfPresent(String.self, forKey: .libraryID)
         fileType = try container.decodeIfPresent(ClopFileType.self, forKey: .fileType)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon)
+        details = try container.decodeIfPresent(String.self, forKey: .details)
 
         // Re-parse rawText when steps failed to decode or are empty.
         // rawText parsing handles all step types correctly and provides
@@ -64,10 +79,18 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
     var hideResult = false
     var libraryID: String?
     var fileType: ClopFileType?
+    /// SF Symbol shown for this pipeline in zone previews and the assign/replace menus.
+    var icon: String?
+    /// A short human description used to disambiguate the (necessarily short) name in menus.
+    var details: String?
 
-    var isEmpty: Bool { steps.isEmpty && (rawText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && libraryID == nil }
+    var isEmpty: Bool {
+        steps.isEmpty && (rawText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && libraryID == nil
+    }
 
-    var isLibraryReference: Bool { libraryID != nil }
+    var isLibraryReference: Bool {
+        libraryID != nil
+    }
 
     /// Resolve library references: if this pipeline points to a saved pipeline, return that one.
     /// Falls back to self if the library entry was deleted (graceful degradation).
@@ -87,7 +110,9 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
 
     /// Built-in library pipelines have a stable `builtin-` prefixed id
     /// (see BUILTIN_PIPELINE_DEFS). Used to show a "Built-in" badge.
-    var isBuiltin: Bool { id.hasPrefix("builtin-") }
+    var isBuiltin: Bool {
+        id.hasPrefix("builtin-")
+    }
 
     var displayText: String {
         if isLibraryReference {
@@ -131,54 +156,65 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
 ///
 /// Names must stay short: preset zone labels get ~75pt at 10pt font (2 lines max),
 /// so aim for ≤16 chars that wrap into short words.
-private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFileType, rawText: String, skipOptimisation: Bool, version: Int)] = [
+private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFileType, rawText: String, skipOptimisation: Bool, icon: String, details: String, version: Int)] = [
     (
         id: "builtin-image-webp", name: "to WebP", fileType: .image,
-        rawText: "convert(to: webp)", skipOptimisation: true, version: 1
+        rawText: "convert(to: webp)", skipOptimisation: true,
+        icon: "photo", details: "Convert images to the compact WebP format", version: 1
     ),
     (
         id: "builtin-image-sort-screenshots", name: "Sort screenshots", fileType: .image,
-        rawText: "if(regex: \"^(screen\\s?shot|cleanshot)\") -> optimise() -> move(to: \"~/Pictures/Screenshots/%y/%m/\")", skipOptimisation: true, version: 1
+        rawText: "if(regex: \"^(screen\\s?shot|cleanshot)\") -> optimise() -> move(to: \"~/Pictures/Screenshots/%y/%m/\")", skipOptimisation: true,
+        icon: "folder", details: "Optimise screenshots and file them under ~/Pictures/Screenshots/year/month", version: 1
     ),
     (
         id: "builtin-image-half", name: "0.5×", fileType: .image,
-        rawText: "downscale(factor: 0.5)", skipOptimisation: true, version: 1
+        rawText: "downscale(factor: 0.5)", skipOptimisation: true,
+        icon: "arrow.down.right.and.arrow.up.left", details: "Halve the image resolution", version: 1
     ),
     (
         id: "builtin-image-watermark", name: "Watermark", fileType: .image,
-        rawText: "watermark(image: \"%P/watermark.png\")", skipOptimisation: true, version: 1
+        rawText: "watermark(image: \"%P/watermark.png\")", skipOptimisation: true,
+        icon: "signature", details: "Overlay watermark.png from the same folder onto the image", version: 1
     ),
     (
         id: "builtin-video-1080p", name: "1080p", fileType: .video,
-        rawText: "crop(width: 1920) -> optimise(encoder: slowHighQuality)", skipOptimisation: true, version: 1
+        rawText: "crop(width: 1920) -> optimise(encoder: slowHighQuality)", skipOptimisation: true,
+        icon: "tv", details: "Scale video to 1920px wide and re-encode at high quality", version: 1
     ),
     (
         id: "builtin-video-to-gif", name: "to GIF", fileType: .video,
-        rawText: "crop(longEdge: 800) -> convert(to: gif)", skipOptimisation: true, version: 1
+        rawText: "crop(longEdge: 800) -> convert(to: gif)", skipOptimisation: true,
+        icon: "photo.on.rectangle.angled", details: "Crop to 800px and convert to an animated GIF", version: 1
     ),
     (
         id: "builtin-video-2x-silent", name: "2× silent", fileType: .video,
-        rawText: "changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)", skipOptimisation: true, version: 1
+        rawText: "changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)", skipOptimisation: true,
+        icon: "speaker.slash.fill", details: "Double the playback speed, strip the audio, re-encode", version: 1
     ),
     (
         id: "builtin-video-half", name: "0.5×", fileType: .video,
-        rawText: "downscale(factor: 0.5)", skipOptimisation: true, version: 1
+        rawText: "downscale(factor: 0.5)", skipOptimisation: true,
+        icon: "arrow.down.right.and.arrow.up.left", details: "Halve the video resolution", version: 1
     ),
     (
         id: "builtin-video-watermark", name: "Watermark", fileType: .video,
-        rawText: "watermark(image: \"%P/watermark.png\")", skipOptimisation: true, version: 1
+        rawText: "watermark(image: \"%P/watermark.png\")", skipOptimisation: true,
+        icon: "signature", details: "Overlay watermark.png from the same folder onto the video", version: 1
     ),
     (
         id: "builtin-pdf-as-images", name: "as images", fileType: .pdf,
-        rawText: "extractPagesAsImages(format: jpeg, quality: high)", skipOptimisation: true, version: 1
+        rawText: "extractPagesAsImages(format: jpeg, quality: high)", skipOptimisation: true,
+        icon: "photo.stack", details: "Extract each PDF page as a JPEG image", version: 1
     ),
     (
         id: "builtin-audio-to-mp3", name: "to MP3", fileType: .audio,
-        rawText: "convert(to: mp3)", skipOptimisation: true, version: 1
+        rawText: "convert(to: mp3)", skipOptimisation: true,
+        icon: "music.note", details: "Convert audio to MP3", version: 1
     ),
 ]
 
-let BUILTIN_PIPELINES_VERSION = 1
+let BUILTIN_PIPELINES_VERSION = 2
 
 /// Append new built-in pipelines to the saved library, once per builtin version.
 /// Dedupes by stable id so re-seeding never duplicates and user deletions are final
@@ -188,16 +224,25 @@ func seedBuiltinPipelines() {
     guard seeded < BUILTIN_PIPELINES_VERSION else { return }
 
     var saved = Defaults[.savedPipelines]
-    let existingIDs = Set(saved.map(\.id))
-    for def in BUILTIN_PIPELINE_DEFS where def.version > seeded && !existingIDs.contains(def.id) {
-        saved.append(Pipeline(
-            id: def.id,
-            steps: Pipeline.parseSteps(from: def.rawText),
-            name: def.name,
-            rawText: def.rawText,
-            skipOptimisation: def.skipOptimisation,
-            fileType: def.fileType
-        ))
+    for def in BUILTIN_PIPELINE_DEFS {
+        if let idx = saved.firstIndex(where: { $0.id == def.id }) {
+            // Backfill metadata added in a later version onto an already-seeded builtin, without clobbering
+            // user edits (only fill what's still empty).
+            if saved[idx].icon == nil { saved[idx].icon = def.icon }
+            if saved[idx].details == nil { saved[idx].details = def.details }
+        } else if def.version > seeded {
+            // A builtin not present is either brand-new or user-deleted; only (re)add genuinely new ids.
+            saved.append(Pipeline(
+                id: def.id,
+                steps: Pipeline.parseSteps(from: def.rawText),
+                name: def.name,
+                rawText: def.rawText,
+                skipOptimisation: def.skipOptimisation,
+                fileType: def.fileType,
+                icon: def.icon,
+                details: def.details
+            ))
+        }
     }
     Defaults[.savedPipelines] = saved
     Defaults[.builtinPipelinesSeededVersion] = BUILTIN_PIPELINES_VERSION
@@ -287,10 +332,10 @@ struct TemplateContext {
 
 // MARK: - Shared Helpers
 
-/// Apply conversion behaviour settings when an image is converted to a different format.
-///
-/// Handles backup of original (for `.inPlace`) and copying converted file to the original directory (for non-`.temporary`).
-/// Returns the image to use going forward (possibly with updated path) and sets `originalPath` if the original was preserved.
+// Apply conversion behaviour settings when an image is converted to a different format.
+//
+// Handles backup of original (for `.inPlace`) and copying converted file to the original directory (for non-`.temporary`).
+// Returns the image to use going forward (possibly with updated path) and sets `originalPath` if the original was preserved.
 
 // MARK: - Pipeline Execution Engine
 

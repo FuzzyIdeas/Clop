@@ -85,11 +85,9 @@ extension NSImage {
         guard let representation = bestRepresentation(for: frame, context: ctx, hints: nil) else {
             return nil
         }
-        let image = NSImage(size: targetSize, flipped: false, drawingHandler: { _ -> Bool in
+        return NSImage(size: targetSize, flipped: false, drawingHandler: { _ -> Bool in
             representation.draw(in: frame)
         })
-
-        return image
     }
 
     func linear() -> CGImage? {
@@ -170,15 +168,13 @@ extension NSImage {
             return nil
         }
 
-        let image = NSImage(
+        return NSImage(
             size: targetSize,
             flipped: false,
             drawingHandler: { (destinationRect: NSRect) -> Bool in
                 representation.draw(in: destinationRect)
             }
         )
-
-        return image
     }
 
     // MARK: Saving
