@@ -357,9 +357,6 @@ enum DebugDump {
             lines.append(line)
         }
 
-        lines.append("")
-        lines.append("# Finder extension")
-        lines.append(runForOutput("/usr/bin/pluginkit", args: ["-m", "-v", "-i", "com.lowtechguys.Clop.FinderOptimiser"], timeout: 5) ?? "<pluginkit query failed>")
         return lines.joined(separator: "\n") + "\n"
     }
 

@@ -128,6 +128,21 @@ enum OptimisationSource: Codable, Equatable, Hashable {
         case let .dir(dir): dir
         }
     }
+
+    var displayLabel: String {
+        switch self {
+        case .clipboard: "Clipboard"
+        case .service: "Service"
+        case .photos: "Photos"
+        case .openWith: "Open With"
+        case .fileWatcher: "Folder watcher"
+        case .shortcuts: "Shortcuts"
+        case .cli: "Command line"
+        case .dropZone: "Drop zone"
+        case .finder: "Finder"
+        case let .dir(dir): FilePath(dir).lastComponent?.string ?? dir
+        }
+    }
 }
 
 extension String {
@@ -1469,7 +1484,7 @@ func migrateSettings() {
     }
 }
 
-let WINDOW_MIN_SIZE = CGSize(width: 870, height: 750)
+let WINDOW_MIN_SIZE = CGSize(width: 980, height: 750)
 
 // MARK: - ClopApp
 
