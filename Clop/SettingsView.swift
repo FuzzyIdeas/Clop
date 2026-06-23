@@ -1001,8 +1001,8 @@ struct FileHandlingSettingsView: View {
     @Default(.formatsToConvertToJPEG) var formatsToConvertToJPEG
     @Default(.formatsToConvertToPNG) var formatsToConvertToPNG
     @Default(.formatsToConvertToMP4) var formatsToConvertToMP4
-    @Default(.formatsToConvertToOutputAudio) var formatsToConvertToOutputAudio
-    @Default(.audioFormat) var audioFormat
+    @Default(.formatsToConvertToAAC) var formatsToConvertToAAC
+    @Default(.formatsToConvertToMP3) var formatsToConvertToMP3
 
     @State private var expandedVars: Set<ClopFileType> = []
 
@@ -1245,14 +1245,20 @@ struct FileHandlingSettingsView: View {
         formatsToConvertToMP4.compactMap({ $0.preferredFilenameExtension }).sorted().first
     }
 
-    // Audio auto-convert: first extension from formatsToConvertToOutputAudio; output is the audioFormat extension.
+    // Audio auto-convert: first source extension across both target sets; output depends on which set it comes from.
     private var autoAudioInputExt: String? {
-        formatsToConvertToOutputAudio.compactMap({ $0.preferredFilenameExtension }).sorted().first
+        let aacExts = formatsToConvertToAAC.compactMap({ $0.preferredFilenameExtension }).sorted()
+        let mp3Exts = formatsToConvertToMP3.compactMap({ $0.preferredFilenameExtension }).sorted()
+        return (aacExts + mp3Exts).sorted().first
     }
 
     private var autoAudioOutputExt: String? {
-        let ext = audioFormat.fileExtension
-        return ext.isEmpty ? nil : ext
+        guard let inputExt = autoAudioInputExt else { return nil }
+        let aacExts = formatsToConvertToAAC.compactMap({ $0.preferredFilenameExtension })
+        if aacExts.contains(inputExt) { return "m4a" }
+        let mp3Exts = formatsToConvertToMP3.compactMap({ $0.preferredFilenameExtension })
+        if mp3Exts.contains(inputExt) { return "mp3" }
+        return nil
     }
 
     private var imageHasTemplateRow: Bool {
@@ -1358,24 +1364,32 @@ struct FileHandlingSettingsView: View {
     }
 
     private var audioAutoConvertGroups: [ConvertGroup] {
-        guard audioFormat != .sameAsInput, !audioFormat.isLossless else { return [] }
-        let fmts = formatsToConvertToOutputAudio.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
-        guard !fmts.isEmpty else { return [] }
-        return [ConvertGroup(sources: fmts, target: audioFormat.name,
-            sourceTint: .red, targetTint: Color(red: 0.2, green: 0.8, blue: 0.4),
-            sourceTextColor: sourceAdaptive, targetTextColor: audioAdaptive)]
+        var groups: [ConvertGroup] = []
+        let toAAC = formatsToConvertToAAC.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toAAC.isEmpty {
+            groups.append(ConvertGroup(sources: toAAC, target: "AAC (M4A)",
+                sourceTint: .red, targetTint: Color(red: 0.2, green: 0.8, blue: 0.4),
+                sourceTextColor: sourceAdaptive, targetTextColor: audioAdaptive))
+        }
+        let toMP3 = formatsToConvertToMP3.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toMP3.isEmpty {
+            groups.append(ConvertGroup(sources: toMP3, target: "MP3",
+                sourceTint: Color(red: 1.0, green: 0.5, blue: 0.0), targetTint: .blue,
+                sourceTextColor: orangeAdaptive, targetTextColor: pngAdaptive))
+        }
+        return groups
     }
 }
 
 
 struct AudioSettingsView: View {
     @Default(.audioDirs) var audioDirs
-    @Default(.audioFormat) var audioFormat
     @Default(.audioCoverArt) var audioCoverArt
     @Default(.audioBitrate) var audioBitrate
     @Default(.audioCompression) var audioCompression
     @Default(.audioFormatsToSkip) var audioFormatsToSkip
-    @Default(.formatsToConvertToOutputAudio) var formatsToConvertToOutputAudio
+    @Default(.formatsToConvertToAAC) var formatsToConvertToAAC
+    @Default(.formatsToConvertToMP3) var formatsToConvertToMP3
     @Default(.maxAudioSizeMB) var maxAudioSizeMB
     @Default(.minAudioSizeKB) var minAudioSizeKB
     @Default(.maxAudioFileCount) var maxAudioFileCount
@@ -1383,14 +1397,9 @@ struct AudioSettingsView: View {
 
     /// Reveals what the abstract percentage maps to in real bitrates (all formats use VBR).
     var audioCompressionCaption: String {
-        if audioFormat == .sameAsInput {
-            let mp3 = audioCompression.audioBitrate(for: .mp3) ?? 0
-            let aac = audioCompression.audioBitrate(for: .aac) ?? 0
-            let opus = audioCompression.audioBitrate(for: .opus) ?? 0
-            return "Around \(mp3) kbps for MP3, \(aac) for AAC, \(opus) for Opus"
-        }
-        guard let kbps = audioCompression.audioBitrate(for: audioFormat) else { return "" }
-        return "Around \(kbps) kbps, variable bitrate"
+        let aac = audioCompression.audioBitrate(for: .aac) ?? 0
+        let mp3 = audioCompression.audioBitrate(for: .mp3) ?? 0
+        return "Around \(aac) kbps for AAC, \(mp3) for MP3 (variable bitrate). WAV, AIFF and FLAC are lossless, so the compression factor does not apply to them."
     }
 
     var body: some View {
@@ -1404,39 +1413,20 @@ struct AudioSettingsView: View {
                     Text("Where files go is set in").foregroundColor(.secondary)
                     Button("File handling") { settingsViewManager.tab = .files }.buttonStyle(.link)
                 }.font(.system(size: 11))
-                Picker(selection: $audioFormat) {
-                    ForEach(AudioFormat.allCases, id: \.self) { format in
-                        Text(format.name).tag(format)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text("Compression").regular(13)
+                        Slider(
+                            value: Binding(
+                                get: { Double(audioCompression.factor) },
+                                set: { audioCompression.factor = Int($0.rounded()) }
+                            ),
+                            in: 5 ... 100, step: 1
+                        )
+                        Text("\(audioCompression.factor)%")
+                            .mono(11).foregroundColor(.secondary).frame(width: 38, alignment: .trailing)
                     }
-                } label: {
-                    Text("Output format").regular(13)
-                }
-                .onChange(of: audioFormat) { newFormat in
-                    if newFormat.isLossless {
-                        audioBitrate = newFormat.defaultBitrate
-                    } else if audioBitrate >= 0, !newFormat.allowedBitrates.contains(audioBitrate) {
-                        audioBitrate = newFormat.defaultBitrate
-                    }
-                    if let ut = newFormat.utType {
-                        formatsToConvertToOutputAudio.remove(ut)
-                    }
-                }
-                if !audioFormat.isLossless {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text("Compression").regular(13)
-                            Slider(
-                                value: Binding(
-                                    get: { Double(audioCompression.factor) },
-                                    set: { audioCompression.factor = Int($0.rounded()) }
-                                ),
-                                in: 5 ... 100, step: 1
-                            )
-                            Text("\(audioCompression.factor)%")
-                                .mono(11).foregroundColor(.secondary).frame(width: 38, alignment: .trailing)
-                        }
-                        Text(audioCompressionCaption).round(10, weight: .regular).foregroundColor(.secondary)
-                    }
+                    Text(audioCompressionCaption).round(10, weight: .regular).foregroundColor(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Picker(selection: $audioCoverArt) {
@@ -1446,28 +1436,35 @@ struct AudioSettingsView: View {
                     } label: {
                         Text("Cover art").regular(13)
                     }
-                    if audioFormat != .sameAsInput, !audioFormat.supportsCoverArt {
-                        Text("\(audioFormat.name) can't store cover art, so it's always dropped")
-                            .round(10, weight: .regular).foregroundColor(.secondary)
-                    }
+                    Text("Cover art is kept only for formats that can store it (AAC, MP3, FLAC); it is dropped for others.")
+                        .round(10, weight: .regular).foregroundColor(.secondary)
                 }
             }
             Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minAudioSizeKB, maxMB: $maxAudioSizeMB)
                 CountSliderRow(count: $maxAudioFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "audio file is" : "audio files are") copied or moved at once" })
             }
-            if audioFormat != .sameAsInput, !audioFormat.isLossless {
-                Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts selected formats to \(audioFormat.fileExtension) before optimisation")) {
-                    HStack {
-                        (Text("Convert to ").regular(13) + Text(audioFormat.fileExtension).mono(13)).padding(.trailing, 10)
-                        Spacer()
-
-                        ForEach(ALL_AUDIO_CONVERTIBLE_FORMATS.filter { $0 != audioFormat.utType }, id: \.identifier) { format in
-                            Button(format.preferredFilenameExtension ?? format.identifier) {
-                                formatsToConvertToOutputAudio.toggle(format)
-                            }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToOutputAudio.contains(format) }))
-                                .font(.mono(11))
-                        }
+            Section(header: SectionHeader(title: "Compatibility", subtitle: "Convert less compatible formats to AAC or MP3 before optimisation; anything not picked keeps its own format")) {
+                HStack {
+                    (Text("Convert to ").regular(13) + Text("AAC (M4A)").mono(13)).padding(.trailing, 10)
+                    Spacer()
+                    ForEach(FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO, id: \.identifier) { format in
+                        Button(format.preferredFilenameExtension ?? format.identifier) {
+                            formatsToConvertToAAC.toggle(format)
+                            if formatsToConvertToAAC.contains(format) { formatsToConvertToMP3.remove(format) }
+                        }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToAAC.contains(format) }))
+                            .font(.mono(11))
+                    }
+                }
+                HStack {
+                    (Text("Convert to ").regular(13) + Text("MP3").mono(13)).padding(.trailing, 10)
+                    Spacer()
+                    ForEach(FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO, id: \.identifier) { format in
+                        Button(format.preferredFilenameExtension ?? format.identifier) {
+                            formatsToConvertToMP3.toggle(format)
+                            if formatsToConvertToMP3.contains(format) { formatsToConvertToAAC.remove(format) }
+                        }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToMP3.contains(format) }))
+                            .font(.mono(11))
                     }
                 }
             }
