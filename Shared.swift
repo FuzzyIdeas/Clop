@@ -10,6 +10,47 @@ import Foundation
 import System
 import UniformTypeIdentifiers
 
+public enum FileBehaviour: String, Codable, Sendable {
+    case temporary
+    case inPlace
+    case sameFolder
+    case specificFolder
+}
+
+public enum OutputKind: String, Codable, Sendable {
+    case optimised
+    case autoConvert
+    case manualConvert
+}
+
+public struct PlacementOverride: Codable, Sendable {
+    public var optimised: FileBehaviour?
+    public var autoConvert: FileBehaviour?
+    public var manualConvert: FileBehaviour?
+    public var sameFolderTemplate: String?
+    public var specificFolderTemplate: String?
+
+    public init(optimised: FileBehaviour? = nil, autoConvert: FileBehaviour? = nil, manualConvert: FileBehaviour? = nil, sameFolderTemplate: String? = nil, specificFolderTemplate: String? = nil) {
+        self.optimised = optimised
+        self.autoConvert = autoConvert
+        self.manualConvert = manualConvert
+        self.sameFolderTemplate = sameFolderTemplate
+        self.specificFolderTemplate = specificFolderTemplate
+    }
+
+    public func behaviour(for kind: OutputKind) -> FileBehaviour? {
+        switch kind {
+        case .optimised: optimised
+        case .autoConvert: autoConvert
+        case .manualConvert: manualConvert
+        }
+    }
+
+    public var isEmpty: Bool {
+        optimised == nil && autoConvert == nil && manualConvert == nil && sameFolderTemplate == nil && specificFolderTemplate == nil
+    }
+}
+
 func ~= (lhs: UTType?, rhs: UTType) -> Bool {
     guard let lhs else { return false }
     return lhs.conforms(to: rhs)
@@ -487,6 +528,9 @@ struct OptimisationRequest: Codable, Identifiable {
     /// When true, open the batch adjustment window for review instead of starting immediately. The
     /// CLI returns right away; the user presses Optimise in the window to begin. (Dev/iteration aid.)
     var prepareInBatch: Bool? = nil
+    /// Per-request file-placement override. When set, takes precedence over the app's Defaults
+    /// for where optimised and converted files are placed. nil = use the app settings.
+    var placement: PlacementOverride? = nil
 }
 
 func runningClopApp() -> NSRunningApplication? {

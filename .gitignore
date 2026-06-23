@@ -16,3 +16,6 @@ ClopTests/
 docs/superpowers/
 docs/specs/
 *.corpus.json
+
+# subagent-driven-development scratch workspace
+.superpowers/

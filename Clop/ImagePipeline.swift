@@ -8,18 +8,13 @@ import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ImagePipeline")
 
-@MainActor func applyImageConversionBehaviour(original img: Image, converted: Image, originalPath: inout FilePath?) throws -> Image {
-    let behaviour = Defaults[.convertedImageBehaviour]
-    if behaviour == .inPlace, let backupPath = img.path.clopBackupPath {
-        img.path.backup(path: backupPath, force: true, operation: .move)
-    }
-    if behaviour != .temporary {
-        try converted.path.setOptimisationStatusXattr("pending")
-        let path = try converted.path.copy(to: img.path.dir, force: true)
+@MainActor func applyImageConversionBehaviour(original img: Image, converted: Image, originalPath: inout FilePath?, overrides: PlacementOverride? = nil) throws -> Image {
+    let placed = try placeOutput(produced: converted.path, original: img.path, type: .image, kind: .autoConvert, overrides: overrides)
+    if placed.originalRemoved || placed.path != converted.path {
         originalPath = img.path
-        return Image(data: converted.data, path: path, nsImage: converted.image, type: converted.type, optimised: converted.optimised, retinaDownscaled: converted.retinaDownscaled)
     }
-    return converted
+    guard placed.path != converted.path else { return converted }
+    return Image(data: converted.data, path: placed.path, nsImage: converted.image, type: converted.type, optimised: converted.optimised, retinaDownscaled: converted.retinaDownscaled)
 }
 
 func decrementedDownscaleFactor(_ factor: Double) -> Double {
@@ -176,7 +171,10 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
 
     if let autoConversionFormat {
         let converted = try img.convert(to: autoConversionFormat, asTempFile: true)
-        img = try applyImageConversionBehaviour(original: img, converted: converted, originalPath: &originalPath)
+        // The optimiser may already be pre-registered in OM by the CLI request handler so
+        // placementOverride is available here, before the optimiser is formally set up below.
+        let placementOverride = opt(id ?? pathString)?.placementOverride
+        img = try applyImageConversionBehaviour(original: img, converted: converted, originalPath: &originalPath, overrides: placementOverride)
         pathString = img.path.string
         allowLarger = true
     } else if !skipCache, !hasExplicitConvert, !hasDownscale, let optImg = try getCachedOptimisedImage(img: img, id: id, retinaDownscaled: false) {
@@ -304,11 +302,18 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                     switch action {
                     case let .convert(format):
                         let converted = try ci.convert(to: format, asTempFile: true, cq: optimiser.compressionOverride)
-                        currentImage = converted
+                        var placedImage = converted
+                        if id != Optimiser.IDs.clipboardImage {
+                            let placed = try placeOutput(produced: converted.path, original: savePath ?? img.path, type: .image, kind: .manualConvert, overrides: optimiser.placementOverride)
+                            if placed.path != converted.path {
+                                placedImage = try converted.copyWithPath(placed.path)
+                            }
+                        }
+                        currentImage = placedImage
                         mainActor {
                             optimiser.operation = "Converting to \(format.preferredFilenameExtension?.uppercased() ?? "?")"
-                            optimiser.url = converted.path.url
-                            optimiser.type = .image(converted.type)
+                            optimiser.url = placedImage.path.url
+                            optimiser.type = .image(placedImage.type)
                         }
 
                     case .optimise:
@@ -331,12 +336,12 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                             continue
                         }
                         if currentImage!.type == img.type {
-                            // Place the optimised result at the requested destination, not back onto the source.
-                            // In the temp pipeline the source is the pristine original/backup, so copying to
-                            // `img.path` would clobber the original and make a later pass (e.g. downscale)
-                            // re-encode an already-compressed file. Mirror the downscale case below.
-                            let dest = (id == Optimiser.IDs.clipboardImage ? nil : savePath) ?? img.path
-                            currentImage = try currentImage?.copyWithPath(currentImage!.path.copy(to: dest, force: true))
+                            if id == Optimiser.IDs.clipboardImage {
+                                // clipboard has no on-disk original to replace; keep temp behaviour
+                            } else if let cur = currentImage {
+                                let placed = try placeOutput(produced: cur.path, original: savePath ?? img.path, type: .image, kind: .optimised, overrides: optimiser.placementOverride)
+                                currentImage = try cur.copyWithPath(placed.path)
+                            }
                         } else {
                             // Adaptive optimisation converted the format (e.g. PNG→JPEG). The encoder saved it
                             // next to the source; in the temp pipeline that source dir is the backup/cache, so
@@ -370,11 +375,12 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                             )
                         }
                         // Copy result to target path
-                        if id != Optimiser.IDs.clipboardImage, currentImage!.type == img.type {
-                            let newURL = try (currentImage!.path.copy(to: savePath ?? img.path, force: true)).url
+                        if id != Optimiser.IDs.clipboardImage, currentImage!.type == img.type, let cur = currentImage {
+                            let placed = try placeOutput(produced: cur.path, original: savePath ?? img.path, type: .image, kind: .optimised, overrides: optimiser.placementOverride)
+                            currentImage = try cur.copyWithPath(placed.path)
                             mainActor {
-                                optimiser.url = newURL
-                                optimiser.type = .image(currentImage!.type)
+                                optimiser.url = placed.path.url
+                                optimiser.type = .image(cur.type)
                             }
                         }
 
