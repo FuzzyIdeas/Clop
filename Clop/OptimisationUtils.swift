@@ -412,6 +412,14 @@ enum TempPipelineSegment {
         return AudioFormat.allCases.first { $0.utType == ut }
     }
 
+    /// The concrete audio format of this result, derived from its current type/extension. Replaces the old
+    /// single global Defaults[.audioFormat] for per-result bitrate UI.
+    var audioFormat: AudioFormat {
+        let ext = (url ?? originalURL)?.filePath?.extension?.lowercased()
+            ?? { if case let .audio(ut) = type { return ut.preferredFilenameExtension?.lowercased() }; return nil }()
+        return AudioFormat.allCases.first { $0 != .sameAsInput && $0.fileExtension == ext } ?? .aac
+    }
+
     @Published var editing = false {
         didSet {
             guard editing != oldValue else {
@@ -1214,7 +1222,7 @@ enum TempPipelineSegment {
         if type.isImage || type.isVideo { return true }
         guard type.isAudio else { return false }
         let ext = (url ?? originalURL)?.filePath?.extension ?? ""
-        return Defaults[.audioFormat].resolved(forInputExtension: ext).bitrateRange != nil
+        return audioFormat.bitrateRange != nil
     }
 
     func canCrop() -> Bool {
@@ -1399,8 +1407,7 @@ enum TempPipelineSegment {
         stopRemover()
         guard type.isAudio else { return }
 
-        let format = Defaults[.audioFormat]
-        let bitrates = format.allowedBitrates
+        let bitrates = audioFormat.allowedBitrates
         let currentBitrate = audioBitrateOverride ?? Defaults[.audioBitrate]
 
         guard let currentIndex = bitrates.firstIndex(of: currentBitrate) else { return }

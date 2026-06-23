@@ -660,7 +660,7 @@ func downscaleFactorLabel(_ factor: Double) -> String {
     let format: AudioFormat = if let cur = optimiser.currentAudioFormat, cur.bitrateRange != nil {
         cur
     } else {
-        Defaults[.audioFormat].resolved(forInputExtension: (optimiser.url ?? optimiser.originalURL)?.filePath?.extension ?? "")
+        optimiser.audioFormat
     }
     return cq.audioBitrate(for: format)
 }
@@ -941,7 +941,7 @@ struct BitrateSlider: View {
 
     var size: CGFloat
 
-    @Default(.audioFormat) var audioFormat
+    var audioFormat: AudioFormat { optimiser.audioFormat }
     @Default(.audioBitrate) var defaultBitrate
     @Default(.floatingResultsCorner) var floatingResultsCorner
 
@@ -1051,7 +1051,7 @@ struct HorizontalBitrateSlider: View {
 
     var size: CGFloat
 
-    @Default(.audioFormat) var audioFormat
+    var audioFormat: AudioFormat { optimiser.audioFormat }
     @Default(.audioBitrate) var defaultBitrate
 
     var bitrates: [Int] {
@@ -1345,7 +1345,7 @@ struct CardCompressionSlider: View {
 struct CardBitrateSlider: View {
     @ObservedObject var optimiser: Optimiser
 
-    @Default(.audioFormat) var audioFormat
+    var audioFormat: AudioFormat { optimiser.audioFormat }
     @Default(.audioBitrate) var defaultBitrate
 
     var bitrates: [Int] {

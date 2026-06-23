@@ -686,8 +686,7 @@ struct LowerBitrateMenu: View {
     @ObservedObject var optimiser: Optimiser
 
     var body: some View {
-        let format = Defaults[.audioFormat]
-        let bitrates = format.allowedBitrates
+        let bitrates = optimiser.audioFormat.allowedBitrates
         let currentBitrate = optimiser.audioBitrateOverride ?? Defaults[.audioBitrate]
 
         ForEach(bitrates, id: \.self) { bitrate in
@@ -702,8 +701,7 @@ struct BatchBitrateMenu: View {
     var optimisers: [Optimiser]
 
     var body: some View {
-        let format = Defaults[.audioFormat]
-        let bitrates = format.allowedBitrates
+        let bitrates = optimisers.first?.audioFormat.allowedBitrates ?? AudioFormat.aac.allowedBitrates
 
         ForEach(bitrates, id: \.self) { bitrate in
             Button("\(bitrate) kbps") {
