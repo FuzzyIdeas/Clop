@@ -417,7 +417,7 @@ enum TempPipelineSegment {
     var audioFormat: AudioFormat {
         let ext = (url ?? originalURL)?.filePath?.extension?.lowercased()
             ?? { if case let .audio(ut) = type { return ut.preferredFilenameExtension?.lowercased() }; return nil }()
-        return AudioFormat.allCases.first { $0 != .sameAsInput && $0.fileExtension == ext } ?? .aac
+        return AudioFormat.allCases.first { $0 != .sameAsInput && ($0.fileExtension == ext || ($0 == .opus && ext == "opus")) } ?? .aac
     }
 
     @Published var editing = false {
