@@ -245,7 +245,8 @@ class Video: Optimisable {
         removeAudio: Bool? = nil,
         encoderOverride: [String]? = nil,
         videoEncoderOverride: VideoEncoder? = nil,
-        fpsOverride: Int? = nil
+        fpsOverride: Int? = nil,
+        manualConversion: Bool = false
     ) throws -> Video {
         log.debug("Optimising video \(self.path.string)")
         guard let name = path.lastComponent else {
@@ -391,25 +392,18 @@ class Video: Optimisable {
         var newVideo = Video(path: outputPath, metadata: metadata, convertedFrom: convertedFrom)
 
         if let convertedFrom, convertedFrom.path.exists {
-            let behaviour = Defaults[.convertedVideoBehaviour]
-            if behaviour == .inPlace, let backupPath = convertedFrom.path.clopBackupPath {
-                convertedFrom.path.backup(path: backupPath, force: true, operation: .move)
-                mainActor {
-                    optimiser.convertedFromURL = backupPath.url
-                }
+            // placeOutput is @MainActor; dispatch synchronously so we can use the result
+            // here on the background optimisation queue thread.
+            let kind: OutputKind = manualConversion ? .manualConvert : .autoConvert
+            let placedResult: Result<PlacedOutput, Error> = DispatchQueue.main.sync {
+                Result { try placeOutput(produced: newVideo.path, original: convertedFrom.path, type: .video, kind: kind, overrides: optimiser.placementOverride) }
             }
-            if behaviour != .temporary, newVideo.path.dir != convertedFrom.path.dir {
-                let path = try newVideo.path.copy(to: convertedFrom.path.dir, force: true)
-                if behaviour != .inPlace {
-                    mainActor {
-                        optimiser.convertedFromURL = convertedFrom.path.url
-                    }
-                }
-                newVideo = Video(path: path, metadata: metadata, convertedFrom: convertedFrom)
-            } else if behaviour != .inPlace {
-                mainActor {
-                    optimiser.convertedFromURL = convertedFrom.path.url
-                }
+            let placed = try placedResult.get()
+            if placed.path != newVideo.path {
+                newVideo = Video(path: placed.path, metadata: metadata, convertedFrom: convertedFrom)
+            }
+            mainActor {
+                optimiser.convertedFromURL = (placed.backup ?? convertedFrom.path).url
             }
         }
         mainActor {

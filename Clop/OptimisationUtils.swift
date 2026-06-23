@@ -339,6 +339,10 @@ enum TempPipelineSegment {
 
     var source: OptimisationSource?
 
+    /// Per-request placement override carried from a CLI `OptimisationRequest`. When set, `placeOutput`
+    /// uses it instead of the stored behaviour Defaults. Nil for UI-initiated work.
+    var placementOverride: PlacementOverride?
+
     /// Bundle id and display name of the app that placed the clipboard content, captured at
     /// clipboard-read time for the `copiedBy` pipeline filter. nil for non-clipboard sources.
     var copiedFromAppBundleID: String?
@@ -954,7 +958,7 @@ enum TempPipelineSegment {
                 return
             }
             imageOptimisationQueue.addOperation { [weak self] in
-                guard let converted = try? image.convert(to: type, asTempFile: false, optimiser: optimise ? self : nil) else {
+                guard let converted = try? image.convert(to: type, asTempFile: true, optimiser: optimise ? self : nil) else {
                     mainActor {
                         guard let self else { return }
                         self.finish(error: "\(typeStr) conversion failed")
@@ -963,16 +967,19 @@ enum TempPipelineSegment {
                 }
                 mainActor {
                     guard let self else { return }
+                    let originalFilePath = (self.startingURL ?? self.originalURL ?? self.url)?.filePath ?? converted.path
+                    let placed = try? placeOutput(produced: converted.path, original: originalFilePath, type: .image, kind: .manualConvert, overrides: self.placementOverride)
+                    let finalImage = placed.flatMap { p in p.path != converted.path ? try? converted.copyWithPath(p.path) : converted } ?? converted
                     if self.convertedFromURL == nil {
                         self.convertedFromURL = self.url
                     }
-                    self.image = converted
-                    self.type = .image(converted.type)
-                    self.url = converted.path.url
+                    self.image = finalImage
+                    self.type = .image(finalImage.type)
+                    self.url = finalImage.path.url
                     self.error = nil
                     self.notice = nil
                     self.info = nil
-                    self.finish(oldBytes: self.oldBytes, newBytes: converted.data.count, oldSize: self.oldSize, newSize: converted.size, removeAfterMs: self.lastRemoveAfterMs)
+                    self.finish(oldBytes: self.oldBytes, newBytes: finalImage.data.count, oldSize: self.oldSize, newSize: finalImage.size, removeAfterMs: self.lastRemoveAfterMs)
                 }
             }
         case .audio:
@@ -2100,7 +2107,7 @@ enum TempPipelineSegment {
             guard let self else { return }
             guard let result = try? video.optimise(
                 optimiser: self, forceMP4: forceMP4, outputExtension: outputExt, backup: false,
-                encoderOverride: encoderOverride
+                encoderOverride: encoderOverride, manualConversion: true
             ) else {
                 let label = type.preferredFilenameExtension ?? "video"
                 mainActor { self.finish(error: "\(label) conversion failed") }
@@ -2798,17 +2805,9 @@ var manualOptimisationCount = 0
 
 var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
-func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour: OptimisedFileBehaviour? = nil) throws -> FilePath? {
-    switch optimisedFileBehaviour ?? type.optimisedFileBehaviour {
-    case .temporary:
-        path.tempFile(addUniqueID: true)
-    case .inPlace:
-        path
-    case .sameFolder:
-        path.dir / generateFileName(template: Defaults[type.sameFolderNameTemplateKey], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-    case .specificFolder:
-        try generateFilePath(template: Defaults[type.specificFolderNameTemplateKey], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber], mkdir: true)
-    }
+func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour: FileBehaviour? = nil) throws -> FilePath? {
+    let overrides = optimisedFileBehaviour.map { PlacementOverride(optimised: $0) }
+    return try destinationPath(type: type, kind: .optimised, path: path, overrides: overrides)
 }
 
 /// Whether `path` already sits at the location produced by the optimised-file
@@ -2849,7 +2848,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     source: OptimisationSource? = nil,
     output: String? = nil,
     removeAudio: Bool? = nil,
-    optimisedFileBehaviour: OptimisedFileBehaviour? = nil,
+    optimisedFileBehaviour: FileBehaviour? = nil,
     skipPipelineLookup: Bool = false
 ) async throws -> ClipboardType? {
     func nope(notice: String, thumbnail: NSImage? = nil, url: URL? = nil, type: ItemType? = nil) {
@@ -3269,6 +3268,7 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
         // (convert, optimise) propagate these to the child optimisers.
         if let compression = req.compression { o.compressionOverride = compression }
         if let bitrate = req.audioBitrate { o.audioBitrateOverride = bitrate }
+        o.placementOverride = req.placement
         return o
     }
     let (resultFile, _) = await runPipelinesAfterOptimisation(
@@ -3310,6 +3310,12 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                     if req.pipeline != nil {
                         return try await processPipelineRequestURL(req, url: url)
                     }
+                    // Pre-register the optimiser so placementOverride is available before the pipeline runs.
+                    if let placement = req.placement {
+                        await MainActor.run {
+                            OM.optimiser(id: url.absoluteString, type: .unknown, operation: "", hidden: req.hideFloatingResult).placementOverride = placement
+                        }
+                    }
                     let result: ClipboardType?
                     do {
                         result = try await optimiseItem(
@@ -3346,6 +3352,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                     guard let result, let opt = await opt(url.absoluteString) else {
                         throw ClopError.optimisationFailed(url.shellString)
                     }
+                    await MainActor.run { opt.placementOverride = req.placement }
 
                     var respPath = switch result {
                     case let .file(path):

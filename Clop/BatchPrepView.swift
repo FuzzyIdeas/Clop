@@ -462,7 +462,12 @@ struct BatchPrepContent: View {
     private func setWindowMinHeight(_ h: CGFloat) {
         guard let window = manager.windowController?.window else { return }
         window.contentMinSize.height = h
-        if window.frame.height < h {
+        guard window.frame.height < h else { return }
+        // Defer the animated resize to the next run-loop tick. `animate: true` spins a nested
+        // run loop, and calling it synchronously from a SwiftUI update (.onChange/.onAppear, or
+        // while a drop's commit animation is being driven) re-enters the view-graph renderer
+        // mid-render and dereferences a null pointer (CLOP-24P).
+        DispatchQueue.main.async {
             var frame = window.frame
             frame.origin.y -= (h - frame.height)
             frame.size.height = h
@@ -1030,7 +1035,12 @@ struct BatchResultsContent: View {
     private func setWindowMinHeight(_ h: CGFloat) {
         guard let window = manager.windowController?.window else { return }
         window.contentMinSize.height = h
-        if window.frame.height < h {
+        guard window.frame.height < h else { return }
+        // Defer the animated resize to the next run-loop tick. `animate: true` spins a nested
+        // run loop, and calling it synchronously from a SwiftUI update (.onChange/.onAppear, or
+        // while a drop's commit animation is being driven) re-enters the view-graph renderer
+        // mid-render and dereferences a null pointer (CLOP-24P).
+        DispatchQueue.main.async {
             var frame = window.frame
             frame.origin.y -= (h - frame.height)
             frame.size.height = h

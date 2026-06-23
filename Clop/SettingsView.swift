@@ -412,9 +412,6 @@ struct PDFSettingsView: View {
     @Default(.maxPDFFileCount) var maxPDFFileCount
     @Default(.pdfDPI) var pdfDPI
     @Default(.enableAutomaticPDFOptimisations) var enableAutomaticPDFOptimisations
-    @Default(.optimisedPDFBehaviour) var optimisedPDFBehaviour
-    @Default(.sameFolderNameTemplatePDF) var sameFolderNameTemplatePDF
-    @Default(.specificFolderNameTemplatePDF) var specificFolderNameTemplatePDF
 
     var body: some View {
         Form {
@@ -422,11 +419,11 @@ struct PDFSettingsView: View {
                 DirListView(fileType: .pdf, dirs: $pdfDirs, enabled: $enableAutomaticPDFOptimisations)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
-                OptimisedFileBehaviourView(
-                    type: .pdf, optimisedBehaviour: $optimisedPDFBehaviour,
-                    sameFolderNameTemplate: $sameFolderNameTemplatePDF,
-                    specificFolderNameTemplate: $specificFolderNameTemplatePDF
-                )
+                HStack(spacing: 4) {
+                    SwiftUI.Image(systemName: "folder.badge.gearshape")
+                    Text("Where files go is set in").foregroundColor(.secondary)
+                    Button("File handling") { settingsViewManager.tab = .files }.buttonStyle(.link)
+                }.font(.system(size: 11))
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text("Compression").regular(13)
@@ -497,10 +494,6 @@ struct VideoSettingsView: View {
     @Default(.capVideoFPS) var capVideoFPS
     @Default(.targetVideoFPS) var targetVideoFPS
     @Default(.minVideoFPS) var minVideoFPS
-    @Default(.convertedVideoBehaviour) var convertedVideoBehaviour
-    @Default(.optimisedVideoBehaviour) var optimisedVideoBehaviour
-    @Default(.sameFolderNameTemplateVideo) var sameFolderNameTemplateVideo
-    @Default(.specificFolderNameTemplateVideo) var specificFolderNameTemplateVideo
     @Default(.maxVideoFileCount) var maxVideoFileCount
     @Default(.removeAudioFromVideos) var removeAudioFromVideos
     @Default(.convertAudioToAAC) var convertAudioToAAC
@@ -523,11 +516,11 @@ struct VideoSettingsView: View {
                 DirListView(fileType: .video, dirs: $videoDirs, enabled: $enableAutomaticVideoOptimisations)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
-                OptimisedFileBehaviourView(
-                    type: .video, optimisedBehaviour: $optimisedVideoBehaviour,
-                    sameFolderNameTemplate: $sameFolderNameTemplateVideo,
-                    specificFolderNameTemplate: $specificFolderNameTemplateVideo
-                )
+                HStack(spacing: 4) {
+                    SwiftUI.Image(systemName: "folder.badge.gearshape")
+                    Text("Where files go is set in").foregroundColor(.secondary)
+                    Button("File handling") { settingsViewManager.tab = .files }.buttonStyle(.link)
+                }.font(.system(size: 11))
                 HStack(spacing: 8) {
                     Text("Compression").regular(13)
                     Spacer()
@@ -658,39 +651,10 @@ struct VideoSettingsView: View {
                     }
                 }
                 Toggle("Convert audio to AAC", isOn: $convertAudioToAAC)
-                convertedVideoLocation
             }
         }
         .scrollContentBackground(.hidden)
         .padding(4)
-    }
-
-    var convertedVideoLocation: some View {
-        HStack {
-            (
-                Text("Converted video location").regular(13) +
-                    Text("\nThis only applies to the MP4 files resulting\nfrom the conversion of the above formats").round(10)
-                    .foregroundColor(.secondary)
-            ).padding(.trailing, 10)
-
-            Spacer()
-
-            Button("Temporary\nfolder") {
-                convertedVideoBehaviour = .temporary
-            }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .temporary }))
-                .font(.round(10))
-                .multilineTextAlignment(.center)
-            Button("In-place\n(replace original)") {
-                convertedVideoBehaviour = .inPlace
-            }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .inPlace }))
-                .font(.round(10))
-                .multilineTextAlignment(.center)
-            Button("Same folder\n(as original)") {
-                convertedVideoBehaviour = .sameFolder
-            }.buttonStyle(ToggleButton(isOn: .oneway { convertedVideoBehaviour == .sameFolder }))
-                .font(.round(10))
-                .multilineTextAlignment(.center)
-        }
     }
 
     func videoCompressionTitle(_ tier: CompressionTier) -> String {
@@ -729,180 +693,680 @@ let DEFAULT_NAME_TEMPLATE = "clop_%y-%m-%d_%i"
 let DEFAULT_SAME_FOLDER_NAME_TEMPLATE = "%f-optimised"
 let DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE = "%P/optimised/%f"
 
-struct OptimisedFileBehaviourView: View {
-    let type: ClopFileType
+// MARK: - Compact template field (without token table) for inline use in File handling pane
 
-    @Binding var optimisedBehaviour: OptimisedFileBehaviour
-    @Binding var sameFolderNameTemplate: String
-    @Binding var specificFolderNameTemplate: String
+struct CompactSameFolderTemplate: View {
+    let type: ClopFileType
+    @Binding var template: String
+    // The INPUT file extension shown in the example (e.g. "webp" for auto-convert, nil for optimise).
+    var inputExtension: String? = nil
+    // The OUTPUT file extension for the example (e.g. "jpeg" for auto-convert, nil = same as input).
+    var outputExtension: String? = nil
+
+    // Build the path used by the example generator: base stem + the OUTPUT extension
+    // (so the template is applied to the file that will actually be written).
+    var examplePath: FilePath {
+        let ext = outputExtension ?? inputExtension
+        guard let ext else { return type.defaultNameTemplatePath }
+        let base = type.defaultNameTemplatePath
+        let stem = base.lastComponent?.stem ?? "shot"
+        return base.removingLastComponent().appending("\(stem).\(ext)")
+    }
+
+    var inputName: String {
+        let base = type.defaultNameTemplatePath
+        let stem = base.lastComponent?.stem ?? "shot"
+        if let ext = inputExtension {
+            return "\(stem).\(ext)"
+        }
+        return base.lastComponent?.string ?? "shot.png"
+    }
+
+    var outputName: String {
+        generateFileName(template: template ?! DEFAULT_SAME_FOLDER_NAME_TEMPLATE, for: examplePath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
+    }
 
     var body: some View {
-        VStack {
-            HStack {
-                (
-                    Text("Optimised \(type.description) location").regular(13) +
-                        Text("\nWhere to place the optimised files").round(10).foregroundColor(.secondary)
-                ).padding(.trailing, 10)
-
-                Spacer()
-
-                Button("Temporary\nfolder") {
-                    optimisedBehaviour = .temporary
-                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .temporary }))
-                    .font(.round(10))
-                    .multilineTextAlignment(.center)
-                Button("In-place\n(replace original)") {
-                    optimisedBehaviour = .inPlace
-                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .inPlace }))
-                    .font(.round(10))
-                    .multilineTextAlignment(.center)
-                Button("Same folder\n(as original)") {
-                    optimisedBehaviour = .sameFolder
-                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .sameFolder }))
-                    .font(.round(10))
-                    .multilineTextAlignment(.center)
-                Button("Specific\nfolder") {
-                    optimisedBehaviour = .specificFolder
-                }.buttonStyle(ToggleButton(isOn: .oneway { optimisedBehaviour == .specificFolder }))
-                    .font(.round(10))
-                    .multilineTextAlignment(.center)
-            }
-            if optimisedBehaviour == .sameFolder {
-                SameFolderNameTemplate(type: type, template: $sameFolderNameTemplate)
-                    .roundbg(radius: 10, verticalPadding: 8, horizontalPadding: 8, color: .fg.warm.opacity(0.05))
-            }
-            if optimisedBehaviour == .specificFolder {
-                SpecificFolderNameTemplate(type: type, template: $specificFolderNameTemplate)
-                    .roundbg(radius: 10, verticalPadding: 8, horizontalPadding: 8, color: .fg.warm.opacity(0.05))
-            }
+        HStack(alignment: .center, spacing: 8) {
+            TextField("", text: $template, prompt: Text(DEFAULT_SAME_FOLDER_NAME_TEMPLATE))
+                .frame(width: 200, height: 18, alignment: .leading)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.gray, lineWidth: 1)
+                        .scaleEffect(y: TEXT_FIELD_SCALE)
+                        .offset(x: TEXT_FIELD_OFFSET)
+                )
+            Spacer(minLength: 8)
+            ExampleContainer(inputName: inputName, outputName: outputName, inputExt: inputExtension, outputExt: outputExtension)
         }
     }
 }
 
-struct SameFolderNameTemplate: View {
+struct CompactSpecificFolderTemplate: View {
     let type: ClopFileType
-
     @Binding var template: String
+    // The INPUT file extension shown in the example (e.g. "webp" for auto-convert, nil for optimise).
+    var inputExtension: String? = nil
+    // The OUTPUT file extension for the example (e.g. "jpeg" for auto-convert, nil = same as input).
+    var outputExtension: String? = nil
+
+    // Build the path used by the example generator: base stem + the OUTPUT extension.
+    var examplePath: FilePath {
+        let ext = outputExtension ?? inputExtension
+        guard let ext else { return type.defaultNameTemplatePath }
+        let base = type.defaultNameTemplatePath
+        let stem = base.lastComponent?.stem ?? "shot"
+        return base.removingLastComponent().appending("\(stem).\(ext)")
+    }
+
+    var inputName: String {
+        let base = type.defaultNameTemplatePath
+        let stem = base.lastComponent?.stem ?? "shot"
+        if let ext = inputExtension {
+            return "\(stem).\(ext)"
+        }
+        return base.lastComponent?.string ?? "shot.png"
+    }
+
+    var outputPath: String {
+        (try? generateFilePath(
+            template: template ?! DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE,
+            for: examplePath,
+            autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber],
+            mkdir: false
+        ))?.flatMap { $0.shellString } ?? "Invalid path"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Name template").medium(12)
-                + Text("\nRename the optimised file using this template").round(11, weight: .regular).foregroundColor(.secondary)
-
-            VStack(alignment: .leading) {
-                TextField("", text: $template, prompt: Text(DEFAULT_SAME_FOLDER_NAME_TEMPLATE))
-                    .frame(width: TEXT_FIELD_WIDTH, height: 18, alignment: .leading)
-                    .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                HStack {
-                    Text("Example on \(type.defaultNameTemplatePath.name.string): ")
-                        .round(12)
-                        .lineLimit(1)
-                        .allowsTightening(false)
-                        .foregroundColor(.secondary.opacity(0.6))
-                        .offset(x: 6)
-                    Spacer()
-                    Text(generateFileName(template: template ?! DEFAULT_SAME_FOLDER_NAME_TEMPLATE, for: type.defaultNameTemplatePath, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
-                        .round(12)
-                        .lineLimit(1)
-                        .allowsTightening(true)
-                        .truncationMode(.middle)
-                        .foregroundColor(.secondary)
-                }
-            }
-            HStack {
-                Text("""
-                **Date**                | **Time**
-                --------------------|-----------------
-                Year             **%y** | Hour     **%H**
-                Month (numeric)  **%m** | Minutes  **%M**
-                Month (name)     **%n** | Seconds  **%S**
-                Day              **%d** | AM/PM    **%p**
-                Weekday          **%w** |
-                """)
-
-                Spacer()
-
-                Text("""
-                Source file name (without extension)   **%f**
-                Source file extension                  **%e**
-
-                Random characters                      **%r**
-                Auto-incrementing number               **%i**
-                """)
-            }
-            .font(.mono(11, weight: .light))
-            .foregroundColor(.secondary)
-            .padding(6)
+        HStack(alignment: .center, spacing: 8) {
+            TextField("", text: $template, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
+                .frame(width: 220, height: 18, alignment: .leading)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(Color.gray, lineWidth: 1)
+                        .scaleEffect(y: TEXT_FIELD_SCALE)
+                        .offset(x: TEXT_FIELD_OFFSET)
+                )
+            Spacer(minLength: 8)
+            ExampleContainer(inputName: inputName, outputName: outputPath, inputExt: inputExtension, outputExt: outputExtension)
         }
     }
 }
-struct SpecificFolderNameTemplate: View {
-    let type: ClopFileType
 
-    @Binding var template: String
+// MARK: - Example container: "Example: [inputPill] becomes [outputPill]"
+// The whole expression lives in a single bordered+bg element at the right of the row.
+
+/// A filled muted pill for a filename token. Content-sized (fixedSize), mono font.
+private struct ExampleFilePill: View {
+    let name: String
+    // Tint for the capsule fill; nil = neutral grey.
+    var tint: Color? = nil
+
+    private var fillColor: Color {
+        if let tint {
+            return tint.opacity(0.11)
+        }
+        return adaptiveColor(
+            light: Color(white: 0.0).opacity(0.07),
+            dark: Color(white: 1.0).opacity(0.10)
+        )
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Path template").medium(12)
-                + Text("\nCreate the optimised file into a path generated by this template").round(11, weight: .regular).foregroundColor(.secondary)
+        Text(name)
+            .font(.mono(10))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .fixedSize()
+            .background(Capsule().fill(fillColor))
+            .foregroundColor(.primary)
+    }
+}
 
-            VStack(alignment: .leading) {
-                TextField("", text: $template, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
-                    .frame(width: TEXT_FIELD_WIDTH, height: 18, alignment: .leading)
-                    .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                HStack {
-                    Text("Example on \(type.defaultNameTemplatePath.shellString): ")
-                        .mono(10)
-                        .lineLimit(1)
-                        .allowsTightening(false)
-                        .foregroundColor(.secondary.opacity(0.6))
-                        .offset(x: 6)
-                    Spacer()
-                    Text(
-                        try! generateFilePath(
-                            template: template ?! DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE,
-                            for: type.defaultNameTemplatePath,
-                            autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber],
-                            mkdir: false
-                        )?.shellString ?? "Invalid path"
-                    )
-                    .round(12)
-                    .lineLimit(1)
-                    .allowsTightening(true)
-                    .truncationMode(.middle)
+/// Wraps "Example: [in] becomes [out]" in a single subtle bordered container.
+private struct ExampleContainer: View {
+    let inputName: String
+    let outputName: String
+    // Extensions used purely for hue-tinting the pills (nil = neutral).
+    var inputExt: String? = nil
+    var outputExt: String? = nil
+
+    private static let extensionTints: [String: Color] = [
+        "jpeg": Color(red: 1.0, green: 0.83, blue: 0.0),
+        "jpg":  Color(red: 1.0, green: 0.83, blue: 0.0),
+        "png":  .blue,
+        "mp4":  Color(red: 0.6, green: 0.3, blue: 0.9),
+        "webp": Color(red: 0.0, green: 0.7, blue: 0.5),
+        "avif": Color(red: 0.0, green: 0.6, blue: 0.9),
+        "heic": Color(red: 0.5, green: 0.0, blue: 0.8),
+        "m4a":  Color(red: 0.2, green: 0.7, blue: 0.3),
+        "mp3":  Color(red: 0.3, green: 0.6, blue: 1.0),
+        "ogg":  Color(red: 0.8, green: 0.4, blue: 0.0),
+        "mov":  Color(red: 0.8, green: 0.1, blue: 0.1),
+        "pdf":  Color(red: 0.8, green: 0.3, blue: 0.1),
+    ]
+
+    private func tint(for ext: String?) -> Color? {
+        guard let ext else { return nil }
+        return Self.extensionTints[ext.lowercased()]
+    }
+
+    private var bgColor: Color {
+        adaptiveColor(
+            light: Color(white: 0.0).opacity(0.035),
+            dark: Color(white: 1.0).opacity(0.06)
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("Example:")
+                .font(.round(11))
+                .foregroundColor(.secondary)
+            ExampleFilePill(name: inputName, tint: tint(for: inputExt))
+            Text("becomes")
+                .font(.round(11))
+                .foregroundColor(.secondary)
+            ExampleFilePill(name: outputName, tint: tint(for: outputExt ?? inputExt))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(bgColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Adaptive colour helper
+
+/// Returns a colour that picks between `light` and `dark` variants based on the current appearance.
+/// Uses NSColor's dynamic provider, which is supported on macOS 13+.
+private func adaptiveColor(light: Color, dark: Color) -> Color {
+    Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+            ? NSColor(dark)
+            : NSColor(light)
+    })
+}
+
+// Adaptive text colours for each format hue: dark/saturated in light mode, bright in dark mode.
+private let sourceAdaptive   = adaptiveColor(light: Color(red: 0.72, green: 0.12, blue: 0.12), dark: Color(red: 1.0,  green: 0.55, blue: 0.55))
+private let jpegAdaptive     = adaptiveColor(light: Color(red: 0.62, green: 0.44, blue: 0.0),  dark: Color(red: 1.0,  green: 0.83, blue: 0.35))
+private let pngAdaptive      = adaptiveColor(light: Color(red: 0.1,  green: 0.35, blue: 0.75), dark: Color(red: 0.5,  green: 0.75, blue: 1.0))
+private let mp4Adaptive      = adaptiveColor(light: Color(red: 0.45, green: 0.2,  blue: 0.7),  dark: Color(red: 0.78, green: 0.6,  blue: 1.0))
+private let audioAdaptive    = adaptiveColor(light: Color(red: 0.12, green: 0.5,  blue: 0.22), dark: Color(red: 0.45, green: 0.85, blue: 0.55))
+private let orangeAdaptive   = adaptiveColor(light: Color(red: 0.65, green: 0.35, blue: 0.0),  dark: Color(red: 1.0,  green: 0.7,  blue: 0.35))
+
+// MARK: - Auto-conversion pills
+
+private struct PillView: View {
+    let text: String
+    let tint: Color        // background tint (the raw hue)
+    let textColor: Color   // adaptive text colour
+
+    var body: some View {
+        Text(text)
+            .font(.mono(10, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(tint.opacity(0.15)))
+            .foregroundColor(textColor)
+    }
+}
+
+private struct AutoConvertPills: View {
+    let groups: [FileHandlingSettingsView.ConvertGroup]
+    let compatibilityTab: SettingsView.Tabs
+
+    var body: some View {
+        if !groups.isEmpty {
+            HStack(spacing: 6) {
+                Text("Converts:")
+                    .round(11)
                     .foregroundColor(.secondary)
+                ForEach(groups.indices, id: \.self) { idx in
+                    let group = groups[idx]
+                    if idx > 0 {
+                        Text("|")
+                            .font(.mono(10, weight: .regular))
+                            .foregroundColor(.secondary.opacity(0.4))
+                    }
+                    PillView(text: group.sources.joined(separator: ", "), tint: group.sourceTint, textColor: group.sourceTextColor)
+                    Text("->")
+                        .font(.mono(10, weight: .regular))
+                        .foregroundColor(.secondary)
+                    PillView(text: group.target, tint: group.targetTint, textColor: group.targetTextColor)
                 }
+                Spacer(minLength: 0)
+                HStack(spacing: 3) {
+                    Text("Configured in").foregroundColor(.secondary)
+                    Button("Compatibility") {
+                        settingsViewManager.tab = compatibilityTab
+                    }
+                    .buttonStyle(.link)
+                }
+                .font(.round(11))
             }
-            HStack {
-                Text("""
-                **Date**                | **Time**
-                --------------------|-----------------
-                Year             **%y** | Hour     **%H**
-                Month (numeric)  **%m** | Minutes  **%M**
-                Month (name)     **%n** | Seconds  **%S**
-                Day              **%d** | AM/PM    **%p**
-                Weekday          **%w** |
-                """)
-
-                Spacer()
-
-                Text("""
-                Source file path (without name)        **%P**
-                Source file name (without extension)   **%f**
-                Source file extension                  **%e**
-
-                Random characters                      **%r**
-                Auto-incrementing number               **%i**
-                """)
-            }
-            .font(.mono(12, weight: .light))
-            .foregroundColor(.secondary)
-            .padding(6)
         }
     }
 }
+
+// MARK: - File handling settings tab
+
+struct FileHandlingSettingsView: View {
+    // Optimised placement
+    @Default(.optimisedImageBehaviour) var optimisedImageBehaviour
+    @Default(.optimisedVideoBehaviour) var optimisedVideoBehaviour
+    @Default(.optimisedAudioBehaviour) var optimisedAudioBehaviour
+    @Default(.optimisedPDFBehaviour) var optimisedPDFBehaviour
+    @Default(.sameFolderNameTemplateImage) var sameFolderNameTemplateImage
+    @Default(.sameFolderNameTemplateVideo) var sameFolderNameTemplateVideo
+    @Default(.sameFolderNameTemplateAudio) var sameFolderNameTemplateAudio
+    @Default(.sameFolderNameTemplatePDF) var sameFolderNameTemplatePDF
+    @Default(.specificFolderNameTemplateImage) var specificFolderNameTemplateImage
+    @Default(.specificFolderNameTemplateVideo) var specificFolderNameTemplateVideo
+    @Default(.specificFolderNameTemplateAudio) var specificFolderNameTemplateAudio
+    @Default(.specificFolderNameTemplatePDF) var specificFolderNameTemplatePDF
+
+    // Auto-conversion placement
+    @Default(.convertedImageBehaviour) var convertedImageBehaviour
+    @Default(.convertedVideoBehaviour) var convertedVideoBehaviour
+    @Default(.convertedAudioBehaviour) var convertedAudioBehaviour
+
+    // Manual conversion placement
+    @Default(.manualConvertedImageBehaviour) var manualConvertedImageBehaviour
+    @Default(.manualConvertedVideoBehaviour) var manualConvertedVideoBehaviour
+    @Default(.manualConvertedAudioBehaviour) var manualConvertedAudioBehaviour
+
+    // Shared conversion templates (used by both auto and manual convert rows)
+    @Default(.convertedSameFolderNameTemplateImage) var convertedSameFolderNameTemplateImage
+    @Default(.convertedSameFolderNameTemplateVideo) var convertedSameFolderNameTemplateVideo
+    @Default(.convertedSameFolderNameTemplateAudio) var convertedSameFolderNameTemplateAudio
+    @Default(.convertedSpecificFolderNameTemplateImage) var convertedSpecificFolderNameTemplateImage
+    @Default(.convertedSpecificFolderNameTemplateVideo) var convertedSpecificFolderNameTemplateVideo
+    @Default(.convertedSpecificFolderNameTemplateAudio) var convertedSpecificFolderNameTemplateAudio
+
+    // Format lists for context text
+    @Default(.formatsToConvertToJPEG) var formatsToConvertToJPEG
+    @Default(.formatsToConvertToPNG) var formatsToConvertToPNG
+    @Default(.formatsToConvertToMP4) var formatsToConvertToMP4
+    @Default(.formatsToConvertToOutputAudio) var formatsToConvertToOutputAudio
+    @Default(.audioFormat) var audioFormat
+
+    @State private var expandedVars: Set<ClopFileType> = []
+
+    var body: some View {
+        Form {
+            // MARK: Images
+            Section(header: SectionHeader(title: "Images")) {
+                // Optimise row: picker + optional template in a single Form row (no divider between them).
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $optimisedImageBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Optimised file placement").regular(13)
+                            + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    if optimisedImageBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .image, template: $sameFolderNameTemplateImage)
+                    } else if optimisedImageBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .image, template: $specificFolderNameTemplateImage)
+                    }
+                }
+
+                // Auto-convert row: picker + Converts pills + optional template in a single Form row.
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $convertedImageBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Auto-conversion behaviour for compatible formats").regular(13)
+                            + Text("\nFormats that many apps cannot open well are converted to a widely supported one automatically before optimising.").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    AutoConvertPills(groups: imageAutoConvertGroups, compatibilityTab: .images)
+                    if convertedImageBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .image, template: $convertedSameFolderNameTemplateImage, inputExtension: autoImageInputExt, outputExtension: autoImageOutputExt)
+                    } else if convertedImageBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .image, template: $convertedSpecificFolderNameTemplateImage, inputExtension: autoImageInputExt, outputExtension: autoImageOutputExt)
+                    }
+                }
+
+                // Manual-convert row: picker + optional template in a single Form row.
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $manualConvertedImageBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Manual conversion behaviour").regular(13)
+                            + Text("\nWhen you pick a new format by clicking the file extension on a floating result, or via the submenu **Convert to...** in the right-click menu.").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    if manualConvertedImageBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .image, template: $convertedSameFolderNameTemplateImage, inputExtension: "jpeg", outputExtension: "webp")
+                    } else if manualConvertedImageBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .image, template: $convertedSpecificFolderNameTemplateImage, inputExtension: "jpeg", outputExtension: "webp")
+                    }
+                }
+
+                if imageHasTemplateRow {
+                    templateVarsCollapsible(for: .image)
+                }
+            }
+
+            // MARK: Videos
+            Section(header: SectionHeader(title: "Videos")) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $optimisedVideoBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Optimised file placement").regular(13)
+                            + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    if optimisedVideoBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .video, template: $sameFolderNameTemplateVideo)
+                    } else if optimisedVideoBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .video, template: $specificFolderNameTemplateVideo)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $convertedVideoBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Auto-conversion behaviour for compatible formats").regular(13)
+                            + Text("\nFormats that many apps cannot open well are converted to a widely supported one automatically before optimising.").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    AutoConvertPills(groups: videoAutoConvertGroups, compatibilityTab: .video)
+                    if convertedVideoBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .video, template: $convertedSameFolderNameTemplateVideo, inputExtension: autoVideoInputExt, outputExtension: "mp4")
+                    } else if convertedVideoBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .video, template: $convertedSpecificFolderNameTemplateVideo, inputExtension: autoVideoInputExt, outputExtension: "mp4")
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $manualConvertedVideoBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Manual conversion behaviour").regular(13)
+                            + Text("\nWhen you pick a new format by clicking the file extension on a floating result, or via the submenu **Convert to...** in the right-click menu.").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    if manualConvertedVideoBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .video, template: $convertedSameFolderNameTemplateVideo, inputExtension: "mov", outputExtension: "mp4")
+                    } else if manualConvertedVideoBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .video, template: $convertedSpecificFolderNameTemplateVideo, inputExtension: "mov", outputExtension: "mp4")
+                    }
+                }
+
+                if videoHasTemplateRow {
+                    templateVarsCollapsible(for: .video)
+                }
+            }
+
+            // MARK: Audio
+            Section(header: SectionHeader(title: "Audio")) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $optimisedAudioBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Optimised file placement").regular(13)
+                            + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    if optimisedAudioBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .audio, template: $sameFolderNameTemplateAudio)
+                    } else if optimisedAudioBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .audio, template: $specificFolderNameTemplateAudio)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $convertedAudioBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Auto-conversion behaviour for compatible formats").regular(13)
+                            + Text("\nFormats that many apps cannot open well are converted to a widely supported one automatically before optimising.").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    AutoConvertPills(groups: audioAutoConvertGroups, compatibilityTab: .audio)
+                    if convertedAudioBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .audio, template: $convertedSameFolderNameTemplateAudio, inputExtension: autoAudioInputExt, outputExtension: autoAudioOutputExt)
+                    } else if convertedAudioBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .audio, template: $convertedSpecificFolderNameTemplateAudio, inputExtension: autoAudioInputExt, outputExtension: autoAudioOutputExt)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $manualConvertedAudioBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Manual conversion behaviour").regular(13)
+                            + Text("\nWhen you pick a new format by clicking the file extension on a floating result, or via the submenu **Convert to...** in the right-click menu.").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    if manualConvertedAudioBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .audio, template: $convertedSameFolderNameTemplateAudio, inputExtension: "wav", outputExtension: "mp3")
+                    } else if manualConvertedAudioBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .audio, template: $convertedSpecificFolderNameTemplateAudio, inputExtension: "wav", outputExtension: "mp3")
+                    }
+                }
+
+                if audioHasTemplateRow {
+                    templateVarsCollapsible(for: .audio)
+                }
+            }
+
+            // MARK: PDF
+            Section(header: SectionHeader(title: "PDF")) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $optimisedPDFBehaviour) {
+                        Text("Temporary folder").tag(FileBehaviour.temporary)
+                        Text("In place (replace original)").tag(FileBehaviour.inPlace)
+                        Text("Same folder as original").tag(FileBehaviour.sameFolder)
+                        Text("Specific folder").tag(FileBehaviour.specificFolder)
+                    } label: {
+                        Text("Optimised file placement").regular(13)
+                            + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
+                    }
+                    if optimisedPDFBehaviour == .sameFolder {
+                        CompactSameFolderTemplate(type: .pdf, template: $sameFolderNameTemplatePDF)
+                    } else if optimisedPDFBehaviour == .specificFolder {
+                        CompactSpecificFolderTemplate(type: .pdf, template: $specificFolderNameTemplatePDF)
+                    }
+                }
+
+                if pdfHasTemplateRow {
+                    templateVarsCollapsible(for: .pdf)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .padding(4)
+    }
+
+    // MARK: - Per-section helpers
+
+    // MARK: Dynamic example extensions for auto-convert rows
+
+    // Image auto-convert: prefer webp->jpeg; fall back to first-of-toJPEG or first-of-toPNG.
+    private var autoImageInputExt: String? {
+        if formatsToConvertToJPEG.contains(where: { $0.preferredFilenameExtension == "webp" }) {
+            return "webp"
+        }
+        if let first = formatsToConvertToJPEG.compactMap({ $0.preferredFilenameExtension }).sorted().first {
+            return first
+        }
+        return formatsToConvertToPNG.compactMap({ $0.preferredFilenameExtension }).sorted().first
+    }
+
+    private var autoImageOutputExt: String? {
+        if formatsToConvertToJPEG.contains(where: { $0.preferredFilenameExtension == "webp" }) || !formatsToConvertToJPEG.isEmpty {
+            return "jpeg"
+        }
+        if !formatsToConvertToPNG.isEmpty { return "png" }
+        return nil
+    }
+
+    // Video auto-convert: first extension from formatsToConvertToMP4; output is always mp4.
+    private var autoVideoInputExt: String? {
+        formatsToConvertToMP4.compactMap({ $0.preferredFilenameExtension }).sorted().first
+    }
+
+    // Audio auto-convert: first extension from formatsToConvertToOutputAudio; output is the audioFormat extension.
+    private var autoAudioInputExt: String? {
+        formatsToConvertToOutputAudio.compactMap({ $0.preferredFilenameExtension }).sorted().first
+    }
+
+    private var autoAudioOutputExt: String? {
+        let ext = audioFormat.fileExtension
+        return ext.isEmpty ? nil : ext
+    }
+
+    private var imageHasTemplateRow: Bool {
+        [optimisedImageBehaviour, convertedImageBehaviour, manualConvertedImageBehaviour].contains(where: { $0 == .sameFolder || $0 == .specificFolder })
+    }
+
+    private var videoHasTemplateRow: Bool {
+        [optimisedVideoBehaviour, convertedVideoBehaviour, manualConvertedVideoBehaviour].contains(where: { $0 == .sameFolder || $0 == .specificFolder })
+    }
+
+    private var audioHasTemplateRow: Bool {
+        [optimisedAudioBehaviour, convertedAudioBehaviour, manualConvertedAudioBehaviour].contains(where: { $0 == .sameFolder || $0 == .specificFolder })
+    }
+
+    private var pdfHasTemplateRow: Bool {
+        optimisedPDFBehaviour == .sameFolder || optimisedPDFBehaviour == .specificFolder
+    }
+
+    @ViewBuilder
+    private func templateVarsCollapsible(for type: ClopFileType) -> some View {
+        let expanded = expandedVars.contains(type)
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: { withAnimation(.easeOut(duration: 0.15)) {
+                if expandedVars.contains(type) { expandedVars.remove(type) } else { expandedVars.insert(type) }
+            }}) {
+                HStack(spacing: 5) {
+                    SwiftUI.Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.semibold(9)).foregroundColor(.secondary)
+                    Text("Template variables").semibold(12)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top) {
+                        Text("""
+                        **Date**                | **Time**
+                        --------------------|-----------------
+                        Year             **%y** | Hour     **%H**
+                        Month (numeric)  **%m** | Minutes  **%M**
+                        Month (name)     **%n** | Seconds  **%S**
+                        Day              **%d** | AM/PM    **%p**
+                        Weekday          **%w** |
+                        """)
+                        Spacer()
+                        Text("""
+                        Source file path (without name)        **%P**
+                        Source file name (without extension)   **%f**
+                        Source file extension                  **%e**
+
+                        Random characters                      **%r**
+                        Auto-incrementing number               **%i**
+                        """)
+                    }
+                    .font(.mono(11, weight: .light))
+                    .foregroundColor(.secondary)
+                    .padding(6)
+                }
+                .padding(.top, 6)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: - Auto-conversion pill groups
+
+    struct ConvertGroup {
+        let sources: [String]
+        let target: String
+        let sourceTint: Color
+        let targetTint: Color
+        let sourceTextColor: Color
+        let targetTextColor: Color
+    }
+
+    private var imageAutoConvertGroups: [ConvertGroup] {
+        var groups: [ConvertGroup] = []
+        let toJPEG = formatsToConvertToJPEG.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toJPEG.isEmpty {
+            groups.append(ConvertGroup(sources: toJPEG, target: "JPEG",
+                sourceTint: .red, targetTint: Color(red: 1.0, green: 0.83, blue: 0.0),
+                sourceTextColor: sourceAdaptive, targetTextColor: jpegAdaptive))
+        }
+        let toPNG = formatsToConvertToPNG.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toPNG.isEmpty {
+            groups.append(ConvertGroup(sources: toPNG, target: "PNG",
+                sourceTint: Color(red: 1.0, green: 0.5, blue: 0.0), targetTint: .blue,
+                sourceTextColor: orangeAdaptive, targetTextColor: pngAdaptive))
+        }
+        return groups
+    }
+
+    private var videoAutoConvertGroups: [ConvertGroup] {
+        let fmts = formatsToConvertToMP4.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        guard !fmts.isEmpty else { return [] }
+        return [ConvertGroup(sources: fmts, target: "MP4",
+            sourceTint: .red, targetTint: Color(red: 0.6, green: 0.3, blue: 0.9),
+            sourceTextColor: sourceAdaptive, targetTextColor: mp4Adaptive)]
+    }
+
+    private var audioAutoConvertGroups: [ConvertGroup] {
+        guard audioFormat != .sameAsInput, !audioFormat.isLossless else { return [] }
+        let fmts = formatsToConvertToOutputAudio.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        guard !fmts.isEmpty else { return [] }
+        return [ConvertGroup(sources: fmts, target: audioFormat.name,
+            sourceTint: .red, targetTint: Color(red: 0.2, green: 0.8, blue: 0.4),
+            sourceTextColor: sourceAdaptive, targetTextColor: audioAdaptive)]
+    }
+}
+
 
 struct AudioSettingsView: View {
     @Default(.audioDirs) var audioDirs
@@ -915,9 +1379,6 @@ struct AudioSettingsView: View {
     @Default(.maxAudioSizeMB) var maxAudioSizeMB
     @Default(.minAudioSizeKB) var minAudioSizeKB
     @Default(.maxAudioFileCount) var maxAudioFileCount
-    @Default(.optimisedAudioBehaviour) var optimisedAudioBehaviour
-    @Default(.sameFolderNameTemplateAudio) var sameFolderNameTemplateAudio
-    @Default(.specificFolderNameTemplateAudio) var specificFolderNameTemplateAudio
     @Default(.enableAutomaticAudioOptimisations) var enableAutomaticAudioOptimisations
 
     /// Reveals what the abstract percentage maps to in real bitrates (all formats use VBR).
@@ -938,11 +1399,11 @@ struct AudioSettingsView: View {
                 DirListView(fileType: .audio, dirs: $audioDirs, enabled: $enableAutomaticAudioOptimisations)
             }
             Section(header: SectionHeader(title: "Optimisation rules")) {
-                OptimisedFileBehaviourView(
-                    type: .audio, optimisedBehaviour: $optimisedAudioBehaviour,
-                    sameFolderNameTemplate: $sameFolderNameTemplateAudio,
-                    specificFolderNameTemplate: $specificFolderNameTemplateAudio
-                )
+                HStack(spacing: 4) {
+                    SwiftUI.Image(systemName: "folder.badge.gearshape")
+                    Text("Where files go is set in").foregroundColor(.secondary)
+                    Button("File handling") { settingsViewManager.tab = .files }.buttonStyle(.link)
+                }.font(.system(size: 11))
                 Picker(selection: $audioFormat) {
                     ForEach(AudioFormat.allCases, id: \.self) { format in
                         Text(format.name).tag(format)
@@ -1028,10 +1489,6 @@ struct ImagesSettingsView: View {
     @Default(.adaptiveImageSize) var adaptiveImageSize
     @Default(.imageCompression) var imageCompression
     // @Default(.downscaleRetinaImages) var downscaleRetinaImages
-    @Default(.convertedImageBehaviour) var convertedImageBehaviour
-    @Default(.optimisedImageBehaviour) var optimisedImageBehaviour
-    @Default(.sameFolderNameTemplateImage) var sameFolderNameTemplateImage
-    @Default(.specificFolderNameTemplateImage) var specificFolderNameTemplateImage
     @Default(.maxImageFileCount) var maxImageFileCount
     @Default(.copyImageFilePath) var copyImageFilePath
     @Default(.customNameTemplateForClipboardImages) var customNameTemplateForClipboardImages
@@ -1159,11 +1616,11 @@ struct ImagesSettingsView: View {
             }
 
             Section(header: SectionHeader(title: "Optimisation rules")) {
-                OptimisedFileBehaviourView(
-                    type: .image, optimisedBehaviour: $optimisedImageBehaviour,
-                    sameFolderNameTemplate: $sameFolderNameTemplateImage,
-                    specificFolderNameTemplate: $specificFolderNameTemplateImage
-                )
+                HStack(spacing: 4) {
+                    SwiftUI.Image(systemName: "folder.badge.gearshape")
+                    Text("Where files go is set in").foregroundColor(.secondary)
+                    Button("File handling") { settingsViewManager.tab = .files }.buttonStyle(.link)
+                }.font(.system(size: 11))
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
@@ -1243,39 +1700,11 @@ struct ImagesSettingsView: View {
                             .font(.mono(11))
                     }
                 }
-                convertedImageLocation
             }
 
         }
         .scrollContentBackground(.hidden)
         .padding(4)
-    }
-    var convertedImageLocation: some View {
-        HStack {
-            (
-                Text("Converted image location").regular(13) +
-                    Text("\nThis only applies to JPGs and PNGs resulting\nfrom the conversion of the above formats").round(10)
-                    .foregroundColor(.secondary)
-            ).padding(.trailing, 10)
-
-            Spacer()
-
-            Button("Temporary\nfolder") {
-                convertedImageBehaviour = .temporary
-            }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .temporary }))
-                .font(.round(10))
-                .multilineTextAlignment(.center)
-            Button("In-place\n(replace original)") {
-                convertedImageBehaviour = .inPlace
-            }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .inPlace }))
-                .font(.round(10))
-                .multilineTextAlignment(.center)
-            Button("Same folder\n(as original)") {
-                convertedImageBehaviour = .sameFolder
-            }.buttonStyle(ToggleButton(isOn: .oneway { convertedImageBehaviour == .sameFolder }))
-                .font(.round(10))
-                .multilineTextAlignment(.center)
-        }
     }
 }
 
@@ -2253,7 +2682,7 @@ struct SettingsSidebarRow: View {
 
 struct SettingsView: View {
     enum Tabs: Int, Hashable, CaseIterable, Identifiable {
-        case general, clipboard, video, audio, images, pdf, dropzone, presetZones, floating, keys, pipelines, automation, licenseUpdates, about
+        case general, clipboard, files, video, audio, images, pdf, dropzone, presetZones, floating, keys, pipelines, automation, licenseUpdates, about
 
         var id: Int {
             rawValue
@@ -2271,6 +2700,7 @@ struct SettingsView: View {
             switch self {
             case .general: "General"
             case .clipboard: "Clipboard"
+            case .files: "File handling"
             case .video: "Video"
             case .audio: "Audio"
             case .images: "Images"
@@ -2290,6 +2720,7 @@ struct SettingsView: View {
             switch self {
             case .general: "gearshape"
             case .clipboard: "doc.on.clipboard"
+            case .files: "folder.badge.gearshape"
             case .video: "video"
             case .audio: "waveform"
             case .images: "photo"
@@ -2309,13 +2740,14 @@ struct SettingsView: View {
             switch self {
             case .general: .gray
             case .clipboard: .cyan
+            case .files: .teal
             case .video: .blue
             case .audio: .indigo
             case .images: .green
             case .pdf: .red
             case .dropzone: .orange
             case .presetZones: .mint
-            case .floating: .teal
+            case .floating: Color(red: 0.2, green: 0.6, blue: 0.8)
             case .keys: .brown
             case .pipelines: .purple
             case .automation: .pink
@@ -2325,7 +2757,7 @@ struct SettingsView: View {
         }
     }
 
-    static let topTabs: [Tabs] = [.general, .clipboard]
+    static let topTabs: [Tabs] = [.general, .clipboard, .files]
     static let fileTypeTabs: [Tabs] = [.video, .audio, .images, .pdf]
     static let dropTabs: [Tabs] = [.dropzone, .presetZones, .floating]
     static let automationTabs: [Tabs] = [.keys, .pipelines, .automation]
@@ -2401,6 +2833,7 @@ struct SettingsView: View {
         switch svm.tab {
         case .general: GeneralSettingsView()
         case .clipboard: ClipboardSettingsView()
+        case .files: FileHandlingSettingsView()
         case .video: VideoSettingsView()
         case .audio: AudioSettingsView()
         case .images: ImagesSettingsView()

@@ -119,7 +119,28 @@ final class PipelineExecution {
 
         // The batch result goes where the last located step says. Convert defaults to
         // sameFolder (keep the original), the other processing steps to inPlace.
-        let location: String = batch.compactMap(\.location).last(where: { $0 != "inPlace" }) ?? "inPlace"
+        // When a convert step's location is the default "sameFolder" and no explicit
+        // non-default location overrides it, honour the manual-conversion behaviour
+        // setting (which the user may have set to inPlace via --convert-behaviour).
+        var location: String = batch.compactMap(\.location).last(where: { $0 != "inPlace" }) ?? "inPlace"
+        let batchHasConvert = batch.contains { if case .convert = $0 { return true }; return false }
+        if batchHasConvert, location == "sameFolder" {
+            let behaviour = optimiser.placementOverride?.manualConvert ?? fileType.behaviour(for: .manualConvert)
+            if let behaviour {
+                switch behaviour {
+                case .inPlace:
+                    location = "inPlace"
+                case .sameFolder:
+                    location = "sameFolder"
+                case .temporary:
+                    location = "temporaryFolder"
+                case .specificFolder:
+                    if let key = fileType.specificFolderTemplateKey(for: .manualConvert) {
+                        location = optimiser.placementOverride?.specificFolderTemplate ?? Defaults[key]
+                    }
+                }
+            }
+        }
         let inputFile = tempCopyIfNeeded(currentFile, location: location)
         let usedTempCopy = inputFile != currentFile
 
@@ -604,7 +625,35 @@ final class PipelineExecution {
     }
 
     func handleConvert(formatStr: String, location: String) async {
-        let inputFile = tempCopyIfNeeded(currentFile, location: location)
+        // When the step carries no explicit location (DSL default is "sameFolder"),
+        // honour the manual-conversion behaviour set by the user (e.g. --convert-behaviour inplace).
+        // An explicit non-default location in the DSL (e.g. "temporaryFolder" or a path template)
+        // is preserved as-is; only the default "sameFolder" is eligible for override.
+        let effectiveLocation: String
+        if location == "sameFolder" {
+            let behaviour = optimiser.placementOverride?.manualConvert ?? fileType.behaviour(for: .manualConvert)
+            if let behaviour {
+                switch behaviour {
+                case .inPlace:
+                    effectiveLocation = "inPlace"
+                case .sameFolder:
+                    effectiveLocation = "sameFolder"
+                case .temporary:
+                    effectiveLocation = "temporaryFolder"
+                case .specificFolder:
+                    if let key = fileType.specificFolderTemplateKey(for: .manualConvert) {
+                        effectiveLocation = optimiser.placementOverride?.specificFolderTemplate ?? Defaults[key]
+                    } else {
+                        effectiveLocation = location
+                    }
+                }
+            } else {
+                effectiveLocation = location
+            }
+        } else {
+            effectiveLocation = location
+        }
+        let inputFile = tempCopyIfNeeded(currentFile, location: effectiveLocation)
         let usedTempCopy = inputFile != currentFile
 
         // GIF conversion uses gifski, not ffmpeg, so it has its own path.
@@ -617,7 +666,7 @@ final class PipelineExecution {
                 }
             }
             if let gif {
-                currentFile = applyLocation(location, to: gif.path, original: currentFile, context: context)
+                currentFile = applyLocation(effectiveLocation, to: gif.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
             } else {
@@ -639,11 +688,22 @@ final class PipelineExecution {
             let vid = Video(inputFile)
             let forceMP4 = videoCodecArgs.ext == "mp4"
             let outExt: String? = forceMP4 ? nil : videoCodecArgs.ext
-            if let result = try? vid.optimise(
-                optimiser: optimiser, forceMP4: forceMP4, outputExtension: outExt, backup: false,
-                encoderOverride: videoCodecArgs.encoder
-            ) {
-                currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+            let optimiserRef = optimiser
+            let encoderArgs = videoCodecArgs.encoder
+            let converted = try? await withCheckedThrowingContinuation { (cont: CheckedContinuation<Video, Error>) in
+                videoOptimisationQueue.addOperation {
+                    do {
+                        cont.resume(returning: try vid.optimise(
+                            optimiser: optimiserRef, forceMP4: forceMP4, outputExtension: outExt, backup: false,
+                            encoderOverride: encoderArgs
+                        ))
+                    } catch {
+                        cont.resume(throwing: error)
+                    }
+                }
+            }
+            if let result = converted {
+                currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }
             } else {
@@ -658,7 +718,7 @@ final class PipelineExecution {
                     if let result = try? await runImagePipeline(
                         img,
                         actions: [action],
-                        id: encodeID(forLocation: location),
+                        id: encodeID(forLocation: effectiveLocation),
                         saveTo: clipboardSaveTo,
                         copyToClipboard: copyResultToClipboard,
                         allowLarger: true,
@@ -666,7 +726,7 @@ final class PipelineExecution {
                         source: source,
                         compression: optimiser.compressionOverride
                     ) {
-                        currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                        currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
                         if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                         if !hide { shownVisibleResult = true }
                     } else {
@@ -676,7 +736,7 @@ final class PipelineExecution {
             case .video:
                 let vid = Video(inputFile)
                 if let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source, compression: optimiser.compressionOverride) {
-                    currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                    currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
                 } else {
@@ -694,7 +754,7 @@ final class PipelineExecution {
                     source: source, bitrateOverride: optimiser.audioBitrateOverride,
                     formatOverride: format, compression: optimiser.compressionOverride
                 ) {
-                    currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
+                    currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
                     if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                     if !hide { shownVisibleResult = true }
                 } else {

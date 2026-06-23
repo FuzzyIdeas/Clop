@@ -144,31 +144,21 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
             guard var optimisedAudio else { return }
 
             // Move optimised file to the correct location based on user preference.
-            // Pipeline conversion steps (formatOverride) manage placement themselves via
-            // applyLocation, so leave the result in the temp folder for those.
-            let behaviour = Defaults[.optimisedAudioBehaviour]
             let resolvedFormat = formatOverride ?? Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
             if formatOverride == nil, optimisedAudio.path.dir == FilePath.audios {
-                let destPath: FilePath? = switch behaviour {
-                case .inPlace:
-                    path.dir.appending("\(path.stem!).\(resolvedFormat.fileExtension)")
-                case .sameFolder:
-                    path.dir / generateFileName(template: Defaults[.sameFolderNameTemplateAudio], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
-                case .specificFolder:
-                    try? generateFilePath(template: Defaults[.specificFolderNameTemplateAudio], for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber], mkdir: true)
-                case .temporary:
-                    nil
-                }
-
-                if let destPath, destPath != optimisedAudio.path {
-                    if let movedPath = try? optimisedAudio.path.move(to: destPath, force: true) {
-                        try? movedPath.setOptimisationStatusXattr("true")
-                        optimisedAudio = optimisedAudio.copyWithPath(movedPath)
+                // Plain optimise: route through placeOutput with kind .optimised.
+                if let placed = try? placeOutput(produced: optimisedAudio.path, original: path, type: .audio, kind: .optimised, overrides: optimiser.placementOverride) {
+                    if placed.path != optimisedAudio.path {
+                        optimisedAudio = optimisedAudio.copyWithPath(placed.path)
                     }
                 }
-
-                if behaviour == .inPlace, path.extension?.lowercased() != resolvedFormat.fileExtension {
-                    try? fm.removeItem(at: path.url)
+            } else if formatOverride != nil, optimisedAudio.path.dir == FilePath.audios {
+                // Auto-compat conversion: route through placeOutput with kind .autoConvert so
+                // `convertedAudioBehaviour` (and any per-request override) is honoured.
+                if let placed = try? placeOutput(produced: optimisedAudio.path, original: path, type: .audio, kind: .autoConvert, overrides: optimiser.placementOverride) {
+                    if placed.path != optimisedAudio.path {
+                        optimisedAudio = optimisedAudio.copyWithPath(placed.path)
+                    }
                 }
             }
 

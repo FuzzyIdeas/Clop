@@ -35,6 +35,18 @@ extension UserDefaults {
     static let app: UserDefaults? = .init(suiteName: "com.lowtechguys.Clop")
 }
 
+extension FileBehaviour: ExpressibleByArgument {
+    public init?(argument: String) {
+        switch argument.lowercased() {
+        case "temp", "temporary": self = .temporary
+        case "inplace", "in-place": self = .inPlace
+        case "samefolder", "same-folder": self = .sameFolder
+        case "specificfolder", "specific-folder", "specific": self = .specificFolder
+        default: return nil
+        }
+    }
+}
+
 var printSemaphore = DispatchSemaphore(value: 1)
 func withPrintLock(_ action: () -> Void) {
     printSemaphore.wait()
@@ -504,6 +516,18 @@ struct CommonOptimisationOptions: ParsableArguments {
 
     @Option(name: .shortAndLong, help: "\(OUTPUT_TEMPLATE_HELP)")
     var output: String? = nil
+
+    @Option(name: .long, help: "Where optimised files go: temp | inplace | samefolder | specificfolder")
+    var behaviour: FileBehaviour? = nil
+
+    @Option(name: .long, help: "Where auto-compatibility-converted files go: temp | inplace | samefolder | specificfolder")
+    var autoConvertBehaviour: FileBehaviour? = nil
+
+    @Option(name: .long, help: "Same-folder name template override (e.g. '%f_optimised.%e')")
+    var sameFolderTemplate: String? = nil
+
+    @Option(name: .long, help: "Specific-folder path template override (e.g. '~/Desktop/optimised/%f.%e')")
+    var specificFolderTemplate: String? = nil
 }
 
 /// Build and send the optimisation request shared by `optimise` and its type subcommands.
@@ -520,6 +544,7 @@ func sendOptimisationCommand(
     audioBitrate: Int? = nil,
     pdfDPI: Int? = nil,
     pipeline: String? = nil,
+    convertBehaviour: FileBehaviour? = nil,
     operation: String = "optimisation"
 ) throws {
     try sendRequest(urls: urls, showProgress: !options.noProgress, async: options.async, gui: options.gui, json: options.json, review: options.review, operation: operation) {
@@ -527,6 +552,13 @@ func sendOptimisationCommand(
         if urls.count == 1, let url = urls.first, let outExt = out?.filePath?.extension, let inExt = url.filePath?.extension, outExt == inExt {
             out = out!.replacingFirstOccurrence(of: ".\(inExt)", with: "")
         }
+        let placement = PlacementOverride(
+            optimised: options.behaviour,
+            autoConvert: options.autoConvertBehaviour,
+            manualConvert: convertBehaviour,
+            sameFolderTemplate: options.sameFolderTemplate,
+            specificFolderTemplate: options.specificFolderTemplate
+        )
         return OptimisationRequest(
             id: String(Int.random(in: 1000 ... 100_000)),
             urls: urls,
@@ -544,7 +576,8 @@ func sendOptimisationCommand(
             compression: compression,
             audioBitrate: audioBitrate,
             pipeline: pipeline,
-            prepareInBatch: options.review
+            prepareInBatch: options.review,
+            placement: placement.isEmpty ? nil : placement
         )
     }
 }
@@ -791,6 +824,9 @@ struct Clop: ParsableCommand {
         @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Defaults to the app's image compression setting.")
         var compression: String?
 
+        @Option(name: .long, help: "Where the converted file goes: temp | inplace | samefolder | specificfolder")
+        var convertBehaviour: FileBehaviour? = nil
+
         var urls: [URL] = []
         var parsedCompression: CompressionQuality?
 
@@ -812,6 +848,7 @@ struct Clop: ParsableCommand {
                 urls: urls, options: options,
                 compression: parsedCompression,
                 pipeline: convertPipelineDSL(to: to, output: options.output),
+                convertBehaviour: convertBehaviour,
                 operation: "conversion"
             )
         }
@@ -832,6 +869,9 @@ struct Clop: ParsableCommand {
 
         @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), or 'auto'. Only applies to mp4 (H.264); the other codecs use tuned fixed settings.")
         var compression: String?
+
+        @Option(name: .long, help: "Where the converted file goes: temp | inplace | samefolder | specificfolder")
+        var convertBehaviour: FileBehaviour? = nil
 
         var urls: [URL] = []
         var parsedCompression: CompressionQuality?
@@ -854,6 +894,7 @@ struct Clop: ParsableCommand {
                 urls: urls, options: options,
                 compression: parsedCompression,
                 pipeline: convertPipelineDSL(to: to, output: options.output),
+                convertBehaviour: convertBehaviour,
                 operation: "conversion"
             )
         }
@@ -877,6 +918,9 @@ struct Clop: ParsableCommand {
 
         @Option(name: .shortAndLong, help: "Target bitrate in kbps (e.g. 128). Takes priority over --compression. Never upscales, snaps to the allowed bitrates of the target format.")
         var bitrate: Int?
+
+        @Option(name: .long, help: "Where the converted file goes: temp | inplace | samefolder | specificfolder")
+        var convertBehaviour: FileBehaviour? = nil
 
         var urls: [URL] = []
         var parsedCompression: CompressionQuality?
@@ -903,6 +947,7 @@ struct Clop: ParsableCommand {
                 compression: parsedCompression,
                 audioBitrate: bitrate,
                 pipeline: convertPipelineDSL(to: to, output: options.output),
+                convertBehaviour: convertBehaviour,
                 operation: "conversion"
             )
         }
@@ -1906,6 +1951,21 @@ struct Clop: ParsableCommand {
             @Argument(help: "Files to run the pipeline on (can be a file, folder, or list of files)")
             var items: [String] = []
 
+            @Option(name: .long, help: "Where optimised files go: temp | inplace | samefolder | specificfolder")
+            var optimiseBehaviour: FileBehaviour? = nil
+
+            @Option(name: .long, help: "Where converted files go: temp | inplace | samefolder | specificfolder")
+            var convertBehaviour: FileBehaviour? = nil
+
+            @Option(name: .long, help: "Where auto-compatibility-converted files go: temp | inplace | samefolder | specificfolder")
+            var autoConvertBehaviour: FileBehaviour? = nil
+
+            @Option(name: .long, help: "Same-folder name template override (e.g. '%f_optimised.%e')")
+            var sameFolderTemplate: String? = nil
+
+            @Option(name: .long, help: "Specific-folder path template override (e.g. '~/Desktop/optimised/%f.%e')")
+            var specificFolderTemplate: String? = nil
+
             var urls: [URL] = []
 
             /// Resolved visibility: hidden unless the user asked to show it. `--show-result`
@@ -1944,7 +2004,14 @@ struct Clop: ParsableCommand {
             mutating func run() throws {
                 let showUI = !resolvedHideResult
                 try sendRequest(urls: urls, showProgress: !noProgress, async: async, gui: showUI, json: json, operation: "pipeline") {
-                    OptimisationRequest(
+                    let placement = PlacementOverride(
+                        optimised: optimiseBehaviour,
+                        autoConvert: autoConvertBehaviour,
+                        manualConvert: convertBehaviour,
+                        sameFolderTemplate: sameFolderTemplate,
+                        specificFolderTemplate: specificFolderTemplate
+                    )
+                    return OptimisationRequest(
                         id: String(Int.random(in: 1000 ... 100_000)),
                         urls: urls,
                         size: nil,
@@ -1955,7 +2022,8 @@ struct Clop: ParsableCommand {
                         aggressiveOptimisation: false,
                         adaptiveOptimisation: nil,
                         source: "cli",
-                        pipeline: pipeline
+                        pipeline: pipeline,
+                        placement: placement.isEmpty ? nil : placement
                     )
                 }
             }

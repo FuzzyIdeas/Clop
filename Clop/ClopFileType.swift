@@ -22,7 +22,7 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
         }
     }
 
-    var optimisedBehaviourKey: Defaults.Key<OptimisedFileBehaviour> {
+    var optimisedBehaviourKey: Defaults.Key<FileBehaviour> {
         switch self {
         case .image:
             .optimisedImageBehaviour
@@ -32,6 +32,59 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
             .optimisedAudioBehaviour
         case .pdf:
             .optimisedPDFBehaviour
+        }
+    }
+
+    func behaviourKey(for kind: OutputKind) -> Defaults.Key<FileBehaviour>? {
+        switch kind {
+        case .optimised:
+            return optimisedBehaviourKey
+        case .autoConvert:
+            switch self {
+            case .image: return .convertedImageBehaviour
+            case .video: return .convertedVideoBehaviour
+            case .audio: return .convertedAudioBehaviour
+            case .pdf: return nil
+            }
+        case .manualConvert:
+            switch self {
+            case .image: return .manualConvertedImageBehaviour
+            case .video: return .manualConvertedVideoBehaviour
+            case .audio: return .manualConvertedAudioBehaviour
+            case .pdf: return nil
+            }
+        }
+    }
+
+    func behaviour(for kind: OutputKind) -> FileBehaviour? {
+        behaviourKey(for: kind).map { Defaults[$0] }
+    }
+
+    func sameFolderTemplateKey(for kind: OutputKind) -> Defaults.Key<String>? {
+        switch kind {
+        case .optimised:
+            return sameFolderNameTemplateKey
+        case .autoConvert, .manualConvert:
+            switch self {
+            case .image: return .convertedSameFolderNameTemplateImage
+            case .video: return .convertedSameFolderNameTemplateVideo
+            case .audio: return .convertedSameFolderNameTemplateAudio
+            case .pdf: return nil
+            }
+        }
+    }
+
+    func specificFolderTemplateKey(for kind: OutputKind) -> Defaults.Key<String>? {
+        switch kind {
+        case .optimised:
+            return specificFolderNameTemplateKey
+        case .autoConvert, .manualConvert:
+            switch self {
+            case .image: return .convertedSpecificFolderNameTemplateImage
+            case .video: return .convertedSpecificFolderNameTemplateVideo
+            case .audio: return .convertedSpecificFolderNameTemplateAudio
+            case .pdf: return nil
+            }
         }
     }
 
@@ -61,7 +114,7 @@ enum ClopFileType: String, CaseIterable, CustomStringConvertible, Codable {
         }
     }
 
-    var optimisedFileBehaviour: OptimisedFileBehaviour {
+    var optimisedFileBehaviour: FileBehaviour {
         Defaults[optimisedBehaviourKey]
     }
 

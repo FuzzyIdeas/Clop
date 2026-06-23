@@ -61,6 +61,7 @@ extension AudioFormat: Defaults.Serializable {}
 extension AudioCoverArtBehaviour: Defaults.Serializable {}
 extension CompressionTier: Defaults.Serializable {}
 extension CompressionQuality: Defaults.Serializable {}
+extension FileBehaviour: Defaults.Serializable {}
 
 extension Defaults.Keys {
     static let finishedOnboarding = Key<Bool>("finishedOnboarding", default: false)
@@ -101,12 +102,12 @@ extension Defaults.Keys {
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
     static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
     static let formatsToConvertToOutputAudio = Key<Set<UTType>>("formatsToConvertToOutputAudio", default: [.wav, .aiff, .flac].compactMap { $0 }.set)
-    static let convertedImageBehaviour = Key<ConvertedFileBehaviour>("convertedImageBehaviour", default: .sameFolder)
-    static let convertedVideoBehaviour = Key<ConvertedFileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
+    static let convertedImageBehaviour = Key<FileBehaviour>("convertedImageBehaviour", default: .sameFolder)
+    static let convertedVideoBehaviour = Key<FileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
 
-    static let optimisedImageBehaviour = Key<OptimisedFileBehaviour>("optimisedImageBehaviour", default: .inPlace)
-    static let optimisedVideoBehaviour = Key<OptimisedFileBehaviour>("optimisedVideoBehaviour", default: .inPlace)
-    static let optimisedPDFBehaviour = Key<OptimisedFileBehaviour>("optimisedPDFBehaviour", default: .inPlace)
+    static let optimisedImageBehaviour = Key<FileBehaviour>("optimisedImageBehaviour", default: .inPlace)
+    static let optimisedVideoBehaviour = Key<FileBehaviour>("optimisedVideoBehaviour", default: .inPlace)
+    static let optimisedPDFBehaviour = Key<FileBehaviour>("optimisedPDFBehaviour", default: .inPlace)
     static let sameFolderNameTemplateImage = Key<String>("sameFolderNameTemplateImage", default: DEFAULT_SAME_FOLDER_NAME_TEMPLATE)
     static let sameFolderNameTemplateVideo = Key<String>("sameFolderNameTemplateVideo", default: DEFAULT_SAME_FOLDER_NAME_TEMPLATE)
     static let sameFolderNameTemplatePDF = Key<String>("sameFolderNameTemplatePDF", default: DEFAULT_SAME_FOLDER_NAME_TEMPLATE)
@@ -164,9 +165,23 @@ extension Defaults.Keys {
     static let audioFormat = Key<AudioFormat>("audioFormat", default: .aac)
     static let audioCoverArt = Key<AudioCoverArtBehaviour>("audioCoverArt", default: .optimise)
     static let audioBitrate = Key<Int>("audioBitrate", default: 192)
-    static let optimisedAudioBehaviour = Key<OptimisedFileBehaviour>("optimisedAudioBehaviour", default: .inPlace)
+    static let optimisedAudioBehaviour = Key<FileBehaviour>("optimisedAudioBehaviour", default: .inPlace)
     static let sameFolderNameTemplateAudio = Key<String>("sameFolderNameTemplateAudio", default: "")
     static let specificFolderNameTemplateAudio = Key<String>("specificFolderNameTemplateAudio", default: "")
+
+    static let convertedAudioBehaviour = Key<FileBehaviour>("convertedAudioBehaviour", default: .inPlace)
+
+    static let manualConvertedImageBehaviour = Key<FileBehaviour>("manualConvertedImageBehaviour", default: .sameFolder)
+    static let manualConvertedVideoBehaviour = Key<FileBehaviour>("manualConvertedVideoBehaviour", default: .sameFolder)
+    static let manualConvertedAudioBehaviour = Key<FileBehaviour>("manualConvertedAudioBehaviour", default: .sameFolder)
+
+    static let convertedSameFolderNameTemplateImage = Key<String>("convertedSameFolderNameTemplateImage", default: "%f")
+    static let convertedSameFolderNameTemplateVideo = Key<String>("convertedSameFolderNameTemplateVideo", default: "%f")
+    static let convertedSameFolderNameTemplateAudio = Key<String>("convertedSameFolderNameTemplateAudio", default: "%f")
+
+    static let convertedSpecificFolderNameTemplateImage = Key<String>("convertedSpecificFolderNameTemplateImage", default: "%P/converted/%f")
+    static let convertedSpecificFolderNameTemplateVideo = Key<String>("convertedSpecificFolderNameTemplateVideo", default: "%P/converted/%f")
+    static let convertedSpecificFolderNameTemplateAudio = Key<String>("convertedSpecificFolderNameTemplateAudio", default: "%P/converted/%f")
 
     static let maxVideoSizeMB = Key<Int>("maxVideoSizeMB", default: 500)
     static let maxImageSizeMB = Key<Int>("maxImageSizeMB", default: 50)
@@ -267,18 +282,6 @@ let DEFAULT_CROP_ASPECT_RATIOS: [CropSize] = [
     CropSize(width: 176, height: 250, name: "B5", isAspectRatio: true),
 ]
 
-public enum ConvertedFileBehaviour: String, Defaults.Serializable {
-    case temporary
-    case inPlace
-    case sameFolder
-}
-
-public enum OptimisedFileBehaviour: String, Defaults.Serializable {
-    case temporary
-    case inPlace
-    case sameFolder
-    case specificFolder
-}
 
 let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     Defaults.Keys.showMenubarIcon,
@@ -329,6 +332,16 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .maxAudioFileCount,
     .maxAudioSizeMB,
     .optimisedAudioBehaviour,
+    .convertedAudioBehaviour,
+    .manualConvertedImageBehaviour,
+    .manualConvertedVideoBehaviour,
+    .manualConvertedAudioBehaviour,
+    .convertedSameFolderNameTemplateImage,
+    .convertedSameFolderNameTemplateVideo,
+    .convertedSameFolderNameTemplateAudio,
+    .convertedSpecificFolderNameTemplateImage,
+    .convertedSpecificFolderNameTemplateVideo,
+    .convertedSpecificFolderNameTemplateAudio,
     .keyComboModifiers,
     .enablePhotosIntegration,
     .maxImageFileCount,
