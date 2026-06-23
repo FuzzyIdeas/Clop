@@ -712,3 +712,16 @@ func audioCoverArt(from path: FilePath) async -> NSImage? {
 
     return true
 }
+
+/// Resolve an input audio type to its assigned compatibility target. Returns the target format when the
+/// input is assigned to AAC or MP3, or nil to keep the input in its own format. AAC is checked first so a
+/// (UI-prevented) overlap is still deterministic. Plain function (not @MainActor): it only reads
+/// thread-safe `Defaults`, exactly like the `Defaults[.audioFormat]` read it replaces, which already
+/// runs off the main thread in the audio queue. Do NOT make it @MainActor (that would force a hop at
+/// the off-main call sites).
+func audioConversionTarget(forInput inputType: UTType?) -> AudioFormat? {
+    guard let inputType else { return nil }
+    if Defaults[.formatsToConvertToAAC].contains(where: { inputType.conforms(to: $0) }) { return .aac }
+    if Defaults[.formatsToConvertToMP3].contains(where: { inputType.conforms(to: $0) }) { return .mp3 }
+    return nil
+}

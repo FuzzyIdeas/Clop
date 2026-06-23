@@ -18,6 +18,8 @@ let FORMATS_CONVERTIBLE_TO_MP4: [UTType] = VIDEO_FORMATS.without([.mpeg4Movie])
 let FORMATS_CONVERTIBLE_TO_JPEG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let FORMATS_CONVERTIBLE_TO_PNG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let ALL_AUDIO_CONVERTIBLE_FORMATS: [UTType] = AUDIO_FORMATS
+// Audio formats that can be assigned to a compatibility target (everything except the targets themselves).
+let FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO: [UTType] = AUDIO_FORMATS.without([.mp3, .m4a].compactMap { $0 })
 
 let VIDEO_EXTENSIONS = VIDEO_FORMATS.compactMap(\.preferredFilenameExtension)
 let IMAGE_EXTENSIONS = IMAGE_FORMATS.compactMap(\.preferredFilenameExtension) + ["jpg"]
@@ -102,6 +104,8 @@ extension Defaults.Keys {
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
     static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
     static let formatsToConvertToOutputAudio = Key<Set<UTType>>("formatsToConvertToOutputAudio", default: [.wav, .aiff, .flac].compactMap { $0 }.set)
+    static let formatsToConvertToAAC = Key<Set<UTType>>("formatsToConvertToAAC", default: [])
+    static let formatsToConvertToMP3 = Key<Set<UTType>>("formatsToConvertToMP3", default: [])
     static let convertedImageBehaviour = Key<FileBehaviour>("convertedImageBehaviour", default: .sameFolder)
     static let convertedVideoBehaviour = Key<FileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
 
@@ -319,14 +323,14 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .formatsToConvertToJPEG,
     .formatsToConvertToMP4,
     .formatsToConvertToPNG,
-    .formatsToConvertToOutputAudio,
+    .formatsToConvertToAAC,
+    .formatsToConvertToMP3,
     .imageDirs,
     .imageFormatsToSkip,
     .appendClipboardResults,
     .audioBitrate,
     .audioCoverArt,
     .audioDirs,
-    .audioFormat,
     .audioFormatsToSkip,
     .enableAutomaticAudioOptimisations,
     .maxAudioFileCount,

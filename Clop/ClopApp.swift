@@ -1483,6 +1483,18 @@ func migrateSettings() {
         Defaults[.compactResultActions] = withCompression(Defaults[.compactResultActions])
         Defaults[.compressionModelMigratedVersion] = 4
     }
+    if Defaults[.compressionModelMigratedVersion] < 5 {
+        // AUDIO per-format targets: map the old single output format + convert-set onto the new exclusive sets.
+        // Old .mp3 output -> MP3 set; everything else (.aac, .opus, lossless, .sameAsInput) -> AAC set, so
+        // lossless inputs still get compressed.
+        let old = Defaults[.formatsToConvertToOutputAudio]
+        if Defaults[.audioFormat] == .mp3 {
+            Defaults[.formatsToConvertToMP3] = old
+        } else {
+            Defaults[.formatsToConvertToAAC] = old
+        }
+        Defaults[.compressionModelMigratedVersion] = 5
+    }
 }
 
 let WINDOW_MIN_SIZE = CGSize(width: 980, height: 750)
