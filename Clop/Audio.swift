@@ -98,7 +98,7 @@ class Audio: Optimisable {
 
     /// Resolve the output format for this audio (honouring `.sameAsInput`).
     var outputFormat: AudioFormat {
-        Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
+        audioConversionTarget(forInput: path.url.utType()) ?? AudioFormat.sameAsInput.resolved(forInputExtension: path.extension ?? "")
     }
 
     override func copyWithPath(_ path: FilePath) -> Self {
