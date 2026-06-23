@@ -144,22 +144,14 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
             guard var optimisedAudio else { return }
 
             // Move optimised file to the correct location based on user preference.
-            let resolvedFormat = formatOverride ?? Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
-            if formatOverride == nil, optimisedAudio.path.dir == FilePath.audios {
-                // Plain optimise: route through placeOutput with kind .optimised.
-                if let placed = try? placeOutput(produced: optimisedAudio.path, original: path, type: .audio, kind: .optimised, overrides: optimiser.placementOverride) {
-                    if placed.path != optimisedAudio.path {
-                        optimisedAudio = optimisedAudio.copyWithPath(placed.path)
-                    }
-                }
-            } else if formatOverride != nil, optimisedAudio.path.dir == FilePath.audios {
-                // Auto-compat conversion: route through placeOutput with kind .autoConvert so
-                // `convertedAudioBehaviour` (and any per-request override) is honoured.
-                if let placed = try? placeOutput(produced: optimisedAudio.path, original: path, type: .audio, kind: .autoConvert, overrides: optimiser.placementOverride) {
-                    if placed.path != optimisedAudio.path {
-                        optimisedAudio = optimisedAudio.copyWithPath(placed.path)
-                    }
-                }
+            let inputExt = path.extension?.lowercased() ?? ""
+            let resolvedFormat = formatOverride ?? audioConversionTarget(forInput: path.url.utType()) ?? AudioFormat.sameAsInput.resolved(forInputExtension: inputExt)
+            let isConversion = resolvedFormat.fileExtension.lowercased() != inputExt   // target differs from input
+            if optimisedAudio.path.dir == FilePath.audios {
+                let placed = try? placeOutput(produced: optimisedAudio.path, original: path, type: .audio,
+                                              kind: isConversion ? .autoConvert : .optimised,
+                                              overrides: optimiser.placementOverride)
+                if let placed, placed.path != optimisedAudio.path { optimisedAudio = optimisedAudio.copyWithPath(placed.path) }
             }
 
             let hideFilesAfter = Defaults[.autoHideFloatingResultsAfter] * 1000

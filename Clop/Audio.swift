@@ -154,7 +154,9 @@ class Audio: Optimisable {
         path.waitForFile(for: 3)
         try? path.setOptimisationStatusXattr("pending")
 
-        let format = formatOverride ?? Defaults[.audioFormat].resolved(forInputExtension: path.extension ?? "")
+        // Per-format compatibility target: assigned -> AAC/MP3; unassigned -> keep the input format (recompressed).
+        let ext = path.extension ?? ""
+        let format = formatOverride ?? audioConversionTarget(forInput: path.url.utType()) ?? AudioFormat.sameAsInput.resolved(forInputExtension: ext)
         let rawBitrate = bitrateOverride ?? (optimiser.compressionOverride ?? Defaults[.audioCompression]).audioBitrate(for: format) ?? Defaults[.audioBitrate]
         var bitrate = format.resolveBitrate(rawBitrate, inputBitrate: bitrate)
         // Aggressive must actually shrink: for lossy formats force at least one allowed step below the
@@ -686,12 +688,6 @@ func audioCoverArt(from path: FilePath) async -> NSImage? {
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
           AUDIO_EXTENSIONS.contains(ext), !Defaults[.audioFormatsToSkip].lazy.compactMap(\.preferredFilenameExtension).contains(ext)
     else {
-        return false
-    }
-
-    let inputType = path.url.utType()
-    let convertSet = Defaults[.formatsToConvertToOutputAudio]
-    if let inputType, !convertSet.isEmpty, !convertSet.contains(where: { inputType.conforms(to: $0) }) {
         return false
     }
 
