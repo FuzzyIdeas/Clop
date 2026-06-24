@@ -22,7 +22,13 @@ RELEASE_NOTES_FILES := $(wildcard ReleaseNotes/*.md)
 ENV=Release
 DERIVED_DATA_DIR=$(shell ls -td $$HOME/Library/Developer/Xcode/DerivedData/Clop-* | head -1)
 
-.PHONY: build upload release setversion appcast bin changelog
+SENTRY_ORG=alin-panaitiu
+SENTRY_PROJECT=clop
+DSYM_DIR=$(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/
+DSYM_UUID_FILE=Releases/dsym-uuids.txt
+DSYM_OUT=/tmp/dsyms
+
+.PHONY: build upload release setversion appcast bin changelog sentry record-dsyms download-dsym
 
 print-%  : ; @echo $* = $($*)
 
@@ -41,14 +47,54 @@ upload:
 	rsync -avz Releases/*.html hetzner:/static/lowtechguys/ReleaseNotes/
 	rsync -avzP Releases/appcast.xml Releases/changelog.html hetzner:/static/lowtechguys/clop/
 	cfcli -d lowtechguys.com purge
+ifeq (, $(BETA))
 	$(MAKE) sentry
+endif
 
 release:
 	gh release create v$(VERSION) -F ReleaseNotes/$(VERSION).md "Releases/Clop-$(VERSION).dmg#Clop.dmg"
 	git fetch --tags
 
 sentry:
-	op run -- sentry-cli upload-dif --include-sources -o alin-panaitiu -p clop --wait -- $(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Clop/BuildProductsPath/Release/
+	op run -- sentry-cli upload-dif --include-sources -o $(SENTRY_ORG) -p $(SENTRY_PROJECT) --wait -- $(DSYM_DIR)
+	$(MAKE) record-dsyms
+
+# Record the debug-IDs (UUIDs) of the dSYMs built for this version, keyed by version,
+# into $(DSYM_UUID_FILE). Sentry stores dSYMs by debug-ID, not by version, so this map
+# is what lets `make download-dsym VERSION=x.y.z` fetch the right ones later.
+record-dsyms:
+	@mkdir -p Releases
+	@uuids=$$(find "$(DSYM_DIR)" -name '*.dSYM' -exec dwarfdump --uuid {} + 2>/dev/null | awk '{print tolower($$2)}' | sort -u | tr '\n' ' ' | sed 's/  *$$//'); \
+	if [ -z "$$uuids" ]; then echo "record-dsyms: no dSYMs found under $(DSYM_DIR)"; exit 0; fi; \
+	touch $(DSYM_UUID_FILE); \
+	grep -v "^$(FULL_VERSION) =" $(DSYM_UUID_FILE) > $(DSYM_UUID_FILE).tmp 2>/dev/null || true; \
+	echo "$(FULL_VERSION) = $$uuids" >> $(DSYM_UUID_FILE).tmp; \
+	sort -Vr $(DSYM_UUID_FILE).tmp -o $(DSYM_UUID_FILE); rm -f $(DSYM_UUID_FILE).tmp; \
+	echo "record-dsyms: $(FULL_VERSION) -> $$uuids"
+
+# Download the dSYMs for a released version from Sentry (to symbolicate a crash later):
+#   make download-dsym VERSION=x.y.z
+# Resolves each recorded debug-ID to its file id and saves the dSYMs under $(DSYM_OUT).
+download-dsym:
+	@test -n "$(VERSION)" || { echo "Usage: make download-dsym VERSION=x.y.z"; exit 1; }
+	@test -f $(DSYM_UUID_FILE) || { echo "No $(DSYM_UUID_FILE) yet; run 'make sentry' on a release build to record UUIDs"; exit 1; }
+	@uuids=$$(awk -F' *= *' '$$1=="$(VERSION)"{print $$2}' $(DSYM_UUID_FILE)); \
+	if [ -z "$$uuids" ]; then echo "No dSYM UUIDs recorded for $(VERSION). Recorded versions:"; cut -d= -f1 $(DSYM_UUID_FILE) | sed 's/  *$$//; s/^/  /'; exit 1; fi; \
+	token=$$(sed -n 's/^ *token *= *//p' ~/.sentryclirc 2>/dev/null | head -1); \
+	[ -n "$$token" ] || token=$$SENTRY_AUTH_TOKEN; \
+	if [ -z "$$token" ]; then echo "No Sentry auth token found (~/.sentryclirc or \$$SENTRY_AUTH_TOKEN)"; exit 1; fi; \
+	out=$(DSYM_OUT)/$(SENTRY_PROJECT)-$(VERSION); mkdir -p "$$out"; \
+	api=https://sentry.io/api/0/projects/$(SENTRY_ORG)/$(SENTRY_PROJECT)/files/dsyms; \
+	for u in $$uuids; do \
+	  curl -fsSL -H "Authorization: Bearer $$token" "$$api/?debug_id=$$u" \
+	    | python3 -c 'import json,sys; [print(o["id"], o["objectName"], o["cpuName"], (o.get("data") or {}).get("type","dbg")) for o in json.load(sys.stdin)]' \
+	    | while read id obj cpu typ; do \
+	        ext=debug; [ "$$typ" = src ] && ext=zip; \
+	        echo "  $$obj ($$cpu, $$typ) [$$u] -> id $$id"; \
+	        curl -fsSL -H "Authorization: Bearer $$token" "$$api/?id=$$id" -o "$$out/$$obj-$$cpu-$$typ-$$id.$$ext"; \
+	      done; \
+	done; \
+	echo "Downloaded dSYMs for $(VERSION) to $$out"
 
 CHANGELOG.md: $(RELEASE_NOTES_FILES)
 	tail -n +1 $$(ls ReleaseNotes/*.md | egrep '/[0-9]+(\.[0-9]+)*\.md$$' $(if $(BETA),| egrep -v '/$(VERSION)\.md$$') | sort -Vr) | sd '==> ReleaseNotes/(.+)\.md <==' '# $$1\n\n**[Download Clop $$1 →](https://files.lowtechguys.com/releases/Clop-$$1.dmg)**' > CHANGELOG.md
