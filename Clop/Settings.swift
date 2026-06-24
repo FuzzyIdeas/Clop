@@ -104,8 +104,8 @@ extension Defaults.Keys {
     static let formatsToConvertToPNG = Key<Set<UTType>>("formatsToConvertToPNG", default: [.tiff])
     static let formatsToConvertToMP4 = Key<Set<UTType>>("formatsToConvertToMP4", default: [UTType.quickTimeMovie, UTType.mpeg2Video, UTType.mpeg, UTType.webm].compactMap { $0 }.set)
     static let formatsToConvertToOutputAudio = Key<Set<UTType>>("formatsToConvertToOutputAudio", default: [.wav, .aiff, .flac].compactMap { $0 }.set)
-    static let formatsToConvertToAAC = Key<Set<UTType>>("formatsToConvertToAAC", default: [])
-    static let formatsToConvertToMP3 = Key<Set<UTType>>("formatsToConvertToMP3", default: [])
+    static let formatsToConvertToAAC = Key<Set<UTType>>("formatsToConvertToAAC", default: [.aiff, .flac].compactMap { $0 }.set)
+    static let formatsToConvertToMP3 = Key<Set<UTType>>("formatsToConvertToMP3", default: [UTType.wav].set)
     static let convertedImageBehaviour = Key<FileBehaviour>("convertedImageBehaviour", default: .sameFolder)
     static let convertedVideoBehaviour = Key<FileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
 

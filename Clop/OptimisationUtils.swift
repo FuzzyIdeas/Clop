@@ -286,6 +286,10 @@ enum TempPipelineSegment {
     @Published var originalURL: URL?
     @Published var startingURL: URL?
     @Published var convertedFromURL: URL?
+    /// Path of the previous manual-conversion output to delete once the next conversion succeeds
+    /// (keep-only-last). Nil when the conversion is additive (Option-click) or the current file is the
+    /// original. Set in `convert(to:optimise:additive:)`, consumed in `finish(oldBytes:newBytes:)`.
+    var supersededConvertURL: URL?
     @Published var outputFolderURL: URL? = nil
     @Published var downscaleFactor = 1.0
     /// True while the pointer is over the filename name segment specifically (not the extension or
@@ -901,9 +905,12 @@ enum TempPipelineSegment {
         }
     }
 
-    func convert(to type: UTType, optimise: Bool = false) {
+    func convert(to type: UTType, optimise: Bool = false, additive: Bool = false) {
         guard !isPreview else { return }
         guard type != self.type.utType else { return }
+        // Keep-only-last: remember the prior converted output so the next successful conversion can delete
+        // it. Skipped when additive (Option-click), so both formats are kept side by side.
+        supersededConvertURL = additive ? nil : previousManualConvertOutput()
         let typeStr = type.preferredFilenameExtension ?? type.identifier
 
         // Use temp pipeline when initial optimisation has completed, to always
@@ -1029,6 +1036,34 @@ enum TempPipelineSegment {
         default:
             break
         }
+    }
+
+    /// The current file when it is a Clop-produced conversion output that persists alongside the original
+    /// (same/specific-folder placement) — i.e. the prior format to remove on the next keep-only-last
+    /// convert. Returns nil for the original/source file or for in-place/temporary placements.
+    private func previousManualConvertOutput() -> URL? {
+        guard let current = url, let currentPath = current.filePath, currentPath.exists else { return nil }
+        let sources = [originalURL, startingURL, convertedFromURL].compactMap { $0 }
+        guard !sources.contains(current) else { return nil }
+        let behaviour: FileBehaviour
+        if type.isImage { behaviour = Defaults[.manualConvertedImageBehaviour] }
+        else if type.isVideo { behaviour = Defaults[.manualConvertedVideoBehaviour] }
+        else if type.isAudio { behaviour = Defaults[.manualConvertedAudioBehaviour] }
+        else { return nil }
+        guard behaviour == .sameFolder || behaviour == .specificFolder else { return nil }
+        return current
+    }
+
+    /// Delete the previous conversion output after the new one has succeeded (keep-only-last). It's a
+    /// Clop-produced intermediate, so it's removed outright rather than sent to Trash (which would pile
+    /// up); guarded so it never removes the file just produced nor the original/source.
+    private func removeSupersededConvertOutput() {
+        guard let oldURL = supersededConvertURL else { return }
+        supersededConvertURL = nil
+        guard oldURL != url else { return }
+        let sources = [originalURL, startingURL, convertedFromURL].compactMap { $0 }
+        guard !sources.contains(oldURL), let oldPath = oldURL.filePath, oldPath.exists else { return }
+        try? fm.removeItem(at: oldURL)
     }
 
     func compare() {
@@ -1879,6 +1914,7 @@ enum TempPipelineSegment {
     }
 
     func finish(error: String, notice: String? = nil, keepFor removeAfterMs: Int = 2500) {
+        supersededConvertURL = nil // conversion failed: keep the previous output
         self.error = error
         self.notice = notice
         self.running = false
@@ -1892,6 +1928,7 @@ enum TempPipelineSegment {
     }
 
     func finish(notice: String) {
+        supersededConvertURL = nil
         self.notice = notice
         self.running = false
         removeDebouncer()
@@ -1906,6 +1943,8 @@ enum TempPipelineSegment {
     }
 
     func finish(oldBytes: Int, newBytes: Int, oldSize: CGSize? = nil, newSize: CGSize? = nil, oldBitrate: Int? = nil, newBitrate: Int? = nil, removeAfterMs: Int? = nil) {
+        // Keep-only-last: now that the new conversion has produced its output, delete the previous one.
+        removeSupersededConvertOutput()
         // Batch runs read results straight off the optimiser; just record them and stop, without the
         // animation/removal machinery (which would reassign OM.optimisers and churn the UI per file).
         if batchSilent {

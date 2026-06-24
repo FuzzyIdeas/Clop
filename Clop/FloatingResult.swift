@@ -627,6 +627,11 @@ struct NameFormatPill: View {
     var fullWidth = false
 
     @Environment(\.preview) var preview
+    @ObservedObject var km = KM
+
+    /// True while Option is held: a plain click on a format replaces the current one (keep-only-last),
+    /// Option+click keeps both. The accordion pills show a "+" while this is true.
+    private var additiveConvert: Bool { km.lalt || km.ralt }
 
     var body: some View {
         Group {
@@ -690,7 +695,7 @@ struct NameFormatPill: View {
                     hoveringExt = hovering
                     updateFormatsVisibility()
                 }
-                .overlay(alignment: .bottom) { formatAccordion }
+                .overlay(alignment: .bottomTrailing) { formatAccordion }
         } else {
             Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.white).padding(.leading, 1).padding(.trailing, 4)
         }
@@ -707,11 +712,11 @@ struct NameFormatPill: View {
 
     @ViewBuilder var formatAccordion: some View {
         let formats = targetFormats
-        VStack(spacing: 3) {
+        VStack(alignment: .trailing, spacing: 3) {
             ForEach(Array(formats.enumerated()), id: \.offset) { idx, item in
                 Button { convert(to: item.type) } label: {
-                    Text(item.ext.uppercased())
-                        .font(.system(size: 9, weight: .bold))
+                    Text((additiveConvert ? "+" : "") + item.ext.uppercased())
+                        .font(.mono(9, weight: .bold))
                         .frame(height: 12)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .cardChip(hovering: hoveredFormatIdx == idx)
@@ -723,6 +728,9 @@ struct NameFormatPill: View {
                 .scaleEffect(optimiser.showingFormats ? 1 : 0.6, anchor: .bottom)
                 .offset(y: optimiser.showingFormats ? 0 : CGFloat(formats.count - idx) * 6)
                 .animation(.spring(response: 0.16, dampingFraction: 0.66).delay(Double(formats.count - 1 - idx) * 0.018), value: optimiser.showingFormats)
+                // Hover pop (centred, so it composes with the emerge scale above).
+                .scaleEffect(hoveredFormatIdx == idx ? 1.12 : 1)
+                .animation(.spring(response: 0.22, dampingFraction: 0.6), value: hoveredFormatIdx)
             }
         }
         // Bottom padding sits over the chip so moving the cursor from chip to list stays continuous;
@@ -741,7 +749,7 @@ struct NameFormatPill: View {
     private func convert(to format: UTType) {
         optimiser.showingFormats = false
         guard !preview, optimiser.type.utType != format else { return }
-        optimiser.convert(to: format, optimise: true)
+        optimiser.convert(to: format, optimise: true, additive: additiveConvert)
     }
 
     private func updateFormatsVisibility() {

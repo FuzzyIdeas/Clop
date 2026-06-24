@@ -544,10 +544,14 @@ struct CompactNameField: View {
                     if !e.isEmpty {
                         Button(e.uppercased()) {
                             guard !preview, optimiser.type.utType != format else { return }
-                            optimiser.convert(to: format, optimise: true)
+                            // Plain click replaces the current format (keep-only-last); Option keeps both.
+                            optimiser.convert(to: format, optimise: true, additive: NSEvent.modifierFlags.contains(.option))
                         }
                     }
                 }
+                Divider()
+                // A system Menu can't show a live "+" on Option-hold, so hint the gesture statically.
+                Text("⌥ click keeps both formats")
             } label: {
                 Text(ext)
                     .font(CompactResult.nameFont)

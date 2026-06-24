@@ -957,8 +957,6 @@ private struct AutoConvertPills: View {
                     HStack(spacing: 3) {
                         Text("Configured in")
                         Text("Compatibility").underline()
-                        SwiftUI.Image(systemName: "arrow.down")
-                            .font(.system(size: 8, weight: .semibold))
                     }
                     .foregroundColor(.secondary.opacity(0.65))
                     .contentShape(Rectangle())
