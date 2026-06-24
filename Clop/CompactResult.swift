@@ -383,7 +383,9 @@ struct CompactResult: View {
                 VStack(alignment: .leading, spacing: 3) {
                     if let url = (optimiser.url ?? optimiser.originalURL), url.isFileURL {
                         CompactNameField(optimiser: optimiser)
-                            .frame(width: THUMB_SIZE.width * 0.6, alignment: .leading)
+                            // Grow to the row's full width while editing so the rename field has room;
+                            // at rest it stays at its compact 60% width.
+                            .frame(maxWidth: optimiser.editingFilename ? .infinity : THUMB_SIZE.width * 0.6, alignment: .leading)
                     }
                     HStack(spacing: 5) {
                         fileSizeDiff
@@ -393,7 +395,9 @@ struct CompactResult: View {
                         bitrateDiff
                         dpiDiff
                     }
-                    // Keep the trailing size/bitrate/resolution text off the flush row edge.
+                    // Match the name chip's horizontal text inset so this lines up with the filename text,
+                    // not the chip's background edge. Trailing padding keeps the size text off the row edge.
+                    .padding(.leading, 3)
                     .padding(.trailing, 8)
                     if !selecting {
                         ActionButtons(optimiser: optimiser, size: 18, revealed: hovering)
@@ -485,10 +489,11 @@ struct CompactResult: View {
 
 }
 
-/// Flat filename control for the compact list rows. Reads as a plain `name.ext` Text; tapping the name
-/// swaps it for an inline edit field, and the extension is a borderless format-conversion menu. Both
-/// segments highlight on hover (so it's clear they're clickable) without any background chrome of their
-/// own, and nothing changes size on hover. The floating card keeps its own `NameFormatPill`/`FileNameField`.
+/// Filename control for the compact list rows: `name.ext` rendered as two tappable chips. Tapping the
+/// name chip swaps it for an inline edit field; the extension chip is a borderless format-conversion
+/// menu. Each chip is a monochrome rounded chip (very translucent fill + hairline border, 4pt corners,
+/// tight padding) so it reads as clickable at a glance, firming up on hover. Text stays `.primary` so it
+/// adapts to the compact view's color scheme. The floating card keeps its own `NameFormatPill`/`FileNameField`.
 struct CompactNameField: View {
     @ObservedObject var optimiser: Optimiser
     @Environment(\.preview) var preview
@@ -508,23 +513,23 @@ struct CompactNameField: View {
     }
 
     var segments: some View {
-        HStack(spacing: 0) {
-            // Flat text, no padding/background at rest; hovering just underlines it (and shows the I-beam)
-            // so it reads as editable without a chrome box hugging the text.
+        HStack(spacing: 4) {
+            // Bordered accent chip marks the name as tappable at a glance; it intensifies on hover and
+            // shows the I-beam. Text stays `.primary` so it adapts to the compact view's color scheme.
             Text(stem.isEmpty ? "filename" : stem)
                 .font(CompactResult.nameFont)
-                .underline(hoveringName, color: .primary.opacity(0.4))
-                .foregroundColor(.primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .padding(.horizontal, 3).padding(.vertical, 1)
+                .listChip(hovering: hoveringName)
                 .onHover { inside in
                     guard !SM.selecting else { return }
                     hoveringName = inside
                     if inside { NSCursor.iBeam.push() } else { NSCursor.pop() }
                 }
                 .onTapGesture { startEditing() }
+                .help("Click to rename")
             if !ext.isEmpty {
-                Text(".").font(CompactResult.nameFont).foregroundColor(.secondary)
                 formatSegment
             }
             Spacer(minLength: 0)
@@ -546,8 +551,8 @@ struct CompactNameField: View {
             } label: {
                 Text(ext)
                     .font(CompactResult.nameFont)
-                    .underline(hoveringExt, color: .primary.opacity(0.4))
-                    .foregroundColor(hoveringExt ? .primary : .secondary)
+                    .padding(.horizontal, 3).padding(.vertical, 1)
+                    .listChip(hovering: hoveringExt)
             }
             .menuButtonStyle(BorderlessButtonMenuButtonStyle())
             .menuIndicator(.hidden)
@@ -569,6 +574,7 @@ struct CompactNameField: View {
                 .font(CompactResult.nameFont)
                 .foregroundColor(.primary)
                 .focused($focused)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .onSubmit {
                     optimiser.rename(to: tempName)
                     optimiser.editingFilename = false
@@ -579,6 +585,8 @@ struct CompactNameField: View {
             .buttonStyle(.plain)
             .keyboardShortcut(.escape, modifiers: [])
         }
+        // Keep the X button clear of the window's rounded corner when the field spans the full width.
+        .padding(.trailing, 8)
         .onAppear {
             tempName = stem
             floatingResultsWindow.allowToBecomeKey = true
@@ -724,8 +732,24 @@ extension View {
         padding(.vertical, 6)
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
-            .background(.thinMaterial)
-            .overlay(alignment: .top) { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 0.5) }
+            .resultsBandBackground()
+            .overlay(alignment: .top) { Rectangle().fill(Color.primary.opacity(0.06)).frame(height: 0.5) }
+    }
+
+    /// Opaque band a touch off the list background: the same `Color.inverted.brightness(0.1)` base plus a
+    /// faint primary tint, so it reads as a touch darker in light mode / lighter in dark mode rather than a
+    /// blurred material that picks up the content scrolling behind it. Shared by the footer and progress bars.
+    ///
+    /// `scale` over-extends the fill past its frame to cover the empty space left by row padding (the
+    /// progress bar isn't full-width); the footer is full-width and leaves it at 1.
+    func resultsBandBackground(scale: CGFloat = 1) -> some View {
+        background {
+            ZStack {
+                Color.inverted.brightness(0.1)
+                Color.primary.opacity(0.06)
+            }
+            .scaleEffect(scale)
+        }
     }
 }
 
@@ -1054,7 +1078,7 @@ struct CompactResultList: View {
                 .controlSize(.small)
                 .frame(width: THUMB_SIZE.width + (showCompactImages ? 40 : -10))
                 .padding(.top, 4)
-                .background(VisualEffectBlur(material: .fullScreenUI, blendingMode: .withinWindow, state: .active).scaleEffect(1.1))
+                .resultsBandBackground(scale: 1.1)
                 .offset(y: -Self.footerBand + 4)
                 .font(.mono(9))
         }

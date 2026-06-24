@@ -86,6 +86,29 @@ extension View {
         }
         .overlay { shape.stroke(Color.primary.opacity(0.12), lineWidth: 0.5) }
     }
+
+    /// Floating-card filename/extension chip: warm-white material (matching the other floating controls),
+    /// `.primary` text, and a very faint warm-gray hairline border on a capsule. Monochrome so it never
+    /// clashes with the thumbnail colours behind it; the border firms up on hover. Apply after the chip's
+    /// own padding.
+    func cardChip(hovering: Bool) -> some View {
+        foregroundColor(.primary)
+            .background {
+                Capsule().fill(.regularMaterial)
+                Capsule().fill(Color.bg.warm.opacity(0.92))
+            }
+            .overlay(Capsule().strokeBorder(Color.fg.warm.opacity(hovering ? 0.3 : 0.15), lineWidth: 0.5))
+    }
+
+    /// Compact-list filename/extension chip: a very translucent monochrome fill + hairline border on a 4pt
+    /// rounded rect. `.primary` text so it adapts to the list's color scheme; firms up on hover. Apply
+    /// after the chip's own (tight) padding.
+    func listChip(hovering: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 4, style: .continuous)
+        return foregroundColor(.primary)
+            .background(shape.fill(Color.primary.opacity(hovering ? 0.1 : 0.05)))
+            .overlay(shape.strokeBorder(Color.primary.opacity(hovering ? 0.2 : 0.1), lineWidth: 0.5))
+    }
 }
 
 /// Small round button shared by the three floating-card corner controls (close, menu, crop).
