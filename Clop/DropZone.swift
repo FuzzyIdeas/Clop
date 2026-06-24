@@ -305,27 +305,18 @@ struct DropZonePresetsView: View {
         }
     }
 
-    /// Menu row for a library pipeline: icon + name with the optional description as a subtitle. SwiftUI's
-    /// Menu rendering is finicky and the two cases need different tricks:
-    ///   • WITH a subtitle, the title+subtitle path strips a `Label`'s icon slot inside a nested submenu
-    ///     ("Replace with"), but DOES render an SF Symbol interpolated into the title Text.
-    ///   • WITHOUT a subtitle, that inline-image title is itself dropped, while a plain `Label` icon slot
-    ///     renders fine (top-level menus and submenus alike).
-    /// So pick the form per whether the pipeline has details. The subtitle Text must be a SIBLING of the
-    /// title (stacks get flattened/ignored). See [[swiftui-menu-item-subtitle-workaround]].
+    /// Menu row for a library pipeline: icon + name + description subtitle. Every row uses the same
+    /// layout — a default icon ("wand.and.sparkles") and a "No description" subtitle stand in for
+    /// pipelines that lack them — so the menu never looks ragged. Because a subtitle is always present,
+    /// we always use the title+subtitle form: SwiftUI's Menu strips a `Label`'s icon slot inside a
+    /// nested submenu ("Replace with") but DOES render an SF Symbol interpolated into the title Text,
+    /// and the subtitle Text must be a SIBLING of the title (stacks get flattened/ignored).
     @ViewBuilder
     func libMenuLabel(_ lib: Pipeline) -> some View {
         let symbol = lib.icon.flatMap { $0.isEmpty ? nil : $0 } ?? "wand.and.sparkles"
-        if let d = lib.details, !d.isEmpty {
-            Text("\(SwiftUI.Image(systemName: symbol))  \(lib.name ?? lib.id)")
-            Text(d)
-        } else {
-            Label {
-                Text(lib.name ?? lib.id)
-            } icon: {
-                SwiftUI.Image(systemName: symbol)
-            }
-        }
+        let subtitle = lib.details.flatMap { $0.isEmpty ? nil : $0 } ?? "No description"
+        Text("\(SwiftUI.Image(systemName: symbol))  \(lib.name ?? lib.id)")
+        Text(subtitle)
     }
 
     @ViewBuilder
