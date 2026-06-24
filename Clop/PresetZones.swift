@@ -188,7 +188,7 @@ struct PresetZoneRow: View {
                         if newIcon != zone.icon { replaceMeta(name: editName, icon: newIcon, type: zone.type) }
                     }
 
-                InlineNameField(name: $editName, font: .system(size: 11)) {
+                InlineNameField(name: $editName, size: 11, weight: .regular) {
                     let trimmed = editName.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty, trimmed != zone.name { replaceMeta(name: trimmed, icon: icon, type: zone.type) }
                 }
