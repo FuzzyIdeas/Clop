@@ -1,3 +1,4 @@
+import AppKit
 import Defaults
 import Lowtech
 import SwiftUI
@@ -295,7 +296,7 @@ struct PipelineFieldRow: View {
     var onDelete: () -> Void
 
     var nameChip: some View {
-        InlineNameField(name: $pipelineName, placeholder: "name", font: .system(size: 11)) {
+        InlineNameField(name: $pipelineName, placeholder: "name", size: 11, weight: .regular) {
             syncToLibrary()
         }
         .allowsHitTesting(true)
@@ -631,42 +632,108 @@ struct PipelineTypeSectionView: View {
 
 // MARK: - Saved Pipeline Row (Library)
 
+/// Single-line AppKit text field. A SwiftUI `TextField` constrained to a compact fixed width wraps its
+/// text onto a second line (growing tall) when focused; a native `NSTextField` in single-line mode
+/// scrolls horizontally instead, so a small fixed-width name editor stays exactly one line.
+struct SingleLineNameField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var nsFont: NSFont
+    var onCommit: () -> Void
+    var onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField(string: text)
+        field.delegate = context.coordinator
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = nsFont
+        field.placeholderString = placeholder
+        field.usesSingleLineMode = true
+        field.cell?.usesSingleLineMode = true
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        field.maximumNumberOfLines = 1
+        field.lineBreakMode = .byClipping
+        field.allowsEditingTextAttributes = false
+        return field
+    }
+
+    func updateNSView(_ field: NSTextField, context: Context) {
+        context.coordinator.parent = self
+        if field.stringValue != text { field.stringValue = text }
+        field.font = nsFont
+        field.placeholderString = placeholder
+        // Focus once, when the editor first appears.
+        if !context.coordinator.didFocus {
+            context.coordinator.didFocus = true
+            DispatchQueue.main.async {
+                field.window?.makeFirstResponder(field)
+            }
+        }
+    }
+
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        init(_ parent: SingleLineNameField) { self.parent = parent }
+
+        var parent: SingleLineNameField
+        var didFocus = false
+        /// Ensures commit/cancel fire exactly once (Enter, Esc and focus-loss can all arrive).
+        private var finished = false
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            parent.text = field.stringValue
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            if selector == #selector(NSResponder.insertNewline(_:)) {
+                finish { parent.onCommit() }
+                return true
+            }
+            if selector == #selector(NSResponder.cancelOperation(_:)) {
+                finish { parent.onCancel() }
+                return true
+            }
+            return false
+        }
+
+        // Clicking away commits, matching a tap-to-rename field's expectation.
+        func controlTextDidEndEditing(_ obj: Notification) {
+            finish { parent.onCommit() }
+        }
+
+        private func finish(_ action: () -> Void) {
+            guard !finished else { return }
+            finished = true
+            action()
+        }
+    }
+}
+
 /// Reusable inline-editable name label. Shows text, tap to edit in place.
 struct InlineNameField: View {
     @Binding var name: String
 
     var placeholder = "name"
-    var font: Font = .system(size: 12, weight: .medium)
+    var size: CGFloat = 12
+    var weight: Font.Weight = .medium
+    /// When true the editor fills the available width (used for the description, which sits on its own
+    /// full-width line); otherwise it stays a compact fixed width so it can't push sibling controls.
+    var fillWidth = false
     var onCommit: (() -> Void)?
 
     var body: some View {
         if isEditing {
-            TextField("", text: $name, prompt: Text(placeholder))
-                .textFieldStyle(.plain)
-                .font(font)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.primary.opacity(0.06))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
-                )
-                .focused($focused)
-                .onSubmit {
-                    isEditing = false
-                    onCommit?()
-                }
-                .onExitCommand {
-                    isEditing = false
-                }
-                .onAppear { focused = true }
-                .frame(width: 90)
+            editor
         } else {
             Text(name.isEmpty ? placeholder : name)
-                .font(font)
+                .font(swiftUIFont)
+                .lineLimit(1)
+                .truncationMode(.tail)
                 .foregroundColor(name.isEmpty ? .secondary.opacity(0.5) : .primary)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 2)
@@ -692,9 +759,52 @@ struct InlineNameField: View {
         }
     }
 
+    @ViewBuilder private var editor: some View {
+        let field = SingleLineNameField(
+            text: $name,
+            placeholder: placeholder,
+            nsFont: nsFont,
+            onCommit: {
+                isEditing = false
+                onCommit?()
+            },
+            onCancel: { isEditing = false }
+        )
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
+        )
+
+        if fillWidth {
+            field.frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            // Compact fixed width so a long name can't push the field past its HStack; the native
+            // field keeps it single-line and scrolls horizontally instead of wrapping.
+            field.frame(width: 80)
+        }
+    }
+
+    private var swiftUIFont: Font { .system(size: size, weight: weight) }
+
+    private var nsFont: NSFont {
+        let nsWeight: NSFont.Weight = switch weight {
+        case .bold: .bold
+        case .semibold: .semibold
+        case .medium: .medium
+        case .light: .light
+        default: .regular
+        }
+        return .systemFont(ofSize: size, weight: nsWeight)
+    }
+
     @State private var isEditing = false
     @State private var isHovered = false
-    @FocusState private var focused: Bool
 
 }
 
@@ -707,6 +817,10 @@ struct SavedPipelineRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Single-row header: name + badge + spacer + file type + add to + divider + pass + hide + divider + [confirm/cancel] + trash
+            // Header row + description stacked vertically so the description gets its own
+            // full-width line below the header, instead of widening the name column and
+            // cramming the controls (file type / pass / hide / trash) on the right.
+            VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 IconPickerView(icon: $editIcon)
                     .buttonStyle(.plain)
@@ -718,18 +832,10 @@ struct SavedPipelineRow: View {
                         onUpdate(updated)
                     }
 
-                VStack(alignment: .leading, spacing: 0) {
-                    InlineNameField(name: $editName, font: .system(size: 10, weight: .medium)) {
-                        var updated = pipeline
-                        updated.name = editName
-                        onUpdate(updated)
-                    }
-                    InlineNameField(name: $editDetails, placeholder: "description", font: .system(size: 9)) {
-                        var updated = pipeline
-                        updated.details = editDetails.isEmpty ? nil : editDetails
-                        onUpdate(updated)
-                    }
-                    .foregroundColor(.secondary)
+                InlineNameField(name: $editName, size: 10, weight: .medium) {
+                    var updated = pipeline
+                    updated.name = editName
+                    onUpdate(updated)
                 }
 
                 // Everything except the name + description fades back to translucent at rest, opaque on hover/edit.
@@ -962,6 +1068,16 @@ struct SavedPipelineRow: View {
                 }
                 .opacity((hovering || isEditingLib) ? 1 : 0.35)
             }
+
+            // Description on its own full-width line, indented to sit under the name.
+            InlineNameField(name: $editDetails, placeholder: "description", size: 9, weight: .regular, fillWidth: true) {
+                var updated = pipeline
+                updated.details = editDetails.isEmpty ? nil : editDetails
+                onUpdate(updated)
+            }
+            .foregroundColor(.secondary)
+            .padding(.leading, 24)
+            }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(Color.white.opacity(0.08))
@@ -985,7 +1101,7 @@ struct SavedPipelineRow: View {
                 let readOnlyText = pipeline.rawText ?? pipeline.steps.map(\.displayString).joined(separator: " -> ")
                 // Syntax-highlight the read-only preview too (same colouring the editor uses), so steps
                 // and params stay readable at a glance without entering edit mode.
-                Text(AttributedString(highlightPipelineText(readOnlyText, fileType: pipeline.fileType)))
+                Text(AttributedString(highlightPipelineText(readOnlyText, fileType: pipeline.fileType, darkMode: colorScheme == .dark)))
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1064,6 +1180,7 @@ struct SavedPipelineRow: View {
     @State private var editIcon = "wand.and.sparkles"
     @State private var editDetails = ""
     @State private var coordHolder = RefHolder<PipelineTextView.Coordinator>()
+    @Environment(\.colorScheme) private var colorScheme
 
 }
 

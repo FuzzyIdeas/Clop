@@ -9,145 +9,153 @@ import SwiftUI
 private let PIPELINE_FONT = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
 private let PIPELINE_FONT_BOLD = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
 
-func highlightPipelineText(_ text: String, fileType: ClopFileType?) -> NSAttributedString {
-    let font = PIPELINE_FONT
-    let baseAttrs: [NSAttributedString.Key: Any] = [
-        .font: font,
-        .foregroundColor: NSColor.labelColor,
-    ]
-    let result = NSMutableAttributedString(string: text, attributes: baseAttrs)
-    let nsText = text as NSString
-    let fullRange = NSRange(location: 0, length: nsText.length)
+func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bool) -> NSAttributedString {
+    // The highlighted string is consumed both by an NSTextView and by a SwiftUI
+    // `Text(AttributedString(...))` preview. Relying on dynamic NSColors there left some
+    // previews stuck in the wrong appearance: the colours were resolved once, at body-eval
+    // time, against whatever appearance happened to be current, and never recomputed when
+    // the system flipped. We instead resolve every colour against an explicit appearance
+    // (driven by `darkMode`) and bake it into a concrete value, and callers re-run
+    // highlighting whenever the appearance changes.
+    let appearance = NSAppearance(named: darkMode ? .darkAqua : .aqua) ?? NSApplication.shared.effectiveAppearance
+    var result = NSMutableAttributedString(string: text)
+    appearance.performAsCurrentDrawingAppearance {
+        // Resolve a (possibly dynamic) colour to a concrete sRGB value for the current appearance.
+        func baked(_ color: NSColor) -> NSColor { color.usingColorSpace(.sRGB) ?? color }
 
-    // Color arrow separators
-    let arrowRegex = try! NSRegularExpression(pattern: #"->"#)
-    for match in arrowRegex.matches(in: text, range: fullRange) {
-        result.addAttributes([
-            .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.4),
-        ], range: match.range)
-    }
+        let font = PIPELINE_FONT
+        let baseAttrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: baked(.labelColor),
+        ]
+        let mutable = NSMutableAttributedString(string: text, attributes: baseAttrs)
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
 
-    // Split into step segments (between -> and newlines)
-    let sepRegex = try! NSRegularExpression(pattern: #"(?:->|\n|\r\n)"#)
-    let sepMatches = sepRegex.matches(in: text, range: fullRange)
-
-    var segmentRanges: [NSRange] = []
-    var start = 0
-    for match in sepMatches {
-        if match.range.location > start {
-            segmentRanges.append(NSRange(location: start, length: match.range.location - start))
+        // Color arrow separators
+        let arrowRegex = try! NSRegularExpression(pattern: #"->"#)
+        for match in arrowRegex.matches(in: text, range: fullRange) {
+            mutable.addAttributes([
+                .foregroundColor: baked(.secondaryLabelColor).withAlphaComponent(0.4),
+            ], range: match.range)
         }
-        start = match.range.location + match.range.length
-    }
-    if start < nsText.length {
-        segmentRanges.append(NSRange(location: start, length: nsText.length - start))
-    }
 
-    let templates = stepTemplates(for: fileType)
-    let templateNames = Set(templates.map(\.name))
+        // Split into step segments (between -> and newlines)
+        let sepRegex = try! NSRegularExpression(pattern: #"(?:->|\n|\r\n)"#)
+        let sepMatches = sepRegex.matches(in: text, range: fullRange)
 
-    for segRange in segmentRanges {
-        let segText = nsText.substring(with: segRange).trimmingCharacters(in: .whitespaces)
-        guard !segText.isEmpty else { continue }
+        var segmentRanges: [NSRange] = []
+        var start = 0
+        for match in sepMatches {
+            if match.range.location > start {
+                segmentRanges.append(NSRange(location: start, length: match.range.location - start))
+            }
+            start = match.range.location + match.range.length
+        }
+        if start < nsText.length {
+            segmentRanges.append(NSRange(location: start, length: nsText.length - start))
+        }
 
-        // Find the trimmed text position within the segment
-        let trimmedRange = nsText.range(of: segText, range: segRange)
-        guard trimmedRange.location != NSNotFound else { continue }
+        let templates = stepTemplates(for: fileType)
+        let templateNames = Set(templates.map(\.name))
 
-        // Extract step name
-        let parenIndex = segText.firstIndex(of: "(")
-        let stepName = parenIndex != nil ? String(segText[..<parenIndex!]) : segText
+        for segRange in segmentRanges {
+            let segText = nsText.substring(with: segRange).trimmingCharacters(in: .whitespaces)
+            guard !segText.isEmpty else { continue }
 
-        if let template = templates.first(where: { $0.name == stepName }) {
-            let step = template.create()
-            let color = step.categoryNSColor
+            // Find the trimmed text position within the segment
+            let trimmedRange = nsText.range(of: segText, range: segRange)
+            guard trimmedRange.location != NSNotFound else { continue }
 
-            // Color step name bold
-            let nameRange = NSRange(location: trimmedRange.location, length: stepName.utf16.count)
-            result.addAttributes([
-                .foregroundColor: color,
-                .font: PIPELINE_FONT_BOLD,
-            ], range: nameRange)
+            // Extract step name
+            let parenIndex = segText.firstIndex(of: "(")
+            let stepName = parenIndex != nil ? String(segText[..<parenIndex!]) : segText
 
-            // Color params: dim param names, prominent param values
-            if stepName.count < segText.count {
-                let paramsStr = String(segText[segText.index(segText.startIndex, offsetBy: stepName.count)...])
-                let paramsStart = trimmedRange.location + stepName.utf16.count
+            if let template = templates.first(where: { $0.name == stepName }) {
+                let step = template.create()
+                let color = baked(step.categoryNSColor)
 
-                // Default: dim everything in parens (parens, commas, colons)
-                let paramsRange = NSRange(location: paramsStart, length: trimmedRange.length - stepName.utf16.count)
-                result.addAttributes([
-                    .foregroundColor: NSColor.labelColor.withAlphaComponent(0.8),
-                    .font: font,
-                ], range: paramsRange)
+                // Color step name bold
+                let nameRange = NSRange(location: trimmedRange.location, length: stepName.utf16.count)
+                mutable.addAttributes([
+                    .foregroundColor: color,
+                    .font: PIPELINE_FONT_BOLD,
+                ], range: nameRange)
 
-                // Now highlight individual param values more prominently
-                let paramPattern = try! NSRegularExpression(pattern: #"(\w+):\s*([^,\)]+)"#)
-                let paramsNS = paramsStr as NSString
-                let hsbColor = color.usingColorSpace(.displayP3) ?? color
-                for match in paramPattern.matches(in: paramsStr, range: NSRange(location: 0, length: paramsNS.length)) {
-                    // Param name: visible but secondary
-                    let nameMatchRange = match.range(at: 1)
-                    if nameMatchRange.location != NSNotFound {
-                        let absRange = NSRange(location: paramsStart + nameMatchRange.location, length: nameMatchRange.length)
-                        result.addAttributes([
-                            .foregroundColor: NSColor.secondaryLabelColor,
-                        ], range: absRange)
-                    }
-                    // Param value: prominent with hue shift and boosted saturation
-                    let valueMatchRange = match.range(at: 2)
-                    if valueMatchRange.location != NSNotFound {
-                        let valueStr = paramsNS.substring(with: valueMatchRange).trimmingCharacters(in: .whitespaces)
-                        let trimmedValueRange = NSRange(
-                            location: paramsStart + valueMatchRange.location + (valueMatchRange.length - valueStr.utf16.count),
-                            length: valueStr.utf16.count
-                        )
-                        // Determine whether the system appearance is dark. We can't access SwiftUI's @Environment here,
-                        // so use AppKit's effectiveAppearance to decide brightness adjustments.
-                        let isDarkMode: Bool = {
-                            if let match = NSApplication.shared.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) {
-                                return match == .darkAqua
-                            }
-                            return false
-                        }()
+                // Color params: dim param names, prominent param values
+                if stepName.count < segText.count {
+                    let paramsStr = String(segText[segText.index(segText.startIndex, offsetBy: stepName.count)...])
+                    let paramsStart = trimmedRange.location + stepName.utf16.count
 
-                        // Check if this param value is invalid for the current file type
-                        let paramNameStr = paramsNS.substring(with: nameMatchRange)
-                        let allParams = template.mandatoryParams + template.optionalParams
-                        let paramTemplate = allParams.first(where: { $0.name == paramNameStr })
-                        let typeSpecific = fileType.flatMap { paramTemplate?.suggestionsForType[$0] }
-                        let unquotedValue = valueStr.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-                        let isInvalidValue = typeSpecific != nil && !typeSpecific!.contains(unquotedValue)
+                    // Default: dim everything in parens (parens, commas, colons)
+                    let paramsRange = NSRange(location: paramsStart, length: trimmedRange.length - stepName.utf16.count)
+                    mutable.addAttributes([
+                        .foregroundColor: baked(.labelColor).withAlphaComponent(0.8),
+                        .font: font,
+                    ], range: paramsRange)
 
-                        if isInvalidValue {
-                            let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
-                            result.addAttributes([
-                                .foregroundColor: NSColor.systemRed.withAlphaComponent(0.7),
-                                .font: italicFont,
-                            ], range: trimmedValueRange)
-                        } else {
-                            let valueSatColor = NSColor(
-                                hue: fmod(hsbColor.hueComponent + 0.01, 1.0),
-                                saturation: min(hsbColor.saturationComponent * 0.8, 1.0),
-                                brightness: min(hsbColor.brightnessComponent * (isDarkMode ? 1.1 : 0.6), 1.0),
-                                alpha: 0.95
+                    // Now highlight individual param values more prominently
+                    let paramPattern = try! NSRegularExpression(pattern: #"(\w+):\s*([^,\)]+)"#)
+                    let paramsNS = paramsStr as NSString
+                    let hsbColor = color.usingColorSpace(.displayP3) ?? color
+                    for match in paramPattern.matches(in: paramsStr, range: NSRange(location: 0, length: paramsNS.length)) {
+                        // Param name: visible but secondary
+                        let nameMatchRange = match.range(at: 1)
+                        if nameMatchRange.location != NSNotFound {
+                            let absRange = NSRange(location: paramsStart + nameMatchRange.location, length: nameMatchRange.length)
+                            mutable.addAttributes([
+                                .foregroundColor: baked(.secondaryLabelColor),
+                            ], range: absRange)
+                        }
+                        // Param value: prominent with hue shift and boosted saturation
+                        let valueMatchRange = match.range(at: 2)
+                        if valueMatchRange.location != NSNotFound {
+                            let valueStr = paramsNS.substring(with: valueMatchRange).trimmingCharacters(in: .whitespaces)
+                            let trimmedValueRange = NSRange(
+                                location: paramsStart + valueMatchRange.location + (valueMatchRange.length - valueStr.utf16.count),
+                                length: valueStr.utf16.count
                             )
-                            result.addAttributes([
-                                .foregroundColor: valueSatColor,
-                                .font: PIPELINE_FONT_BOLD,
-                            ], range: trimmedValueRange)
+
+                            // Check if this param value is invalid for the current file type
+                            let paramNameStr = paramsNS.substring(with: nameMatchRange)
+                            let allParams = template.mandatoryParams + template.optionalParams
+                            let paramTemplate = allParams.first(where: { $0.name == paramNameStr })
+                            let typeSpecific = fileType.flatMap { paramTemplate?.suggestionsForType[$0] }
+                            let unquotedValue = valueStr.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                            let isInvalidValue = typeSpecific != nil && !typeSpecific!.contains(unquotedValue)
+
+                            if isInvalidValue {
+                                let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
+                                mutable.addAttributes([
+                                    .foregroundColor: baked(.systemRed).withAlphaComponent(0.7),
+                                    .font: italicFont,
+                                ], range: trimmedValueRange)
+                            } else {
+                                let valueSatColor = NSColor(
+                                    hue: fmod(hsbColor.hueComponent + 0.01, 1.0),
+                                    saturation: min(hsbColor.saturationComponent * 0.8, 1.0),
+                                    brightness: min(hsbColor.brightnessComponent * (darkMode ? 1.1 : 0.6), 1.0),
+                                    alpha: 0.95
+                                )
+                                mutable.addAttributes([
+                                    .foregroundColor: valueSatColor,
+                                    .font: PIPELINE_FONT_BOLD,
+                                ], range: trimmedValueRange)
+                            }
                         }
                     }
                 }
+            } else if !segText.isEmpty, !templateNames.contains(segText) {
+                // Invalid step
+                let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
+                mutable.addAttributes([
+                    .foregroundColor: baked(.systemRed).withAlphaComponent(0.7),
+                    .font: italicFont,
+                ], range: trimmedRange)
             }
-        } else if !segText.isEmpty, !templateNames.contains(segText) {
-            // Invalid step
-            let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
-            result.addAttributes([
-                .foregroundColor: NSColor.systemRed.withAlphaComponent(0.7),
-                .font: italicFont,
-            ], range: trimmedRange)
         }
+
+        result = mutable
     }
 
     return result
@@ -370,7 +378,8 @@ struct PipelineTextView: NSViewRepresentable {
             defer { isHighlighting = false }
 
             let selectedRanges = textView.selectedRanges
-            let highlighted = highlightPipelineText(textView.string, fileType: parent.fileType)
+            let darkMode = (textView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) ?? .aqua) == .darkAqua
+            let highlighted = highlightPipelineText(textView.string, fileType: parent.fileType, darkMode: darkMode)
 
             storage.beginEditing()
             storage.setAttributedString(highlighted)
