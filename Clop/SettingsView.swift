@@ -511,7 +511,7 @@ struct VideoSettingsView: View {
     }
 
     var body: some View {
-        Form {
+        CompatibilityScrollForm {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise videos as they appear in these folders")) {
                 DirListView(fileType: .video, dirs: $videoDirs, enabled: $enableAutomaticVideoOptimisations)
             }
@@ -652,6 +652,7 @@ struct VideoSettingsView: View {
                 }
                 Toggle("Convert audio to AAC", isOn: $convertAudioToAAC)
             }
+            .id("compatibility")
         }
         .scrollContentBackground(.hidden)
         .padding(4)
@@ -949,15 +950,55 @@ private struct AutoConvertPills: View {
                     PillView(text: group.target, tint: group.targetTint, textColor: group.targetTextColor)
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 3) {
-                    Text("Configured in").foregroundColor(.secondary)
-                    Button("Compatibility") {
-                        settingsViewManager.tab = compatibilityTab
+                Button {
+                    settingsViewManager.tab = compatibilityTab
+                    settingsViewManager.scrollToCompatibility = true
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("Configured in")
+                        Text("Compatibility").underline()
+                        SwiftUI.Image(systemName: "arrow.down")
+                            .font(.system(size: 8, weight: .semibold))
                     }
-                    .buttonStyle(.link)
+                    .foregroundColor(.secondary.opacity(0.65))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { h in
+                    if h { NSCursor.pointingHand.push() } else { NSCursor.pop() }
                 }
                 .font(.round(11))
             }
+        }
+    }
+}
+
+/// A `Form` that scrolls down to the Section tagged `.id("compatibility")` when the
+/// "Configured in Compatibility" link in File Handling requests it. Drop-in replacement
+/// for `Form` in the Video / Audio / Images tabs; per-tab modifiers (formStyle,
+/// scrollContentBackground, padding) still reach the form via the environment.
+private struct CompatibilityScrollForm<Content: View>: View {
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    @ObservedObject var svm = settingsViewManager
+    let content: Content
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            Form { content }
+                .onAppear { scroll(proxy) }
+                .onChange(of: svm.scrollToCompatibility) { _ in scroll(proxy) }
+        }
+    }
+
+    private func scroll(_ proxy: ScrollViewProxy) {
+        guard svm.scrollToCompatibility else { return }
+        // Give the freshly switched-to tab a moment to lay out its sections before scrolling.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation { proxy.scrollTo("compatibility", anchor: .top) }
+            svm.scrollToCompatibility = false
         }
     }
 }
@@ -1403,7 +1444,7 @@ struct AudioSettingsView: View {
     }
 
     var body: some View {
-        Form {
+        CompatibilityScrollForm {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise audio files as they appear in these folders")) {
                 DirListView(fileType: .audio, dirs: $audioDirs, enabled: $enableAutomaticAudioOptimisations)
             }
@@ -1468,6 +1509,7 @@ struct AudioSettingsView: View {
                     }
                 }
             }
+            .id("compatibility")
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -1575,7 +1617,7 @@ struct ImagesSettingsView: View {
     }
 
     var body: some View {
-        Form {
+        CompatibilityScrollForm {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
                 DirListView(fileType: .image, dirs: $imageDirs, enabled: $enableAutomaticImageOptimisations)
             }
@@ -1698,6 +1740,7 @@ struct ImagesSettingsView: View {
                     }
                 }
             }
+            .id("compatibility")
 
         }
         .scrollContentBackground(.hidden)
@@ -2641,6 +2684,9 @@ class SettingsViewManager: ObservableObject {
     @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .floating : .general
     @Published var windowOpen = false
     @Published var scrollToFileType: ClopFileType?
+    /// Set by the "Configured in Compatibility" link in File Handling to scroll the destination
+    /// tab down to its Compatibility section. Cleared once that section has reacted.
+    @Published var scrollToCompatibility = false
     @Published var highlightFolder: HighlightedFolderRequest?
     /// Set by a preset-zone menu in the inline preview to open (and scroll to) that zone's editor row in
     /// the same Preset Zones tab. Cleared once the row has reacted.
