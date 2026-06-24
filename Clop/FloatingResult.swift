@@ -615,11 +615,13 @@ struct OnboardingFloatingPreview: View {
 
 // MARK: - NameFormatPill
 
-/// Compact in-thumbnail filename + format control. One warm pill split into two hover-highlighted
-/// segments: the name (tap to edit inline) and the extension (tap for the format menu), joined by a
-/// period and no chevron, so it reads as a single `name.ext` entity. While editing it becomes a
-/// full-width text field. Purpose-built for the small overlay card (the old FileNameField was sized
-/// for the full-width top slot and didn't populate/focus correctly here).
+/// Compact in-thumbnail filename + format control. `name.ext` rendered as two tappable chips side by
+/// side: the name (tap to edit inline) and the extension (hover to spring up a one-click convert
+/// accordion). Each chip is a bordered
+/// accent pill (translucent accent fill, more opaque accent border, white text) that intensifies on
+/// hover, so both read as clickable at a glance over the dark result backdrop. While editing it becomes
+/// a full-width text field with a solid backing for legibility. Purpose-built for the small overlay card
+/// (the old FileNameField was sized for the full-width top slot and didn't populate/focus correctly here).
 struct NameFormatPill: View {
     @ObservedObject var optimiser: Optimiser
     var fullWidth = false
@@ -636,33 +638,40 @@ struct NameFormatPill: View {
         }
         .padding(.horizontal, 4)
         .frame(height: 18)
-        .warmControlBackground(in: Capsule())
+        // Only the inline editor gets a solid warm backing so the text field stays legible over the
+        // thumbnail; at rest the two faint-accent chips carry their own fill, with no warm pill behind.
+        .background {
+            if optimiser.editingFilename {
+                Capsule().fill(.regularMaterial)
+                Capsule().fill(Color.bg.warm.opacity(0.92))
+                Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+            }
+        }
         .fixedSize(horizontal: !fullWidth, vertical: true)
-        .onChange(of: optimiser.running) { running in if running { optimiser.editingFilename = false } }
+        .onChange(of: optimiser.running) { running in if running { optimiser.editingFilename = false; optimiser.showingFormats = false } }
+        .onDisappear { optimiser.showingFormats = false }
     }
 
     var segments: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             Text(stem.isEmpty ? "filename" : stem)
                 .font(.system(size: 9, weight: .medium)).lineLimit(1).truncationMode(.middle)
                 // Shrink the text a little more while hovering the name so more of a long filename
                 // shows, but not so much it stops being readable.
                 .minimumScaleFactor(optimiser.hoveringFilename ? 0.75 : 0.9)
-                .foregroundColor(.primary)
                 .multilineTextAlignment(.trailing)
+                // Fixed height so the hover scale factor only changes width-fitting, never the chip height.
                 .frame(maxWidth: fullWidth ? .infinity : 92, alignment: .trailing)
-                .fixedSize(horizontal: false, vertical: true)
-                // Keep the outer (leading) padding for the hover capsule, but hug the dot on the
-                // trailing side so "name.ext" reads as one path instead of "name . ext".
-                .padding(.leading, 4).padding(.trailing, 1).padding(.vertical, 2)
-                .background(optimiser.hoveringFilename ? Color.primary.opacity(0.12) : .clear, in: Capsule())
+                .frame(height: 12)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                // Mono warm chip so the name reads as tappable at a glance; border firms up on hover.
+                .cardChip(hovering: optimiser.hoveringFilename)
                 .onHover { inside in
                     optimiser.hoveringFilename = inside
                     if inside { NSCursor.iBeam.push() } else { NSCursor.pop() }
                 }
                 .onTapGesture { startEditing() }
             if !ext.isEmpty {
-                Text(".").font(.system(size: 9, weight: .medium)).foregroundColor(.secondary)
                 formatSegment
             }
         }
@@ -670,28 +679,81 @@ struct NameFormatPill: View {
 
     @ViewBuilder var formatSegment: some View {
         if !optimiser.running, optimiser.canChangeFormat() {
-            Menu {
-                ForEach(optimiser.convertibleTypes) { format in
-                    let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
-                    if !e.isEmpty {
-                        Button(e.uppercased()) {
-                            guard !preview, optimiser.type.utType != format else { return }
-                            optimiser.convert(to: format, optimise: true)
-                        }
-                    }
+            // Hovering the extension chip springs the convert targets up from behind it; one click on a
+            // target converts. The accordion sits in an overlay so it doesn't affect the pill's layout,
+            // and rises into the card interior (over the thumbnail) rather than past the clipped edge.
+            Text(ext).font(.system(size: 9, weight: .bold))
+                .frame(height: 12)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .cardChip(hovering: hoveringExt || optimiser.showingFormats)
+                .onHover { hovering in
+                    hoveringExt = hovering
+                    updateFormatsVisibility()
                 }
-            } label: {
-                Text(ext).font(.system(size: 9, weight: .bold)).foregroundColor(.primary)
-                    .padding(.leading, 1).padding(.trailing, 4).padding(.vertical, 2)
-                    .background(hoveringExt ? Color.primary.opacity(0.12) : .clear, in: Capsule())
-            }
-            .menuButtonStyle(BorderlessButtonMenuButtonStyle())
-            .menuIndicator(.hidden)
-            .buttonStyle(.plain)
-            .onHover { hoveringExt = $0 }
-            .fixedSize()
+                .overlay(alignment: .bottom) { formatAccordion }
         } else {
-            Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.primary).padding(.leading, 1).padding(.trailing, 4)
+            Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.white).padding(.leading, 1).padding(.trailing, 4)
+        }
+    }
+
+    /// Convert targets shown in the accordion: every convertible type except the current one.
+    private var targetFormats: [(type: UTType, ext: String)] {
+        optimiser.convertibleTypes.compactMap { format in
+            guard optimiser.type.utType != format else { return nil }
+            let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
+            return e.isEmpty ? nil : (format, e)
+        }
+    }
+
+    @ViewBuilder var formatAccordion: some View {
+        let formats = targetFormats
+        VStack(spacing: 3) {
+            ForEach(Array(formats.enumerated()), id: \.offset) { idx, item in
+                Button { convert(to: item.type) } label: {
+                    Text(item.ext.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .frame(height: 12)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .cardChip(hovering: hoveredFormatIdx == idx)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in hoveredFormatIdx = hovering ? idx : (hoveredFormatIdx == idx ? nil : hoveredFormatIdx) }
+                // Springy emerge from behind the chip: the lowest target rises first, the rest follow.
+                .opacity(optimiser.showingFormats ? 1 : 0)
+                .scaleEffect(optimiser.showingFormats ? 1 : 0.6, anchor: .bottom)
+                .offset(y: optimiser.showingFormats ? 0 : CGFloat(formats.count - idx) * 6)
+                .animation(.spring(response: 0.16, dampingFraction: 0.66).delay(Double(formats.count - 1 - idx) * 0.018), value: optimiser.showingFormats)
+            }
+        }
+        // Bottom padding sits over the chip so moving the cursor from chip to list stays continuous;
+        // when closed the overlay is non-interactive so the chip's own hover/taps work normally.
+        .padding(.bottom, 22)
+        .fixedSize()
+        .onHover { hovering in
+            hoveringList = hovering
+            updateFormatsVisibility()
+        }
+        // Outermost so it gates the .onHover too: when closed, the (upward) accordion frame is fully
+        // transparent to hover/clicks and never blocks elements rendered above the extension chip.
+        .allowsHitTesting(optimiser.showingFormats)
+    }
+
+    private func convert(to format: UTType) {
+        optimiser.showingFormats = false
+        guard !preview, optimiser.type.utType != format else { return }
+        optimiser.convert(to: format, optimise: true)
+    }
+
+    private func updateFormatsVisibility() {
+        if hoveringExt || hoveringList {
+            optimiser.showingFormats = true
+        } else {
+            // Grace period so crossing the small gap between the chip and the list doesn't close it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                guard !hoveringExt, !hoveringList else { return }
+                optimiser.showingFormats = false
+                hoveredFormatIdx = nil
+            }
         }
     }
 
@@ -724,12 +786,15 @@ struct NameFormatPill: View {
     func startEditing() {
         guard !preview, !SM.selecting else { return }
         tempName = stem
+        optimiser.showingFormats = false
         withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
     }
 
     @FocusState private var focused: Bool
     @State private var tempName = ""
     @State private var hoveringExt = false
+    @State private var hoveringList = false
+    @State private var hoveredFormatIdx: Int? = nil
 
     private var stem: String {
         optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
@@ -1153,7 +1218,7 @@ struct FloatingResult: View {
             sliderBand { CardCompressionSlider(optimiser: optimiser) }
         } else if optimiser.showSendExpiration {
             sliderBand { CardSendExpirationSlider(optimiser: optimiser) }
-        } else if isExpanded, !optimiser.running, optimiser.error == nil, optimiser.notice == nil {
+        } else if isExpanded, !optimiser.running, optimiser.error == nil, optimiser.notice == nil, !optimiser.showingFormats {
             actionGrid
                 .opacity(optimiser.editingFilename ? 0.3 : 1)
                 .allowsHitTesting(!optimiser.editingFilename)
@@ -1196,11 +1261,11 @@ struct FloatingResult: View {
 
     @ViewBuilder var cornerControls: some View {
         let sliding = optimiser.showDownscaleSlider || optimiser.showCompressionSlider || optimiser.showSendExpiration
-        if isExpanded || optimiser.running, !sliding {
+        if isExpanded || optimiser.running, !sliding, !optimiser.showingFormats {
             CloseStopButton(optimiser: optimiser)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        if isExpanded, !optimiser.running, !optimiser.editingFilename, !sliding {
+        if isExpanded, !optimiser.running, !optimiser.editingFilename, !sliding, !optimiser.showingFormats {
             Menu {
                 RightClickMenuView(optimiser: optimiser)
             } label: {

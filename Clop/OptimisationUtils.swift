@@ -291,6 +291,9 @@ enum TempPipelineSegment {
     /// True while the pointer is over the filename name segment specifically (not the extension or
     /// the rest of the card), so the card can hide the crop button and let the name expand.
     @Published var hoveringFilename = false
+    /// True while the floating card's extension chip has its one-click convert accordion open, so the
+    /// card can hide its other controls (corner buttons, action grid) and let the accordion stand out.
+    @Published var showingFormats = false
     @Published var showDownscaleSlider = false
     @Published var showCompressionSlider = false
     /// While true, the floating card shows the "Send securely" expiration overlay (slider + confirm).
