@@ -180,7 +180,7 @@ private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFil
     (
         id: "builtin-video-1080p", name: "1080p", fileType: .video,
         rawText: "crop(width: 1920) -> optimise(encoder: slowHighQuality)", skipOptimisation: true,
-        icon: "tv", details: "Scale video to 1920px wide and re-encode at high quality", version: 1
+        icon: "tv", details: "Scale video to 1920px wide and optimise", version: 1
     ),
     (
         id: "builtin-video-to-gif", name: "to GIF", fileType: .video,
@@ -190,7 +190,7 @@ private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFil
     (
         id: "builtin-video-2x-silent", name: "2× silent", fileType: .video,
         rawText: "changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)", skipOptimisation: true,
-        icon: "speaker.slash.fill", details: "Double the playback speed, strip the audio, re-encode", version: 1
+        icon: "speaker.slash.fill", details: "Double the playback speed and remove the audio", version: 1
     ),
     (
         id: "builtin-video-half", name: "0.5×", fileType: .video,
@@ -210,7 +210,7 @@ private let BUILTIN_PIPELINE_DEFS: [(id: String, name: String, fileType: ClopFil
     (
         id: "builtin-audio-to-mp3", name: "to MP3", fileType: .audio,
         rawText: "convert(to: mp3)", skipOptimisation: true,
-        icon: "music.note", details: "Convert audio to MP3", version: 1
+        icon: "music.note", details: "Convert any audio file to MP3", version: 1
     ),
 ]
 
