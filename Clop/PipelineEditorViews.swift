@@ -636,13 +636,56 @@ struct PipelineTypeSectionView: View {
 /// text onto a second line (growing tall) when focused; a native `NSTextField` in single-line mode
 /// scrolls horizontally instead, so a small fixed-width name editor stays exactly one line.
 struct SingleLineNameField: NSViewRepresentable {
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        init(_ parent: SingleLineNameField) {
+            self.parent = parent
+        }
+
+        var parent: SingleLineNameField
+        var didFocus = false
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            parent.text = field.stringValue
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+            if selector == #selector(NSResponder.insertNewline(_:)) {
+                finish { parent.onCommit() }
+                return true
+            }
+            if selector == #selector(NSResponder.cancelOperation(_:)) {
+                finish { parent.onCancel() }
+                return true
+            }
+            return false
+        }
+
+        /// Clicking away commits, matching a tap-to-rename field's expectation.
+        func controlTextDidEndEditing(_ obj: Notification) {
+            finish { parent.onCommit() }
+        }
+
+        /// Ensures commit/cancel fire exactly once (Enter, Esc and focus-loss can all arrive).
+        private var finished = false
+
+        private func finish(_ action: () -> Void) {
+            guard !finished else { return }
+            finished = true
+            action()
+        }
+    }
+
     @Binding var text: String
+
     var placeholder: String
     var nsFont: NSFont
     var onCommit: () -> Void
     var onCancel: () -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
 
     func makeNSView(context: Context) -> NSTextField {
         let field = NSTextField(string: text)
@@ -676,42 +719,6 @@ struct SingleLineNameField: NSViewRepresentable {
         }
     }
 
-    class Coordinator: NSObject, NSTextFieldDelegate {
-        init(_ parent: SingleLineNameField) { self.parent = parent }
-
-        var parent: SingleLineNameField
-        var didFocus = false
-        /// Ensures commit/cancel fire exactly once (Enter, Esc and focus-loss can all arrive).
-        private var finished = false
-
-        func controlTextDidChange(_ obj: Notification) {
-            guard let field = obj.object as? NSTextField else { return }
-            parent.text = field.stringValue
-        }
-
-        func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
-            if selector == #selector(NSResponder.insertNewline(_:)) {
-                finish { parent.onCommit() }
-                return true
-            }
-            if selector == #selector(NSResponder.cancelOperation(_:)) {
-                finish { parent.onCancel() }
-                return true
-            }
-            return false
-        }
-
-        // Clicking away commits, matching a tap-to-rename field's expectation.
-        func controlTextDidEndEditing(_ obj: Notification) {
-            finish { parent.onCommit() }
-        }
-
-        private func finish(_ action: () -> Void) {
-            guard !finished else { return }
-            finished = true
-            action()
-        }
-    }
 }
 
 /// Reusable inline-editable name label. Shows text, tap to edit in place.
@@ -724,6 +731,9 @@ struct InlineNameField: View {
     /// When true the editor fills the available width (used for the description, which sits on its own
     /// full-width line); otherwise it stays a compact fixed width so it can't push sibling controls.
     var fillWidth = false
+    /// When true the resting (non-editing) label is rendered faintly with no background/border (used
+    /// for the description); it only shows a faint chip on hover. The name keeps the default chip look.
+    var subtle = false
     var onCommit: (() -> Void)?
 
     var body: some View {
@@ -734,16 +744,16 @@ struct InlineNameField: View {
                 .font(swiftUIFont)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .foregroundColor(name.isEmpty ? .secondary.opacity(0.5) : .primary)
-                .padding(.horizontal, 5)
+                .foregroundColor(restingTextColor)
+                .padding(.horizontal, subtle ? 4 : 5)
                 .padding(.vertical, 2)
                 .background(
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.primary.opacity(isHovered ? 0.12 : 0.06))
+                        .fill(Color.primary.opacity(subtle ? (isHovered ? 0.06 : 0) : (isHovered ? 0.12 : 0.06)))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(isHovered ? 0.25 : 0.15), lineWidth: 0.5)
+                        .strokeBorder(Color.primary.opacity(subtle ? (isHovered ? 0.1 : 0) : (isHovered ? 0.25 : 0.15)), lineWidth: 0.5)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { isEditing = true }
@@ -757,6 +767,31 @@ struct InlineNameField: View {
                 }
                 .help("Click to rename")
         }
+    }
+
+    @State private var isEditing = false
+    @State private var isHovered = false
+
+    private var restingTextColor: Color {
+        if subtle {
+            return .secondary.opacity(name.isEmpty ? 0.4 : 0.6)
+        }
+        return name.isEmpty ? .secondary.opacity(0.5) : .primary
+    }
+
+    private var swiftUIFont: Font {
+        .system(size: size, weight: weight)
+    }
+
+    private var nsFont: NSFont {
+        let nsWeight: NSFont.Weight = switch weight {
+        case .bold: .bold
+        case .semibold: .semibold
+        case .medium: .medium
+        case .light: .light
+        default: .regular
+        }
+        return .systemFont(ofSize: size, weight: nsWeight)
     }
 
     @ViewBuilder private var editor: some View {
@@ -790,22 +825,24 @@ struct InlineNameField: View {
         }
     }
 
-    private var swiftUIFont: Font { .system(size: size, weight: weight) }
+}
 
-    private var nsFont: NSFont {
-        let nsWeight: NSFont.Weight = switch weight {
-        case .bold: .bold
-        case .semibold: .semibold
-        case .medium: .medium
-        case .light: .light
-        default: .regular
-        }
-        return .systemFont(ofSize: size, weight: nsWeight)
+/// One place a library pipeline is currently assigned to run. Drives the assignment pills.
+private struct PipelineAssignment: Identifiable, Hashable {
+    enum Target: Hashable {
+        case clipboard
+        case dropZone
+        case folder(String)
+        case presetZone(String)
     }
 
-    @State private var isEditing = false
-    @State private var isHovered = false
+    let target: Target
+    var fileTypes: Set<ClopFileType> = []
+    var presetZone: PresetZone?
 
+    var id: Target {
+        target
+    }
 }
 
 struct SavedPipelineRow: View {
@@ -821,262 +858,185 @@ struct SavedPipelineRow: View {
             // full-width line below the header, instead of widening the name column and
             // cramming the controls (file type / pass / hide / trash) on the right.
             VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                IconPickerView(icon: $editIcon)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 13))
-                    .onChange(of: editIcon) { newIcon in
-                        guard newIcon != (pipeline.icon ?? "wand.and.sparkles") else { return }
-                        var updated = pipeline
-                        updated.icon = newIcon
-                        onUpdate(updated)
-                    }
-
-                InlineNameField(name: $editName, size: 10, weight: .medium) {
-                    var updated = pipeline
-                    updated.name = editName
-                    onUpdate(updated)
-                }
-
-                // Everything except the name + description fades back to translucent at rest, opaque on hover/edit.
                 HStack(spacing: 6) {
-                    if pipeline.isBuiltin {
-                        Text("Built-in")
-                            .font(.regular(9))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
+                    IconPickerView(icon: $editIcon)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 13))
+                        .onChange(of: editIcon) { newIcon in
+                            guard newIcon != (pipeline.icon ?? "wand.and.sparkles") else { return }
+                            var updated = pipeline
+                            updated.icon = newIcon
+                            onUpdate(updated)
+                        }
+
+                    InlineNameField(name: $editName, size: 10, weight: .medium) {
+                        var updated = pipeline
+                        updated.name = editName
+                        onUpdate(updated)
+                    }
+
+                    // Everything except the name + description fades back to translucent at rest, opaque on hover/edit.
+                    HStack(spacing: 6) {
+                        if pipeline.isBuiltin {
+                            Text("Built-in")
+                                .font(.regular(9))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(
+                                    Capsule().fill(Color.secondary.opacity(0.15))
+                                )
+                                .help("Shipped with Clop. Delete to hide it; it returns only with a future built-in update.")
+                        }
+
+                        Spacer(minLength: 0)
+
+                        // File type chip (hidden while editing). "Add to…" now lives with the assignment
+                        // pills on the description line below.
+                        if !isEditingLib {
+                            HStack(spacing: 6) {
+                                Menu {
+                                    let currentType = pipeline.fileType
+                                    let types: [(String, ClopFileType?)] = [
+                                        ("Image", .image),
+                                        ("Video", .video),
+                                        ("Audio", .audio),
+                                        ("PDF", .pdf),
+                                        ("Any type", nil),
+                                    ]
+                                    ForEach(types, id: \.0) { label, type in
+                                        Button {
+                                            var updated = pipeline
+                                            updated.fileType = type
+                                            onUpdate(updated)
+                                        } label: {
+                                            HStack {
+                                                Text(label)
+                                                if currentType == type {
+                                                    SwiftUI.Image(systemName: "checkmark")
+                                                }
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 3) {
+                                        if let ft = pipeline.fileType {
+                                            SwiftUI.Image(systemName: ft.symbolName)
+                                                .foregroundColor(ft.color)
+                                        } else {
+                                            SwiftUI.Image(systemName: "doc")
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Text("File type")
+                                            .foregroundColor(.blue.opacity(0.7))
+                                    }
+                                    .font(.regular(10))
+                                }
+                                .menuStyle(.button)
+                                .buttonStyle(.plain)
+                                .menuIndicator(.hidden)
+                                .fixedSize()
+                                .help("Move to another file type")
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                             .background(
-                                Capsule().fill(Color.secondary.opacity(0.15))
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.blue.opacity(0.08))
                             )
-                            .help("Shipped with Clop. Delete to hide it; it returns only with a future built-in update.")
-                    }
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                            )
+                        } // end !isEditingLib
 
-                    Spacer(minLength: 0)
+                        Divider().frame(height: 12)
 
-                    // Blue config cluster: File type + Add to… (hidden while editing)
-                    if !isEditingLib {
-                        HStack(spacing: 6) {
-                            Menu {
-                                let currentType = pipeline.fileType
-                                let types: [(String, ClopFileType?)] = [
-                                    ("Image", .image),
-                                    ("Video", .video),
-                                    ("Audio", .audio),
-                                    ("PDF", .pdf),
-                                    ("Any type", nil),
-                                ]
-                                ForEach(types, id: \.0) { label, type in
-                                    Button {
-                                        var updated = pipeline
-                                        updated.fileType = type
-                                        onUpdate(updated)
-                                    } label: {
-                                        HStack {
-                                            Text(label)
-                                            if currentType == type {
-                                                SwiftUI.Image(systemName: "checkmark")
-                                            }
-                                        }
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: 3) {
-                                    if let ft = pipeline.fileType {
-                                        SwiftUI.Image(systemName: ft.symbolName)
-                                            .foregroundColor(ft.color)
-                                    } else {
-                                        SwiftUI.Image(systemName: "doc")
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Text("File type")
-                                        .foregroundColor(.blue.opacity(0.7))
-                                }
-                                .font(.regular(10))
-                            }
-                            .menuStyle(.button)
-                            .buttonStyle(.plain)
-                            .menuIndicator(.hidden)
-                            .fixedSize()
-                            .help("Move to another file type")
-
-                            Group {
-                                if let concreteType = pipeline.fileType {
-                                    Menu {
-                                        Button(OptimisationSource.clipboard.displayLabel) {
-                                            attach(to: .clipboard, fileType: concreteType)
-                                        }
-                                        Button(OptimisationSource.dropZone.displayLabel) {
-                                            attach(to: .dropZone, fileType: concreteType)
-                                        }
-                                        let folders = existingFolderSources(for: concreteType)
-                                        if !folders.isEmpty {
-                                            Divider()
-                                            Text("Folders").foregroundColor(.secondary).disabled(true)
-                                            ForEach(folders, id: \.self) { source in
-                                                Button(source.displayLabel) {
-                                                    attach(to: source, fileType: concreteType)
-                                                }
-                                            }
-                                        }
-                                    } label: { addToLabel }
-                                        .menuStyle(.button)
-                                        .buttonStyle(.plain)
-                                        .menuIndicator(.hidden)
-                                        .fixedSize()
-                                        .help("Run this pipeline automatically on a source")
-                                } else {
-                                    Menu {
-                                        ForEach(ClopFileType.allCases, id: \.self) { type in
-                                            Menu(type == .pdf ? "PDF" : type.description.capitalized) {
-                                                Button(OptimisationSource.clipboard.displayLabel) {
-                                                    attach(to: .clipboard, fileType: type)
-                                                }
-                                                Button(OptimisationSource.dropZone.displayLabel) {
-                                                    attach(to: .dropZone, fileType: type)
-                                                }
-                                                let folders = existingFolderSources(for: type)
-                                                if !folders.isEmpty {
-                                                    Divider()
-                                                    Text("Folders").foregroundColor(.secondary).disabled(true)
-                                                    ForEach(folders, id: \.self) { source in
-                                                        Button(source.displayLabel) {
-                                                            attach(to: source, fileType: type)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Divider()
-                                        Menu("All types") {
-                                            Button(OptimisationSource.clipboard.displayLabel) {
-                                                for type in ClopFileType.allCases {
-                                                    attach(to: .clipboard, fileType: type)
-                                                }
-                                            }
-                                            Button(OptimisationSource.dropZone.displayLabel) {
-                                                for type in ClopFileType.allCases {
-                                                    attach(to: .dropZone, fileType: type)
-                                                }
-                                            }
-                                            let allFolders = ClopFileType.allCases.flatMap { existingFolderSources(for: $0) }
-                                            let uniqueFolders = allFolders.reduce(into: [OptimisationSource]()) { acc, s in
-                                                if !acc.contains(s) { acc.append(s) }
-                                            }
-                                            if !uniqueFolders.isEmpty {
-                                                Divider()
-                                                Text("Folders").foregroundColor(.secondary).disabled(true)
-                                                ForEach(uniqueFolders, id: \.self) { source in
-                                                    Button(source.displayLabel) {
-                                                        for type in ClopFileType.allCases {
-                                                            attach(to: source, fileType: type)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    } label: { addToLabel }
-                                        .menuStyle(.button)
-                                        .buttonStyle(.plain)
-                                        .menuIndicator(.hidden)
-                                        .fixedSize()
-                                        .help("Run this pipeline automatically on a source, for one or all file types")
-                                }
-                            }
+                        PipelineFlagSegmentedToggle(
+                            leading: "Pass",
+                            options: ("optimised", "original"),
+                            trailing: "file",
+                            selection: pipeline.skipOptimisation ? 1 : 0,
+                            help: PipelineFlagCopy.skipOptimisation,
+                            tint: .orange
+                        ) { idx in
+                            var updated = pipeline
+                            updated.skipOptimisation = (idx == 1)
+                            onUpdate(updated)
                         }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(Color.blue.opacity(0.08))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-                        )
-                    } // end !isEditingLib
 
-                    Divider().frame(height: 12)
-
-                    PipelineFlagSegmentedToggle(
-                        leading: "Pass",
-                        options: ("optimised", "original"),
-                        trailing: "file",
-                        selection: pipeline.skipOptimisation ? 1 : 0,
-                        help: PipelineFlagCopy.skipOptimisation,
-                        tint: .orange
-                    ) { idx in
-                        var updated = pipeline
-                        updated.skipOptimisation = (idx == 1)
-                        onUpdate(updated)
-                    }
-
-                    PipelineFlagSegmentedToggle(
-                        leading: nil,
-                        options: ("Show", "Hide"),
-                        trailing: "floating result",
-                        selection: pipeline.hideResult ? 1 : 0,
-                        help: PipelineFlagCopy.hideResult,
-                        tint: .red
-                    ) { idx in
-                        var updated = pipeline
-                        updated.hideResult = (idx == 1)
-                        onUpdate(updated)
-                    }
-
-                    Divider().frame(height: 12)
-
-                    if isEditingLib {
-                        // Confirm + cancel with scrim
-                        HStack(spacing: 0) {
-                            Button(action: {
-                                var updated = pipeline
-                                updated.name = editName.isEmpty ? pipeline.name : editName
-                                updated.icon = editIcon.isEmpty ? nil : editIcon
-                                updated.details = editDetails.isEmpty ? nil : editDetails
-                                updated.updateFromText(editText)
-                                onUpdate(updated)
-                                isEditingLib = false
-                            }) {
-                                SwiftUI.Image(systemName: "checkmark")
-                                    .font(.regular(10))
-                                    .foregroundColor(.green.opacity(0.7))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                            }
-                            .buttonStyle(.plain)
-
-                            Button(action: { isEditingLib = false }) {
-                                SwiftUI.Image(systemName: "xmark")
-                                    .font(.regular(10))
-                                    .foregroundColor(.red.opacity(0.7))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                            }
-                            .buttonStyle(.plain)
+                        PipelineFlagSegmentedToggle(
+                            leading: nil,
+                            options: ("Show", "Hide"),
+                            trailing: "floating result",
+                            selection: pipeline.hideResult ? 1 : 0,
+                            help: PipelineFlagCopy.hideResult,
+                            tint: .red
+                        ) { idx in
+                            var updated = pipeline
+                            updated.hideResult = (idx == 1)
+                            onUpdate(updated)
                         }
-                        .background(Capsule().fill(Color.primary.opacity(0.05)))
-                    }
 
-                    // Trash trailing-right
-                    Button(action: onDelete) {
-                        SwiftUI.Image(systemName: "trash")
-                            .font(.regular(9))
-                            .foregroundColor(.red.opacity(0.6))
+                        Divider().frame(height: 12)
+
+                        if isEditingLib {
+                            // Confirm + cancel with scrim
+                            HStack(spacing: 0) {
+                                Button(action: {
+                                    var updated = pipeline
+                                    updated.name = editName.isEmpty ? pipeline.name : editName
+                                    updated.icon = editIcon.isEmpty ? nil : editIcon
+                                    updated.details = editDetails.isEmpty ? nil : editDetails
+                                    updated.updateFromText(editText)
+                                    onUpdate(updated)
+                                    isEditingLib = false
+                                }) {
+                                    SwiftUI.Image(systemName: "checkmark")
+                                        .font(.regular(10))
+                                        .foregroundColor(.green.opacity(0.7))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button(action: { isEditingLib = false }) {
+                                    SwiftUI.Image(systemName: "xmark")
+                                        .font(.regular(10))
+                                        .foregroundColor(.red.opacity(0.7))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .background(Capsule().fill(Color.primary.opacity(0.05)))
+                        }
+
+                        // Trash trailing-right
+                        Button(action: onDelete) {
+                            SwiftUI.Image(systemName: "trash")
+                                .font(.regular(9))
+                                .foregroundColor(.red.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .opacity((hovering || isEditingLib) ? 1 : 0.35)
                 }
-                .opacity((hovering || isEditingLib) ? 1 : 0.35)
-            }
 
-            // Description on its own full-width line, indented to sit under the name.
-            InlineNameField(name: $editDetails, placeholder: "description", size: 9, weight: .regular, fillWidth: true) {
-                var updated = pipeline
-                updated.details = editDetails.isEmpty ? nil : editDetails
-                onUpdate(updated)
-            }
-            .foregroundColor(.secondary)
-            .padding(.leading, 24)
+                // Description + assignment pills share a line below the header. The description yields
+                // width to the pills (which show where this pipeline is assigned and host "Add to…"),
+                // so a long description truncates rather than pushing the pills off-screen.
+                HStack(spacing: 8) {
+                    InlineNameField(name: $editDetails, placeholder: "description", size: 9, weight: .regular, fillWidth: true, subtle: true) {
+                        var updated = pipeline
+                        updated.details = editDetails.isEmpty ? nil : editDetails
+                        onUpdate(updated)
+                    }
+                    Spacer(minLength: 8)
+                    assignmentPills
+                        .layoutPriority(1)
+                }
+                .padding(.leading, 24)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -1143,13 +1103,98 @@ struct SavedPipelineRow: View {
         }
     }
 
-    var addToLabel: some View {
-        HStack(spacing: 3) {
-            SwiftUI.Image(systemName: "bolt.badge.clock")
-            Text("Add to…")
-                .foregroundColor(.blue.opacity(0.7))
+    // MARK: Assignment pills
+
+    /// Pills showing every source this pipeline is assigned to, plus the trailing "Add to…" entry point.
+    var assignmentPills: some View {
+        HStack(spacing: 4) {
+            ForEach(assignments) { assignment in
+                Menu {
+                    Button("Go to") { goTo(assignment) }
+                    Button("Remove", role: .destructive) { remove(assignment) }
+                } label: {
+                    assignmentPillLabel(assignment)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Assigned to \(assignmentHelp(assignment)) — click to go there or remove")
+            }
+            addToMenu
         }
-        .font(.regular(10))
+    }
+
+    /// The trailing "Add to…" pill: assigns this pipeline to the clipboard, drop zone or an existing
+    /// watched folder. For an "any type" pipeline it offers per-type submenus (plus "All types").
+    var addToMenu: some View {
+        Menu {
+            if let concreteType = pipeline.fileType {
+                addToButtons(for: concreteType)
+            } else {
+                ForEach(ClopFileType.allCases, id: \.self) { type in
+                    Menu(type == .pdf ? "PDF" : type.description.capitalized) {
+                        addToButtons(for: type)
+                    }
+                }
+                Divider()
+                Menu("All types") {
+                    Button(OptimisationSource.clipboard.displayLabel) {
+                        for type in ClopFileType.allCases {
+                            attach(to: .clipboard, fileType: type)
+                        }
+                    }
+                    Button(OptimisationSource.dropZone.displayLabel) {
+                        for type in ClopFileType.allCases {
+                            attach(to: .dropZone, fileType: type)
+                        }
+                    }
+                    let allFolders = ClopFileType.allCases.flatMap { existingFolderSources(for: $0) }
+                    let uniqueFolders = allFolders.reduce(into: [OptimisationSource]()) { acc, s in
+                        if !acc.contains(s) { acc.append(s) }
+                    }
+                    if !uniqueFolders.isEmpty {
+                        Divider()
+                        Text("Folders").foregroundColor(.secondary).disabled(true)
+                        ForEach(uniqueFolders, id: \.self) { source in
+                            Button(source.displayLabel) {
+                                for type in ClopFileType.allCases {
+                                    attach(to: source, fileType: type)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                SwiftUI.Image(systemName: "plus").font(.system(size: 8))
+                Text("Add to").font(.regular(9))
+            }
+            .foregroundColor(.blue.opacity(0.8))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Color.blue.opacity(0.1)))
+            .overlay(Capsule().strokeBorder(Color.blue.opacity(0.18), lineWidth: 0.5))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Run this pipeline automatically on the clipboard, drop zone or a watched folder")
+    }
+
+    @ViewBuilder func addToButtons(for type: ClopFileType) -> some View {
+        Button(OptimisationSource.clipboard.displayLabel) { attach(to: .clipboard, fileType: type) }
+        Button(OptimisationSource.dropZone.displayLabel) { attach(to: .dropZone, fileType: type) }
+        let folders = existingFolderSources(for: type)
+        if !folders.isEmpty {
+            Divider()
+            Text("Folders").foregroundColor(.secondary).disabled(true)
+            ForEach(folders, id: \.self) { source in
+                Button(source.displayLabel) { attach(to: source, fileType: type) }
+            }
+        }
     }
 
     /// The folder-only sources for a given file type (excludes clipboard and drop zone).
@@ -1181,6 +1226,141 @@ struct SavedPipelineRow: View {
     @State private var editDetails = ""
     @State private var coordHolder = RefHolder<PipelineTextView.Coordinator>()
     @Environment(\.colorScheme) private var colorScheme
+
+    // Observed so the assignment pills refresh the moment an assignment is added or removed.
+    @Default(.pipelinesToRunOnImage) private var imagePipelines
+    @Default(.pipelinesToRunOnVideo) private var videoPipelines
+    @Default(.pipelinesToRunOnPdf) private var pdfPipelines
+    @Default(.pipelinesToRunOnAudio) private var audioPipelines
+    @Default(.presetZones) private var presetZones
+
+    /// Every place this library pipeline is currently assigned (clipboard / drop zone / folders across
+    /// all file types, plus preset zones referencing it). Reads the @Default-observed dictionaries so
+    /// the pills update live as assignments are added or removed.
+    private var assignments: [PipelineAssignment] {
+        let pid = pipeline.id
+        var sourceTypes: [PipelineAssignment.Target: Set<ClopFileType>] = [:]
+        for ft in ClopFileType.allCases {
+            for (sourceKey, list) in dict(for: ft) where list.contains(where: { $0.libraryID == pid }) {
+                let target: PipelineAssignment.Target = if sourceKey == OptimisationSource.clipboard.string {
+                    .clipboard
+                } else if sourceKey == OptimisationSource.dropZone.string {
+                    .dropZone
+                } else {
+                    .folder(sourceKey)
+                }
+                sourceTypes[target, default: []].insert(ft)
+            }
+        }
+
+        var result: [PipelineAssignment] = []
+        if let t = sourceTypes[.clipboard] { result.append(PipelineAssignment(target: .clipboard, fileTypes: t)) }
+        if let t = sourceTypes[.dropZone] { result.append(PipelineAssignment(target: .dropZone, fileTypes: t)) }
+        let folderPaths = sourceTypes.keys.compactMap { key -> String? in
+            if case let .folder(path) = key { return path } else { return nil }
+        }.sorted()
+        for path in folderPaths {
+            result.append(PipelineAssignment(target: .folder(path), fileTypes: sourceTypes[.folder(path)] ?? []))
+        }
+        for zone in presetZones where zone.pipeline.libraryID == pid {
+            result.append(PipelineAssignment(target: .presetZone(zone.id), fileTypes: zone.type.map { [$0] } ?? [], presetZone: zone))
+        }
+        return result
+    }
+
+    private func assignmentPillLabel(_ a: PipelineAssignment) -> some View {
+        let icon: String
+        let label: String
+        switch a.target {
+        case .clipboard:
+            icon = "doc.on.clipboard"
+            label = "Clipboard"
+        case .dropZone:
+            icon = "square.dashed"
+            label = "Drop zone"
+        case let .folder(path):
+            icon = "folder"
+            label = OptimisationSource.dir(path).displayLabel
+        case .presetZone:
+            icon = a.presetZone?.icon ?? "rectangle.dashed"
+            label = a.presetZone?.name ?? "Preset"
+        }
+        return HStack(spacing: 3) {
+            SwiftUI.Image(systemName: icon).font(.system(size: 8))
+            Text(label).font(.regular(9)).lineLimit(1)
+        }
+        .foregroundColor(.secondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 1)
+        .background(Capsule().fill(Color.secondary.opacity(0.12)))
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+    }
+
+    private func assignmentHelp(_ a: PipelineAssignment) -> String {
+        switch a.target {
+        case .clipboard: "the clipboard"
+        case .dropZone: "the drop zone"
+        case let .folder(path): OptimisationSource.dir(path).displayLabel
+        case .presetZone: "a preset zone"
+        }
+    }
+
+    private func dict(for fileType: ClopFileType) -> [String: [Pipeline]] {
+        switch fileType {
+        case .image: imagePipelines
+        case .video: videoPipelines
+        case .pdf: pdfPipelines
+        case .audio: audioPipelines
+        }
+    }
+
+    /// Open the settings pane for an assignment so the user can see/manage it in context.
+    private func goTo(_ a: PipelineAssignment) {
+        let svm = settingsViewManager
+        switch a.target {
+        case .clipboard:
+            svm.tab = .clipboard
+        case .dropZone:
+            svm.tab = .dropzone
+        case let .folder(path):
+            let ft = orderedFileType(in: a.fileTypes) ?? pipeline.fileType ?? .image
+            svm.tab = .automation
+            svm.scrollToFileType = ft
+            svm.highlightFolder = HighlightedFolderRequest(fileType: ft, folder: path)
+        case let .presetZone(zoneID):
+            svm.tab = .presetZones
+            svm.editingPresetZoneID = zoneID
+        }
+    }
+
+    private func orderedFileType(in set: Set<ClopFileType>) -> ClopFileType? {
+        [.image, .video, .audio, .pdf].first(where: set.contains)
+    }
+
+    /// Remove an assignment ("delete the link"): for clipboard / drop zone / folder, strip references to
+    /// this pipeline from the relevant dictionaries; for a preset zone, remove the zone itself.
+    private func remove(_ a: PipelineAssignment) {
+        let pid = pipeline.id
+        switch a.target {
+        case .clipboard:
+            detach(key: OptimisationSource.clipboard.string, from: a.fileTypes, pid: pid)
+        case .dropZone:
+            detach(key: OptimisationSource.dropZone.string, from: a.fileTypes, pid: pid)
+        case let .folder(path):
+            detach(key: path, from: a.fileTypes, pid: pid)
+        case let .presetZone(zoneID):
+            presetZones.removeAll { $0.id == zoneID }
+        }
+    }
+
+    private func detach(key: String, from fileTypes: Set<ClopFileType>, pid: String) {
+        for ft in fileTypes {
+            var d = Defaults[ft.pipelineKey]
+            d[key]?.removeAll { $0.libraryID == pid }
+            if d[key]?.isEmpty ?? false { d[key] = nil }
+            Defaults[ft.pipelineKey] = d
+        }
+    }
 
 }
 
