@@ -220,6 +220,10 @@ func resolveLinkExpiry(_ expiration: TimeInterval?) -> Date? {
 @MainActor
 func warpDropSend(optimiser: Optimiser, expiration: TimeInterval? = nil) {
     guard let url = optimiser.url else { return }
+    guard FileManager.default.fileExists(atPath: url.path) else {
+        optimiser.overlayMessage = "File not found"
+        return
+    }
 
     // Already shared: copy the existing link instead of creating a second one.
     if let session = WDM.session(forOptimiser: optimiser) {
@@ -237,7 +241,14 @@ func warpDropSend(optimiser: Optimiser, expiration: TimeInterval? = nil) {
 
 @MainActor
 func warpDropSend(optimisers: [Optimiser], expiration: TimeInterval? = nil) {
-    let urls = optimisers.compactMap(\.url)
+    let urls = optimisers.compactMap { opt -> URL? in
+        guard let url = opt.url else { return nil }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            opt.overlayMessage = "File not found"
+            return nil
+        }
+        return url
+    }
     guard urls.isNotEmpty else { return }
 
     // Only send files that aren't already shared or in flight, so re-pressing
