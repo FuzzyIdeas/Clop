@@ -220,6 +220,8 @@ struct PresetZoneRow: View {
                 placeholder: "optimise, crop, copy, convert...",
                 onEditingChanged: { isEditingSteps = $0 },
                 onPrefixChanged: { currentPrefix = $0 },
+                onSubmit: { commit() },
+                onCancel: { cancel() },
                 coordinatorRef: { coordHolder.value = $0 }
             )
             .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))

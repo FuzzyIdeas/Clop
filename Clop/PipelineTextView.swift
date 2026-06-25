@@ -20,8 +20,10 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
     let appearance = NSAppearance(named: darkMode ? .darkAqua : .aqua) ?? NSApplication.shared.effectiveAppearance
     var result = NSMutableAttributedString(string: text)
     appearance.performAsCurrentDrawingAppearance {
-        // Resolve a (possibly dynamic) colour to a concrete sRGB value for the current appearance.
-        func baked(_ color: NSColor) -> NSColor { color.usingColorSpace(.sRGB) ?? color }
+        /// Resolve a (possibly dynamic) colour to a concrete sRGB value for the current appearance.
+        func baked(_ color: NSColor) -> NSColor {
+            color.usingColorSpace(.sRGB) ?? color
+        }
 
         let font = PIPELINE_FONT
         let baseAttrs: [NSAttributedString.Key: Any] = [
@@ -246,6 +248,7 @@ struct PipelineTextView: NSViewRepresentable {
             }
             if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
                 finishEditing(in: textView)
+                parent.onCancel?()
                 return true
             }
             return false
@@ -463,7 +466,9 @@ struct PipelineTextView: NSViewRepresentable {
                 // Inside parens: commit step, close parens, add ->
                 commitCurrentStep(in: textView)
             } else {
+                // Top level: the steps are submitted, so let the host editor save the whole pipeline.
                 finishEditing(in: textView)
+                parent.onSubmit?()
             }
             return true
         }
@@ -540,6 +545,10 @@ struct PipelineTextView: NSViewRepresentable {
     let placeholder: String
     var onEditingChanged: ((Bool) -> Void)?
     var onPrefixChanged: ((String) -> Void)?
+    /// Called when the user presses Enter at the top level (steps submitted). Lets the host editor save.
+    var onSubmit: (() -> Void)?
+    /// Called when the user presses Esc. Lets the host editor cancel.
+    var onCancel: (() -> Void)?
     var coordinatorRef: ((Coordinator) -> Void)?
 
     func makeCoordinator() -> Coordinator {

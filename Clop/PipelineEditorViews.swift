@@ -995,15 +995,7 @@ struct SavedPipelineRow: View {
                         if isEditingLib {
                             // Confirm + cancel with scrim
                             HStack(spacing: 0) {
-                                Button(action: {
-                                    var updated = pipeline
-                                    updated.name = editName.isEmpty ? pipeline.name : editName
-                                    updated.icon = editIcon.isEmpty ? nil : editIcon
-                                    updated.details = editDetails.isEmpty ? nil : editDetails
-                                    updated.updateFromText(editText)
-                                    onUpdate(updated)
-                                    isEditingLib = false
-                                }) {
+                                Button(action: { commitLibraryEdit() }) {
                                     SwiftUI.Image(systemName: "checkmark")
                                         .font(.regular(10))
                                         .foregroundColor(.green.opacity(0.7))
@@ -1068,6 +1060,8 @@ struct SavedPipelineRow: View {
                     placeholder: "Pipeline steps...",
                     onEditingChanged: { isEditingSteps = $0 },
                     onPrefixChanged: { currentPrefix = $0 },
+                    onSubmit: { commitLibraryEdit() },
+                    onCancel: { isEditingLib = false },
                     coordinatorRef: { coordHolder.value = $0 }
                 )
                 .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))
@@ -1323,6 +1317,18 @@ struct SavedPipelineRow: View {
         .padding(.vertical, 1)
         .background(Capsule().fill(Color.secondary.opacity(0.12)))
         .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+    }
+
+    /// Save the in-progress library edits (name/icon/description/steps) and leave edit mode. Shared by
+    /// the confirm button and by pressing Enter in the steps editor.
+    private func commitLibraryEdit() {
+        var updated = pipeline
+        updated.name = editName.isEmpty ? pipeline.name : editName
+        updated.icon = editIcon.isEmpty ? nil : editIcon
+        updated.details = editDetails.isEmpty ? nil : editDetails
+        updated.updateFromText(editText)
+        onUpdate(updated)
+        isEditingLib = false
     }
 
     private func assignmentHelp(_ a: PipelineAssignment) -> String {
