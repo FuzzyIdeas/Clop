@@ -1033,8 +1033,11 @@ struct SavedPipelineRow: View {
                         onUpdate(updated)
                     }
                     Spacer(minLength: 8)
+                    // Barely visible at rest so they don't clutter the row; full opacity on row hover
+                    // (or while editing), matching the header controls but fainter.
                     assignmentPills
                         .layoutPriority(1)
+                        .opacity((hovering || isEditingLib) ? 1 : 0.15)
                 }
                 .padding(.leading, 24)
             }
@@ -1320,8 +1323,10 @@ struct SavedPipelineRow: View {
         switch a.target {
         case .clipboard:
             svm.tab = .clipboard
+            svm.scrollToAutomation = true
         case .dropZone:
             svm.tab = .dropzone
+            svm.scrollToAutomation = true
         case let .folder(path):
             let ft = orderedFileType(in: a.fileTypes) ?? pipeline.fileType ?? .image
             svm.tab = .automation
