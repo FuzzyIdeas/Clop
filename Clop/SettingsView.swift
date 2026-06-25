@@ -731,17 +731,15 @@ struct CompactSameFolderTemplate: View {
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
             TextField("", text: $template, prompt: Text(DEFAULT_SAME_FOLDER_NAME_TEMPLATE))
-                .frame(width: 200, height: 18, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .frame(height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(Color.gray, lineWidth: 1)
-                        .scaleEffect(y: TEXT_FIELD_SCALE)
-                        .offset(x: TEXT_FIELD_OFFSET)
                 )
-            Spacer(minLength: 8)
             ExampleContainer(inputName: inputName, outputName: outputName, inputExt: inputExtension, outputExt: outputExtension)
+                .layoutPriority(1)
         }
     }
 }
@@ -785,17 +783,15 @@ struct CompactSpecificFolderTemplate: View {
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
             TextField("", text: $template, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
-                .frame(width: 220, height: 18, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .frame(height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(Color.gray, lineWidth: 1)
-                        .scaleEffect(y: TEXT_FIELD_SCALE)
-                        .offset(x: TEXT_FIELD_OFFSET)
                 )
-            Spacer(minLength: 8)
             ExampleContainer(inputName: inputName, outputName: outputPath, inputExt: inputExtension, outputExt: outputExtension)
+                .layoutPriority(1)
         }
     }
 }
@@ -847,14 +843,16 @@ private struct ExampleContainer: View {
             Text("Example:")
                 .font(.round(11))
                 .foregroundColor(.secondary)
+                .fixedSize()
             ExampleFilePill(name: inputName, tint: tint(for: inputExt))
             Text("becomes")
                 .font(.round(11))
                 .foregroundColor(.secondary)
-            ExampleFilePill(name: outputName, tint: tint(for: outputExt ?? inputExt))
+                .fixedSize()
+            ExampleFilePill(name: middleTruncated(outputName), tint: tint(for: outputExt ?? inputExt))
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .frame(height: 24)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(bgColor)
@@ -885,6 +883,17 @@ private struct ExampleContainer: View {
             light: Color(white: 0.0).opacity(0.035),
             dark: Color(white: 1.0).opacity(0.06)
         )
+    }
+
+    /// Middle-truncate a long output path so the content-sized pill stays around 200px wide, leaving
+    /// more room for the template field. The pill uses a 10pt monospaced font (~6px per glyph), so
+    /// roughly 32 characters fit; longer strings keep the head and tail with an ellipsis in between.
+    private func middleTruncated(_ s: String, maxChars: Int = 32) -> String {
+        guard s.count > maxChars else { return s }
+        let keep = maxChars - 1
+        let head = keep / 2
+        let tail = keep - head
+        return "\(s.prefix(head))…\(s.suffix(tail))"
     }
 
     private func tint(for ext: String?) -> Color? {
@@ -2670,7 +2679,7 @@ struct GeneralSettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 HStack {
-                    Text("Switch to batch mode above").regular(13)
+                    Text("Switch to batch mode when dropping more than").regular(13)
                     Spacer()
                     TextField("", value: $batchModeFileCountThreshold, format: .number)
                         .multilineTextAlignment(.center)
@@ -2680,6 +2689,7 @@ struct GeneralSettingsView: View {
                     Text("files").regular(13)
                 }
                 .disabled(!useBatchModeForFolders)
+                .opacity(useBatchModeForFolders ? 1 : 0.6)
             }
 
             Section(header: SectionHeader(title: "Privacy")) {
