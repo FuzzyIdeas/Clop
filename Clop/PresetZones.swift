@@ -218,12 +218,19 @@ struct PresetZoneRow: View {
                 text: $editText,
                 fileType: zone.type,
                 placeholder: "optimise, crop, copy, convert...",
+                onEditingChanged: { isEditingSteps = $0 },
+                onPrefixChanged: { currentPrefix = $0 },
                 coordinatorRef: { coordHolder.value = $0 }
             )
             .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(Color.bg.warm.opacity(0.9))
+            if isEditingSteps {
+                PipelineEditingSuggestions(prefix: currentPrefix, fileType: zone.type, coordinator: coordinator)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 6)
+            }
         }
         .card(radius: 6, fill: .clear, borderColor: .primary.opacity(0.2), borderWidth: 1)
         .onAppear {
@@ -250,6 +257,12 @@ struct PresetZoneRow: View {
     @State private var editName = ""
     @State private var icon = "wand.and.sparkles"
     @State private var coordHolder = RefHolder<PipelineTextView.Coordinator>()
+    @State private var currentPrefix = ""
+    @State private var isEditingSteps = false
+
+    private var coordinator: PipelineTextView.Coordinator? {
+        coordHolder.value
+    }
 
     private var resolved: Pipeline {
         zone.resolvedPipeline

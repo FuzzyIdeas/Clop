@@ -48,6 +48,31 @@ struct CompletionPanel: View {
     }
 }
 
+/// The completion panel + step grid shown under a pipeline editor while it is being edited. Shared by
+/// the Automation, Pipelines library and Preset Zones editors so all three offer the same suggestions.
+struct PipelineEditingSuggestions: View {
+    let prefix: String
+    let fileType: ClopFileType?
+    let coordinator: PipelineTextView.Coordinator?
+
+    var body: some View {
+        let suggestions = pipelineSuggestions(prefix: prefix, fileType: fileType)
+        VStack(alignment: .leading, spacing: 0) {
+            if !suggestions.isEmpty {
+                CompletionPanel(suggestions: suggestions) { suggestion in
+                    coordinator?.insertSuggestion(suggestion)
+                    coordinator?.refocus()
+                }
+            }
+            StepActionGrid(fileType: fileType) { text in
+                coordinator?.appendStep(text)
+                coordinator?.refocus()
+            }
+            .padding(.top, 2)
+        }
+    }
+}
+
 // MARK: - Pipeline Editor Row
 
 struct PipelineEditorRow: View {
@@ -304,19 +329,7 @@ struct PipelineFieldRow: View {
 
     @ViewBuilder var editingSuggestions: some View {
         if isEditing {
-            let suggestions = pipelineSuggestions(prefix: currentPrefix, fileType: fileType)
-            if !suggestions.isEmpty {
-                CompletionPanel(suggestions: suggestions) { suggestion in
-                    coordinator?.insertSuggestion(suggestion)
-                    coordinator?.refocus()
-                }
-            }
-
-            StepActionGrid(fileType: fileType) { text in
-                coordinator?.appendStep(text)
-                coordinator?.refocus()
-            }
-            .padding(.top, 2)
+            PipelineEditingSuggestions(prefix: currentPrefix, fileType: fileType, coordinator: coordinator)
         }
     }
 
@@ -1053,12 +1066,19 @@ struct SavedPipelineRow: View {
                     text: $editText,
                     fileType: pipeline.fileType,
                     placeholder: "Pipeline steps...",
+                    onEditingChanged: { isEditingSteps = $0 },
+                    onPrefixChanged: { currentPrefix = $0 },
                     coordinatorRef: { coordHolder.value = $0 }
                 )
                 .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .background(Color.bg.warm.opacity(0.9))
+                if isEditingSteps {
+                    PipelineEditingSuggestions(prefix: currentPrefix, fileType: pipeline.fileType, coordinator: coordinator)
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 6)
+                }
             } else {
                 let readOnlyText = pipeline.rawText ?? pipeline.steps.map(\.displayString).joined(separator: " -> ")
                 // Syntax-highlight the read-only preview too (same colouring the editor uses), so steps
@@ -1227,6 +1247,8 @@ struct SavedPipelineRow: View {
     @State private var editIcon = "wand.and.sparkles"
     @State private var editDetails = ""
     @State private var coordHolder = RefHolder<PipelineTextView.Coordinator>()
+    @State private var currentPrefix = ""
+    @State private var isEditingSteps = false
     @Environment(\.colorScheme) private var colorScheme
 
     // Observed so the assignment pills refresh the moment an assignment is added or removed.
@@ -1235,6 +1257,10 @@ struct SavedPipelineRow: View {
     @Default(.pipelinesToRunOnPdf) private var pdfPipelines
     @Default(.pipelinesToRunOnAudio) private var audioPipelines
     @Default(.presetZones) private var presetZones
+
+    private var coordinator: PipelineTextView.Coordinator? {
+        coordHolder.value
+    }
 
     /// Every place this library pipeline is currently assigned (clipboard / drop zone / folders across
     /// all file types, plus preset zones referencing it). Reads the @Default-observed dictionaries so
