@@ -64,7 +64,10 @@ let GS_BASE_ARGS: [String] = [
     "-dAutoRotatePages=/None",
     "-dBATCH",
     "-dCannotEmbedFontPolicy=/Warning",
-    "-dColorConversionStrategy=/sRGB",
+    // /RGB (DeviceRGB), NOT /sRGB: Ghostscript's ICC/sRGB conversion silently drops
+    // isolated transparency-group form XObjects (e.g. Bear callout icons). See the
+    // trailing override in gsArgs() which re-applies this after /screen wins.
+    "-dColorConversionStrategy=/RGB",
     "-dCompatibilityLevel=1.6",
     "-dCompressFonts=true",
     "-dCompressPages=true",
@@ -125,7 +128,9 @@ func gsArgs(_ input: String, _ output: String, lossy: Bool, dpi: Int) -> [String
     let downsample = clampedDPI < PDF_DPI_NO_DOWNSAMPLE
     let optArgs: [String] = lossy ? gsLossyArgs(downsample: downsample) : gsLosslessArgs(downsample: downsample)
     let resArgs: [String] = gsResolutionArgs(dpi: clampedDPI)
-    let outArgs: [String] = ["-sDEVICE=pdfwrite", "-sFONTPATH=\(FONT_PATH)", "-o", output]
+    // -dColorConversionStrategy must come AFTER -dPDFSETTINGS=/screen (which re-forces an
+    // sRGB conversion) so DeviceRGB wins; otherwise transparency-group icons get flattened away.
+    let outArgs: [String] = ["-dColorConversionStrategy=/RGB", "-sDEVICE=pdfwrite", "-sFONTPATH=\(FONT_PATH)", "-o", output]
     return GS_BASE_ARGS + resArgs + optArgs + outArgs + GS_PRE_ARGS + [input] + GS_POST_ARGS
 }
 
