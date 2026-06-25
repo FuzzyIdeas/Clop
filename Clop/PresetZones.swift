@@ -234,8 +234,8 @@ struct PresetZoneRow: View {
                     .padding(.bottom, 6)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .card(radius: 6, fill: .clear, borderColor: .primary.opacity(0.2), borderWidth: 1)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .card(radius: 10, fill: .clear, borderColor: .primary.opacity(0.2), borderWidth: 1)
         .onAppear {
             editName = zone.name
             icon = zone.icon

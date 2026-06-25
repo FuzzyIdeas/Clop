@@ -268,7 +268,7 @@ struct PipelineFlagSegmentedToggle: View {
                         Text(label)
                             .font(.system(size: 9, weight: isSelected ? .bold : .medium))
                             .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(.vertical, 1)
                             .foregroundColor(isSelected ? tint : (isHovered ? .primary : .secondary.opacity(0.45)))
                             .background {
                                 if isSelected {
@@ -380,8 +380,8 @@ struct PipelineFieldRow: View {
                 .padding(.vertical, 5)
                 .background(PipelineTheme.editorBackground)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .card(radius: 6, fill: .clear, borderColor: .primary.opacity(isEditing ? 0.25 : 0.12), borderWidth: 1)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .card(radius: 10, fill: .clear, borderColor: .primary.opacity(isEditing ? 0.25 : 0.12), borderWidth: 1)
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.15), value: hovering)
             editingSuggestions
@@ -759,15 +759,16 @@ struct InlineNameField: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundColor(restingTextColor)
-                .padding(.horizontal, subtle ? 4 : 5)
+                // Keep the same horizontal inset for name and description so their text lines up exactly.
+                .padding(.horizontal, 5)
                 .padding(.vertical, 2)
                 .background(
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.primary.opacity(subtle ? (isHovered ? 0.06 : 0) : (isHovered ? 0.12 : 0.06)))
+                        .fill(Color.primary.opacity(subtle ? (isHovered ? 0.1 : 0.06) : (isHovered ? 0.12 : 0.06)))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(subtle ? (isHovered ? 0.1 : 0) : (isHovered ? 0.25 : 0.15)), lineWidth: 0.5)
+                        .strokeBorder(Color.primary.opacity(subtle ? (isHovered ? 0.15 : 0.1) : (isHovered ? 0.25 : 0.15)), lineWidth: 0.5)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { isEditing = true }
@@ -870,181 +871,138 @@ struct SavedPipelineRow: View {
             // Header row + description stacked vertically so the description gets its own
             // full-width line below the header, instead of widening the name column and
             // cramming the controls (file type / pass / hide / trash) on the right.
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    IconPickerView(icon: $editIcon)
-                        .buttonStyle(.plain)
-                        .font(.system(size: 13))
-                        .onChange(of: editIcon) { newIcon in
-                            guard newIcon != (pipeline.icon ?? "wand.and.sparkles") else { return }
-                            var updated = pipeline
-                            updated.icon = newIcon
-                            onUpdate(updated)
-                        }
-
-                    InlineNameField(name: $editName, size: 10, weight: .medium) {
+            HStack(alignment: .center, spacing: 6) {
+                IconPickerView(icon: $editIcon)
+                    .buttonStyle(.plain)
+                    // Larger now that it sits centred against the two-line name + description block, and a
+                    // fixed square tile so the name column starts at the same x in every row regardless of
+                    // symbol. The faint fill/border match the name and description chips for a cohesive look.
+                    .font(.system(size: 16))
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.primary.opacity(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+                    )
+                    .onChange(of: editIcon) { newIcon in
+                        guard newIcon != (pipeline.icon ?? "wand.and.sparkles") else { return }
                         var updated = pipeline
-                        updated.name = editName
+                        updated.icon = newIcon
                         onUpdate(updated)
                     }
 
-                    // Everything except the name + description fades back to translucent at rest, opaque on hover/edit.
+                // Name row and the description/pills line share one column to the right of the icon, so
+                // the description always lines up under the name no matter how wide the chosen icon is.
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        if pipeline.isBuiltin {
-                            Text("Built-in")
-                                .font(.regular(9))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(
-                                    Capsule().fill(Color.secondary.opacity(0.15))
-                                )
-                                .help("Shipped with Clop. Delete to hide it; it returns only with a future built-in update.")
-                        }
-
-                        Spacer(minLength: 0)
-
-                        // File type chip (hidden while editing). "Add to…" now lives with the assignment
-                        // pills on the description line below.
-                        if !isEditingLib {
-                            HStack(spacing: 6) {
-                                Menu {
-                                    let currentType = pipeline.fileType
-                                    let types: [(String, ClopFileType?)] = [
-                                        ("Image", .image),
-                                        ("Video", .video),
-                                        ("Audio", .audio),
-                                        ("PDF", .pdf),
-                                        ("Any type", nil),
-                                    ]
-                                    ForEach(types, id: \.0) { label, type in
-                                        Button {
-                                            var updated = pipeline
-                                            updated.fileType = type
-                                            onUpdate(updated)
-                                        } label: {
-                                            HStack {
-                                                Text(label)
-                                                if currentType == type {
-                                                    SwiftUI.Image(systemName: "checkmark")
-                                                }
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    HStack(spacing: 3) {
-                                        if let ft = pipeline.fileType {
-                                            SwiftUI.Image(systemName: ft.symbolName)
-                                                .foregroundColor(ft.color)
-                                        } else {
-                                            SwiftUI.Image(systemName: "doc")
-                                                .foregroundColor(.secondary)
-                                        }
-                                        Text("File type")
-                                            .foregroundColor(.blue.opacity(0.7))
-                                    }
-                                    .font(.regular(10))
-                                }
-                                .menuStyle(.button)
-                                .buttonStyle(.plain)
-                                .menuIndicator(.hidden)
-                                .fixedSize()
-                                .help("Move to another file type")
-                            }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.blue.opacity(0.08))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-                            )
-                        } // end !isEditingLib
-
-                        Divider().frame(height: 12)
-
-                        PipelineFlagSegmentedToggle(
-                            leading: "Pass",
-                            options: ("optimised", "original"),
-                            trailing: "file",
-                            selection: pipeline.skipOptimisation ? 1 : 0,
-                            help: PipelineFlagCopy.skipOptimisation,
-                            tint: .orange
-                        ) { idx in
+                        InlineNameField(name: $editName, size: 10, weight: .medium) {
                             var updated = pipeline
-                            updated.skipOptimisation = (idx == 1)
+                            updated.name = editName
                             onUpdate(updated)
                         }
 
-                        PipelineFlagSegmentedToggle(
-                            leading: nil,
-                            options: ("Show", "Hide"),
-                            trailing: "floating result",
-                            selection: pipeline.hideResult ? 1 : 0,
-                            help: PipelineFlagCopy.hideResult,
-                            tint: .red
-                        ) { idx in
+                        // Everything except the name, description, icon and trash fades fully out at rest and
+                        // returns on hover/edit. The trash stays visible so deleting never needs a hover hunt.
+                        HStack(spacing: 6) {
+                            Group {
+                                if pipeline.isBuiltin {
+                                    Text("Built-in")
+                                        .font(.regular(9))
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(
+                                            Capsule().fill(Color.secondary.opacity(0.15))
+                                        )
+                                        .help("Shipped with Clop. Delete to hide it; it returns only with a future built-in update.")
+                                }
+
+                                Spacer(minLength: 0)
+
+                                PipelineFlagSegmentedToggle(
+                                    leading: "Pass",
+                                    options: ("optimised", "original"),
+                                    trailing: "file",
+                                    selection: pipeline.skipOptimisation ? 1 : 0,
+                                    help: PipelineFlagCopy.skipOptimisation,
+                                    tint: .orange
+                                ) { idx in
+                                    var updated = pipeline
+                                    updated.skipOptimisation = (idx == 1)
+                                    onUpdate(updated)
+                                }
+
+                                PipelineFlagSegmentedToggle(
+                                    leading: nil,
+                                    options: ("Show", "Hide"),
+                                    trailing: "floating result",
+                                    selection: pipeline.hideResult ? 1 : 0,
+                                    help: PipelineFlagCopy.hideResult,
+                                    tint: .red
+                                ) { idx in
+                                    var updated = pipeline
+                                    updated.hideResult = (idx == 1)
+                                    onUpdate(updated)
+                                }
+
+                                Divider().frame(height: 12)
+
+                                if isEditingLib {
+                                    // Confirm + cancel with scrim
+                                    HStack(spacing: 0) {
+                                        Button(action: { commitLibraryEdit() }) {
+                                            SwiftUI.Image(systemName: "checkmark")
+                                                .font(.regular(10))
+                                                .foregroundColor(.green.opacity(0.7))
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 3)
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        Button(action: { isEditingLib = false }) {
+                                            SwiftUI.Image(systemName: "xmark")
+                                                .font(.regular(10))
+                                                .foregroundColor(.red.opacity(0.7))
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 3)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    .background(Capsule().fill(Color.primary.opacity(0.05)))
+                                }
+                            }
+                            .opacity((hovering || isEditingLib) ? 1 : 0)
+
+                            // Trash trailing-right, always visible.
+                            Button(action: onDelete) {
+                                SwiftUI.Image(systemName: "trash")
+                                    .font(.regular(9))
+                                    .foregroundColor(.red.opacity(0.6))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    // Description + assignment pills share a line below the header. The description yields
+                    // width to the pills (which show where this pipeline is assigned and host "Add to…"),
+                    // so a long description truncates rather than pushing the pills off-screen.
+                    HStack(spacing: 8) {
+                        InlineNameField(name: $editDetails, placeholder: "description", size: 9, weight: .regular, fillWidth: true, subtle: true) {
                             var updated = pipeline
-                            updated.hideResult = (idx == 1)
+                            updated.details = editDetails.isEmpty ? nil : editDetails
                             onUpdate(updated)
                         }
-
-                        Divider().frame(height: 12)
-
-                        if isEditingLib {
-                            // Confirm + cancel with scrim
-                            HStack(spacing: 0) {
-                                Button(action: { commitLibraryEdit() }) {
-                                    SwiftUI.Image(systemName: "checkmark")
-                                        .font(.regular(10))
-                                        .foregroundColor(.green.opacity(0.7))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 3)
-                                }
-                                .buttonStyle(.plain)
-
-                                Button(action: { isEditingLib = false }) {
-                                    SwiftUI.Image(systemName: "xmark")
-                                        .font(.regular(10))
-                                        .foregroundColor(.red.opacity(0.7))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 3)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .background(Capsule().fill(Color.primary.opacity(0.05)))
-                        }
-
-                        // Trash trailing-right
-                        Button(action: onDelete) {
-                            SwiftUI.Image(systemName: "trash")
-                                .font(.regular(9))
-                                .foregroundColor(.red.opacity(0.6))
-                        }
-                        .buttonStyle(.plain)
+                        Spacer(minLength: 8)
+                        // Barely visible at rest so they don't clutter the row; full opacity on row hover
+                        // (or while editing), matching the header controls but fainter.
+                        assignmentPills
+                            .layoutPriority(1)
+                            .opacity((hovering || isEditingLib) ? 1 : 0)
                     }
-                    .opacity((hovering || isEditingLib) ? 1 : 0.35)
                 }
-
-                // Description + assignment pills share a line below the header. The description yields
-                // width to the pills (which show where this pipeline is assigned and host "Add to…"),
-                // so a long description truncates rather than pushing the pills off-screen.
-                HStack(spacing: 8) {
-                    InlineNameField(name: $editDetails, placeholder: "description", size: 9, weight: .regular, fillWidth: true, subtle: true) {
-                        var updated = pipeline
-                        updated.details = editDetails.isEmpty ? nil : editDetails
-                        onUpdate(updated)
-                    }
-                    Spacer(minLength: 8)
-                    // Barely visible at rest so they don't clutter the row; full opacity on row hover
-                    // (or while editing), matching the header controls but fainter.
-                    assignmentPills
-                        .layoutPriority(1)
-                        .opacity((hovering || isEditingLib) ? 1 : 0.15)
-                }
-                .padding(.leading, 24)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -1082,8 +1040,8 @@ struct SavedPipelineRow: View {
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 9)
                     // Near-opaque white/black so the steps read on a clean surface; the muted top-bar tint
                     // and the divider keep the two bands visually separated.
                     .background(PipelineTheme.editorBackground)
@@ -1106,8 +1064,8 @@ struct SavedPipelineRow: View {
                     .help("Click to edit")
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .card(radius: 6, fill: .clear, borderColor: .primary.opacity(isEditingLib ? 0.2 : 0.08), borderWidth: 1)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .card(radius: 10, fill: .clear, borderColor: .primary.opacity(isEditingLib ? 0.2 : 0.08), borderWidth: 1)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
         .onAppear {
@@ -1140,6 +1098,7 @@ struct SavedPipelineRow: View {
                 .help("Assigned to \(assignmentHelp(assignment)). Click to go there or remove.")
             }
             addToMenu
+            moveToMenu
         }
     }
 
@@ -1200,6 +1159,54 @@ struct SavedPipelineRow: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Run this pipeline automatically on the clipboard, drop zone or a watched folder")
+    }
+
+    /// The "Move to" pill sitting right after "Add to…": changes which file type this library pipeline
+    /// belongs to (previously the "File type" chip up in the header row).
+    var moveToMenu: some View {
+        Menu {
+            let currentType = pipeline.fileType
+            let types: [(String, ClopFileType?)] = [
+                ("Image", .image),
+                ("Video", .video),
+                ("Audio", .audio),
+                ("PDF", .pdf),
+                ("Any type", nil),
+            ]
+            ForEach(types, id: \.0) { label, type in
+                Button {
+                    var updated = pipeline
+                    updated.fileType = type
+                    onUpdate(updated)
+                } label: {
+                    HStack {
+                        Text(label)
+                        if currentType == type {
+                            SwiftUI.Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                if let ft = pipeline.fileType {
+                    SwiftUI.Image(systemName: ft.symbolName).foregroundColor(ft.color)
+                } else {
+                    SwiftUI.Image(systemName: "doc").foregroundColor(.secondary)
+                }
+                Text("Move to").font(.regular(9))
+            }
+            .foregroundColor(.blue.opacity(0.8))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Color.blue.opacity(0.1)))
+            .overlay(Capsule().strokeBorder(Color.blue.opacity(0.18), lineWidth: 0.5))
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Move this pipeline to another file type")
     }
 
     @ViewBuilder func addToButtons(for type: ClopFileType) -> some View {
@@ -1408,68 +1415,98 @@ struct SavedPipelineRow: View {
 struct PipelinesSettingsView: View {
     @Default(.savedPipelines) var savedPipelines
 
+    @ObservedObject var svm = settingsViewManager
+
     var body: some View {
-        Form {
-            Section(header: SectionHeader(
-                title: "Saved Pipelines",
-                subtitle: "Reusable pipelines available in automation, preset zones and right-click menus"
-            )) {
-                ForEach(Self.sections, id: \.0) { label, fileType in
-                    let pipelines = savedPipelines.filter { $0.fileType == fileType }
-                    let headerColor: Color = fileType?.color ?? .secondary
-                    let buttonLabel = fileType != nil ? "Create new \(label.lowercased()) pipeline" : "Create new pipeline"
+        ScrollViewReader { proxy in
+            Form {
+                Section(header: SectionHeader(
+                    title: "Saved Pipelines",
+                    subtitle: "Reusable pipelines available in automation, preset zones and right-click menus"
+                )) {
+                    ForEach(Self.sections, id: \.0) { label, fileType in
+                        let pipelines = savedPipelines.filter { $0.fileType == fileType }
+                        let headerColor: Color = fileType?.color ?? .secondary
+                        let buttonLabel = fileType != nil ? "Create new \(label.lowercased()) pipeline" : "Create new pipeline"
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(label)
-                                .round(15, weight: .semibold)
-                                .foregroundColor(headerColor)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(label)
+                                    .round(15, weight: .semibold)
+                                    .foregroundColor(headerColor)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
 
-                            Button {
-                                let new = Pipeline(steps: [], name: "New pipeline", fileType: fileType)
-                                savedPipelines.append(new)
-                                newlyCreatedID = new.id
-                            } label: {
-                                HStack(spacing: 4) {
-                                    SwiftUI.Image(systemName: "plus.circle.fill")
-                                    Text(buttonLabel)
+                                Button {
+                                    let new = Pipeline(steps: [], name: "New pipeline", fileType: fileType)
+                                    savedPipelines.append(new)
+                                    newlyCreatedID = new.id
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        SwiftUI.Image(systemName: "plus.circle.fill")
+                                        Text(buttonLabel)
+                                    }
+                                    .font(.regular(11))
                                 }
-                                .font(.regular(11))
+                                .buttonStyle(.plain)
+                                .foregroundColor(.accentColor)
                             }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.accentColor)
-                        }
-                        .padding(.top, 6)
+                            .padding(.top, 6)
 
-                        if pipelines.isEmpty {
-                            Text("No pipelines yet")
-                                .round(11, weight: .regular)
-                                .foregroundColor(.secondary)
+                            if pipelines.isEmpty {
+                                Text("No pipelines yet")
+                                    .round(11, weight: .regular)
+                                    .foregroundColor(.secondary)
+                                    .padding(.bottom, 4)
+                            } else {
+                                ForEach(pipelines) { pipeline in
+                                    SavedPipelineRow(
+                                        pipeline: pipeline,
+                                        onUpdate: { updated in
+                                            if let idx = savedPipelines.firstIndex(where: { $0.id == pipeline.id }) {
+                                                savedPipelines[idx] = updated
+                                            }
+                                        },
+                                        onDelete: {
+                                            savedPipelines.removeAll { $0.id == pipeline.id }
+                                        },
+                                        startEditing: pipeline.id == newlyCreatedID
+                                    )
+                                    // .id + flashing border let a floating result's "Pipeline: …" menu jump
+                                    // straight here and point out the exact pipeline that ran on it.
+                                    .id(pipeline.id)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(headerColor, lineWidth: 2)
+                                            .opacity(highlightedPipelineID == pipeline.id ? 1 : 0)
+                                            .animation(.easeOut(duration: 0.3), value: highlightedPipelineID)
+                                    )
+                                }
                                 .padding(.bottom, 4)
-                        } else {
-                            ForEach(pipelines) { pipeline in
-                                SavedPipelineRow(
-                                    pipeline: pipeline,
-                                    onUpdate: { updated in
-                                        if let idx = savedPipelines.firstIndex(where: { $0.id == pipeline.id }) {
-                                            savedPipelines[idx] = updated
-                                        }
-                                    },
-                                    onDelete: {
-                                        savedPipelines.removeAll { $0.id == pipeline.id }
-                                    },
-                                    startEditing: pipeline.id == newlyCreatedID
-                                )
                             }
-                            .padding(.bottom, 4)
                         }
                     }
                 }
             }
+            .padding(4)
+            .onAppear { handleHighlightPipeline(proxy) }
+            .onChange(of: svm.highlightPipelineID) { _ in handleHighlightPipeline(proxy) }
         }
-        .padding(4)
+    }
+
+    /// Scroll to the pipeline requested by `svm.highlightPipelineID` and flash its border for a few
+    /// seconds, then clear it. Triggered both on first appearance (window just opened on this tab) and on
+    /// change (tab already visible).
+    func handleHighlightPipeline(_ proxy: ScrollViewProxy) {
+        guard let id = svm.highlightPipelineID else { return }
+        svm.highlightPipelineID = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            withAnimation { proxy.scrollTo(id, anchor: .center) }
+            highlightedPipelineID = id
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation { if highlightedPipelineID == id { highlightedPipelineID = nil } }
+            }
+        }
     }
 
     private static let sections: [(String, ClopFileType?)] = [
@@ -1481,6 +1518,7 @@ struct PipelinesSettingsView: View {
     ]
 
     @State private var newlyCreatedID: String?
+    @State private var highlightedPipelineID: String?
 
 }
 
