@@ -10,10 +10,10 @@
             <sparkle:shortVersionString>3.2.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-3.2.0.html</sparkle:releaseNotesLink>
-            <enclosure url="https://files.lowtechguys.com/releases/Clop-3.2.0.dmg" length="99883440" type="application/octet-stream" sparkle:edSignature="qQ+WoxAcqPxEEZtu6gmPC1P6N8Ln2brtwz4dhXQlBET0iqvnaXJo6y1kwI6mIHtDfbk2lFg6nEIe1xuloPGWCQ=="/>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-3.2.0.dmg" length="100187324" type="application/octet-stream" sparkle:edSignature="0Oj0pRYvKSMCKzk9JoIpbm7BCTzYe/AcQ6icOkF4lJ/Upu6V1vSiHwpobDehjiqTnatLYMKyOhW3lNvG90LVAg=="/>
             <sparkle:deltas>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop3.2.0-3.1.0.delta" sparkle:deltaFrom="3.1.0" length="2605630" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="jAA7Zo8wRh2cD3b7CgXACeKkVJ5p11V0B4VhmI9jtiCuprmHGRdJsM2Fwg1rMMXcEuHENrfIgb9N+NAwYFVHCg=="/>
-                <enclosure url="https://files.lowtechguys.com/releases/Clop3.2.0-3.0.0.delta" sparkle:deltaFrom="3.0.0" length="6961706" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="9jBC5SZ4aHwzCKpa3bzqJr6W4pOBC1E+cwY4qNE0h40OnTYQjAtOLfZHlLurzFCndlVILiJkg6k5JqCcs+SZBQ=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop3.2.0-3.1.0.delta" sparkle:deltaFrom="3.1.0" length="3722370" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="POnRjAsu02TgKKj90fx+EriJYcMyoX3u1wre5z9FWZoOC2CxOqnXiSo93BvzQHmeOQ0bzVeIjKvqTgl0Fh6cAw=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Clop3.2.0-3.0.0.delta" sparkle:deltaFrom="3.0.0" length="7530394" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Y6KkRZ8e3AP/IIh2QdEXpCEuT17Xtyicbpju2rEfjkiUsqXOW5BcMpRHI76Hp3AfwegfF+LdKx9hCdt54SudCw=="/>
             </sparkle:deltas>
         </item>
         <item>
