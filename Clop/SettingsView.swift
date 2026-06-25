@@ -699,13 +699,14 @@ let DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE = "%P/optimised/%f"
 struct CompactSameFolderTemplate: View {
     let type: ClopFileType
     @Binding var template: String
-    // The INPUT file extension shown in the example (e.g. "webp" for auto-convert, nil for optimise).
-    var inputExtension: String? = nil
-    // The OUTPUT file extension for the example (e.g. "jpeg" for auto-convert, nil = same as input).
-    var outputExtension: String? = nil
 
-    // Build the path used by the example generator: base stem + the OUTPUT extension
-    // (so the template is applied to the file that will actually be written).
+    /// The INPUT file extension shown in the example (e.g. "webp" for auto-convert, nil for optimise).
+    var inputExtension: String?
+    /// The OUTPUT file extension for the example (e.g. "jpeg" for auto-convert, nil = same as input).
+    var outputExtension: String?
+
+    /// Build the path used by the example generator: base stem + the OUTPUT extension
+    /// (so the template is applied to the file that will actually be written).
     var examplePath: FilePath {
         let ext = outputExtension ?? inputExtension
         guard let ext else { return type.defaultNameTemplatePath }
@@ -748,12 +749,13 @@ struct CompactSameFolderTemplate: View {
 struct CompactSpecificFolderTemplate: View {
     let type: ClopFileType
     @Binding var template: String
-    // The INPUT file extension shown in the example (e.g. "webp" for auto-convert, nil for optimise).
-    var inputExtension: String? = nil
-    // The OUTPUT file extension for the example (e.g. "jpeg" for auto-convert, nil = same as input).
-    var outputExtension: String? = nil
 
-    // Build the path used by the example generator: base stem + the OUTPUT extension.
+    /// The INPUT file extension shown in the example (e.g. "webp" for auto-convert, nil for optimise).
+    var inputExtension: String?
+    /// The OUTPUT file extension for the example (e.g. "jpeg" for auto-convert, nil = same as input).
+    var outputExtension: String?
+
+    /// Build the path used by the example generator: base stem + the OUTPUT extension.
     var examplePath: FilePath {
         let ext = outputExtension ?? inputExtension
         guard let ext else { return type.defaultNameTemplatePath }
@@ -777,7 +779,7 @@ struct CompactSpecificFolderTemplate: View {
             for: examplePath,
             autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber],
             mkdir: false
-        ))?.flatMap { $0.shellString } ?? "Invalid path"
+        ))?.flatMap(\.shellString) ?? "Invalid path"
     }
 
     var body: some View {
@@ -799,23 +801,14 @@ struct CompactSpecificFolderTemplate: View {
 }
 
 // MARK: - Example container: "Example: [inputPill] becomes [outputPill]"
+
 // The whole expression lives in a single bordered+bg element at the right of the row.
 
 /// A filled muted pill for a filename token. Content-sized (fixedSize), mono font.
 private struct ExampleFilePill: View {
     let name: String
-    // Tint for the capsule fill; nil = neutral grey.
-    var tint: Color? = nil
-
-    private var fillColor: Color {
-        if let tint {
-            return tint.opacity(0.11)
-        }
-        return adaptiveColor(
-            light: Color(white: 0.0).opacity(0.07),
-            dark: Color(white: 1.0).opacity(0.10)
-        )
-    }
+    /// Tint for the capsule fill; nil = neutral grey.
+    var tint: Color?
 
     var body: some View {
         Text(name)
@@ -828,6 +821,17 @@ private struct ExampleFilePill: View {
             .background(Capsule().fill(fillColor))
             .foregroundColor(.primary)
     }
+
+    private var fillColor: Color {
+        if let tint {
+            return tint.opacity(0.11)
+        }
+        return adaptiveColor(
+            light: Color(white: 0.0).opacity(0.07),
+            dark: Color(white: 1.0).opacity(0.10)
+        )
+    }
+
 }
 
 /// Wraps "Example: [in] becomes [out]" in a single subtle bordered container.
@@ -835,35 +839,8 @@ private struct ExampleContainer: View {
     let inputName: String
     let outputName: String
     // Extensions used purely for hue-tinting the pills (nil = neutral).
-    var inputExt: String? = nil
-    var outputExt: String? = nil
-
-    private static let extensionTints: [String: Color] = [
-        "jpeg": Color(red: 1.0, green: 0.83, blue: 0.0),
-        "jpg":  Color(red: 1.0, green: 0.83, blue: 0.0),
-        "png":  .blue,
-        "mp4":  Color(red: 0.6, green: 0.3, blue: 0.9),
-        "webp": Color(red: 0.0, green: 0.7, blue: 0.5),
-        "avif": Color(red: 0.0, green: 0.6, blue: 0.9),
-        "heic": Color(red: 0.5, green: 0.0, blue: 0.8),
-        "m4a":  Color(red: 0.2, green: 0.7, blue: 0.3),
-        "mp3":  Color(red: 0.3, green: 0.6, blue: 1.0),
-        "ogg":  Color(red: 0.8, green: 0.4, blue: 0.0),
-        "mov":  Color(red: 0.8, green: 0.1, blue: 0.1),
-        "pdf":  Color(red: 0.8, green: 0.3, blue: 0.1),
-    ]
-
-    private func tint(for ext: String?) -> Color? {
-        guard let ext else { return nil }
-        return Self.extensionTints[ext.lowercased()]
-    }
-
-    private var bgColor: Color {
-        adaptiveColor(
-            light: Color(white: 0.0).opacity(0.035),
-            dark: Color(white: 1.0).opacity(0.06)
-        )
-    }
+    var inputExt: String?
+    var outputExt: String?
 
     var body: some View {
         HStack(spacing: 4) {
@@ -887,6 +864,34 @@ private struct ExampleContainer: View {
                 .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
         )
     }
+
+    private static let extensionTints: [String: Color] = [
+        "jpeg": Color(red: 1.0, green: 0.83, blue: 0.0),
+        "jpg": Color(red: 1.0, green: 0.83, blue: 0.0),
+        "png": .blue,
+        "mp4": Color(red: 0.6, green: 0.3, blue: 0.9),
+        "webp": Color(red: 0.0, green: 0.7, blue: 0.5),
+        "avif": Color(red: 0.0, green: 0.6, blue: 0.9),
+        "heic": Color(red: 0.5, green: 0.0, blue: 0.8),
+        "m4a": Color(red: 0.2, green: 0.7, blue: 0.3),
+        "mp3": Color(red: 0.3, green: 0.6, blue: 1.0),
+        "ogg": Color(red: 0.8, green: 0.4, blue: 0.0),
+        "mov": Color(red: 0.8, green: 0.1, blue: 0.1),
+        "pdf": Color(red: 0.8, green: 0.3, blue: 0.1),
+    ]
+
+    private var bgColor: Color {
+        adaptiveColor(
+            light: Color(white: 0.0).opacity(0.035),
+            dark: Color(white: 1.0).opacity(0.06)
+        )
+    }
+
+    private func tint(for ext: String?) -> Color? {
+        guard let ext else { return nil }
+        return Self.extensionTints[ext.lowercased()]
+    }
+
 }
 
 // MARK: - Adaptive colour helper
@@ -902,19 +907,19 @@ private func adaptiveColor(light: Color, dark: Color) -> Color {
 }
 
 // Adaptive text colours for each format hue: dark/saturated in light mode, bright in dark mode.
-private let sourceAdaptive   = adaptiveColor(light: Color(red: 0.72, green: 0.12, blue: 0.12), dark: Color(red: 1.0,  green: 0.55, blue: 0.55))
-private let jpegAdaptive     = adaptiveColor(light: Color(red: 0.62, green: 0.44, blue: 0.0),  dark: Color(red: 1.0,  green: 0.83, blue: 0.35))
-private let pngAdaptive      = adaptiveColor(light: Color(red: 0.1,  green: 0.35, blue: 0.75), dark: Color(red: 0.5,  green: 0.75, blue: 1.0))
-private let mp4Adaptive      = adaptiveColor(light: Color(red: 0.45, green: 0.2,  blue: 0.7),  dark: Color(red: 0.78, green: 0.6,  blue: 1.0))
-private let audioAdaptive    = adaptiveColor(light: Color(red: 0.12, green: 0.5,  blue: 0.22), dark: Color(red: 0.45, green: 0.85, blue: 0.55))
-private let orangeAdaptive   = adaptiveColor(light: Color(red: 0.65, green: 0.35, blue: 0.0),  dark: Color(red: 1.0,  green: 0.7,  blue: 0.35))
+private let sourceAdaptive = adaptiveColor(light: Color(red: 0.72, green: 0.12, blue: 0.12), dark: Color(red: 1.0, green: 0.55, blue: 0.55))
+private let jpegAdaptive = adaptiveColor(light: Color(red: 0.62, green: 0.44, blue: 0.0), dark: Color(red: 1.0, green: 0.83, blue: 0.35))
+private let pngAdaptive = adaptiveColor(light: Color(red: 0.1, green: 0.35, blue: 0.75), dark: Color(red: 0.5, green: 0.75, blue: 1.0))
+private let mp4Adaptive = adaptiveColor(light: Color(red: 0.45, green: 0.2, blue: 0.7), dark: Color(red: 0.78, green: 0.6, blue: 1.0))
+private let audioAdaptive = adaptiveColor(light: Color(red: 0.12, green: 0.5, blue: 0.22), dark: Color(red: 0.45, green: 0.85, blue: 0.55))
+private let orangeAdaptive = adaptiveColor(light: Color(red: 0.65, green: 0.35, blue: 0.0), dark: Color(red: 1.0, green: 0.7, blue: 0.35))
 
 // MARK: - Auto-conversion pills
 
 private struct PillView: View {
     let text: String
-    let tint: Color        // background tint (the raw hue)
-    let textColor: Color   // adaptive text colour
+    let tint: Color // background tint (the raw hue)
+    let textColor: Color // adaptive text colour
 
     var body: some View {
         Text(text)
@@ -976,12 +981,9 @@ private struct AutoConvertPills: View {
 /// for `Form` in the Video / Audio / Images tabs; per-tab modifiers (formStyle,
 /// scrollContentBackground, padding) still reach the form via the environment.
 private struct CompatibilityScrollForm<Content: View>: View {
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
     @ObservedObject var svm = settingsViewManager
-    let content: Content
+
+    @ViewBuilder let content: Content
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -1001,9 +1003,49 @@ private struct CompatibilityScrollForm<Content: View>: View {
     }
 }
 
+/// Scrolls an enclosing scroll container down to the section tagged `.id("automation")` when an
+/// assignment pill's "Go to" (clipboard / drop zone) requests it, and on appear for the just-switched
+/// tab. Apply to the tab's `Form`/`ScrollView`; tag its Automation section with `.id("automation")`.
+private struct ScrollToAutomation: ViewModifier {
+    @ObservedObject var svm = settingsViewManager
+
+    func body(content: Content) -> some View {
+        ScrollViewReader { proxy in
+            content
+                .onAppear { scroll(proxy) }
+                .onChange(of: svm.scrollToAutomation) { _ in scroll(proxy) }
+        }
+    }
+
+    private func scroll(_ proxy: ScrollViewProxy) {
+        guard svm.scrollToAutomation else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation { proxy.scrollTo("automation", anchor: .top) }
+            svm.scrollToAutomation = false
+        }
+    }
+}
+
+extension View {
+    func scrollsToAutomation() -> some View {
+        modifier(ScrollToAutomation())
+    }
+}
+
 // MARK: - File handling settings tab
 
 struct FileHandlingSettingsView: View {
+    // MARK: - Auto-conversion pill groups
+
+    struct ConvertGroup {
+        let sources: [String]
+        let target: String
+        let sourceTint: Color
+        let targetTint: Color
+        let sourceTextColor: Color
+        let targetTextColor: Color
+    }
+
     // Optimised placement
     @Default(.optimisedImageBehaviour) var optimisedImageBehaviour
     @Default(.optimisedVideoBehaviour) var optimisedVideoBehaviour
@@ -1043,11 +1085,10 @@ struct FileHandlingSettingsView: View {
     @Default(.formatsToConvertToAAC) var formatsToConvertToAAC
     @Default(.formatsToConvertToMP3) var formatsToConvertToMP3
 
-    @State private var expandedVars: Set<ClopFileType> = []
-
     var body: some View {
         Form {
             // MARK: Images
+
             Section(header: SectionHeader(title: "Images")) {
                 // Optimise row: picker + optional template in a single Form row (no divider between them).
                 VStack(alignment: .leading, spacing: 6) {
@@ -1110,6 +1151,7 @@ struct FileHandlingSettingsView: View {
             }
 
             // MARK: Videos
+
             Section(header: SectionHeader(title: "Videos")) {
                 VStack(alignment: .leading, spacing: 6) {
                     Picker(selection: $optimisedVideoBehaviour) {
@@ -1169,6 +1211,7 @@ struct FileHandlingSettingsView: View {
             }
 
             // MARK: Audio
+
             Section(header: SectionHeader(title: "Audio")) {
                 VStack(alignment: .leading, spacing: 6) {
                     Picker(selection: $optimisedAudioBehaviour) {
@@ -1228,6 +1271,7 @@ struct FileHandlingSettingsView: View {
             }
 
             // MARK: PDF
+
             Section(header: SectionHeader(title: "PDF")) {
                 VStack(alignment: .leading, spacing: 6) {
                     Picker(selection: $optimisedPDFBehaviour) {
@@ -1256,19 +1300,21 @@ struct FileHandlingSettingsView: View {
         .padding(4)
     }
 
+    @State private var expandedVars: Set<ClopFileType> = []
+
     // MARK: - Per-section helpers
 
     // MARK: Dynamic example extensions for auto-convert rows
 
-    // Image auto-convert: prefer webp->jpeg; fall back to first-of-toJPEG or first-of-toPNG.
+    /// Image auto-convert: prefer webp->jpeg; fall back to first-of-toJPEG or first-of-toPNG.
     private var autoImageInputExt: String? {
         if formatsToConvertToJPEG.contains(where: { $0.preferredFilenameExtension == "webp" }) {
             return "webp"
         }
-        if let first = formatsToConvertToJPEG.compactMap({ $0.preferredFilenameExtension }).sorted().first {
+        if let first = formatsToConvertToJPEG.compactMap(\.preferredFilenameExtension).sorted().first {
             return first
         }
-        return formatsToConvertToPNG.compactMap({ $0.preferredFilenameExtension }).sorted().first
+        return formatsToConvertToPNG.compactMap(\.preferredFilenameExtension).sorted().first
     }
 
     private var autoImageOutputExt: String? {
@@ -1279,23 +1325,23 @@ struct FileHandlingSettingsView: View {
         return nil
     }
 
-    // Video auto-convert: first extension from formatsToConvertToMP4; output is always mp4.
+    /// Video auto-convert: first extension from formatsToConvertToMP4; output is always mp4.
     private var autoVideoInputExt: String? {
-        formatsToConvertToMP4.compactMap({ $0.preferredFilenameExtension }).sorted().first
+        formatsToConvertToMP4.compactMap(\.preferredFilenameExtension).sorted().first
     }
 
-    // Audio auto-convert: first source extension across both target sets; output depends on which set it comes from.
+    /// Audio auto-convert: first source extension across both target sets; output depends on which set it comes from.
     private var autoAudioInputExt: String? {
-        let aacExts = formatsToConvertToAAC.compactMap({ $0.preferredFilenameExtension }).sorted()
-        let mp3Exts = formatsToConvertToMP3.compactMap({ $0.preferredFilenameExtension }).sorted()
+        let aacExts = formatsToConvertToAAC.compactMap(\.preferredFilenameExtension).sorted()
+        let mp3Exts = formatsToConvertToMP3.compactMap(\.preferredFilenameExtension).sorted()
         return (aacExts + mp3Exts).sorted().first
     }
 
     private var autoAudioOutputExt: String? {
         guard let inputExt = autoAudioInputExt else { return nil }
-        let aacExts = formatsToConvertToAAC.compactMap({ $0.preferredFilenameExtension })
+        let aacExts = formatsToConvertToAAC.compactMap(\.preferredFilenameExtension)
         if aacExts.contains(inputExt) { return "m4a" }
-        let mp3Exts = formatsToConvertToMP3.compactMap({ $0.preferredFilenameExtension })
+        let mp3Exts = formatsToConvertToMP3.compactMap(\.preferredFilenameExtension)
         if mp3Exts.contains(inputExt) { return "mp3" }
         return nil
     }
@@ -1314,6 +1360,73 @@ struct FileHandlingSettingsView: View {
 
     private var pdfHasTemplateRow: Bool {
         optimisedPDFBehaviour == .sameFolder || optimisedPDFBehaviour == .specificFolder
+    }
+
+    private var imageAutoConvertGroups: [ConvertGroup] {
+        var groups: [ConvertGroup] = []
+        let toJPEG = formatsToConvertToJPEG.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toJPEG.isEmpty {
+            groups.append(ConvertGroup(
+                sources: toJPEG,
+                target: "JPEG",
+                sourceTint: .red,
+                targetTint: Color(red: 1.0, green: 0.83, blue: 0.0),
+                sourceTextColor: sourceAdaptive,
+                targetTextColor: jpegAdaptive
+            ))
+        }
+        let toPNG = formatsToConvertToPNG.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toPNG.isEmpty {
+            groups.append(ConvertGroup(
+                sources: toPNG,
+                target: "PNG",
+                sourceTint: Color(red: 1.0, green: 0.5, blue: 0.0),
+                targetTint: .blue,
+                sourceTextColor: orangeAdaptive,
+                targetTextColor: pngAdaptive
+            ))
+        }
+        return groups
+    }
+
+    private var videoAutoConvertGroups: [ConvertGroup] {
+        let fmts = formatsToConvertToMP4.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        guard !fmts.isEmpty else { return [] }
+        return [ConvertGroup(
+            sources: fmts,
+            target: "MP4",
+            sourceTint: .red,
+            targetTint: Color(red: 0.6, green: 0.3, blue: 0.9),
+            sourceTextColor: sourceAdaptive,
+            targetTextColor: mp4Adaptive
+        )]
+    }
+
+    private var audioAutoConvertGroups: [ConvertGroup] {
+        var groups: [ConvertGroup] = []
+        let toAAC = formatsToConvertToAAC.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toAAC.isEmpty {
+            groups.append(ConvertGroup(
+                sources: toAAC,
+                target: "AAC (M4A)",
+                sourceTint: .red,
+                targetTint: Color(red: 0.2, green: 0.8, blue: 0.4),
+                sourceTextColor: sourceAdaptive,
+                targetTextColor: audioAdaptive
+            ))
+        }
+        let toMP3 = formatsToConvertToMP3.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
+        if !toMP3.isEmpty {
+            groups.append(ConvertGroup(
+                sources: toMP3,
+                target: "MP3",
+                sourceTint: Color(red: 1.0, green: 0.5, blue: 0.0),
+                targetTint: .blue,
+                sourceTextColor: orangeAdaptive,
+                targetTextColor: pngAdaptive
+            ))
+        }
+        return groups
     }
 
     @ViewBuilder
@@ -1366,60 +1479,7 @@ struct FileHandlingSettingsView: View {
         .padding(.top, 4)
     }
 
-    // MARK: - Auto-conversion pill groups
-
-    struct ConvertGroup {
-        let sources: [String]
-        let target: String
-        let sourceTint: Color
-        let targetTint: Color
-        let sourceTextColor: Color
-        let targetTextColor: Color
-    }
-
-    private var imageAutoConvertGroups: [ConvertGroup] {
-        var groups: [ConvertGroup] = []
-        let toJPEG = formatsToConvertToJPEG.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
-        if !toJPEG.isEmpty {
-            groups.append(ConvertGroup(sources: toJPEG, target: "JPEG",
-                sourceTint: .red, targetTint: Color(red: 1.0, green: 0.83, blue: 0.0),
-                sourceTextColor: sourceAdaptive, targetTextColor: jpegAdaptive))
-        }
-        let toPNG = formatsToConvertToPNG.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
-        if !toPNG.isEmpty {
-            groups.append(ConvertGroup(sources: toPNG, target: "PNG",
-                sourceTint: Color(red: 1.0, green: 0.5, blue: 0.0), targetTint: .blue,
-                sourceTextColor: orangeAdaptive, targetTextColor: pngAdaptive))
-        }
-        return groups
-    }
-
-    private var videoAutoConvertGroups: [ConvertGroup] {
-        let fmts = formatsToConvertToMP4.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
-        guard !fmts.isEmpty else { return [] }
-        return [ConvertGroup(sources: fmts, target: "MP4",
-            sourceTint: .red, targetTint: Color(red: 0.6, green: 0.3, blue: 0.9),
-            sourceTextColor: sourceAdaptive, targetTextColor: mp4Adaptive)]
-    }
-
-    private var audioAutoConvertGroups: [ConvertGroup] {
-        var groups: [ConvertGroup] = []
-        let toAAC = formatsToConvertToAAC.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
-        if !toAAC.isEmpty {
-            groups.append(ConvertGroup(sources: toAAC, target: "AAC (M4A)",
-                sourceTint: .red, targetTint: Color(red: 0.2, green: 0.8, blue: 0.4),
-                sourceTextColor: sourceAdaptive, targetTextColor: audioAdaptive))
-        }
-        let toMP3 = formatsToConvertToMP3.compactMap { $0.preferredFilenameExtension?.uppercased() }.sorted()
-        if !toMP3.isEmpty {
-            groups.append(ConvertGroup(sources: toMP3, target: "MP3",
-                sourceTint: Color(red: 1.0, green: 0.5, blue: 0.0), targetTint: .blue,
-                sourceTextColor: orangeAdaptive, targetTextColor: pngAdaptive))
-        }
-        return groups
-    }
 }
-
 
 struct AudioSettingsView: View {
     @Default(.audioDirs) var audioDirs
@@ -2033,10 +2093,12 @@ struct DropZoneSettingsView: View {
                 .padding(.horizontal, 16)
                 .frame(maxWidth: 780)
                 .frame(maxWidth: .infinity)
+                .id("automation")
             }
             .padding(.top)
         }
         .hfill()
+        .scrollsToAutomation()
     }
 }
 
@@ -2452,10 +2514,12 @@ struct ClipboardSettingsView: View {
             Section(header: SectionHeader(title: "Automation", subtitle: "Run actions on every file you copy")) {
                 SourceAutomationsSection(source: .clipboard, disabledTypes: disabledClipboardTypes)
             }
+            .id("automation")
         }
         .scrollContentBackground(.hidden)
         .padding(.horizontal, 50)
         .padding(.vertical, 20)
+        .scrollsToAutomation()
     }
 }
 
@@ -2685,6 +2749,9 @@ class SettingsViewManager: ObservableObject {
     /// Set by the "Configured in Compatibility" link in File Handling to scroll the destination
     /// tab down to its Compatibility section. Cleared once that section has reacted.
     @Published var scrollToCompatibility = false
+    /// Set by an assignment pill's "Go to" (clipboard / drop zone) to scroll the destination tab down
+    /// to its Automation section. Cleared once that section has reacted.
+    @Published var scrollToAutomation = false
     @Published var highlightFolder: HighlightedFolderRequest?
     /// Set by a preset-zone menu in the inline preview to open (and scroll to) that zone's editor row in
     /// the same Preset Zones tab. Cleared once the row has reacted.
