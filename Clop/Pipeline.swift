@@ -164,6 +164,73 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
 
 }
 
+// MARK: - Compact display
+
+/// Compact a pipeline's step code for display in tight spots (like the right-click menu subtitle) while
+/// still showing the whole pipeline: collapse the home directory to `~`, round decimal arguments to at
+/// most 2 places (trailing zeros trimmed), and middle-truncate long quoted paths. Quoted strings are
+/// only truncated, never decimal-rounded, so a version number inside a filename never gets mangled.
+func shortenPipelineCode(_ code: String) -> String {
+    let collapsed = code.replacingOccurrences(of: HOME.string, with: "~")
+    var out = ""
+    var current = ""
+    var inQuote = false
+    for ch in collapsed {
+        if ch == "\"" {
+            out += inQuote ? "\"\(middleTruncatedPath(current, maxChars: 40))\"" : roundDecimalArguments(in: current)
+            current = ""
+            inQuote.toggle()
+        } else {
+            current.append(ch)
+        }
+    }
+    // Flush the trailing segment (an unterminated quote is degenerate; keep it readable anyway).
+    out += inQuote ? "\"\(current)" : roundDecimalArguments(in: current)
+    return out
+}
+
+private let pipelineDecimalRegex = try! NSRegularExpression(pattern: "[0-9]+\\.[0-9]+")
+
+/// Round every decimal number in an unquoted code segment to at most 2 places.
+private func roundDecimalArguments(in s: String) -> String {
+    let ns = s as NSString
+    let matches = pipelineDecimalRegex.matches(in: s, range: NSRange(location: 0, length: ns.length))
+    guard !matches.isEmpty else { return s }
+    var out = ""
+    var last = 0
+    for m in matches {
+        out += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+        let numStr = ns.substring(with: m.range)
+        out += Double(numStr).map(shortDecimalString) ?? numStr
+        last = m.range.location + m.range.length
+    }
+    out += ns.substring(from: last)
+    return out
+}
+
+/// A double with at most 2 decimals, trailing zeros and a trailing dot trimmed
+/// (0.5000001 -> 0.5, 1.333 -> 1.33, 2.0 -> 2).
+private func shortDecimalString(_ value: Double) -> String {
+    let rounded = (value * 100).rounded() / 100
+    if rounded == rounded.rounded() {
+        return String(Int(rounded))
+    }
+    var s = String(format: "%.2f", rounded)
+    while s.hasSuffix("0") {
+        s.removeLast()
+    }
+    if s.hasSuffix(".") { s.removeLast() }
+    return s
+}
+
+private func middleTruncatedPath(_ s: String, maxChars: Int) -> String {
+    guard s.count > maxChars else { return s }
+    let keep = maxChars - 1
+    let head = keep / 2
+    let tail = keep - head
+    return "\(s.prefix(head))…\(s.suffix(tail))"
+}
+
 // MARK: - Built-in Pipeline Library
 
 /// Pipelines shipped with the app, distilled from the most common real-world workflows:

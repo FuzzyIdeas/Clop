@@ -2766,6 +2766,9 @@ class SettingsViewManager: ObservableObject {
     /// Set by a preset-zone menu in the inline preview to open (and scroll to) that zone's editor row in
     /// the same Preset Zones tab. Cleared once the row has reacted.
     @Published var editingPresetZoneID: String?
+    /// Set by a floating result's "Pipeline: …" context-menu entry to open the Pipelines tab, scroll to
+    /// the saved pipeline that ran on it and flash a highlight border. Cleared once the row has reacted.
+    @Published var highlightPipelineID: String?
 }
 
 let settingsViewManager = SettingsViewManager()
