@@ -210,7 +210,7 @@ struct PresetZoneRow: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.08))
+            .background(PipelineTheme.topBarBackground)
 
             Divider().opacity(0.5)
 
@@ -227,13 +227,14 @@ struct PresetZoneRow: View {
             .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color.bg.warm.opacity(0.9))
+            .background(PipelineTheme.editorBackground)
             if isEditingSteps {
                 PipelineEditingSuggestions(prefix: currentPrefix, fileType: zone.type, coordinator: coordinator)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 6)
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .card(radius: 6, fill: .clear, borderColor: .primary.opacity(0.2), borderWidth: 1)
         .onAppear {
             editName = zone.name

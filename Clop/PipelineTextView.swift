@@ -4,10 +4,82 @@ import Foundation
 import Lowtech
 import SwiftUI
 
+// MARK: - Pipeline editor theme
+
+/// Warm, cosy colour theme for the pipeline editors: Rosé Pine Dawn in light mode and a Terracotta
+/// Dark palette (warm clay accents on a dark-brown base) in dark mode. The editor background is the
+/// anchor; the syntax accents are tuned to read well on it.
+enum PipelineTheme {
+    /// SwiftUI background for the code/preview area, resolved per appearance.
+    static var editorBackground: Color {
+        adaptive(light: lightBG, dark: darkBG)
+    }
+
+    /// SwiftUI background for the top bar (name + controls). Lighter than the editor in light mode and
+    /// darker than it in dark mode, so the chrome reads as a separate band either way.
+    static var topBarBackground: Color {
+        adaptive(light: lightChrome, dark: darkChrome)
+    }
+
+    static func text(dark: Bool) -> NSColor {
+        dark ? darkText : lightText
+    }
+    static func muted(dark: Bool) -> NSColor {
+        dark ? darkMuted : lightMuted
+    }
+    static func invalid(dark: Bool) -> NSColor {
+        dark ? ns(0xC4604F) : ns(0xB4637A)
+    } // rust / love
+
+    /// Accent per step category, tuned per appearance.
+    static func category(_ category: StepCategory, dark: Bool) -> NSColor {
+        switch category {
+        // Spread across hues so the flow reads at a glance (no two teals on common steps).
+        case .processing: dark ? ns(0x6FB0C9) : ns(0x286983) // pine (teal-blue)
+        case .fileOperation: dark ? ns(0xF6C177) : ns(0xEA9D34) // gold (orange)
+        case .filter: dark ? ns(0xE39B96) : ns(0xD7827E) // rose
+        case .mediaSpecific: dark ? ns(0xEB6F92) : ns(0xB4637A) // love (pink)
+        case .action: dark ? ns(0xC4A7E7) : ns(0x907AA9) // iris (purple)
+        }
+    }
+
+    /// SwiftUI category accent, resolved per appearance. Used by the suggestion panel and action grid.
+    static func categoryColor(_ category: StepCategory) -> Color {
+        Color(nsColor: NSColor(name: nil) { ap in
+            Self.category(category, dark: ap.bestMatch(from: [.darkAqua, .vibrantDark]) != nil)
+        })
+    }
+
+    // Rosé Pine Dawn (light), exact palette
+    private static let lightBG = ns(0xFAF4ED) // base (code area)
+    private static let lightChrome = ns(0xFFFEFC) // top bar, near-neutral and lighter than base
+    private static let lightText = ns(0x464261) // text
+    private static let lightMuted = ns(0x797593) // subtle
+
+    // Terracotta Dark (dark): warm clay base, brighter Rosé Pine accents
+    private static let darkBG = ns(0x241F1D) // base (code area)
+    private static let darkChrome = ns(0x141313) // top bar, near-neutral and darker than base
+    private static let darkText = ns(0xECE0D4)
+    private static let darkMuted = ns(0xA89484)
+
+    /// Colours are defined in Display P3 so they sample as the exact hex on wide-gamut Mac displays.
+    /// An sRGB-defined colour reads ~1 level off when the colour meter shows display-native values.
+    private static func ns(_ hex: UInt32) -> NSColor {
+        NSColor(displayP3Red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+    }
+
+    private static func adaptive(light: NSColor, dark: NSColor) -> Color {
+        Color(nsColor: NSColor(name: nil) { ap in
+            ap.bestMatch(from: [.darkAqua, .vibrantDark]) != nil ? dark : light
+        })
+    }
+
+}
+
 // MARK: - Pipeline Syntax Highlighting
 
-private let PIPELINE_FONT = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-private let PIPELINE_FONT_BOLD = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
+private let PIPELINE_FONT = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+private let PIPELINE_FONT_BOLD = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
 
 func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bool) -> NSAttributedString {
     // The highlighted string is consumed both by an NSTextView and by a SwiftUI
@@ -20,15 +92,10 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
     let appearance = NSAppearance(named: darkMode ? .darkAqua : .aqua) ?? NSApplication.shared.effectiveAppearance
     var result = NSMutableAttributedString(string: text)
     appearance.performAsCurrentDrawingAppearance {
-        /// Resolve a (possibly dynamic) colour to a concrete sRGB value for the current appearance.
-        func baked(_ color: NSColor) -> NSColor {
-            color.usingColorSpace(.sRGB) ?? color
-        }
-
         let font = PIPELINE_FONT
         let baseAttrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: baked(.labelColor),
+            .foregroundColor: PipelineTheme.text(dark: darkMode),
         ]
         let mutable = NSMutableAttributedString(string: text, attributes: baseAttrs)
         let nsText = text as NSString
@@ -38,7 +105,7 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
         let arrowRegex = try! NSRegularExpression(pattern: #"->"#)
         for match in arrowRegex.matches(in: text, range: fullRange) {
             mutable.addAttributes([
-                .foregroundColor: baked(.secondaryLabelColor).withAlphaComponent(0.4),
+                .foregroundColor: PipelineTheme.muted(dark: darkMode).withAlphaComponent(0.5),
             ], range: match.range)
         }
 
@@ -75,7 +142,7 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
 
             if let template = templates.first(where: { $0.name == stepName }) {
                 let step = template.create()
-                let color = baked(step.categoryNSColor)
+                let color = PipelineTheme.category(step.category, dark: darkMode)
 
                 // Color step name bold
                 let nameRange = NSRange(location: trimmedRange.location, length: stepName.utf16.count)
@@ -92,7 +159,7 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
                     // Default: dim everything in parens (parens, commas, colons)
                     let paramsRange = NSRange(location: paramsStart, length: trimmedRange.length - stepName.utf16.count)
                     mutable.addAttributes([
-                        .foregroundColor: baked(.labelColor).withAlphaComponent(0.8),
+                        .foregroundColor: PipelineTheme.text(dark: darkMode).withAlphaComponent(0.75),
                         .font: font,
                     ], range: paramsRange)
 
@@ -106,7 +173,7 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
                         if nameMatchRange.location != NSNotFound {
                             let absRange = NSRange(location: paramsStart + nameMatchRange.location, length: nameMatchRange.length)
                             mutable.addAttributes([
-                                .foregroundColor: baked(.secondaryLabelColor),
+                                .foregroundColor: PipelineTheme.muted(dark: darkMode),
                             ], range: absRange)
                         }
                         // Param value: prominent with hue shift and boosted saturation
@@ -129,14 +196,14 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
                             if isInvalidValue {
                                 let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
                                 mutable.addAttributes([
-                                    .foregroundColor: baked(.systemRed).withAlphaComponent(0.7),
+                                    .foregroundColor: PipelineTheme.invalid(dark: darkMode).withAlphaComponent(0.85),
                                     .font: italicFont,
                                 ], range: trimmedValueRange)
                             } else {
                                 let valueSatColor = NSColor(
                                     hue: fmod(hsbColor.hueComponent + 0.01, 1.0),
-                                    saturation: min(hsbColor.saturationComponent * 0.8, 1.0),
-                                    brightness: min(hsbColor.brightnessComponent * (darkMode ? 1.1 : 0.6), 1.0),
+                                    saturation: min(hsbColor.saturationComponent * 0.95, 1.0),
+                                    brightness: min(hsbColor.brightnessComponent * (darkMode ? 1.15 : 0.85), 1.0),
                                     alpha: 0.95
                                 )
                                 mutable.addAttributes([
@@ -151,7 +218,7 @@ func highlightPipelineText(_ text: String, fileType: ClopFileType?, darkMode: Bo
                 // Invalid step
                 let italicFont = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
                 mutable.addAttributes([
-                    .foregroundColor: baked(.systemRed).withAlphaComponent(0.7),
+                    .foregroundColor: PipelineTheme.invalid(dark: darkMode).withAlphaComponent(0.85),
                     .font: italicFont,
                 ], range: trimmedRange)
             }
