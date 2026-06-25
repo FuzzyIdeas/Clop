@@ -1834,8 +1834,18 @@ enum TempPipelineSegment {
         hasher.combine(id)
     }
 
+    /// The result's current file if it still exists on disk; otherwise flash a clear "File not found"
+    /// overlay and return nil, so an action on a moved or deleted result fails loudly instead of silently
+    /// doing nothing (a result can outlive its file, e.g. a cached image whose working copy was moved away).
+    @discardableResult
+    func existingFileOrNotify() -> FilePath? {
+        if let p = (url ?? originalURL)?.existingFilePath { return p }
+        overlayMessage = "File not found"
+        return nil
+    }
+
     func copyToClipboard(withPath: Bool? = nil) {
-        guard let url, let path else { return }
+        guard existingFileOrNotify() != nil, let url, let path else { return }
         if type.isImage, let image = Image(path: path, retinaDownscaled: retinaDownscaled) {
             image.copyToClipboard(withPath: withPath)
             return
@@ -1858,12 +1868,12 @@ enum TempPipelineSegment {
     }
 
     func showInFinder() {
-        guard let url else { return }
+        guard existingFileOrNotify() != nil, let url else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     func save() {
-        guard let url, let path = url.existingFilePath else { return }
+        guard existingFileOrNotify() != nil, let url, let path = url.existingFilePath else { return }
 
         let panel = NSSavePanel()
         panel.nameFieldStringValue = path.name.string

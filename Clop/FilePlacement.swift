@@ -63,7 +63,13 @@ func destinationPath(type: ClopFileType, kind: OutputKind, path: FilePath, overr
     var backup: FilePath?
     var originalRemoved = false
     if behaviour == .inPlace, original.exists, let backupPath = original.clopBackupPath {
-        if let moved = original.backup(path: backupPath, force: true, operation: .move) {
+        if original == produced {
+            // The optimiser worked in place, so `produced` IS the original and already sits at the
+            // destination. Moving it into the backup cache here would orphan the destination (the copy
+            // below would then be a no-op self-copy), leaving the result pointing at a file that no
+            // longer exists. Keep the file where it is and surface the pre-optimise backup taken earlier.
+            backup = backupPath.exists ? backupPath : nil
+        } else if let moved = original.backup(path: backupPath, force: true, operation: .move) {
             backup = moved
             originalRemoved = true
         } else {
@@ -73,7 +79,9 @@ func destinationPath(type: ClopFileType, kind: OutputKind, path: FilePath, overr
         // already cleared it. A conversion writes a new-extension file and the original is now gone.
     }
 
-    let finalPath = try produced.copy(to: dest, force: true)
+    // Skip a redundant self-copy (and its "copy path to itself" error) when the produced file already
+    // sits at the destination, e.g. an in-place optimise where produced == original == dest.
+    let finalPath = produced == dest ? produced : try produced.copy(to: dest, force: true)
     try? finalPath.setOptimisationStatusXattr("true")
     return PlacedOutput(path: finalPath, backup: backup, originalRemoved: originalRemoved)
 }
