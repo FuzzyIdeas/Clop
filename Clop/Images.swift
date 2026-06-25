@@ -900,7 +900,22 @@ class Image: CustomStringConvertible {
         guard let pbImage = Image(path: pathForResize, optimised: false, retinaDownscaled: retinaDownscaled) else {
             throw ClopError.downscaleFailed(pathForResize)
         }
-        return try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+        let originalBytes = data.count
+        let result = try pbImage.optimise(optimiser: optimiser, allowLarger: true, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+
+        // A downscale of a flat, low-colour PNG can grow the file: high-quality resampling turns a few
+        // crisp colours into many anti-aliased ones, so the default 256-colour pngquant overshoots the
+        // tiny original. Re-quantize the resized image back toward the original's own colour count (with
+        // progressively smaller fallbacks) until it beats the original. If nothing does, keep the
+        // original untouched, since an optimiser should never grow a file.
+        if result.type == .png, result.data.count > originalBytes {
+            if let shrunk = downscaledPNGUnderOriginal(resized: pathForResize, originalBytes: originalBytes, optimiser: optimiser) {
+                return shrunk
+            }
+            log.debug("Downscale grew the file (\(result.data.count) > \(originalBytes) bytes), keeping the original")
+            return self
+        }
+        return result
     }
 
     func cropWithCGImage(source: FilePath, dest: FilePath, cropRect: CropRect, targetSize: NSSize? = nil) throws {
@@ -1239,6 +1254,74 @@ class Image: CustomStringConvertible {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.writeObjects([item])
+    }
+
+    /// Re-quantize the freshly resized PNG to a small palette so a downscaled flat/low-colour image does
+    /// not end up larger than the original. Tries the original's own colour count first (so a 6-colour
+    /// logo stays ~6 colours), then progressively smaller fallbacks, returning the first result smaller
+    /// than `originalBytes`. Returns nil if none beat it.
+    private func downscaledPNGUnderOriginal(resized: FilePath, originalBytes: Int, optimiser: Optimiser) -> Image? {
+        var candidates: [Int] = []
+        if let n = uniqueColorCount(cap: 256) {
+            candidates.append(min(max(n, 2), 256))
+        }
+        for c in [128, 64, 32, 16] where !candidates.contains(c) {
+            candidates.append(c)
+        }
+
+        let backup = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : path
+        for colors in candidates {
+            let out = FilePath.images.appending(resized.name.string)
+            try? out.delete()
+            do {
+                let proc = try tryProc(PNGQUANT.string, args: [
+                    "\(colors)", "--force", "--speed", "1", "--output", out.string, resized.string,
+                ], tries: 2) { p in
+                    mainActor { optimiser.processes = [p] }
+                }
+                guard proc.terminationStatus == 0, out.exists, let sz = out.fileSize(), sz > 0, sz < originalBytes,
+                      let data = fm.contents(atPath: out.string), NSImage(data: data) != nil
+                else { continue }
+
+                out.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+                if Defaults[.preserveDates] {
+                    out.copyCreationModificationDates(from: backup ?? path)
+                }
+                try? out.setOptimisationStatusXattr("true")
+                log.debug("Downscale re-quantized to \(colors) colours: \(sz) < \(originalBytes) bytes")
+                return Image(data: data, path: out, type: .png, optimised: true, retinaDownscaled: retinaDownscaled)
+            } catch {
+                continue
+            }
+        }
+        return nil
+    }
+
+    /// Count the image's distinct colours up to `cap`, stopping early once exceeded. Used to size the
+    /// downscale's palette back toward the original's. Returns nil if the bitmap can't be read.
+    private func uniqueColorCount(cap: Int) -> Int? {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let w = cg.width, h = cg.height
+        guard w > 0, h > 0 else { return nil }
+
+        let bytesPerRow = w * 4
+        var pixels = [UInt8](repeating: 0, count: h * bytesPerRow)
+        guard let ctx = CGContext(
+            data: &pixels, width: w, height: h, bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+        var seen = Set<UInt32>()
+        seen.reserveCapacity(cap + 2)
+        pixels.withUnsafeBytes { raw in
+            let p = raw.bindMemory(to: UInt32.self)
+            for i in 0 ..< (w * h) {
+                seen.insert(p[i])
+                if seen.count > cap { break }
+            }
+        }
+        return seen.count
     }
 
     private func writeCGImage(_ cgImage: CGImage, to dest: FilePath, as type: UTType) throws {
