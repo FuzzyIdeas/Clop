@@ -12,8 +12,8 @@ struct PresetZone: Codable, Hashable, Identifiable, Defaults.Serializable {
         id = "\(name)-\(type?.rawValue ?? "all")"
     }
 
-    /// Init that keeps an explicit, stable id so renaming a zone (name/type) doesn't change its identity —
-    /// important for the single inline editor, which is looked up by id while you type.
+    /// Init that keeps an explicit, stable id so renaming a zone (name/type) doesn't change its identity.
+    /// This matters for the single inline editor, which is looked up by id while you type.
     init(id: String, name: String, icon: String, type: ClopFileType? = nil, pipeline: Pipeline) {
         self.id = id
         self.name = name
