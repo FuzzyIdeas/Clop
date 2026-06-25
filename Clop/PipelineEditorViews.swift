@@ -838,7 +838,6 @@ private struct PipelineAssignment: Identifiable, Hashable {
 
     let target: Target
     var fileTypes: Set<ClopFileType> = []
-    var presetZone: PresetZone?
 
     var id: Target {
         target
@@ -1122,7 +1121,7 @@ struct SavedPipelineRow: View {
                 .buttonStyle(.plain)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help("Assigned to \(assignmentHelp(assignment)) — click to go there or remove")
+                .help("Assigned to \(assignmentHelp(assignment)). Click to go there or remove.")
             }
             addToMenu
         }
@@ -1266,7 +1265,7 @@ struct SavedPipelineRow: View {
             result.append(PipelineAssignment(target: .folder(path), fileTypes: sourceTypes[.folder(path)] ?? []))
         }
         for zone in presetZones where zone.pipeline.libraryID == pid {
-            result.append(PipelineAssignment(target: .presetZone(zone.id), fileTypes: zone.type.map { [$0] } ?? [], presetZone: zone))
+            result.append(PipelineAssignment(target: .presetZone(zone.id), fileTypes: zone.type.map { [$0] } ?? []))
         }
         return result
     }
@@ -1285,8 +1284,9 @@ struct SavedPipelineRow: View {
             icon = "folder"
             label = OptimisationSource.dir(path).displayLabel
         case .presetZone:
-            icon = a.presetZone?.icon ?? "rectangle.dashed"
-            label = a.presetZone?.name ?? "Preset"
+            // A preset zone's name/icon always mirror this pipeline's, so a generic label reads clearer.
+            icon = "square.grid.2x2"
+            label = "Preset zone"
         }
         return HStack(spacing: 3) {
             SwiftUI.Image(systemName: icon).font(.system(size: 8))

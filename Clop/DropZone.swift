@@ -306,8 +306,8 @@ struct DropZonePresetsView: View {
     }
 
     /// Menu row for a library pipeline: icon + name + description subtitle. Every row uses the same
-    /// layout — a default icon ("wand.and.sparkles") and a "No description" subtitle stand in for
-    /// pipelines that lack them — so the menu never looks ragged. Because a subtitle is always present,
+    /// layout: a default icon ("wand.and.sparkles") and a "No description" subtitle stand in for
+    /// pipelines that lack them, so the menu never looks ragged. Because a subtitle is always present,
     /// we always use the title+subtitle form: SwiftUI's Menu strips a `Label`'s icon slot inside a
     /// nested submenu ("Replace with") but DOES render an SF Symbol interpolated into the title Text,
     /// and the subtitle Text must be a SIBLING of the title (stacks get flattened/ignored).
