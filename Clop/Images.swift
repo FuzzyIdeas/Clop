@@ -1299,10 +1299,21 @@ class Image: CustomStringConvertible {
 
     /// Count the image's distinct colours up to `cap`, stopping early once exceeded. Used to size the
     /// downscale's palette back toward the original's. Returns nil if the bitmap can't be read.
+    ///
+    /// To avoid scanning millions of pixels on large images, the source is first drawn into a small
+    /// buffer (capped at `maxSamples` pixels) with nearest-neighbour sampling. Nearest-neighbour never
+    /// blends, so it only ever reproduces existing colours: a flat/low-colour image keeps its exact
+    /// palette while the per-pixel work stays bounded regardless of the source resolution. The actual
+    /// resampling runs in Core Graphics' accelerated blitter, not in a Swift loop.
     private func uniqueColorCount(cap: Int) -> Int? {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        let w = cg.width, h = cg.height
-        guard w > 0, h > 0 else { return nil }
+        let srcW = cg.width, srcH = cg.height
+        guard srcW > 0, srcH > 0 else { return nil }
+
+        let maxSamples = 256 * 1024
+        let scale = min(1.0, (Double(maxSamples) / Double(srcW * srcH)).squareRoot())
+        let w = max(1, Int((Double(srcW) * scale).rounded()))
+        let h = max(1, Int((Double(srcH) * scale).rounded()))
 
         let bytesPerRow = w * 4
         var pixels = [UInt8](repeating: 0, count: h * bytesPerRow)
@@ -1310,14 +1321,14 @@ class Image: CustomStringConvertible {
             data: &pixels, width: w, height: h, bitsPerComponent: 8, bytesPerRow: bytesPerRow,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
+        ctx.interpolationQuality = .none // nearest-neighbour: subsample without inventing new colours
         ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
 
         var seen = Set<UInt32>()
         seen.reserveCapacity(cap + 2)
         pixels.withUnsafeBytes { raw in
-            let p = raw.bindMemory(to: UInt32.self)
-            for i in 0 ..< (w * h) {
-                seen.insert(p[i])
+            for px in raw.bindMemory(to: UInt32.self) {
+                seen.insert(px)
                 if seen.count > cap { break }
             }
         }
