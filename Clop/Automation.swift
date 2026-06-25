@@ -1076,14 +1076,9 @@ func pipelineSuggestions(prefix: String, fileType: ClopFileType?) -> [Completion
 }
 
 extension StepCategory {
+    /// SwiftUI accent matching the pipeline editor theme (resolves per light/dark appearance).
     var swiftUIColor: Color {
-        switch self {
-        case .processing: .blue
-        case .fileOperation: .green
-        case .filter: .orange
-        case .mediaSpecific: .teal
-        case .action: .purple
-        }
+        PipelineTheme.categoryColor(self)
     }
 }
 
@@ -1143,14 +1138,7 @@ struct StepActionGrid: View {
     }
 
     func colorForCategory(_ template: StepTemplate) -> Color {
-        let step = template.create()
-        switch step.category {
-        case .processing: return .blue
-        case .fileOperation: return .green
-        case .filter: return .orange
-        case .mediaSpecific: return .teal
-        case .action: return .purple
-        }
+        template.create().category.swiftUIColor
     }
 }
 

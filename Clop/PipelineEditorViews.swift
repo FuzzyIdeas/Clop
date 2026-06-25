@@ -361,7 +361,7 @@ struct PipelineFieldRow: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(Color.white.opacity(0.08))
+                .background(PipelineTheme.topBarBackground)
 
                 Divider()
                     .opacity(0.5)
@@ -378,8 +378,9 @@ struct PipelineFieldRow: View {
                 .frame(height: max(isEditing ? 36 : 22, CGFloat(1 + text.count / 80) * 18))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(Color.black.opacity(0.06))
+                .background(PipelineTheme.editorBackground)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .card(radius: 6, fill: .clear, borderColor: .primary.opacity(isEditing ? 0.25 : 0.12), borderWidth: 1)
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.15), value: hovering)
@@ -1047,7 +1048,7 @@ struct SavedPipelineRow: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.08))
+            .background(PipelineTheme.topBarBackground)
 
             Divider()
                 .opacity(0.5)
@@ -1067,7 +1068,7 @@ struct SavedPipelineRow: View {
                 .frame(height: max(36, CGFloat(1 + editText.count / 80) * 18))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(Color.bg.warm.opacity(0.9))
+                .background(PipelineTheme.editorBackground)
                 if isEditingSteps {
                     PipelineEditingSuggestions(prefix: currentPrefix, fileType: pipeline.fileType, coordinator: coordinator)
                         .padding(.horizontal, 8)
@@ -1085,7 +1086,7 @@ struct SavedPipelineRow: View {
                     .padding(.vertical, 5)
                     // Near-opaque white/black so the steps read on a clean surface; the muted top-bar tint
                     // and the divider keep the two bands visually separated.
-                    .background(Color.bg.warm.opacity(isHoveredCode ? 0.96 : 0.9))
+                    .background(PipelineTheme.editorBackground)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         editText = readOnlyText
@@ -1105,6 +1106,7 @@ struct SavedPipelineRow: View {
                     .help("Click to edit")
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .card(radius: 6, fill: .clear, borderColor: .primary.opacity(isEditingLib ? 0.2 : 0.08), borderWidth: 1)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: hovering)
