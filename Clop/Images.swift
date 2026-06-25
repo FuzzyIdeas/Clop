@@ -1438,7 +1438,7 @@ class Image: CustomStringConvertible {
         // When no pipeline condition matches, fall back to the normal optimise pass:
         // copying to clipboard is a strong optimisation intent, unlike file watching.
         let pipelines = pipelinesFor(type: type, source: .clipboard)
-        let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+        let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipsPreOptimisation)
         var handledByPipelines = false
         if allSkip {
             let optimiser = OM.optimiser(id: clipboardID, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
