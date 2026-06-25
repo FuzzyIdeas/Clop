@@ -68,6 +68,19 @@ struct OpenWithMenuView: View {
     return URL(fileURLWithPath: path)
 }
 
+/// A 14pt icon for an application bundle, sized for a menu item.
+@MainActor func appMenuIcon(_ appURL: URL) -> NSImage {
+    let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+    icon.size = NSSize(width: 14, height: 14)
+    return icon
+}
+
+/// The display name of an application bundle, without the ".app" suffix.
+func appDisplayName(_ appURL: URL) -> String {
+    (try? appURL.resourceValues(forKeys: [.localizedNameKey]).localizedName)?
+        .replacingOccurrences(of: ".app", with: "") ?? appURL.deletingPathExtension().lastPathComponent
+}
+
 extension Optimiser {
     /// Hand the optimised file to the user's configured editor for its type. Returns false when no
     /// editor is set (or the file is missing) so callers can fall back to other behaviour.
@@ -85,16 +98,9 @@ struct EditWithAppButton: View {
 
     var body: some View {
         if let appURL = editorAppURL(for: optimiser.type), optimiser.url != nil || optimiser.originalURL != nil {
-            let icon: NSImage = {
-                let i = NSWorkspace.shared.icon(forFile: appURL.path)
-                i.size = NSSize(width: 14, height: 14)
-                return i
-            }()
-            let name = (try? appURL.resourceValues(forKeys: [.localizedNameKey]).localizedName)?
-                .replacingOccurrences(of: ".app", with: "") ?? appURL.deletingPathExtension().lastPathComponent
             Button(action: { optimiser.editWithConfiguredApp() }) {
-                SwiftUI.Image(nsImage: icon)
-                Text("Edit with \(name)")
+                SwiftUI.Image(nsImage: appMenuIcon(appURL))
+                Text("Edit with \(appDisplayName(appURL))")
             }
             .keyboardShortcut("e")
         }
@@ -105,46 +111,26 @@ struct RightClickMenuView: View {
     @ObservedObject var optimiser: Optimiser
     @ObservedObject var wdm = WDM
 
+    /// Whether the "Transform" section has any item for this file type, so the header never shows alone.
+    var hasEditSection: Bool {
+        optimiser.canCrop()
+            || optimiser.type.isVideo
+            || optimiser.type.isAudio
+            || optimiser.canReoptimise()
+            || optimiser.canDownscale()
+            || (optimiser.canCompress() && !optimiser.type.isAudio)
+            || optimiser.canChangePlaybackSpeed()
+            || (optimiser.type.isPDF && (optimiser.pdf?.pageCount ?? 0) > 0)
+            || optimiser.convertibleTypes.isNotEmpty
+    }
+
     var body: some View {
+        // Lifecycle: dismiss and restore sit at the very top so they're always one move away.
         Button(optimiser.running ? "Stop" : "Dismiss") {
             hoveredOptimiserID = nil
             optimiser.stop(animateRemoval: true)
         }
         .keyboardShortcut(.delete)
-        Divider()
-
-        if !optimiser.running {
-            Button("Save as...") {
-                optimiser.save()
-            }
-            .keyboardShortcut("s")
-
-            Button("Copy to clipboard") {
-                optimiser.copyToClipboard()
-                optimiser.overlayMessage = "Copied"
-            }
-            .keyboardShortcut("c")
-
-            Button("Show in Finder") {
-                optimiser.showInFinder()
-            }
-            .keyboardShortcut("f")
-
-            if let url = optimiser.url ?? optimiser.originalURL {
-                Button("Open with default app") {
-                    NSWorkspace.shared.open(url)
-                }
-                .keyboardShortcut("o")
-            }
-
-            if let url = optimiser.url {
-                OpenWithMenuView(fileURL: url)
-            }
-
-            EditWithAppButton(optimiser: optimiser)
-
-            Divider()
-        }
 
         Button(optimiser.convertedFromVideo ? "Restore original video" : "Restore original") {
             optimiser.restoreOriginal()
@@ -152,174 +138,279 @@ struct RightClickMenuView: View {
         .keyboardShortcut("z")
         .disabled(optimiser.isOriginal)
 
-        Button("QuickLook") {
-            optimiser.quicklook()
-        }
-        .keyboardShortcut(" ")
+        // Inspect: stays available even while the pipeline is still running.
+        Section {
+            Button("QuickLook") {
+                optimiser.quicklook()
+            }
+            .keyboardShortcut(" ")
 
-        Button(optimiser.type.isAudio ? "Compare (A/B)" : "Compare (diff)") {
-            optimiser.compare()
+            Button(optimiser.type.isAudio ? "Compare (A/B)" : "Compare (diff)") {
+                optimiser.compare()
+            }
+            .disabled(optimiser.url == nil || optimiser.comparisonOriginalURL == nil)
+            .keyboardShortcut("d")
         }
-        .disabled(optimiser.url == nil || optimiser.comparisonOriginalURL == nil)
-        .keyboardShortcut("d")
 
         if !optimiser.running {
-            if optimiser.canDownscale() ||
-                optimiser.canChangePlaybackSpeed() ||
-                optimiser.type.isVideo ||
-                optimiser.canReoptimise()
-            {
-                Divider()
-            }
-            if optimiser.canCrop() {
-                Button("Crop and resize...") {
-                    optimiser.showCropWindow()
+            Section("File") {
+                Button("Save as...") {
+                    optimiser.save()
                 }
-                .keyboardShortcut("k")
+                .keyboardShortcut("s")
+
+                Button("Copy to clipboard") {
+                    optimiser.copyToClipboard()
+                    optimiser.overlayMessage = "Copied"
+                }
+                .keyboardShortcut("c")
+
+                Button("Show in Finder") {
+                    optimiser.showInFinder()
+                }
+                .keyboardShortcut("f")
             }
 
-            if optimiser.canDownscale() {
-                if optimiser.type.isAudio, optimiser.type.utType != .wav {
-                    Menu("Change bitrate") {
-                        LowerBitrateMenu(optimiser: optimiser)
-                    }
-                } else if !optimiser.type.isAudio {
-                    Menu("Downscale") {
-                        DownscaleMenu(optimiser: optimiser)
-                    }
-                    .disabled(optimiser.downscaleFactor <= 0.1)
-                }
-            }
-
-            // Mirrors the floating card's compression slider. Audio keeps "Change bitrate" above
-            // (the bitrate is its compression axis), so this is image/video only.
-            if optimiser.canCompress(), !optimiser.type.isAudio {
-                Menu("Compression") {
-                    CompressionMenu(optimiser: optimiser)
-                }
-            }
-
-            if optimiser.type.isAudio {
-                Menu("Normalise loudness") {
-                    LoudnessMenu(optimiser: optimiser)
-                }
-                Button("Extract cover art") {
-                    extractAudioCoverArt(optimiser: optimiser)
-                }
-                Menu("Downscale cover art") {
-                    CoverArtDownscaleMenu(optimiser: optimiser)
-                }
-            }
-
-            if optimiser.canChangePlaybackSpeed() {
-                Menu("Change playback speed") {
-                    ChangePlaybackSpeedMenu(optimiser: optimiser)
-                }
-                .disabled(optimiser.changePlaybackSpeedFactor >= 10)
-            }
-
-            if optimiser.type.isVideo {
-                Button("Remove audio") {
-                    optimiser.removeAudio()
-                }.disabled(!optimiser.canRemoveAudio())
-                Menu("Convert to GIF") {
-                    ConvertToGIFMenu(optimiser: optimiser)
-                }
-            }
-
-            if optimiser.canReoptimise() {
-                if optimiser.type.isVideo {
-                    Menu("Re-optimise with encoder") {
-                        ReoptimiseWithEncoderMenu(optimiser: optimiser)
-                    }
-                } else {
-                    Button("Aggressive optimisation") {
-                        if optimiser.downscaleFactor < 1 {
-                            optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
-                        } else {
-                            optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+            if optimiser.url != nil || optimiser.originalURL != nil {
+                Section("Open") {
+                    if let url = optimiser.url ?? optimiser.originalURL {
+                        // Name and icon the default app so it's obvious what opens (e.g. "Open with Preview").
+                        let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: url)
+                        Button(action: { if optimiser.existingFileOrNotify() != nil { NSWorkspace.shared.open(url) } }) {
+                            if let defaultApp {
+                                SwiftUI.Image(nsImage: appMenuIcon(defaultApp))
+                                Text("Open with \(appDisplayName(defaultApp))")
+                            } else {
+                                Text("Open with default app")
+                            }
                         }
+                        .keyboardShortcut("o")
                     }
-                    .keyboardShortcut("a")
-                    .disabled(optimiser.aggressive)
+                    EditWithAppButton(optimiser: optimiser)
+                    if let url = optimiser.url {
+                        OpenWithMenuView(fileURL: url)
+                    }
                 }
             }
 
-            Divider()
-
-            if let session = wdm.session(forOptimiser: optimiser) {
-                Button("Copy send link") {
-                    session.copyLink()
-                    optimiser.overlayMessage = "Copied link"
+            if hasEditSection {
+                Section("Transform") {
+                    editButtons
+                    editMenus
                 }
-                .keyboardShortcut("w")
+            }
+
+            Section("Share") {
+                if let session = wdm.session(forOptimiser: optimiser) {
+                    Button("Copy send link") {
+                        session.copyLink()
+                        optimiser.overlayMessage = "Copied link"
+                    }
+                    .keyboardShortcut("w")
+                } else {
+                    Button("Send file securely") {
+                        warpDropSend(optimiser: optimiser)
+                    }
+                    .keyboardShortcut("w")
+                }
+                if let url = optimiser.url ?? optimiser.originalURL, let airdrop = NSSharingService(named: .sendViaAirDrop) {
+                    Button("Send with AirDrop") {
+                        guard optimiser.existingFileOrNotify() != nil else { return }
+                        airdrop.perform(withItems: [url])
+                    }
+                    .disabled(!airdrop.canPerform(withItems: [url]))
+                }
+                Button("Upload with Dropshare") {
+                    DROPSHARE.open(optimiser: optimiser)
+                }
+                .keyboardShortcut("u")
+                Menu("Add to shelf\u{2026}") {
+                    Button("Add to Yoink") {
+                        YOINK.open(optimiser: optimiser)
+                    }
+                    Button("Add to Dockside") {
+                        DOCKSIDE.open(optimiser: optimiser)
+                    }
+                    Button("Add to Dropover") {
+                        DROPOVER.open(optimiser: optimiser)
+                    }
+                    Button("Add to Atoll") {
+                        ATOLL.open(optimiser: optimiser)
+                    }
+                }
+            }
+
+            Section("Advanced") {
+                if !optimiser.type.isPDF, !optimiser.type.isAudio {
+                    Button("Strip EXIF metadata") {
+                        guard optimiser.existingFileOrNotify() != nil else { return }
+                        optimiser.path?.stripExif()
+                        optimiser.overlayMessage = "Stripped"
+                    }
+                }
+                Menu("Pass file through pipeline") {
+                    RunPipelineMenu(optimiser: optimiser)
+                }
+                Menu("Pass file through Shortcut") {
+                    WorkflowMenu(optimiser: optimiser)
+                }
+            }
+        }
+
+        pipelineJumpSection
+    }
+
+    /// Plain-button transforms (one-shot actions / window openers), grouped before the submenus so the
+    /// Transform section never alternates between flat items and submenus.
+    @ViewBuilder var editButtons: some View {
+        if optimiser.canCrop() {
+            Button("Crop and resize...") {
+                optimiser.showCropWindow()
+            }
+            .keyboardShortcut("k")
+        }
+        if optimiser.type.isVideo {
+            Button("Remove audio") {
+                optimiser.removeAudio()
+            }
+            .disabled(!optimiser.canRemoveAudio())
+        }
+        if optimiser.type.isAudio {
+            Button("Extract cover art") {
+                extractAudioCoverArt(optimiser: optimiser)
+            }
+        }
+        if optimiser.canReoptimise(), !optimiser.type.isVideo {
+            Button("Aggressive optimisation") {
+                if optimiser.downscaleFactor < 1 {
+                    optimiser.downscale(toFactor: optimiser.downscaleFactor, aggressiveOptimisation: true)
+                } else {
+                    optimiser.optimise(allowLarger: false, aggressiveOptimisation: true, fromOriginal: true)
+                }
+            }
+            .keyboardShortcut("a")
+            .disabled(optimiser.aggressive)
+        }
+    }
+
+    /// Submenu transforms, grouped after `editButtons`. The conversion submenus live here too (moved from
+    /// the old metadata group) so resize, compression and convert all sit together.
+    @ViewBuilder var editMenus: some View {
+        if optimiser.canDownscale() {
+            if optimiser.type.isAudio, optimiser.type.utType != .wav {
+                Menu("Change bitrate") {
+                    LowerBitrateMenu(optimiser: optimiser)
+                }
+            } else if !optimiser.type.isAudio {
+                Menu("Downscale") {
+                    DownscaleMenu(optimiser: optimiser)
+                }
+                .disabled(optimiser.downscaleFactor <= 0.1)
+            }
+        }
+
+        // Mirrors the floating card's compression slider. Audio keeps "Change bitrate" above
+        // (the bitrate is its compression axis), so this is image/video only.
+        if optimiser.canCompress(), !optimiser.type.isAudio {
+            Menu("Compression") {
+                CompressionMenu(optimiser: optimiser)
+            }
+        }
+
+        if optimiser.type.isAudio {
+            Menu("Normalise loudness") {
+                LoudnessMenu(optimiser: optimiser)
+            }
+            Menu("Downscale cover art") {
+                CoverArtDownscaleMenu(optimiser: optimiser)
+            }
+        }
+
+        if optimiser.canChangePlaybackSpeed() {
+            Menu("Change playback speed") {
+                ChangePlaybackSpeedMenu(optimiser: optimiser)
+            }
+            .disabled(optimiser.changePlaybackSpeedFactor >= 10)
+        }
+
+        if optimiser.type.isVideo {
+            Menu("Convert to GIF") {
+                ConvertToGIFMenu(optimiser: optimiser)
+            }
+        }
+
+        if optimiser.canReoptimise(), optimiser.type.isVideo {
+            Menu("Re-optimise with encoder") {
+                ReoptimiseWithEncoderMenu(optimiser: optimiser)
+            }
+        }
+
+        if optimiser.type.isPDF, let pdf = optimiser.pdf, pdf.pageCount > 0 {
+            if pdf.pageCount == 1 {
+                Menu("Convert to image") {
+                    Section("Best for photos and illustrations") {
+                        Button("JPEG") { convertSinglePagePDFToImage(optimiser: optimiser, pdf: pdf, format: .jpeg) }
+                    }
+                    Section("Best for text and low-detail images") {
+                        Button("PNG") { convertSinglePagePDFToImage(optimiser: optimiser, pdf: pdf, format: .png) }
+                    }
+                }
             } else {
-                Button("Send file securely") {
-                    warpDropSend(optimiser: optimiser)
-                }
-                .keyboardShortcut("w")
-            }
-            Button("Upload with Dropshare") {
-                DROPSHARE.open(optimiser: optimiser)
-            }
-            .keyboardShortcut("u")
-            Menu("Add to shelf\u{2026}") {
-                Button("Add to Yoink") {
-                    YOINK.open(optimiser: optimiser)
-                }
-                Button("Add to Dockside") {
-                    DOCKSIDE.open(optimiser: optimiser)
-                }
-                Button("Add to Dropover") {
-                    DROPOVER.open(optimiser: optimiser)
-                }
-                Button("Add to Atoll") {
-                    ATOLL.open(optimiser: optimiser)
-                }
-            }
-
-            Divider()
-
-            if !optimiser.type.isPDF, !optimiser.type.isAudio {
-                Button("Strip EXIF metadata") {
-                    optimiser.path?.stripExif()
-                    optimiser.overlayMessage = "Stripped"
-                }
-            }
-
-            if optimiser.type.isPDF, let pdf = optimiser.pdf, pdf.pageCount > 0 {
-                if pdf.pageCount == 1 {
-                    Menu("Convert to image") {
-                        Section("Best for photos and illustrations") {
-                            Button("JPEG") { convertSinglePagePDFToImage(optimiser: optimiser, pdf: pdf, format: .jpeg) }
-                        }
-                        Section("Best for text and low-detail images") {
-                            Button("PNG") { convertSinglePagePDFToImage(optimiser: optimiser, pdf: pdf, format: .png) }
-                        }
+                Menu("Extract pages as images") {
+                    Section("Best for photos and illustrations") {
+                        Button("JPEG") { extractPDFPagesAsImages(optimiser: optimiser, pdf: pdf, format: .jpeg) }
                     }
-                } else {
-                    Menu("Extract pages as images") {
-                        Section("Best for photos and illustrations") {
-                            Button("JPEG") { extractPDFPagesAsImages(optimiser: optimiser, pdf: pdf, format: .jpeg) }
-                        }
-                        Section("Best for text and low-detail images") {
-                            Button("PNG") { extractPDFPagesAsImages(optimiser: optimiser, pdf: pdf, format: .png) }
-                        }
+                    Section("Best for text and low-detail images") {
+                        Button("PNG") { extractPDFPagesAsImages(optimiser: optimiser, pdf: pdf, format: .png) }
                     }
                 }
             }
+        }
 
-            if optimiser.convertibleTypes.isNotEmpty {
-                Menu("Convert to…") {
-                    ConvertMenu(optimiser: optimiser)
+        if optimiser.convertibleTypes.isNotEmpty {
+            Menu("Convert to…") {
+                ConvertMenu(optimiser: optimiser)
+            }
+        }
+    }
+
+    /// Bottom-of-menu entry showing the pipeline that last ran on this result. A saved pipeline reads
+    /// "Pipeline: <name>" and, when clicked, opens Settings → Pipelines scrolled to and highlighting it; an
+    /// inline/temp pipeline just shows "Pipeline" and isn't clickable. The subtitle is the step code.
+    /// Wrapped in a Section so the title+subtitle button's action still fires (a bare top-level menu
+    /// button drops its action once it has a subtitle).
+    @ViewBuilder var pipelineJumpSection: some View {
+        // Prefer the named pipeline that ran (automation or "Pass through pipeline"); otherwise fall back
+        // to the accumulated manual steps (downscale, compression, convert…) so ad-hoc edits also show as
+        // a temp pipeline. A lone "optimise" is just the default pass, so it isn't worth surfacing.
+        let pipeline = optimiser.automationPipeline
+        let tempSteps = optimiser.tempPipeline
+        let hasManualSequence = tempSteps.contains { $0.stepName != "optimise" } || tempSteps.count > 1
+        if pipeline != nil || hasManualSequence {
+            // The saved-library id to jump to, if this pipeline is (or references) a saved one.
+            let savedID: String? = {
+                guard let pipeline else { return nil }
+                if let lib = pipeline.libraryID, Defaults[.savedPipelines].contains(where: { $0.id == lib }) { return lib }
+                if Defaults[.savedPipelines].contains(where: { $0.id == pipeline.id }) { return pipeline.id }
+                return nil
+            }()
+            let name = (pipeline?.resolved.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = (savedID != nil && !name.isEmpty) ? "Pipeline: \(name)" : "Pipeline"
+            // Build from steps (not rawText) so the subtitle is one clean line with no trailing newline.
+            let rawCode = (pipeline?.resolved.steps ?? tempSteps).map(\.displayString).joined(separator: " -> ")
+            // Show the whole pipeline, just compacted (rounded decimals, shortened paths).
+            let code = shortenPipelineCode(rawCode)
+            Section {
+                Button {
+                    guard let savedID else { return }
+                    settingsViewManager.tab = .pipelines
+                    settingsViewManager.highlightPipelineID = savedID
+                    WM.open("settings")
+                } label: {
+                    Text(title)
+                    Text(code)
                 }
-            }
-
-            Menu("Pass file through pipeline") {
-                RunPipelineMenu(optimiser: optimiser)
-            }
-            Menu("Pass file through Shortcut") {
-                WorkflowMenu(optimiser: optimiser)
+                .disabled(savedID == nil)
             }
         }
     }
