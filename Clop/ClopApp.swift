@@ -1052,7 +1052,7 @@ class AppDelegate: AppDelegateParent {
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
-                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipsPreOptimisation)
 
                 var resultPath = path
                 if allSkip {
@@ -1092,7 +1092,7 @@ class AppDelegate: AppDelegateParent {
                 guard let img = Image(path: path, retinaDownscaled: false) else { return }
                 let type: ItemType = .image(img.type)
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
-                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipsPreOptimisation)
 
                 var resultPath = path
                 if allSkip {
@@ -1130,7 +1130,7 @@ class AppDelegate: AppDelegateParent {
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .pdf
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
-                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipsPreOptimisation)
 
                 var resultPath = path
                 if allSkip {
@@ -1168,7 +1168,7 @@ class AppDelegate: AppDelegateParent {
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
                 let pipelines = source.map { pipelinesFor(type: type, source: $0) } ?? []
-                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+                let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipsPreOptimisation)
 
                 var resultPath = path
                 if allSkip {

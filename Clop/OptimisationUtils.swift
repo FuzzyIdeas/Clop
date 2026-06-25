@@ -1038,34 +1038,6 @@ enum TempPipelineSegment {
         }
     }
 
-    /// The current file when it is a Clop-produced conversion output that persists alongside the original
-    /// (same/specific-folder placement) — i.e. the prior format to remove on the next keep-only-last
-    /// convert. Returns nil for the original/source file or for in-place/temporary placements.
-    private func previousManualConvertOutput() -> URL? {
-        guard let current = url, let currentPath = current.filePath, currentPath.exists else { return nil }
-        let sources = [originalURL, startingURL, convertedFromURL].compactMap { $0 }
-        guard !sources.contains(current) else { return nil }
-        let behaviour: FileBehaviour
-        if type.isImage { behaviour = Defaults[.manualConvertedImageBehaviour] }
-        else if type.isVideo { behaviour = Defaults[.manualConvertedVideoBehaviour] }
-        else if type.isAudio { behaviour = Defaults[.manualConvertedAudioBehaviour] }
-        else { return nil }
-        guard behaviour == .sameFolder || behaviour == .specificFolder else { return nil }
-        return current
-    }
-
-    /// Delete the previous conversion output after the new one has succeeded (keep-only-last). It's a
-    /// Clop-produced intermediate, so it's removed outright rather than sent to Trash (which would pile
-    /// up); guarded so it never removes the file just produced nor the original/source.
-    private func removeSupersededConvertOutput() {
-        guard let oldURL = supersededConvertURL else { return }
-        supersededConvertURL = nil
-        guard oldURL != url else { return }
-        let sources = [originalURL, startingURL, convertedFromURL].compactMap { $0 }
-        guard !sources.contains(oldURL), let oldPath = oldURL.filePath, oldPath.exists else { return }
-        try? fm.removeItem(at: oldURL)
-    }
-
     func compare() {
         if let window = comparisonWindowController?.window {
             window.makeKeyAndOrderFront(nil)
@@ -2129,6 +2101,34 @@ enum TempPipelineSegment {
     /// (e.g. after a video->gif conversion) so a freshly produced GIF is re-probed.
     private var animatedGIFCache: (url: URL, value: Bool)?
 
+    /// The current file when it is a Clop-produced conversion output that persists alongside the original
+    /// (same/specific-folder placement) — i.e. the prior format to remove on the next keep-only-last
+    /// convert. Returns nil for the original/source file or for in-place/temporary placements.
+    private func previousManualConvertOutput() -> URL? {
+        guard let current = url, let currentPath = current.filePath, currentPath.exists else { return nil }
+        let sources = [originalURL, startingURL, convertedFromURL].compactMap { $0 }
+        guard !sources.contains(current) else { return nil }
+        let behaviour: FileBehaviour
+        if type.isImage { behaviour = Defaults[.manualConvertedImageBehaviour] }
+        else if type.isVideo { behaviour = Defaults[.manualConvertedVideoBehaviour] }
+        else if type.isAudio { behaviour = Defaults[.manualConvertedAudioBehaviour] }
+        else { return nil }
+        guard behaviour == .sameFolder || behaviour == .specificFolder else { return nil }
+        return current
+    }
+
+    /// Delete the previous conversion output after the new one has succeeded (keep-only-last). It's a
+    /// Clop-produced intermediate, so it's removed outright rather than sent to Trash (which would pile
+    /// up); guarded so it never removes the file just produced nor the original/source.
+    private func removeSupersededConvertOutput() {
+        guard let oldURL = supersededConvertURL else { return }
+        supersededConvertURL = nil
+        guard oldURL != url else { return }
+        let sources = [originalURL, startingURL, convertedFromURL].compactMap { $0 }
+        guard !sources.contains(oldURL), let oldPath = oldURL.filePath, oldPath.exists else { return }
+        try? fm.removeItem(at: oldURL)
+    }
+
     /// Re-encode `video` into a different video container/codec via ffmpeg. Works for real videos and
     /// for animated GIFs used as video input (ffmpeg preserves every frame). Runs off the main thread,
     /// updates the optimiser on completion, and records the source url so "Restore original" can revert.
@@ -2962,7 +2962,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
         {
             let type = ItemType.from(filePath: item.path)
             let pipelines = pipelinesFor(type: type, source: source)
-            let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipOptimisation)
+            let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipsPreOptimisation)
             if allSkip, type.isImage || type.isVideo || type.isAudio || type.isPDF {
                 let optimiser = OM.optimiser(id: id, type: type, operation: "Running pipeline", hidden: true, source: source)
                 optimiser.url = item.path.url
@@ -3283,7 +3283,7 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
     let oldBytes = path.fileSize() ?? 0
     var startPath = path
 
-    if !pipeline.skipOptimisation {
+    if !pipeline.skipsPreOptimisation {
         do {
             let result = try await optimiseItem(
                 ClipboardType.fromURL(url),

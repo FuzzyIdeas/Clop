@@ -114,6 +114,23 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
         id.hasPrefix("builtin-")
     }
 
+    /// True when the first effective (non-filter) step already re-encodes the file
+    /// (convert / crop / downscale). A standard optimisation beforehand would then be wasted work and
+    /// an extra quality-lossy pass, since the re-encode produces a fresh file that gets optimised anyway.
+    var leadsWithReencode: Bool {
+        guard let first = resolved.steps.first(where: { !$0.isFilter }) else { return false }
+        switch first.stepName {
+        case "convert", "crop", "downscale": return true
+        default: return false
+        }
+    }
+
+    /// Whether the implicit pre-optimisation can be skipped before this pipeline runs: either the user
+    /// chose to pass the original file, or the pipeline leads with a re-encoding step.
+    var skipsPreOptimisation: Bool {
+        skipOptimisation || leadsWithReencode
+    }
+
     var displayText: String {
         if isLibraryReference {
             let r = resolved
@@ -638,7 +655,7 @@ extension Optimiser {
     if let first = pipelines.first {
         optimiser.automationPipeline = first
         var steps = first.resolved.steps.filter { !$0.isFilter }
-        if !first.skipOptimisation, !steps.contains(where: { $0.stepName == "optimise" || $0.stepName == "convert" }) {
+        if !first.skipsPreOptimisation, !steps.contains(where: { $0.stepName == "optimise" || $0.stepName == "convert" }) {
             steps.insert(.optimise(), at: 0)
         }
         optimiser.tempPipeline = steps
