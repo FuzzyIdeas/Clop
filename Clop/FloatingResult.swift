@@ -16,7 +16,7 @@ import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "FloatingResult")
 
-let FLOAT_MARGIN: CGFloat = 64
+let FLOAT_MARGIN: CGFloat = 4
 
 private struct PreviewKey: EnvironmentKey {
     static let defaultValue = false
@@ -629,10 +629,6 @@ struct NameFormatPill: View {
     @Environment(\.preview) var preview
     @ObservedObject var km = KM
 
-    /// True while Option is held: a plain click on a format replaces the current one (keep-only-last),
-    /// Option+click keeps both. The accordion pills show a "+" while this is true.
-    private var additiveConvert: Bool { km.lalt || km.ralt }
-
     var body: some View {
         Group {
             if optimiser.editingFilename {
@@ -701,15 +697,6 @@ struct NameFormatPill: View {
         }
     }
 
-    /// Convert targets shown in the accordion: every convertible type except the current one.
-    private var targetFormats: [(type: UTType, ext: String)] {
-        optimiser.convertibleTypes.compactMap { format in
-            guard optimiser.type.utType != format else { return nil }
-            let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
-            return e.isEmpty ? nil : (format, e)
-        }
-    }
-
     @ViewBuilder var formatAccordion: some View {
         let formats = targetFormats
         VStack(alignment: .trailing, spacing: 3) {
@@ -744,25 +731,6 @@ struct NameFormatPill: View {
         // Outermost so it gates the .onHover too: when closed, the (upward) accordion frame is fully
         // transparent to hover/clicks and never blocks elements rendered above the extension chip.
         .allowsHitTesting(optimiser.showingFormats)
-    }
-
-    private func convert(to format: UTType) {
-        optimiser.showingFormats = false
-        guard !preview, optimiser.type.utType != format else { return }
-        optimiser.convert(to: format, optimise: true, additive: additiveConvert)
-    }
-
-    private func updateFormatsVisibility() {
-        if hoveringExt || hoveringList {
-            optimiser.showingFormats = true
-        } else {
-            // Grace period so crossing the small gap between the chip and the list doesn't close it.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                guard !hoveringExt, !hoveringList else { return }
-                optimiser.showingFormats = false
-                hoveredFormatIdx = nil
-            }
-        }
     }
 
     var editor: some View {
@@ -804,11 +772,45 @@ struct NameFormatPill: View {
     @State private var hoveringList = false
     @State private var hoveredFormatIdx: Int? = nil
 
+    /// True while Option is held: a plain click on a format replaces the current one (keep-only-last),
+    /// Option+click keeps both. The accordion pills show a "+" while this is true.
+    private var additiveConvert: Bool {
+        km.lalt || km.ralt
+    }
+
+    /// Convert targets shown in the accordion: every convertible type except the current one.
+    private var targetFormats: [(type: UTType, ext: String)] {
+        optimiser.convertibleTypes.compactMap { format in
+            guard optimiser.type.utType != format else { return nil }
+            let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
+            return e.isEmpty ? nil : (format, e)
+        }
+    }
+
     private var stem: String {
         optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
     }
     private var ext: String {
         optimiser.url?.filePath?.extension ?? optimiser.originalURL?.filePath?.extension ?? ""
+    }
+
+    private func convert(to format: UTType) {
+        optimiser.showingFormats = false
+        guard !preview, optimiser.type.utType != format else { return }
+        optimiser.convert(to: format, optimise: true, additive: additiveConvert)
+    }
+
+    private func updateFormatsVisibility() {
+        if hoveringExt || hoveringList {
+            optimiser.showingFormats = true
+        } else {
+            // Grace period so crossing the small gap between the chip and the list doesn't close it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                guard !hoveringExt, !hoveringList else { return }
+                optimiser.showingFormats = false
+                hoveredFormatIdx = nil
+            }
+        }
     }
 
 }
