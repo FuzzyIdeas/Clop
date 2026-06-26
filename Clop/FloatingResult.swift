@@ -107,51 +107,9 @@ struct FloatingResultList: View {
             .padding(.horizontal, 8)
             .background(RoundedRectangle(cornerRadius: 7).fill(Color.inverted.opacity(0.9)))
             .foregroundColor(.primary)
-            .help("Drag all")
-            .onDrag {
-                guard !preview else { return NSItemProvider() }
-                // One NSItemProvider per file so the drop lands as a set of files, not a single item
-                // with conflicting representations (which is why "drag all" stopped working).
-                let urls = optimisers.compactMap(\.url).filter(\.isFileURL)
-                guard let first = urls.first else { return NSItemProvider() }
-                let provider = NSItemProvider()
-                provider.registerObject(first as NSURL, visibility: .all)
-                for url in urls.dropFirst() {
-                    provider.registerObject(url as NSURL, visibility: .all)
-                }
-                return provider
-            } preview: {
-                dragAllPreview
-            }
-    }
-
-    /// A little stack of the result thumbnails (cover art for audio) shown while dragging the whole
-    /// set, instead of dragging the bare handle button.
-    var dragAllPreview: some View {
-        // Cap at the first few results so a large set doesn't build/render a wall of thumbnails;
-        // the badge still reports the true total.
-        let thumbs = optimisers.prefix(4).compactMap(\.thumbnail)
-        return ZStack {
-            ForEach(Array(thumbs.enumerated()), id: \.offset) { i, thumb in
-                SwiftUI.Image(nsImage: thumb)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 54, height: 54)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(.white.opacity(0.5), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.3), radius: 3, y: 2)
-                    .rotationEffect(.degrees(Double(i) * 5 - 7))
-                    .offset(x: Double(i) * 6, y: Double(i) * -3)
-            }
-            Text("\(optimisers.count)")
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .foregroundColor(.white)
-                .frame(minWidth: 20, minHeight: 20)
-                .background(Circle().fill(Color.accentColor).shadow(color: .black.opacity(0.3), radius: 2))
-                .offset(x: 32, y: -30)
-        }
-        .frame(width: 96, height: 80)
-        .padding(8)
+            // A real multi-item AppKit drag so the drop lands EVERY file. SwiftUI's `.onDrag` returns one
+            // provider == one item, which is why "drag all" used to drop a single file. See onDragAllFiles.
+            .onDragAllFiles(help: "Drag all") { preview ? [] : optimisers }
     }
 
     var copyAllButton: some View {

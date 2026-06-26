@@ -964,9 +964,12 @@ struct BitrateSlider: View {
 
     var size: CGFloat
 
-    var audioFormat: AudioFormat { optimiser.audioFormat }
     @Default(.audioBitrate) var defaultBitrate
     @Default(.floatingResultsCorner) var floatingResultsCorner
+
+    var audioFormat: AudioFormat {
+        optimiser.audioFormat
+    }
 
     var bitrates: [Int] {
         audioFormat.allowedBitrates
@@ -1074,8 +1077,11 @@ struct HorizontalBitrateSlider: View {
 
     var size: CGFloat
 
-    var audioFormat: AudioFormat { optimiser.audioFormat }
     @Default(.audioBitrate) var defaultBitrate
+
+    var audioFormat: AudioFormat {
+        optimiser.audioFormat
+    }
 
     var bitrates: [Int] {
         audioFormat.allowedBitrates
@@ -1368,8 +1374,11 @@ struct CardCompressionSlider: View {
 struct CardBitrateSlider: View {
     @ObservedObject var optimiser: Optimiser
 
-    var audioFormat: AudioFormat { optimiser.audioFormat }
     @Default(.audioBitrate) var defaultBitrate
+
+    var audioFormat: AudioFormat {
+        optimiser.audioFormat
+    }
 
     var bitrates: [Int] {
         audioFormat.allowedBitrates
@@ -1962,6 +1971,108 @@ extension View {
 
     func onRightClick(perform action: @escaping () -> Void) -> some View {
         overlay(RightClickCatcher(action: action))
+    }
+
+    /// Drag a whole set of files out as a real multi-item drag, so the drop lands EVERY file.
+    ///
+    /// SwiftUI's `.onDrag` can only return one `NSItemProvider`, and a single provider is a single item:
+    /// registering several file URLs on it just stacks competing representations of that one item, so a
+    /// "drag all" drop lands a single file. The only fix is an AppKit `NSDraggingSession` with one
+    /// `NSDraggingItem` per file. Overlaid on the SwiftUI handle like `onMouseDown`, but it owns the
+    /// press-drag (its `hitTest` returns self) so the session starts from the handle.
+    ///
+    /// When `optimisers()` is empty the overlay is fully transparent (its `hitTest` returns nil), so it
+    /// can be gated to only intercept in certain states (e.g. only while a row is part of a multi-row
+    /// selection). `onTap` forwards a press that did NOT turn into a drag, so an intercepted view keeps
+    /// its click behaviour (e.g. toggling a row's selection) while a press-drag pulls the whole set out.
+    func onDragAllFiles(help: String? = nil, onTap: (() -> Void)? = nil, _ optimisers: @escaping () -> [Optimiser]) -> some View {
+        overlay(MultiFileDragSource(help: help, onTap: onTap, optimisers: optimisers))
+    }
+}
+
+/// AppKit drag source that drops a whole set of files (one `NSDraggingItem` per file). See `onDragAllFiles`.
+final class MultiFileDragView: NSView, NSDraggingSource {
+    var optimisers: () -> [Optimiser] = { [] }
+    /// Called when an intercepted press is released WITHOUT having turned into a drag, so the host view
+    /// keeps its click behaviour (e.g. toggling a row's selection) even though this overlay owns the press.
+    var onTap: (() -> Void)?
+
+    /// Own the press only when there's something to drag; otherwise stay transparent so the handle (and
+    /// anything beneath it) behaves normally.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        draggableOptimisers.isEmpty ? nil : super.hitTest(point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        mouseDownEvent = event
+    }
+    override func mouseUp(with event: NSEvent) {
+        // A press that never crossed the drag threshold is a plain click: forward it. (A started drag
+        // clears `mouseDownEvent` in `mouseDragged`, so this won't fire after a drag.)
+        let wasClick = mouseDownEvent != nil
+        mouseDownEvent = nil
+        if wasClick { onTap?() }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let down = mouseDownEvent else { return }
+        let moved = hypot(
+            event.locationInWindow.x - down.locationInWindow.x,
+            event.locationInWindow.y - down.locationInWindow.y
+        )
+        guard moved >= 4 else { return }
+        mouseDownEvent = nil
+        beginFileDrag(with: down)
+    }
+
+    func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        // Export copies; never move/relinquish the result files out from under the floating cards.
+        .copy
+    }
+
+    private var mouseDownEvent: NSEvent?
+
+    /// File-backed optimisers in the current set; the bare drag handle only deals in on-disk files.
+    private var draggableOptimisers: [Optimiser] {
+        optimisers().filter { $0.url?.isFileURL ?? false }
+    }
+
+    private func beginFileDrag(with event: NSEvent) {
+        let center = convert(event.locationInWindow, from: nil)
+        let side: CGFloat = 52
+        let frame = NSRect(x: center.x - side / 2, y: center.y - side / 2, width: side, height: side)
+        let items: [NSDraggingItem] = draggableOptimisers.compactMap { optimiser in
+            guard let url = optimiser.url, url.isFileURL else { return nil }
+            let item = NSDraggingItem(pasteboardWriter: url as NSURL)
+            // A per-file thumbnail (cover art for audio, generic icon as a fallback) so the system pile
+            // shows the real files plus its own count badge, matching the old SwiftUI preview.
+            item.setDraggingFrame(frame, contents: optimiser.thumbnail ?? NSWorkspace.shared.icon(forFile: url.path))
+            return item
+        }
+        guard !items.isEmpty else { return }
+        let session = beginDraggingSession(with: items, event: event, source: self)
+        session.draggingFormation = .pile
+    }
+
+}
+
+struct MultiFileDragSource: NSViewRepresentable {
+    var help: String?
+    var onTap: (() -> Void)?
+    var optimisers: () -> [Optimiser]
+
+    func makeNSView(context: Context) -> MultiFileDragView {
+        let view = MultiFileDragView()
+        view.optimisers = optimisers
+        view.onTap = onTap
+        view.toolTip = help
+        return view
+    }
+
+    func updateNSView(_ nsView: MultiFileDragView, context: Context) {
+        nsView.optimisers = optimisers
+        nsView.onTap = onTap
+        nsView.toolTip = help
     }
 }
 
