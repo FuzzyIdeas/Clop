@@ -1126,6 +1126,7 @@ struct SavedPipelineRow: View {
                             attach(to: .dropZone, fileType: type)
                         }
                     }
+                    Button("Preset zone") { addToPresetZone(fileType: nil) }
                     let allFolders = ClopFileType.allCases.flatMap { existingFolderSources(for: $0) }
                     let uniqueFolders = allFolders.reduce(into: [OptimisationSource]()) { acc, s in
                         if !acc.contains(s) { acc.append(s) }
@@ -1212,6 +1213,7 @@ struct SavedPipelineRow: View {
     @ViewBuilder func addToButtons(for type: ClopFileType) -> some View {
         Button(OptimisationSource.clipboard.displayLabel) { attach(to: .clipboard, fileType: type) }
         Button(OptimisationSource.dropZone.displayLabel) { attach(to: .dropZone, fileType: type) }
+        Button("Preset zone") { addToPresetZone(fileType: type) }
         let folders = existingFolderSources(for: type)
         if !folders.isEmpty {
             Divider()
@@ -1240,6 +1242,13 @@ struct SavedPipelineRow: View {
         list.append(Pipeline.reference(to: pipeline))
         dict[source.string] = list
         Defaults[fileType.pipelineKey] = dict
+    }
+
+    /// Add this library pipeline as a new preset zone scoped to `fileType` (nil = any type). No-op if a
+    /// preset zone of the same type already references it, mirroring `attach`'s idempotency.
+    func addToPresetZone(fileType: ClopFileType?) {
+        guard !presetZones.contains(where: { $0.type == fileType && $0.pipeline.libraryID == pipeline.id }) else { return }
+        assignPresetZone(library: pipeline, type: fileType)
     }
 
     @State private var isEditingLib = false
