@@ -204,6 +204,7 @@ struct DropZonePresetsView: View {
 
     @State var imagePresetZones: [PresetZone] = []
     @State var videoPresetZones: [PresetZone] = []
+    @State var audioPresetZones: [PresetZone] = []
     @State var pdfPresetZones: [PresetZone] = []
     @State var anyFilePresetZones: [PresetZone] = []
     @Environment(\.preview) var preview
@@ -228,6 +229,8 @@ struct DropZonePresetsView: View {
             imagePresetZones
         case .video:
             videoPresetZones
+        case .audio:
+            audioPresetZones
         case .pdf:
             pdfPresetZones
         default:
@@ -281,6 +284,12 @@ struct DropZonePresetsView: View {
     func zoneMenuContent(zone: PresetZone?) -> some View {
         if let zone {
             Button("Edit pipeline") { settingsViewManager.editingPresetZoneID = zone.id }
+            if zone.pipeline.isLibraryReference, let libID = zone.pipeline.libraryID {
+                Button("Go to pipeline") {
+                    settingsViewManager.tab = .pipelines
+                    settingsViewManager.highlightPipelineID = libID
+                }
+            }
             if !applicableLibraryPipelines.isEmpty {
                 Menu("Replace with") {
                     ForEach(applicableLibraryPipelines) { lib in
@@ -407,6 +416,7 @@ struct DropZonePresetsView: View {
     func cachePresetZones() {
         imagePresetZones = []
         videoPresetZones = []
+        audioPresetZones = []
         pdfPresetZones = []
         anyFilePresetZones = []
 
@@ -417,15 +427,17 @@ struct DropZonePresetsView: View {
             case .video:
                 videoPresetZones.append(presetZone)
             case .audio:
-                anyFilePresetZones.append(presetZone)
+                audioPresetZones.append(presetZone)
             case .pdf:
                 pdfPresetZones.append(presetZone)
             case nil:
                 anyFilePresetZones.append(presetZone)
             }
         }
+        // Only any-type zones (type == nil) belong in every section; type-specific zones stay in their own.
         imagePresetZones += anyFilePresetZones
         videoPresetZones += anyFilePresetZones
+        audioPresetZones += anyFilePresetZones
         pdfPresetZones += anyFilePresetZones
     }
 }
