@@ -448,26 +448,31 @@ struct CompactResult: View {
                 v.onDrag { fileDragProvider(url) } preview: { dragPreview }
             }
         }
+        // Dragging a whole multi-row selection out can't go through the row's `.onDrag` (one provider ==
+        // one item, so the drop lands a single file). When this row is part of a multi-selection, an AppKit
+        // drag source owns the press and pulls the WHOLE selection out as real files; a plain click still
+        // toggles the row. Transparent otherwise, so single-row drag / selection / scroll are untouched.
+        .if(!preview) { view in
+            view.onDragAllFiles(onTap: onToggleSelection) {
+                selected && SM.selection.count > 1 ? SM.optimisers : []
+            }
+        }
         // Uniform breathing room below every row (running rows render a tall progress/name stack that would
         // otherwise crowd the bottom edge); replaces the per-row action-button bottom padding so the gap is
         // consistent whether or not the buttons are shown.
         .padding(.bottom, 8)
     }
 
-    /// File drag for the whole row. Attached at the body ROOT (NOT a nested subview) so it bridges to the
+    /// Single-file drag for the row. Attached at the body ROOT (NOT a nested subview) so it bridges to the
     /// SwiftUI List row's table drag session on macOS — `.onDrag` on a nested subview inside a List row
-    /// does not. A selected row (with a multi-selection) drags the whole selection; otherwise just this
-    /// file. Gated at the call site by `!showDownscaleSlider && !showCompressionSlider`, so pressing a
+    /// does not. Gated at the call site by `!showDownscaleSlider && !showCompressionSlider`, so pressing a
     /// grid slider catches the press-drag instead of starting a row drag, exactly like the floating card.
+    ///
+    /// Dragging a WHOLE multi-row selection can't go through here: SwiftUI calls `.onDrag` once for the
+    /// grabbed row and a single `NSItemProvider` is a single item, so a set would still drop one file. The
+    /// `onDragAllFiles` overlay on the row body owns the press in that case and runs a real AppKit
+    /// multi-item drag instead.
     func fileDragProvider(_ url: URL) -> NSItemProvider {
-        if selected, SM.selection.count > 1 {
-            let urls = SM.optimisers.compactMap(\.url).filter(\.isFileURL)
-            let provider = NSItemProvider()
-            for u in urls {
-                provider.registerObject(u as NSURL, visibility: .all)
-            }
-            return provider
-        }
         log.debug("Dragging \(url)")
         if Defaults[.dismissCompactResultOnDrop] {
             optimiser.remove(after: 100, withAnimation: true)
@@ -795,8 +800,9 @@ struct DragPilePreview: View {
     }
 }
 
-/// Neutral "drag all" handle for the compact footer bars. Registers one provider per file so the drop
-/// lands as a set, and shows the thumbnail-pile preview instead of a snapshot of the handle itself.
+/// Neutral "drag all" handle for the compact footer bars. Drops the whole set via a real multi-item
+/// AppKit drag (one `NSDraggingItem` per file); a single SwiftUI `.onDrag` provider would land just one
+/// file. See `onDragAllFiles`.
 struct CompactDragAllHandle: View {
     var optimisers: [Optimiser]
     var help: String
@@ -809,20 +815,7 @@ struct CompactDragAllHandle: View {
             .frame(width: 30, height: 22)
             .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.08)))
             .foregroundColor(.primary.opacity(0.7))
-            .help(help)
-            .onDrag {
-                guard !preview else { return NSItemProvider() }
-                let urls = optimisers.compactMap(\.url).filter(\.isFileURL)
-                guard let first = urls.first else { return NSItemProvider() }
-                let provider = NSItemProvider()
-                provider.registerObject(first as NSURL, visibility: .all)
-                for url in urls.dropFirst() {
-                    provider.registerObject(url as NSURL, visibility: .all)
-                }
-                return provider
-            } preview: {
-                DragPilePreview(optimisers: optimisers)
-            }
+            .onDragAllFiles(help: help) { preview ? [] : optimisers }
     }
 }
 
