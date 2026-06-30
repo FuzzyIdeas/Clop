@@ -1564,7 +1564,7 @@ class Image: CustomStringConvertible {
     optimiser.remove(after: 0, withAnimation: false)
 }
 
-@MainActor func shouldHandleImage(event: EonilFSEventsEvent) -> Bool {
+@MainActor func shouldHandleImage(event: EonilFSEventsEvent) async -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
           IMAGE_EXTENSIONS.contains(ext)
@@ -1582,30 +1582,45 @@ class Image: CustomStringConvertible {
 
     log.debug("\(path.shellString): \(flag)")
 
-    guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
-          flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
-          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
-          Defaults[.maxImageSizeMB] == 0 || size < Defaults[.maxImageSizeMB] * 1_000_000,
-          Defaults[.minImageSizeKB] == 0 || size >= Defaults[.minImageSizeKB] * 1000, imageOptimiseDebouncers[event.path] == nil
-    else {
-        if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {
+    // The content checks below do blocking filesystem I/O (xattr read, size stat, image-header
+    // decode). The FSEvents callback is delivered on the main thread, so running them here would hang
+    // the UI for tens of seconds on a burst of events or a slow/network volume (ANR). Only Defaults +
+    // the filesystem are touched, so it's safe to run off the main actor; the debouncer bookkeeping
+    // stays on the main actor below.
+    let eventPath = event.path
+    let io = await Task.detached { () -> (passes: Bool, exists: Bool) in
+        let exists = fm.fileExists(atPath: eventPath)
+        guard exists, !eventPath.contains(FilePath.clopBackups.string),
+              flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
+              !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
+              Defaults[.maxImageSizeMB] == 0 || size < Defaults[.maxImageSizeMB] * 1_000_000,
+              Defaults[.minImageSizeKB] == 0 || size >= Defaults[.minImageSizeKB] * 1000
+        else {
+            return (false, exists)
+        }
+
+        let minRes = Defaults[.minImageResolution]
+        let maxRes = Defaults[.maxImageResolution]
+        if minRes > 0 || maxRes > 0 {
+            guard let source = CGImageSourceCreateWithURL(path.url as CFURL, nil),
+                  let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                  let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int,
+                  minRes == 0 || (w >= minRes && h >= minRes),
+                  maxRes == 0 || (w <= maxRes && h <= maxRes)
+            else { return (false, exists) }
+        }
+        return (true, exists)
+    }.value
+
+    guard io.passes else {
+        if flag.contains(.itemRemoved) || !io.exists {
             imageOptimiseDebouncers[event.path]?.cancel()
             imageOptimiseDebouncers.removeValue(forKey: event.path)
         }
         return false
     }
 
-    let minRes = Defaults[.minImageResolution]
-    let maxRes = Defaults[.maxImageResolution]
-    if minRes > 0 || maxRes > 0 {
-        guard let source = CGImageSourceCreateWithURL(path.url as CFURL, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int,
-              minRes == 0 || (w >= minRes && h >= minRes),
-              maxRes == 0 || (w <= maxRes && h <= maxRes)
-        else { return false }
-    }
-
+    guard imageOptimiseDebouncers[event.path] == nil else { return false }
     return true
 }
 

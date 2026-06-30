@@ -170,7 +170,11 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     }
 
     if let autoConversionFormat {
-        let converted = try img.convert(to: autoConversionFormat, asTempFile: true)
+        // Conversion can spawn an external encoder (e.g. `toGainMapHDR` for HDR HEIC→JPEG) and decode
+        // the result with NSImage; run it off the main actor so a large/HDR image doesn't block the
+        // main thread for tens of seconds and trip the ANR watchdog.
+        let imageToConvert = img
+        let converted = try await Task.detached { try imageToConvert.convert(to: autoConversionFormat, asTempFile: true) }.value
         // The optimiser may already be pre-registered in OM by the CLI request handler so
         // placementOverride is available here, before the optimiser is formally set up below.
         let placementOverride = opt(id ?? pathString)?.placementOverride

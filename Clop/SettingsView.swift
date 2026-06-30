@@ -2036,6 +2036,8 @@ struct DropZoneSettingsView: View {
     @Default(.onlyShowDropZoneOnOption) var onlyShowDropZoneOnOption
     @Default(.autoCopyToClipboard) var autoCopyToClipboard
     @Default(.floatingResultsCorner) var floatingResultsCorner
+    @Default(.useBatchModeForFolders) var useBatchModeForFolders
+    @Default(.batchModeFileCountThreshold) var batchModeFileCountThreshold
 
     var toggles: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -2088,6 +2090,37 @@ struct DropZoneSettingsView: View {
                 }
                 .frame(height: 250)
                 .padding(.horizontal)
+                .frame(maxWidth: 780)
+                .frame(maxWidth: .infinity)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 0) {
+                    SectionHeader(title: "Batch mode", subtitle: "Process a large drop in a fast native window instead of one floating result per file")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle(isOn: $useBatchModeForFolders) {
+                            Text("Use batch mode for large drops").regular(13)
+                                + Text("\nDropping many files at once (or a folder with many files) opens a single batch window that optimises them all efficiently. Originals are backed up first and can be restored.").round(
+                                    11,
+                                    weight: .regular
+                                ).foregroundColor(.secondary)
+                        }
+                        HStack {
+                            Text("Switch to batch mode when dropping more than").regular(13)
+                            Spacer()
+                            TextField("", value: $batchModeFileCountThreshold, format: .number)
+                                .multilineTextAlignment(.center)
+                                .font(.mono(12))
+                                .frame(width: 60)
+                            Text("files").regular(13)
+                        }
+                        .disabled(!useBatchModeForFolders)
+                        .opacity(useBatchModeForFolders ? 1 : 0.6)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+                .padding(.horizontal, 16)
                 .frame(maxWidth: 780)
                 .frame(maxWidth: .infinity)
 
@@ -2548,8 +2581,6 @@ struct GeneralSettingsView: View {
     @Default(.preserveDates) var preserveDates
     @Default(.syncSettingsCloud) var syncSettingsCloud
     @Default(.optimisedFileProtectionMs) var optimisedFileProtectionMs
-    @Default(.useBatchModeForFolders) var useBatchModeForFolders
-    @Default(.batchModeFileCountThreshold) var batchModeFileCountThreshold
 
     @Default(.workdir) var workdir
     @Default(.workdirCleanupInterval) var workdirCleanupInterval
@@ -2670,26 +2701,6 @@ struct GeneralSettingsView: View {
                     Text("Re-optimisation loop detection window").regular(13)
                         + Text("\nIncrease if files on iCloud Drive get optimised twice").round(11, weight: .regular).foregroundColor(.secondary)
                 }
-            }
-
-            Section(header: SectionHeader(title: "Batch mode", subtitle: "Process large folders in a fast native window instead of one floating result per file")) {
-                Toggle(isOn: $useBatchModeForFolders) {
-                    Text("Use batch mode for large folders").regular(13)
-                        + Text("\nDropping a folder with many files opens a single batch window that optimises them all efficiently. Originals are backed up first and can be restored.").round(11, weight: .regular)
-                        .foregroundColor(.secondary)
-                }
-                HStack {
-                    Text("Switch to batch mode when dropping more than").regular(13)
-                    Spacer()
-                    TextField("", value: $batchModeFileCountThreshold, format: .number)
-                        .multilineTextAlignment(.center)
-                        .font(.mono(12))
-                        .frame(width: 60)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
-                    Text("files").regular(13)
-                }
-                .disabled(!useBatchModeForFolders)
-                .opacity(useBatchModeForFolders ? 1 : 0.6)
             }
 
             Section(header: SectionHeader(title: "Privacy")) {

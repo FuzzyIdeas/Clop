@@ -594,7 +594,7 @@ var processTerminated = Set<pid_t>()
     optimiser.remove(after: 0, withAnimation: false)
 }
 
-@MainActor func shouldHandleVideo(event: EonilFSEventsEvent) -> Bool {
+@MainActor func shouldHandleVideo(event: EonilFSEventsEvent) async -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
           VIDEO_EXTENSIONS.contains(ext), !Defaults[.videoFormatsToSkip].lazy.compactMap(\.preferredFilenameExtension).contains(ext)
@@ -605,17 +605,31 @@ var processTerminated = Set<pid_t>()
 
     log.debug("\(path.shellString): \(flag)")
 
-    guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
-          flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
-          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
-          Defaults[.maxVideoSizeMB] == 0 || size < Defaults[.maxVideoSizeMB] * 1_000_000,
-          Defaults[.minVideoSizeKB] == 0 || size >= Defaults[.minVideoSizeKB] * 1000, videoOptimiseDebouncers[event.path] == nil
-    else {
-        if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {
+    // Run the blocking filesystem checks (xattr read, size stat) off the main actor; the FSEvents
+    // callback is on the main thread, so doing them here would hang the UI on a burst of events or a
+    // slow/network volume (ANR). The debouncer bookkeeping stays on the main actor below.
+    let eventPath = event.path
+    let io = await Task.detached { () -> (passes: Bool, exists: Bool) in
+        let exists = fm.fileExists(atPath: eventPath)
+        guard exists, !eventPath.contains(FilePath.clopBackups.string),
+              flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
+              !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
+              Defaults[.maxVideoSizeMB] == 0 || size < Defaults[.maxVideoSizeMB] * 1_000_000,
+              Defaults[.minVideoSizeKB] == 0 || size >= Defaults[.minVideoSizeKB] * 1000
+        else {
+            return (false, exists)
+        }
+        return (true, exists)
+    }.value
+
+    guard io.passes else {
+        if flag.contains(.itemRemoved) || !io.exists {
             videoOptimiseDebouncers[event.path]?.cancel()
             videoOptimiseDebouncers.removeValue(forKey: event.path)
         }
         return false
     }
+
+    guard videoOptimiseDebouncers[event.path] == nil else { return false }
     return true
 }

@@ -2307,7 +2307,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     @Published var optimisers: Set<Optimiser> = [] {
         didSet {
             SHARING_MANAGER.isShowingPicker = false
-            for o in optimisers {
+            // Only write (and fire the @Published/SwiftUI invalidation) for optimisers whose value
+            // actually changes; the set is reassigned on every pipeline tick, so an unconditional
+            // write here floods SwiftUI with no-op invalidations.
+            for o in optimisers where o.sharing {
                 o.sharing = false
             }
 
@@ -2936,14 +2939,22 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
             }
         }
 
-        let item: ClipboardType =
-            if let outFilePath, item.path.exists, case let .image(img) = item {
-                try .image(img.copyWithPath(item.path.copy(to: outFilePath, force: true)))
-            } else if let outFilePath, item.path.exists {
-                try .file(item.path.copy(to: outFilePath, force: true))
+        // Copy the source to the output template path off the main actor: for a large file or a
+        // slow/network destination volume, `copyItem` blocks for tens of seconds and would hang the
+        // UI (ANR). `optimiseItem` is async, so we can await an off-main copy here.
+        let resolvedItem: ClipboardType
+        if let outFilePath, item.path.exists {
+            let srcPath = item.path
+            let copiedPath = try await Task.detached { try srcPath.copy(to: outFilePath, force: true) }.value
+            if case let .image(img) = item {
+                resolvedItem = .image(img.copyWithPath(copiedPath))
             } else {
-                item
+                resolvedItem = .file(copiedPath)
             }
+        } else {
+            resolvedItem = item
+        }
+        let item: ClipboardType = resolvedItem
 
         // Per-run compression override (CLI/Shortcuts): set it on the optimiser before
         // any pipeline runs, so the image/video/audio encode paths pick it up.
