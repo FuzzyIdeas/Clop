@@ -285,10 +285,16 @@ extension FilePath {
             return
         }
 
-        let src = CGImageSourceCreateWithURL(source.url as CFURL, nil)!
-        let dst = CGImageDestinationCreateWithURL(url as CFURL, uttype.identifier as CFString, 1, nil)!
-
-        let metadata = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)!
+        // ImageIO returns nil (not a crash) when it can't read the source or can't create a
+        // destination for `uttype` (unsupported writable type / unwritable destination volume).
+        // Force-unwrapping those traps the process (EXC_BREAKPOINT), so bail out instead.
+        guard let src = CGImageSourceCreateWithURL(source.url as CFURL, nil),
+              let dst = CGImageDestinationCreateWithURL(url as CFURL, uttype.identifier as CFString, 1, nil),
+              let metadata = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+        else {
+            log.error("Failed to copy EXIF metadata from \(source) to \(self)")
+            return
+        }
 
         CGImageDestinationAddImageFromSource(dst, src, 0, metadata)
         CGImageDestinationFinalize(dst)

@@ -769,16 +769,27 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
     let itemProvidersCount = itemProviders.count
     let copyToClipboard = Defaults[.autoCopyToClipboard]
 
-    // Batch mode: a large pile of dropped files (all plain file references) goes to the lightweight
-    // engine + window instead of one floating result each. Pro-only; a single folder isn't caught
-    // here (it goes through optimiseFile → optimiseDir, which has its own batch routing).
-    if Defaults[.useBatchModeForFolders], proactive,
-       itemProvidersCount > Defaults[.batchModeFileCountThreshold],
-       itemProviders.allSatisfy({ $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) })
-    {
+    // Batch mode: a large pile of dropped files goes to the lightweight engine + window instead of one
+    // floating result each. SwiftUI hands image/video file drops back as content-typed providers
+    // (e.g. `public.png`) in `itemProviders`, NOT `public.file-url`, so detect and resolve the pile via
+    // the parallel `filenames` providers, which carry the file URLs. A single folder isn't caught here
+    // (it goes through optimiseFile → optimiseDir, which has its own batch routing).
+    let droppedFileProviders = filenames.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
+    if Defaults[.useBatchModeForFolders], droppedFileProviders.count > Defaults[.batchModeFileCountThreshold] {
+        // Optimising more files than the batch threshold in one drop is a Pro feature: surface a
+        // visible Pro error instead of silently optimising the whole pile one-by-one for free.
+        guard proactive else {
+            let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
+            optimiser.finish(
+                error: "Batch optimisation is a Pro feature",
+                notice: "Get Clop Pro to optimise large drops in one window,\nor drop fewer than \(Defaults[.batchModeFileCountThreshold]) files at a time.",
+                keepFor: 7000
+            )
+            return true
+        }
         tryAsync {
             var paths: [FilePath] = []
-            for provider in itemProviders {
+            for provider in droppedFileProviders {
                 guard let item = try? await provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier),
                       let path = item.existingFilePath else { continue }
                 if path.isDir {
@@ -799,6 +810,21 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
             BAT.prepare(paths: paths, source: .dropZone)
             BAT.showWindow()
         }
+        return true
+    }
+
+    // Free tier is limited to 5 optimisations. Optimising more than that in a single drop is a Pro
+    // feature: gate it here, synchronously, before fanning each file out into its own concurrent task
+    // (whose per-file proGuard count can't enforce a limit across concurrent tasks). A handful of
+    // files still goes through for free.
+    let droppedItemCount = max(itemProvidersCount, droppedFileProviders.count)
+    if !proactive, droppedItemCount > 5 {
+        let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
+        optimiser.finish(
+            error: "Optimising more than 5 files at once is a Pro feature",
+            notice: "Get Clop Pro to remove the limit,\nor drop 5 or fewer files at a time.",
+            keepFor: 7000
+        )
         return true
     }
 
@@ -853,10 +879,15 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                         return
                     }
 
-                    guard let image = Image(
-                        path: path, data: nsImage != nil ? data : nil, nsImage: nsImage,
-                        type: UTType(identifier), optimised: false, retinaDownscaled: false
-                    ) else {
+                    // Constructing an Image reads the whole file into memory and decodes it; do that
+                    // off the main thread so a large image or a slow/network volume doesn't block the
+                    // main thread for tens of seconds and trip the ANR watchdog.
+                    guard let image = await Task.detached(operation: {
+                        Image(
+                            path: path, data: nsImage != nil ? data : nil, nsImage: nsImage,
+                            type: UTType(identifier), optimised: false, retinaDownscaled: false
+                        )
+                    }).value else {
                         return
                     }
 

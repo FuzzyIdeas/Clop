@@ -175,6 +175,33 @@ extension String {
     return (app?.bundleIdentifier, app?.localizedName)
 }
 
+/// Sentry's handler (installed by configureSentry) is captured here so we can chain to it. The
+/// NSSetUncaughtExceptionHandler callback is a non-capturing C function pointer, so the previous
+/// handler has to live in a global rather than be captured in the closure.
+private var previousUncaughtExceptionHandler: (@convention(c) (NSException) -> Void)?
+
+/// Record uncaught Objective-C exceptions with their name + reason before the process dies.
+///
+/// `NSApplicationCrashOnExceptions` is on (set by `configureSentry`), so exceptions thrown during
+/// AppKit event dispatch are re-raised and reach this handler. Sentry's automatic capture buckets
+/// them all into one frameless "reportException" issue; capturing here with a fingerprint built from
+/// the exception name + reason splits that catch-all into actionable, distinct issues. Must be
+/// installed after `configureSentry` so it chains to (instead of clobbering) Sentry's own handler.
+func installUncaughtExceptionLogger() {
+    previousUncaughtExceptionHandler = NSGetUncaughtExceptionHandler()
+    NSSetUncaughtExceptionHandler { exception in
+        let name = exception.name.rawValue
+        let reason = exception.reason ?? "<no reason>"
+        log.error("Uncaught NSException [\(name)]: \(reason)\n\(exception.callStackSymbols.joined(separator: "\n"))")
+        SentrySDK.capture(exception: exception) { scope in
+            scope.setFingerprint(["uncaught-nsexception", name, reason])
+            scope.setTag(value: name, key: "exception_name")
+        }
+        SentrySDK.flush(timeout: 2)
+        previousUncaughtExceptionHandler?(exception)
+    }
+}
+
 class AppDelegate: AppDelegateParent {
     var proDebugCancellables = Set<AnyCancellable>()
 
@@ -361,6 +388,7 @@ class AppDelegate: AppDelegateParent {
         if !SWIFTUI_PREVIEW {
             LowtechSentry.sentryDSN = "https://7dad9331a2e1753c3c0c6bc93fb0d523@o84592.ingest.sentry.io/4505673793077248"
             LowtechSentry.configureSentry(restartOnHang: false, getUser: LowtechSentry.getSentryUser)
+            installUncaughtExceptionLogger()
             configureAppHangDetection { _, _ in
                 activeCLIRequests.load(ordering: .relaxed) > 0 ? .suppressRestart : .useDefault
             }
@@ -477,14 +505,14 @@ class AppDelegate: AppDelegateParent {
                 if enabled.newValue {
                     self.initClipboardOptimiser()
                 } else {
-                    clipboardWatcher?.invalidate()
+                    clipboardWatcher?.cancel()
                 }
             }
             .store(in: &observers)
         pub(.pauseAutomaticOptimisations)
             .sink { paused in
                 if paused.newValue {
-                    clipboardWatcher?.invalidate()
+                    clipboardWatcher?.cancel()
                 } else {
                     self.initClipboardOptimiser()
                 }
@@ -1198,18 +1226,27 @@ class AppDelegate: AppDelegateParent {
     @MainActor func initClipboardOptimiser() {
         guard finishedOnboarding else { return }
 
-        clipboardWatcher?.invalidate()
-        clipboardWatcher = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            let newChangeCount = NSPasteboard.general.changeCount
+        clipboardWatcher?.cancel()
+        // Poll the pasteboard on a dedicated serial background queue instead of a main-runloop Timer.
+        // `NSPasteboard.changeCount` and the content reads (`pasteboardItems`, `existingFilePath`, …)
+        // are synchronous XPC round-trips to the pasteboard server; running them on the main thread
+        // froze the UI for 30s+ whenever that server was slow (CLOP-A3, CLOP-AC). All pasteboard reads
+        // stay on this one serial queue and we hop to the main actor only once a real change needs
+        // handling, passing already-resolved values. `pbChangeCount` is owned by this queue;
+        // `pauseForNextClipboardEvent` is checked on the main actor (where it's written) to avoid a race.
+        let timer = DispatchSource.makeTimerSource(queue: clipboardQueue)
+        timer.schedule(deadline: .now() + 0.5, repeating: 0.5, leeway: .milliseconds(100))
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+
+            let pb = NSPasteboard.general
+            let newChangeCount = pb.changeCount
             guard newChangeCount != pbChangeCount else {
                 return
             }
             pbChangeCount = newChangeCount
-            guard !pauseForNextClipboardEvent else {
-                pauseForNextClipboardEvent = false
-                return
-            }
-            guard let item = NSPasteboard.general.pasteboardItems?.first, item.string(forType: .optimisationStatus) == nil, !TRANSIENT_TYPES.hasElements(from: Set(item.types)) else {
+
+            guard let item = pb.pasteboardItems?.first, item.string(forType: .optimisationStatus) == nil, !TRANSIENT_TYPES.hasElements(from: Set(item.types)) else {
                 return
             }
 
@@ -1221,116 +1258,132 @@ class AppDelegate: AppDelegateParent {
                 return
             }
 
+            // Resolve everything that needs the pasteboard here, off the main thread, so the main
+            // actor never blocks on a slow pasteboard server.
+            let existingFilePath = item.existingFilePath
+            let isPhotos = item.types.contains(.photosReferenceAsset)
+
             mainActor {
-                guard !BM.decompressingBinaries else {
-                    return
-                }
-
-                scalingFactor = 1
-                // Capture the app that placed this clipboard content for the `copiedBy` pipeline filter.
-                OM.lastClipboardSourceApp = clipboardSourceApp(item: item)
-                DebugDump.record("[clipboard] >>> handled by Clop: change #\(newChangeCount)  types=[\(item.types.map(\.rawValue).joined(separator: " "))]")
-
-                if self.optimiseVideoClipboard, let path = item.existingFilePath, path.isVideo {
-                    let ignore = Defaults[.videoFormatsToSkip]
-                    if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
-                        return
-                    }
-                    let alreadyOptimised = path.hasOptimisationStatusXattr()
-                    if alreadyOptimised {
-                        let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
-                        let pipelines = pipelinesFor(type: type, source: .clipboard)
-                        if !pipelines.isEmpty {
-                            Task {
-                                let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
-                                optimiser.url = path.url
-                                await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
-                            }
-                        }
-                    } else {
-                        Task {
-                            let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
-                            var resultPath = path
-                            if let result = try? await runVideoPipeline(Video(path: path), actions: [.optimise], source: .clipboard) {
-                                resultPath = result.path
-                            }
-                            if let optimiser = opt(path.string) {
-                                await runPipelinesAfterOptimisation(file: resultPath, type: type, source: .clipboard, optimiser: optimiser)
-                            }
-                        }
-                    }
-                    return
-                }
-                if Defaults[.optimisePDFClipboard], let path = item.existingFilePath, path.isPDF {
-                    let alreadyOptimised = path.hasOptimisationStatusXattr()
-                    if alreadyOptimised {
-                        let type: ItemType = .pdf
-                        let pipelines = pipelinesFor(type: type, source: .clipboard)
-                        if !pipelines.isEmpty {
-                            Task {
-                                let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
-                                optimiser.url = path.url
-                                await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
-                            }
-                        }
-                    } else {
-                        Task {
-                            var resultPath = path
-                            if let result = try? await runPDFPipeline(PDF(path), actions: [.optimise], source: .clipboard) {
-                                resultPath = result.path
-                            }
-                            if let optimiser = opt(path.string) {
-                                await runPipelinesAfterOptimisation(file: resultPath, type: .pdf, source: .clipboard, optimiser: optimiser)
-                            }
-                        }
-                    }
-                    return
-                }
-                if item.existingFilePath?.isPDF ?? false {
-                    return
-                }
-                if Defaults[.optimiseAudioClipboard], let path = item.existingFilePath, path.isAudio {
-                    let ignore = Defaults[.audioFormatsToSkip]
-                    if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
-                        return
-                    }
-                    let alreadyOptimised = path.hasOptimisationStatusXattr()
-                    if alreadyOptimised {
-                        let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
-                        let pipelines = pipelinesFor(type: type, source: .clipboard)
-                        if !pipelines.isEmpty {
-                            Task {
-                                let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
-                                optimiser.url = path.url
-                                await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
-                            }
-                        }
-                    } else {
-                        Task {
-                            let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
-                            var resultPath = path
-                            if let result = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], source: .clipboard) {
-                                resultPath = result.path
-                            }
-                            if let optimiser = opt(path.string) {
-                                await runPipelinesAfterOptimisation(file: resultPath, type: type, source: .clipboard, optimiser: optimiser)
-                            }
-                        }
-                    }
-                    return
-                }
-                if item.existingFilePath?.isAudio ?? false {
-                    return
-                }
-                if item.types.contains(.photosReferenceAsset) {
-                    optimiseClipboardPhotos()
-                    return
-                }
-                optimiseClipboardImage(item: item)
+                self.handleClipboardChange(item: item, existingFilePath: existingFilePath, isPhotos: isPhotos, newChangeCount: newChangeCount)
             }
         }
+        timer.resume()
+        clipboardWatcher = timer
+    }
 
-        clipboardWatcher?.tolerance = 100
+    /// Handle a detected clipboard change on the main actor. The pasteboard was already read on the
+    /// clipboard queue, so the (potentially slow) file-path resolution is passed in via
+    /// `existingFilePath` rather than re-read here.
+    @MainActor func handleClipboardChange(item: NSPasteboardItem, existingFilePath: FilePath?, isPhotos: Bool, newChangeCount: Int) {
+        guard !pauseForNextClipboardEvent else {
+            pauseForNextClipboardEvent = false
+            return
+        }
+        guard !BM.decompressingBinaries else {
+            return
+        }
+
+        scalingFactor = 1
+        // Capture the app that placed this clipboard content for the `copiedBy` pipeline filter.
+        OM.lastClipboardSourceApp = clipboardSourceApp(item: item)
+        DebugDump.record("[clipboard] >>> handled by Clop: change #\(newChangeCount)  types=[\(item.types.map(\.rawValue).joined(separator: " "))]")
+
+        if optimiseVideoClipboard, let path = existingFilePath, path.isVideo {
+            let ignore = Defaults[.videoFormatsToSkip]
+            if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
+                return
+            }
+            let alreadyOptimised = path.hasOptimisationStatusXattr()
+            if alreadyOptimised {
+                let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
+                let pipelines = pipelinesFor(type: type, source: .clipboard)
+                if !pipelines.isEmpty {
+                    Task {
+                        let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+                        optimiser.url = path.url
+                        await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
+                    }
+                }
+            } else {
+                Task {
+                    let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
+                    var resultPath = path
+                    if let result = try? await runVideoPipeline(Video(path: path), actions: [.optimise], source: .clipboard) {
+                        resultPath = result.path
+                    }
+                    if let optimiser = opt(path.string) {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: .clipboard, optimiser: optimiser)
+                    }
+                }
+            }
+            return
+        }
+        if Defaults[.optimisePDFClipboard], let path = existingFilePath, path.isPDF {
+            let alreadyOptimised = path.hasOptimisationStatusXattr()
+            if alreadyOptimised {
+                let type: ItemType = .pdf
+                let pipelines = pipelinesFor(type: type, source: .clipboard)
+                if !pipelines.isEmpty {
+                    Task {
+                        let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+                        optimiser.url = path.url
+                        await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
+                    }
+                }
+            } else {
+                Task {
+                    var resultPath = path
+                    if let result = try? await runPDFPipeline(PDF(path), actions: [.optimise], source: .clipboard) {
+                        resultPath = result.path
+                    }
+                    if let optimiser = opt(path.string) {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: .pdf, source: .clipboard, optimiser: optimiser)
+                    }
+                }
+            }
+            return
+        }
+        if existingFilePath?.isPDF ?? false {
+            return
+        }
+        if Defaults[.optimiseAudioClipboard], let path = existingFilePath, path.isAudio {
+            let ignore = Defaults[.audioFormatsToSkip]
+            if !ignore.isEmpty, let itemType = ItemType.from(filePath: path).utType, ignore.contains(itemType) {
+                return
+            }
+            let alreadyOptimised = path.hasOptimisationStatusXattr()
+            if alreadyOptimised {
+                let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
+                let pipelines = pipelinesFor(type: type, source: .clipboard)
+                if !pipelines.isEmpty {
+                    Task {
+                        let optimiser = OM.optimiser(id: path.string, type: type, operation: "Running pipeline", hidden: true, source: .clipboard)
+                        optimiser.url = path.url
+                        await runPipelinesAfterOptimisation(file: path, type: type, source: .clipboard, optimiser: optimiser)
+                    }
+                }
+            } else {
+                Task {
+                    let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)
+                    var resultPath = path
+                    if let result = try? await runAudioPipeline(Audio(path: path), actions: [.optimise], source: .clipboard) {
+                        resultPath = result.path
+                    }
+                    if let optimiser = opt(path.string) {
+                        await runPipelinesAfterOptimisation(file: resultPath, type: type, source: .clipboard, optimiser: optimiser)
+                    }
+                }
+            }
+            return
+        }
+        if existingFilePath?.isAudio ?? false {
+            return
+        }
+        if isPhotos {
+            optimiseClipboardPhotos()
+            return
+        }
+        optimiseClipboardImage(item: item)
     }
 
     @objc func statusBarButtonClicked(_ sender: NSClickGestureRecognizer) {
@@ -1409,9 +1462,16 @@ extension NSWindow {
     }
 }
 
-let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
-let cursorDropZoneWindow = OSDWindow(swiftuiView: DropZoneView().any, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
-var clipboardWatcher: Timer?
+// These two windows are app-lifetime singletons that get closed/reopened when the user toggles
+// floating results or the drop zone. OSDWindow defaults to isReleasedWhenClosed = true, which would
+// free the window on close() while these global `let`s still point at it, so the next access (e.g.
+// `.isVisible`) reads freed memory and crashes (EXC_BAD_ACCESS). Keep them alive across close.
+let floatingResultsWindow = OSDWindow(swiftuiView: FloatingResultContainer().any, releaseWhenClosed: false, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
+let cursorDropZoneWindow = OSDWindow(swiftuiView: DropZoneView().any, releaseWhenClosed: false, level: .floating, canScreenshot: Defaults[.allowClopToAppearInScreenshots], allowsMouse: true)
+var clipboardWatcher: DispatchSourceTimer?
+/// Dedicated serial queue for all pasteboard polling/reads, so the (synchronous, sometimes slow)
+/// pasteboard-server round-trips never run on the main thread. See `initClipboardOptimiser`.
+let clipboardQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "com.lowtechguys.Clop").clipboard")
 var pbChangeCount = NSPasteboard.general.changeCount
 let THUMB_SIZE = CGSize(width: 300, height: 220)
 

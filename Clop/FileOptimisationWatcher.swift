@@ -29,7 +29,7 @@ class FileOptimisationWatcher {
         enabledKey: Defaults.Key<Bool>,
         maxFilesToHandleKey: Defaults.Key<Int>,
         fileType: ClopFileType,
-        shouldHandle: @escaping (EonilFSEventsEvent) -> Bool,
+        shouldHandle: @escaping @MainActor (EonilFSEventsEvent) async -> Bool,
         cancel: @escaping (FilePath) -> Void,
         handler: @escaping (FilePath) -> Void
     ) {
@@ -99,7 +99,7 @@ class FileOptimisationWatcher {
 
     var handler: (FilePath) -> Void
     var cancel: (FilePath) -> Void
-    var shouldHandle: (EonilFSEventsEvent) -> Bool
+    var shouldHandle: @MainActor (EonilFSEventsEvent) async -> Bool
 
     var observers = Set<AnyCancellable>()
     var justAddedFiles = Set<EonilFSEventsEvent>()
@@ -210,40 +210,49 @@ class FileOptimisationWatcher {
         do {
             try LowtechFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self), latency: 0.3, flags: [.noDefer, .fileEvents, .ignoreSelf, .markSelf]) { [weak self] event in
                 guard event.flag?.contains(.ownEvent) == false else { return }
-                self?.semaphore.wait()
-                defer { self?.semaphore.signal() }
+                // The FSEvents callback is delivered on the main thread. Return immediately and do the
+                // work on the main actor: `shouldHandle` runs its blocking filesystem checks (xattr,
+                // size stat, image-header decode) off the main thread internally, so the main thread is
+                // never blocked on file I/O during a burst of events or on a slow/network volume (ANR).
+                Task { @MainActor [weak self] in
+                    guard !SWIFTUI_PREVIEW, !BM.decompressingBinaries, let self, enabled, isAddedFile(event: event),
+                          !self.alreadyOptimisedFiles.contains(event.path),
+                          !OM.optimisers.contains(where: { $0.url?.path == event.path }),
+                          let path = event.path.existingFilePath, await shouldHandle(event)
+                    else { return }
 
-                guard !SWIFTUI_PREVIEW, !BM.decompressingBinaries, let self, enabled, isAddedFile(event: event),
-                      !self.alreadyOptimisedFiles.contains(event.path),
-                      !OM.optimisers.contains(where: { $0.url?.path == event.path }),
-                      let path = event.path.existingFilePath, shouldHandle(event)
-                else { return }
+                    // The bookkeeping below has no suspension points, so the main actor already
+                    // serialises it; the semaphore is kept to mirror the original guard against
+                    // stop/startWatching and always returns immediately here.
+                    semaphore.wait()
+                    defer { self.semaphore.signal() }
 
-                let typeName = fileType.description
-                let isNewFile = justAddedFiles.insert(event).inserted
+                    let typeName = fileType.description
+                    let isNewFile = justAddedFiles.insert(event).inserted
 
-                if !withinSafeMeasureTime {
-                    addedFileRemovers[path]?.cancel()
-                    addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
-                        log.debug("Removed \(path.string) from justAddedFiles in the \(typeName) watcher")
-                        self?.justAddedFiles.remove(event)
-                        self?.addedFileRemovers.removeValue(forKey: path)
+                    if !withinSafeMeasureTime {
+                        addedFileRemovers[path]?.cancel()
+                        addedFileRemovers[path] = mainAsyncAfter(ms: 1000) { [weak self] in
+                            log.debug("Removed \(path.string) from justAddedFiles in the \(typeName) watcher")
+                            self?.justAddedFiles.remove(event)
+                            self?.addedFileRemovers.removeValue(forKey: path)
+                        }
                     }
-                }
 
-                // A single download/save produces several FSEvents for the same path (rename into
-                // place, then quarantine/metadata writes); only the first one should start a
-                // processing task, the settle-wait inside it handles the follow-up writes.
-                guard isNewFile else {
-                    log.debug("Skipping duplicate event for \(path.string) in the \(typeName) watcher")
-                    return
-                }
-                addedFilesCleaner = nil
-                log.debug("Added \(path.string) to justAddedFiles in the \(typeName) watcher")
-                cancelledFiles.remove(path)
-                DebugDump.record("[fsevent] >>> picked up by Clop \(typeName) watcher: \(path.string)")
+                    // A single download/save produces several FSEvents for the same path (rename into
+                    // place, then quarantine/metadata writes); only the first one should start a
+                    // processing task, the settle-wait inside it handles the follow-up writes.
+                    guard isNewFile else {
+                        log.debug("Skipping duplicate event for \(path.string) in the \(typeName) watcher")
+                        return
+                    }
+                    addedFilesCleaner = nil
+                    log.debug("Added \(path.string) to justAddedFiles in the \(typeName) watcher")
+                    cancelledFiles.remove(path)
+                    DebugDump.record("[fsevent] >>> picked up by Clop \(typeName) watcher: \(path.string)")
 
-                Task { [weak self] in await self?.checkEventAndProcess(event) }
+                    Task { [weak self] in await self?.checkEventAndProcess(event) }
+                }
             }
             watching = true
         } catch {

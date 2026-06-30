@@ -782,7 +782,7 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
             // Always place the result: an in-place format conversion (e.g. PNG→JPEG) leaves the
             // optimised file in a temp cache dir, so it must be written next to the original too, not
             // only for the working-copy / output-folder cases.
-            if placeResult(optimiser: optimiser, working: working, destinationDir: outputDir, original: src) {
+            if await placeResult(optimiser: optimiser, working: working, destinationDir: outputDir, original: src) {
                 recordResult(id: id, optimiser: optimiser)
             } else {
                 recordFailure(id: id, message: "Couldn't write the optimised file to its destination")
@@ -813,7 +813,7 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
     /// original location (external-volume place-back / in-place format change). Returns false if the
     /// write fails, so the caller marks the item failed instead of reporting a phantom success.
     @discardableResult
-    private func placeResult(optimiser: Optimiser, working: FilePath, destinationDir: FilePath?, original: FilePath) -> Bool {
+    private func placeResult(optimiser: Optimiser, working: FilePath, destinationDir: FilePath?, original: FilePath) async -> Bool {
         let optimised = optimiser.url?.filePath ?? working
         guard optimised.exists else { return false }
         let ext = optimised.extension ?? original.extension ?? ""
@@ -843,7 +843,7 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
         // In-place same-format pass already wrote the result back through the pipeline.
         guard optimised != dest else { return true }
 
-        guard placeAtomically(optimised, at: dest) else { return false }
+        guard await placeAtomically(optimised, at: dest) else { return false }
 
         // In-place conversion: drop the superseded original-format file (its pristine copy is in the backup).
         if destinationDir == nil, formatChanged, original != dest, original.exists {
@@ -857,24 +857,29 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
     /// stage to a sibling temp on the destination's volume, then atomically replace. Returns false on
     /// any failure (volume unplug, full disk) so the caller can mark the item failed rather than
     /// leaving an empty original and reporting success.
-    private func placeAtomically(_ src: FilePath, at dest: FilePath) -> Bool {
-        let tmp = dest.dir / ".clop-place-\(UUID().uuidString).\(dest.extension ?? "tmp")"
-        try? tmp.delete()
-        guard (try? src.copy(to: tmp, force: true)) != nil, tmp.exists else {
+    private func placeAtomically(_ src: FilePath, at dest: FilePath) async -> Bool {
+        // The copy + atomic replace are blocking filesystem I/O; on a large file or a slow/external
+        // destination volume `copyfile` stalls for tens of seconds. `BatchManager` is @MainActor, so
+        // run the whole place-back off the main actor to avoid hanging the UI (ANR).
+        await Task.detached {
+            let tmp = dest.dir / ".clop-place-\(UUID().uuidString).\(dest.extension ?? "tmp")"
             try? tmp.delete()
-            return false
-        }
-        do {
-            if dest.exists {
-                _ = try fm.replaceItemAt(dest.url, withItemAt: tmp.url)
-            } else {
-                _ = try tmp.move(to: dest, force: true)
+            guard (try? src.copy(to: tmp, force: true)) != nil, tmp.exists else {
+                try? tmp.delete()
+                return false
             }
-            return true
-        } catch {
-            try? tmp.delete()
-            return false
-        }
+            do {
+                if dest.exists {
+                    _ = try fm.replaceItemAt(dest.url, withItemAt: tmp.url)
+                } else {
+                    _ = try tmp.move(to: dest, force: true)
+                }
+                return true
+            } catch {
+                try? tmp.delete()
+                return false
+            }
+        }.value
     }
 
     private func makeOptimiser(for item: BatchItem) -> Optimiser {

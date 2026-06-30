@@ -106,7 +106,11 @@ let GS_BASE_ARGS: [String] = [
     "-dProcessColorModel=/DeviceRGB",
     "-dSAFER",
     "-dSubsetFonts=true",
-    "-dTransferFunctionInfo=/Apply",
+    // /Preserve, NOT /Apply: /Apply bakes transfer functions into content, but Ghostscript's
+    // pdfwrite mis-applies a /TR on an /Alpha soft mask (e.g. Canva QR codes), driving the mask
+    // fully transparent and erasing the masked image. /Preserve (also the gs default) keeps the
+    // /TR in the output for the renderer to apply, so the QR survives. See the QR-erasure repro.
+    "-dTransferFunctionInfo=/Preserve",
     "-dUCRandBGInfo=/Remove",
 ]
 
@@ -520,7 +524,7 @@ class PDF: Optimisable {
     optimiser.remove(after: 0, withAnimation: false)
 }
 
-@MainActor func shouldHandlePDF(event: EonilFSEventsEvent) -> Bool {
+@MainActor func shouldHandlePDF(event: EonilFSEventsEvent) async -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."),
           let ext = path.extension?.lowercased(), ext == "pdf"
@@ -531,18 +535,32 @@ class PDF: Optimisable {
 
     log.debug("\(path.shellString): \(flag)")
 
-    guard fm.fileExists(atPath: event.path), !event.path.contains(FilePath.clopBackups.string),
-          flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
-          !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
-          Defaults[.maxPDFSizeMB] == 0 || size < Defaults[.maxPDFSizeMB] * 1_000_000,
-          Defaults[.minPDFSizeKB] == 0 || size >= Defaults[.minPDFSizeKB] * 1000, pdfOptimiseDebouncers[event.path] == nil
-    else {
-        if flag.contains(.itemRemoved) || !fm.fileExists(atPath: event.path) {
+    // Run the blocking filesystem checks (xattr read, size stat) off the main actor; the FSEvents
+    // callback is on the main thread, so doing them here would hang the UI on a burst of events or a
+    // slow/network volume (ANR). The debouncer bookkeeping stays on the main actor below.
+    let eventPath = event.path
+    let io = await Task.detached { () -> (passes: Bool, exists: Bool) in
+        let exists = fm.fileExists(atPath: eventPath)
+        guard exists, !eventPath.contains(FilePath.clopBackups.string),
+              flag.isDisjoint(with: [.historyDone, .itemRemoved]), flag.contains(.itemIsFile), flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified]),
+              !path.hasOptimisationStatusXattr(), let size = path.fileSize(), size > 0,
+              Defaults[.maxPDFSizeMB] == 0 || size < Defaults[.maxPDFSizeMB] * 1_000_000,
+              Defaults[.minPDFSizeKB] == 0 || size >= Defaults[.minPDFSizeKB] * 1000
+        else {
+            return (false, exists)
+        }
+        return (true, exists)
+    }.value
+
+    guard io.passes else {
+        if flag.contains(.itemRemoved) || !io.exists {
             pdfOptimiseDebouncers[event.path]?.cancel()
             pdfOptimiseDebouncers.removeValue(forKey: event.path)
         }
         return false
     }
+
+    guard pdfOptimiseDebouncers[event.path] == nil else { return false }
     return true
 }
 

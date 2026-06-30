@@ -249,10 +249,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
 
                 // Save to cache (only for plain optimise)
                 if !hasDownscale, !hasSpeedChange {
+                    // `video.hash` is a lazy SHA-256 of the whole file; evaluate it here (off the main
+                    // actor — this runs on the pipeline work item) so the heavy hashing never happens
+                    // inside the `mainActor` block and hangs the UI (ANR). Once memoised, the later
+                    // `video.hash` read on line ~328 is free.
+                    let videoHash = video.hash
                     mainActor {
-                        if OM.optimisedFilesByHash[video.hash] == nil {
+                        if OM.optimisedFilesByHash[videoHash] == nil {
                             previouslyCached = false
-                            OM.optimisedFilesByHash[video.hash] = optimisedVideo!.path
+                            OM.optimisedFilesByHash[videoHash] = optimisedVideo!.path
                         }
                     }
                 }
