@@ -759,6 +759,14 @@ struct NameFormatPill: View {
     }
 
     private func updateFormatsVisibility() {
+        // While the share picker is open, never spring the format accordion: showing formats hides the
+        // action grid, which unmounts the share button the picker popover is anchored to and dismisses
+        // the popover. The cursor often crosses the extension chip on its way to the popover, so this
+        // path is hit precisely when the user is reaching for the share menu.
+        if optimiser.sharing {
+            optimiser.showingFormats = false
+            return
+        }
         if hoveringExt || hoveringList {
             optimiser.showingFormats = true
         } else {
@@ -814,7 +822,10 @@ struct FloatingResult: View {
     var isExpanded: Bool {
         // While results are dropping after a removal, keep the overlay collapsed so a card sliding under the
         // cursor doesn't reveal its controls mid-fall. It re-evaluates the instant the drop settles.
-        !om.animatingRemoval && ((hovering && !optimiser.collapseHoverOverlay) || optimiser.editingResolution)
+        // While the share picker is open keep the overlay expanded regardless of hover: the picker popover is
+        // anchored to the share button's view, so collapsing the grid (and unmounting that view) when the
+        // cursor leaves the card to reach the popover would dismiss the popover along with its anchor.
+        !om.animatingRemoval && ((hovering && !optimiser.collapseHoverOverlay) || optimiser.editingResolution || optimiser.sharing)
     }
 
     var showsThumbnail: Bool {
