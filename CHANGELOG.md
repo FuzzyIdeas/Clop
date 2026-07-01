@@ -1,3 +1,19 @@
+# 3.2.2
+
+**[Download Clop 3.2.2 →](https://files.lowtechguys.com/releases/Clop-3.2.2.dmg)**
+## Fixes
+
+- QR codes no longer disappear when optimising PDFs (Canva and similar exports draw them through a transparency mask that was being dropped)
+- Fixed a crash that could happen when turning floating results or the cursor drop zone off and back on
+- Fixed a crash when keeping metadata while converting some images
+- Fixed several causes of the app freezing or briefly hanging: clipboard monitoring waiting on a slow pasteboard, watching folders on slow or network volumes, dropping very large images, converting HDR HEIC photos, and saving optimised files to slow destinations
+- Large drops of image or video files open the batch window, not only folders
+- Share menu on a floating result stays open while you move the cursor onto it, instead of closing the moment the result's buttons fade
+
+## Improvements
+
+- Batch mode settings moved to the Drop zone settings
+
 # 3.2.1
 
 **[Download Clop 3.2.1 →](https://files.lowtechguys.com/releases/Clop-3.2.1.dmg)**
