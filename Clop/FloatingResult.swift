@@ -1145,8 +1145,16 @@ struct FloatingResult: View {
         return LazyVGrid(columns: cols, spacing: 8) {
             ForEach(Array(gridSlots.enumerated()), id: \.offset) { _, slot in
                 if let action = slot {
-                    FloatingGridActionButton(action: action, optimiser: optimiser) {
+                    let button = FloatingGridActionButton(action: action, optimiser: optimiser) {
                         floatingResultActions = floatingResultActions.filter { $0 != action }
+                    }
+                    // The slider buttons own their press-drag (mouse-down opens the slider, which
+                    // grabs the still-held drag), so they must keep blocking the file drag. Every
+                    // other button lets a press-drag pull the file out, like the thumbnail itself.
+                    if action == .downscale || action == .compression {
+                        button
+                    } else {
+                        fileDraggable(button)
                     }
                 } else {
                     addPlaceholderSlot
@@ -1241,7 +1249,7 @@ struct FloatingResult: View {
     @ViewBuilder var cornerControls: some View {
         let sliding = optimiser.showDownscaleSlider || optimiser.showCompressionSlider || optimiser.showSendExpiration
         if isExpanded || optimiser.running, !sliding, !optimiser.showingFormats {
-            CloseStopButton(optimiser: optimiser)
+            fileDraggable(CloseStopButton(optimiser: optimiser))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         if isExpanded, !optimiser.running, !optimiser.editingFilename, !sliding, !optimiser.showingFormats {
@@ -1259,9 +1267,11 @@ struct FloatingResult: View {
             // Crop lives in the bottom-left corner; it only steps aside while a name that doesn't fit
             // is hovered (so a long filename can use the full width). A fitting name keeps the button.
             if optimiser.canCrop(), !optimiser.hoveringFilename || filenameFits {
-                Button(action: { if !preview { optimiser.showCropWindow() } }, label: { SwiftUI.Image(systemName: "crop") })
-                    .buttonStyle(FloatingCornerButtonStyle())
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                fileDraggable(
+                    Button(action: { if !preview { optimiser.showCropWindow() } }, label: { SwiftUI.Image(systemName: "crop") })
+                        .buttonStyle(FloatingCornerButtonStyle())
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
         }
     }
@@ -1320,7 +1330,8 @@ struct FloatingResult: View {
                 }
                 // File-drag lives on the background image, NOT the whole card, so pressing a grid
                 // button (downscale/compression) never starts a drag and the slider catches the
-                // press-drag instantly. No drag while a slider is active either.
+                // press-drag instantly. No drag while a slider is active either. The other card
+                // buttons opt back in individually via `fileDraggable`.
                 .ifLet(optimiser.url, transform: { img, url in
                     img.if(!optimiser.showDownscaleSlider && !optimiser.showCompressionSlider && !optimiser.showSendExpiration) { v in
                         v.onDrag {
@@ -1451,6 +1462,30 @@ struct FloatingResult: View {
                     editingFilename = false
                 }
             }
+        }
+    }
+
+    /// Wraps a card control in the same file-drag as the thumbnail background, so a press-drag that
+    /// starts on the control still pulls the file out while a plain click keeps activating it. The
+    /// downscale/compression grid buttons stay out of this (their mouse-down opens the slider, which
+    /// owns the still-held drag), as do the corner/placeholder menus (menus open on mouse-down).
+    @ViewBuilder func fileDraggable(_ content: some View) -> some View {
+        if let url = optimiser.url {
+            content.onDrag {
+                guard !preview else {
+                    return NSItemProvider()
+                }
+
+                log.debug("Dragging \(url)")
+                if Defaults[.dismissFloatingResultOnDrop] {
+                    optimiser.remove(after: 100, withAnimation: true)
+                }
+                return NSItemProvider(object: url as NSURL)
+            } preview: {
+                dragThumbPreview
+            }
+        } else {
+            content
         }
     }
 
