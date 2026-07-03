@@ -857,27 +857,32 @@ class AppDelegate: AppDelegateParent {
                 return
             }
 
-            // NB: `FilePath.batchBackups` is intentionally absent here. Batch backups are the only
-            // pristine copy after an in-place rewrite and are removed only via "Delete backups" or a
-            // verified restore, never on the time-based schedule.
-            for dir in [FilePath.clopBackups, .videos, .images, .pdfs, .conversions, .downloads, .forResize, .forFilters, .finderQuickAction, .processLogs] {
-                let enumerator = fm.enumerator(at: dir.url, includingPropertiesForKeys: [.attributeModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
-                guard let iterator = enumerator else {
-                    return
-                }
-
-                let now = Date()
-                while case let url as URL = iterator.nextObject() {
-                    if let isdir = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory, isdir {
-                        continue
-                    }
-                    guard let date = try? url.resourceValues(forKeys: [.attributeModificationDateKey]).attributeModificationDate else {
-                        continue
+            // The sweep must stay off the main thread: enumerating these dirs hits the disk
+            // (getattrlist) and can stall for tens of seconds on slow or starved volumes. The
+            // serial queue also keeps sweeps from overlapping when one outlives the timer period.
+            fileCleanerQueue.async {
+                // NB: `FilePath.batchBackups` is intentionally absent here. Batch backups are the only
+                // pristine copy after an in-place rewrite and are removed only via "Delete backups" or a
+                // verified restore, never on the time-based schedule.
+                for dir in [FilePath.clopBackups, .videos, .images, .pdfs, .conversions, .downloads, .forResize, .forFilters, .finderQuickAction, .processLogs] {
+                    let enumerator = fm.enumerator(at: dir.url, includingPropertiesForKeys: [.attributeModificationDateKey, .isDirectoryKey], options: [.skipsHiddenFiles, .skipsPackageDescendants])
+                    guard let iterator = enumerator else {
+                        return
                     }
 
-                    if now.timeIntervalSince(date) > interval.rawValue {
-                        log.debug("Deleting \(url.path) because it's older than \(interval.title) (last modified \(date))")
-                        try? fm.removeItem(at: url)
+                    let now = Date()
+                    while case let url as URL = iterator.nextObject() {
+                        if let isdir = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory, isdir {
+                            continue
+                        }
+                        guard let date = try? url.resourceValues(forKeys: [.attributeModificationDateKey]).attributeModificationDate else {
+                            continue
+                        }
+
+                        if now.timeIntervalSince(date) > interval.rawValue {
+                            log.debug("Deleting \(url.path) because it's older than \(interval.title) (last modified \(date))")
+                            try? fm.removeItem(at: url)
+                        }
                     }
                 }
             }
@@ -1472,6 +1477,7 @@ var clipboardWatcher: DispatchSourceTimer?
 /// Dedicated serial queue for all pasteboard polling/reads, so the (synchronous, sometimes slow)
 /// pasteboard-server round-trips never run on the main thread. See `initClipboardOptimiser`.
 let clipboardQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "com.lowtechguys.Clop").clipboard")
+let fileCleanerQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "com.lowtechguys.Clop").file-cleaner", qos: .utility)
 var pbChangeCount = NSPasteboard.general.changeCount
 let THUMB_SIZE = CGSize(width: 300, height: 220)
 
