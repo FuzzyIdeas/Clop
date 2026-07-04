@@ -59,7 +59,7 @@ release:
 	git fetch --tags
 
 sentry:
-	op run -- sentry-cli upload-dif --include-sources -o $(SENTRY_ORG) -p $(SENTRY_PROJECT) --wait -- $(DSYM_DIR)
+	env -u SENTRY_AUTH_TOKEN sentry-cli upload-dif --include-sources -o $(SENTRY_ORG) -p $(SENTRY_PROJECT) --wait -- $(DSYM_DIR)
 	$(MAKE) record-dsyms
 
 # Record the debug-IDs (UUIDs) of the dSYMs built for this version, keyed by version,
