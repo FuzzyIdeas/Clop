@@ -146,11 +146,15 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
             // Move optimised file to the correct location based on user preference.
             let inputExt = path.extension?.lowercased() ?? ""
             let resolvedFormat = formatOverride ?? audioConversionTarget(forInput: path.url.utType()) ?? AudioFormat.sameAsInput.resolved(forInputExtension: inputExt)
-            let isConversion = resolvedFormat.fileExtension.lowercased() != inputExt   // target differs from input
+            let isConversion = resolvedFormat.fileExtension.lowercased() != inputExt // target differs from input
             if optimisedAudio.path.dir == FilePath.audios {
-                let placed = try? placeOutput(produced: optimisedAudio.path, original: path, type: .audio,
-                                              kind: isConversion ? .autoConvert : .optimised,
-                                              overrides: optimiser.placementOverride)
+                let placed = try? placeOutput(
+                    produced: optimisedAudio.path,
+                    original: path,
+                    type: .audio,
+                    kind: isConversion ? .autoConvert : .optimised,
+                    overrides: optimiser.placementOverride
+                )
                 if let placed, placed.path != optimisedAudio.path { optimisedAudio = optimisedAudio.copyWithPath(placed.path) }
             }
 
@@ -165,6 +169,13 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                 // per-result conversion sets the right type.
                 if let outputType = resolvedFormat.utType {
                     optimiser.type = .audio(outputType)
+                }
+                // Lossless outputs (WAV/FLAC/AIFF) have no bitrate to tune or report; clear any pair
+                // left over from an earlier lossy pass so the result doesn't show a stale/garbage
+                // "X kbps -> Y kbps" (finish() ignores nil bitrates, it never clears them).
+                if resolvedFormat.isLossless {
+                    optimiser.oldBitrate = nil
+                    optimiser.newBitrate = nil
                 }
                 optimiser.finish(
                     oldBytes: fileSize, newBytes: optimisedAudio.fileSize,

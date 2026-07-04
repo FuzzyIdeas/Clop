@@ -909,13 +909,13 @@ struct FloatingResult: View {
     }
 
     @ViewBuilder var bitrateDiff: some View {
-        if optimiser.type.isAudio, let oldBitrate = optimiser.oldBitrate {
+        if optimiser.type.isAudio, let oldBitrate = optimiser.oldBitrate, oldBitrate > 0 {
             HStack(spacing: 3) {
-                let hideOldBitrate = OM.compactResults && optimiser.newBitrate != nil && optimiser.newBitrate! != oldBitrate
+                let hideOldBitrate = OM.compactResults && (optimiser.newBitrate ?? 0) > 0 && optimiser.newBitrate! != oldBitrate
                 if !hideOldBitrate {
                     Text("\(oldBitrate) kbps")
                 }
-                if let newBitrate = optimiser.newBitrate, newBitrate != oldBitrate {
+                if let newBitrate = optimiser.newBitrate, newBitrate > 0, newBitrate != oldBitrate {
                     if !hideOldBitrate {
                         SwiftUI.Image(systemName: "arrow.right")
                     }

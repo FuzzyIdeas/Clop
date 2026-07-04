@@ -206,9 +206,11 @@ class Audio: Optimisable {
         }
         try? outputPath.setOptimisationStatusXattr("true")
 
+        // Lossless outputs have no bitrate axis (the encoder ignores `bitrate` entirely), so the
+        // target computed above is meaningless for them and must not surface as the file's bitrate.
         let newAudio = Audio(path: outputPath, metadata: AudioMetadata(
             duration: duration,
-            bitrate: bitrate,
+            bitrate: format.isLossless || bitrate <= 0 ? nil : bitrate,
             sampleRate: sampleRate,
             codec: producedCodec(for: format)
         ), fileSize: outputPath.fileSize(), thumb: false)
@@ -337,7 +339,7 @@ class Audio: Optimisable {
 
         return Audio(path: outputPath, metadata: AudioMetadata(
             duration: duration,
-            bitrate: bitrate,
+            bitrate: format.isLossless || bitrate <= 0 ? nil : bitrate,
             sampleRate: sampleRate,
             codec: producedCodec(for: format)
         ), fileSize: outputPath.fileSize(), thumb: false)
