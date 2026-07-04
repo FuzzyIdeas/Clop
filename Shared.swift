@@ -24,18 +24,22 @@ public enum OutputKind: String, Codable, Sendable {
 }
 
 public struct PlacementOverride: Codable, Sendable {
-    public var optimised: FileBehaviour?
-    public var autoConvert: FileBehaviour?
-    public var manualConvert: FileBehaviour?
-    public var sameFolderTemplate: String?
-    public var specificFolderTemplate: String?
-
     public init(optimised: FileBehaviour? = nil, autoConvert: FileBehaviour? = nil, manualConvert: FileBehaviour? = nil, sameFolderTemplate: String? = nil, specificFolderTemplate: String? = nil) {
         self.optimised = optimised
         self.autoConvert = autoConvert
         self.manualConvert = manualConvert
         self.sameFolderTemplate = sameFolderTemplate
         self.specificFolderTemplate = specificFolderTemplate
+    }
+
+    public var optimised: FileBehaviour?
+    public var autoConvert: FileBehaviour?
+    public var manualConvert: FileBehaviour?
+    public var sameFolderTemplate: String?
+    public var specificFolderTemplate: String?
+
+    public var isEmpty: Bool {
+        optimised == nil && autoConvert == nil && manualConvert == nil && sameFolderTemplate == nil && specificFolderTemplate == nil
     }
 
     public func behaviour(for kind: OutputKind) -> FileBehaviour? {
@@ -46,9 +50,6 @@ public struct PlacementOverride: Codable, Sendable {
         }
     }
 
-    public var isEmpty: Bool {
-        optimised == nil && autoConvert == nil && manualConvert == nil && sameFolderTemplate == nil && specificFolderTemplate == nil
-    }
 }
 
 func ~= (lhs: UTType?, rhs: UTType) -> Bool {
@@ -393,8 +394,8 @@ extension CompressionQuality {
 
 // MARK: Video translation (default H.264 optimise path; factor 5..100, higher = more compression)
 
-/// Only H.264 uses the compression factor; explicit codec conversions (hevc/x265/av1/vp9) keep
-/// their own fixed args. The named tiers map to the legacy VideoEncoder presets.
+/// The default optimise path is H.264; explicit codec conversions translate the same factor
+/// through `videoConversionArgs`. The named tiers map to the legacy VideoEncoder presets.
 extension CompressionQuality {
     /// libx264 CRF for the software path. factor 5 -> 18 (best), 100 -> 30 (smallest); 50 ≈ 24 (≈ legacy default 23).
     var videoH264CRF: Int {
@@ -439,6 +440,70 @@ extension CompressionQuality {
                 ? ["-vcodec", "h264", "-tag:v", "avc1", "-preset", "slower"]
                 : ["-vcodec", "h264", "-tag:v", "avc1", "-preset", videoH264Preset, "-crf", "\(videoH264CRF)"]
         }
+    }
+}
+
+// MARK: Explicit codec conversion translation (factor 5..100, higher = more compression)
+
+extension CompressionQuality {
+    /// libx265 CRF. factor 5 -> 18 (best), 100 -> 34; 50 ≈ 26 (legacy fixed value was 28).
+    var videoH265CRF: Int {
+        cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 16.0).rounded()), 17, 36)
+    }
+
+    /// SVT-AV1 CRF. factor 5 -> 22 (best), 100 -> 50; 50 ≈ 35 (the encoder's own default).
+    var videoAV1CRF: Int {
+        cqClamp(22 + Int((Double(max(5, factor) - 5) / 95.0 * 28.0).rounded()), 20, 55)
+    }
+
+    /// libvpx-vp9 CRF. factor 5 -> 18 (best), 100 -> 45; 50 ≈ 31 (legacy fixed value).
+    var videoVP9CRF: Int {
+        cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 27.0).rounded()), 15, 50)
+    }
+
+    /// hevc_videotoolbox -q:v (higher = better quality). factor 5 -> 65, 100 -> 25; 55 -> 44 (the legacy fixed 40 ≈ factor 64).
+    var videoHEVCVTQuality: Int {
+        cqClamp(Int((65.0 - Double(max(5, factor) - 5) / 95.0 * 40.0).rounded()), 20, 70)
+    }
+}
+
+/// ffmpeg args + output extension for an explicit codec conversion (`hevc`/`x265`/`av1`/`webm`).
+/// `cq == nil` (the compression slider was never touched for this result) reproduces the historical
+/// fixed args byte-for-byte, so untouched conversions behave exactly as before. A value maps
+/// tier + factor onto the codec's own quality scale: HEVC keeps the hardware/software split
+/// (`.fast` -> VideoToolbox, ramp -> libx265); AV1/VP9 have no hardware encoder on macOS.
+func videoConversionArgs(format: String, cq: CompressionQuality?) -> (args: [String], outputExt: String)? {
+    switch format {
+    case "hevc":
+        guard let cq else { return (["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"], "mp4") }
+        switch cq.tier {
+        case .lossless:
+            return (["-vcodec", "libx265", "-crf", "18", "-tag:v", "hvc1", "-preset", "medium"], "mp4")
+        case .fast:
+            return (["-vcodec", "hevc_videotoolbox", "-q:v", "\(cq.videoHEVCVTQuality)", "-tag:v", "hvc1"], "mp4")
+        default:
+            return (["-vcodec", "libx265", "-crf", "\(cq.videoH265CRF)", "-tag:v", "hvc1", "-preset", cq.videoH264Preset], "mp4")
+        }
+    case "x265":
+        guard let cq else { return (["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"], "mp4") }
+        if cq.tier == .lossless {
+            return (["-vcodec", "libx265", "-crf", "18", "-tag:v", "hvc1", "-preset", "medium"], "mp4")
+        }
+        return (["-vcodec", "libx265", "-crf", "\(cq.videoH265CRF)", "-tag:v", "hvc1", "-preset", cq.videoH264Preset], "mp4")
+    case "av1":
+        guard let cq else { return (["-vcodec", "libsvtav1"], "mkv") }
+        if cq.tier == .lossless {
+            return (["-vcodec", "libsvtav1", "-crf", "22", "-preset", "6"], "mkv")
+        }
+        return (["-vcodec", "libsvtav1", "-crf", "\(cq.videoAV1CRF)", "-preset", cq.factor >= 60 ? "6" : "8"], "mkv")
+    case "webm":
+        guard let cq else { return (["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"], "webm") }
+        if cq.tier == .lossless {
+            return (["-vcodec", "libvpx-vp9", "-crf", "15", "-b:v", "0", "-row-mt", "1"], "webm")
+        }
+        return (["-vcodec", "libvpx-vp9", "-crf", "\(cq.videoVP9CRF)", "-b:v", "0", "-row-mt", "1"], "webm")
+    default:
+        return nil
     }
 }
 

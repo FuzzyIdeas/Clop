@@ -202,6 +202,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
 
         videoOptimisationQueue.addOperation {
             var optimisedVideo: Video?
+            var reEncoded = false
             defer {
                 mainActor { done = true }
             }
@@ -246,6 +247,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
                     }
                     throw ClopError.videoSizeLarger(path)
                 }
+                // Past the size check, the re-encoded output is kept; the size-larger path above
+                // restores the original file instead, leaving its codec unchanged.
+                reEncoded = true
 
                 // Save to cache (only for plain optimise)
                 if !hasDownscale, !hasSpeedChange {
@@ -296,11 +300,25 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
 
             mainActor {
                 result = optimisedVideo
+                // Capture the pre-encode url before it moves to the new result, so a codec
+                // conversion below can record its provenance the way the direct convert path does.
+                let preEncodeURL = optimiser.url
                 optimiser.url = optimisedVideo.path.url
                 if let codec = ffmpegEncoderOverride?.codecUTType {
+                    // A codec override is a conversion Clop performed: remember what it converted from
+                    // (`convertedFromURL` gates `stickyConversionFormat`) so a later slider re-run keeps
+                    // the conversion instead of silently reverting to H.264.
+                    if optimiser.convertedFromURL == nil {
+                        optimiser.convertedFromURL = preEncodeURL
+                    }
                     optimiser.type = .video(codec)
                 } else if let ext = optimisedVideo.path.extension, let utType = UTType(filenameExtension: ext) {
                     optimiser.type = .video(utType)
+                }
+                if reEncoded {
+                    // Detection describes the CURRENT file, so any re-encode that changes the codec must
+                    // refresh it: the output is H.264 (default args) or the override codec now in `type`.
+                    optimiser.detectedVideoCodec = nil
                 }
                 if !hideFloatingResult {
                     OM.current = optimiser
@@ -350,7 +368,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     return result
 }
 
-private extension [String] {
+extension [String] {
     var codecUTType: UTType? {
         guard let codecIdx = firstIndex(of: "-vcodec"), codecIdx + 1 < count else { return nil }
         switch self[codecIdx + 1] {

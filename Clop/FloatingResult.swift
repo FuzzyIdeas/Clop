@@ -554,7 +554,7 @@ struct OnboardingFloatingPreview: View {
         default: optimiser.isAnimatedGIF ? .video(format) : .image(format)
         }
         return Button(label) {
-            guard !preview, optimiser.type.utType != format else { return }
+            guard !preview, optimiser.type.utType != format, optimiser.videoCodecType != format else { return }
             optimiser.convert(to: format, optimise: true)
         }
         .buttonStyle(PickerButton(
@@ -641,7 +641,7 @@ struct NameFormatPill: View {
             // Hovering the extension chip springs the convert targets up from behind it; one click on a
             // target converts. The accordion sits in an overlay so it doesn't affect the pill's layout,
             // and rises into the card interior (over the thumbnail) rather than past the clipped edge.
-            Text(ext).font(.system(size: 9, weight: .bold))
+            Text(optimiser.formatChipText).font(.system(size: 9, weight: .bold))
                 .frame(height: 12)
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .cardChip(hovering: hoveringExt || optimiser.showingFormats)
@@ -651,7 +651,7 @@ struct NameFormatPill: View {
                 }
                 .overlay(alignment: .bottomTrailing) { formatAccordion }
         } else {
-            Text(ext).font(.system(size: 9, weight: .semibold)).foregroundColor(.white).padding(.leading, 1).padding(.trailing, 4)
+            Text(optimiser.formatChipText).font(.system(size: 9, weight: .semibold)).foregroundColor(.white).padding(.leading, 1).padding(.trailing, 4)
         }
     }
 
@@ -739,7 +739,7 @@ struct NameFormatPill: View {
     /// Convert targets shown in the accordion: every convertible type except the current one.
     private var targetFormats: [(type: UTType, ext: String)] {
         optimiser.convertibleTypes.compactMap { format in
-            guard optimiser.type.utType != format else { return nil }
+            guard optimiser.type.utType != format, optimiser.videoCodecType != format else { return nil }
             let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
             return e.isEmpty ? nil : (format, e)
         }

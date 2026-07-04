@@ -548,7 +548,7 @@ struct CompactNameField: View {
                     let e = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
                     if !e.isEmpty {
                         Button(e.uppercased()) {
-                            guard !preview, optimiser.type.utType != format else { return }
+                            guard !preview, optimiser.type.utType != format, optimiser.videoCodecType != format else { return }
                             // Plain click replaces the current format (keep-only-last); Option keeps both.
                             optimiser.convert(to: format, optimise: true, additive: NSEvent.modifierFlags.contains(.option))
                         }
@@ -558,7 +558,7 @@ struct CompactNameField: View {
                 // A system Menu can't show a live "+" on Option-hold, so hint the gesture statically.
                 Text("⌥ click keeps both formats")
             } label: {
-                Text(ext)
+                Text(optimiser.formatChipText)
                     .font(CompactResult.nameFont)
                     .padding(.horizontal, 3).padding(.vertical, 1)
                     .listChip(hovering: hoveringExt)
@@ -570,7 +570,7 @@ struct CompactNameField: View {
             .fixedSize()
             .help("Convert to another format")
         } else {
-            Text(ext).font(CompactResult.nameFont).foregroundColor(.secondary)
+            Text(optimiser.formatChipText).font(CompactResult.nameFont).foregroundColor(.secondary)
         }
     }
 

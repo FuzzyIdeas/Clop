@@ -546,6 +546,29 @@ enum CompressionScale {
     static let imageAdaptive = 0.0
     static let imageFactorStart = 0.12
 
+    /// AV1/VP9 have no hardware encoder on macOS, so their track has no Fast anchor:
+    /// the factor ramp starts where Fast would have been.
+    static func hasHardwareAnchor(_ type: ItemType) -> Bool {
+        switch type {
+        case .video(.av1Video), .video(.webm): false
+        default: true
+        }
+    }
+
+    static func factorStart(for type: ItemType) -> Double {
+        hasHardwareAnchor(type) ? videoFactorStart : videoFast
+    }
+
+    /// Short codec name shown before the percentage while dragging a converted result's slider.
+    static func codecPrefix(_ type: ItemType) -> String? {
+        switch type {
+        case .video(.hevcVideo): "HEVC"
+        case .video(.av1Video): "AV1"
+        case .video(.webm): "VP9"
+        default: nil
+        }
+    }
+
     /// Map a position within the factor ramp `[start, 1]` to a continuous 5…100% (whole-percent), so every
     /// pixel of the track is a distinct value rather than snapping to coarse increments.
     static func rampFactor(_ p: Double, start: Double) -> Int {
@@ -557,9 +580,12 @@ enum CompressionScale {
         // Tier boundaries are the midpoint between the tier's position and the factor ramp's start, so the
         // ramp's 5% (which sits exactly at the start) is never misread as the tier by a hair of float error.
         if type.isVideo {
+            let start = factorStart(for: type)
             if p < videoFast / 2 { return CompressionQuality(tier: .lossless, factor: 5) }
-            if p < (videoFast + videoFactorStart) / 2 { return CompressionQuality(tier: .fast, factor: 50) }
-            return CompressionQuality(tier: .smaller, factor: rampFactor(p, start: videoFactorStart))
+            if hasHardwareAnchor(type), p < (videoFast + videoFactorStart) / 2 {
+                return CompressionQuality(tier: .fast, factor: 50)
+            }
+            return CompressionQuality(tier: .smaller, factor: rampFactor(p, start: start))
         }
         // Audio has no Adaptive tier: a plain 5…100% quality maps to a bitrate via audioBitrate(for:).
         if type.isAudio {
@@ -571,10 +597,11 @@ enum CompressionScale {
 
     static func position(for cq: CompressionQuality, type: ItemType) -> Double {
         if type.isVideo {
+            let start = factorStart(for: type)
             switch cq.tier {
             case .lossless: return videoLossless
-            case .fast: return videoFast
-            default: return videoFactorStart + Double(cq.factor - 5) / 95 * (1 - videoFactorStart)
+            case .fast: return hasHardwareAnchor(type) ? videoFast : start
+            default: return start + Double(cq.factor - 5) / 95 * (1 - start)
             }
         }
         if type.isAudio { return Double(cq.factor - 5) / 95 }
@@ -584,10 +611,11 @@ enum CompressionScale {
 
     static func label(for cq: CompressionQuality, type: ItemType) -> String {
         if type.isVideo {
+            let prefix = codecPrefix(type).map { "\($0) · " } ?? ""
             switch cq.tier {
-            case .lossless: return "Lossless"
-            case .fast: return "Fast"
-            default: return cq.videoUsesAutoCRF ? "Auto" : "\(cq.factor)%"
+            case .lossless: return "\(prefix)Lossless"
+            case .fast: return "\(prefix)Fast"
+            default: return cq.videoUsesAutoCRF ? "\(prefix)Auto" : "\(prefix)\(cq.factor)%"
             }
         }
         if type.isAudio { return "\(cq.factor)%" }
@@ -597,10 +625,11 @@ enum CompressionScale {
     /// Spelled-out label shown in the centre of the result while dragging (the knob keeps the terse one).
     static func stepLabel(for cq: CompressionQuality, type: ItemType) -> String {
         if type.isVideo {
+            let prefix = codecPrefix(type).map { "\($0) · " } ?? ""
             switch cq.tier {
-            case .lossless: return "Lossless"
-            case .fast: return "Fast"
-            default: return cq.videoUsesAutoCRF ? "Auto" : "\(cq.factor)% compression"
+            case .lossless: return "\(prefix)Lossless"
+            case .fast: return "\(prefix)Fast"
+            default: return cq.videoUsesAutoCRF ? "\(prefix)Auto" : "\(prefix)\(cq.factor)% compression"
             }
         }
         if type.isAudio { return "\(cq.factor)% compression" }
@@ -611,7 +640,8 @@ enum CompressionScale {
         // Tick marks. The named tier(s) sit at the top; the factor ramp fills the rest, marked with a few
         // evenly spread factor milestones (these line up with the magnetic snap targets below).
         if type.isVideo {
-            return [videoLossless, videoFast] + [25, 50, 75, 100].map { position(for: CompressionQuality(tier: .smaller, factor: $0), type: type) }
+            let named = hasHardwareAnchor(type) ? [videoLossless, videoFast] : [videoLossless]
+            return named + [25, 50, 75, 100].map { position(for: CompressionQuality(tier: .smaller, factor: $0), type: type) }
         }
         if type.isAudio { return [0.0, 0.25, 0.5, 0.75, 1.0] }
         return [imageAdaptive] + [25, 50, 75, 100].map { position(for: CompressionQuality(tier: .custom, factor: $0), type: type) }
@@ -628,7 +658,8 @@ enum CompressionScale {
         // a clean snap, so the knob can't linger in the gap between e.g. Adaptive and 5%.
         let factors = [5, 25, 50, 75, 100]
         if type.isVideo {
-            return [value(videoLossless), value(videoFast)]
+            let named = hasHardwareAnchor(type) ? [value(videoLossless), value(videoFast)] : [value(videoLossless)]
+            return named
                 + factors.map { value(position(for: CompressionQuality(tier: .smaller, factor: $0), type: type)) }
         }
         if type.isAudio {
@@ -665,7 +696,7 @@ func downscaleFactorLabel(_ factor: Double) -> String {
 /// format and changes the size tradeoff.
 @MainActor func compressionLabel(for optimiser: Optimiser, quality: CompressionQuality? = nil, terse: Bool = false) -> String {
     let cq = quality ?? currentCompressionQuality(for: optimiser)
-    let base = terse ? CompressionScale.label(for: cq, type: optimiser.type) : CompressionScale.stepLabel(for: cq, type: optimiser.type)
+    let base = terse ? CompressionScale.label(for: cq, type: optimiser.compressionSliderType) : CompressionScale.stepLabel(for: cq, type: optimiser.compressionSliderType)
     // For audio, surface the resulting kbps next to the compression percentage (the same way the
     // downscale slider shows the resulting resolution), since the actual bitrate for a given factor
     // differs per codec (Opus < AAC < MP3).
@@ -766,11 +797,11 @@ struct CompressionSlider: View {
     var displayPosition: Double {
         // Snap the knob to the canonical position of whatever value the drag resolves to, so it can't rest
         // in the gap between a named tier and the first factor (e.g. Adaptive ↔ 5%) on a non-value.
-        CompressionScale.position(for: displayQuality ?? currentCompressionQuality(for: optimiser), type: optimiser.type)
+        CompressionScale.position(for: displayQuality ?? currentCompressionQuality(for: optimiser), type: optimiser.compressionSliderType)
     }
 
     var displayQuality: CompressionQuality? {
-        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.compressionSliderType) }
     }
     var displayLabel: String {
         compressionLabel(for: optimiser, quality: displayQuality, terse: true)
@@ -789,7 +820,7 @@ struct CompressionSlider: View {
                     .frame(width: 3, height: trackHeight)
                     .position(x: centerX, y: geo.size.height / 2)
 
-                ForEach(CompressionScale.anchors(for: optimiser.type), id: \.self) { anchor in
+                ForEach(CompressionScale.anchors(for: optimiser.compressionSliderType), id: \.self) { anchor in
                     let y = yPosition(for: anchor, trackTop: trackTop, trackHeight: trackHeight)
                     RoundedRectangle(cornerRadius: 0.5)
                         .fill(.primary.opacity(0.3))
@@ -826,11 +857,11 @@ struct CompressionSlider: View {
         .overlay(
             SliderEventOverlay(
                 buttonSize: size,
-                snapPoints: CompressionScale.magneticValues(for: optimiser.type),
+                snapPoints: CompressionScale.magneticValues(for: optimiser.compressionSliderType),
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
-                    optimiser.stepIndicator = CompressionScale.stepLabel(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
+                    optimiser.stepIndicator = CompressionScale.stepLabel(for: CompressionScale.quality(forPosition: p, type: optimiser.compressionSliderType), type: optimiser.compressionSliderType)
                 },
                 onRelease: { value in
                     let p = (1.0 - value) / 0.9
@@ -838,7 +869,7 @@ struct CompressionSlider: View {
                     dragPosition = nil
                     optimiser.stepIndicator = ""
                     optimiser.showCompressionSlider = false
-                    let cq = CompressionScale.quality(forPosition: p, type: optimiser.type)
+                    let cq = CompressionScale.quality(forPosition: p, type: optimiser.compressionSliderType)
                     if cq != startCQ { optimiser.reoptimise(compression: cq) }
                 },
                 onCancel: {
@@ -866,11 +897,11 @@ struct HorizontalCompressionSlider: View {
     var displayPosition: Double {
         // Snap the knob to the canonical position of whatever value the drag resolves to, so it can't rest
         // in the gap between a named tier and the first factor (e.g. Adaptive ↔ 5%) on a non-value.
-        CompressionScale.position(for: displayQuality ?? currentCompressionQuality(for: optimiser), type: optimiser.type)
+        CompressionScale.position(for: displayQuality ?? currentCompressionQuality(for: optimiser), type: optimiser.compressionSliderType)
     }
 
     var displayQuality: CompressionQuality? {
-        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.compressionSliderType) }
     }
     var displayLabel: String {
         compressionLabel(for: optimiser, quality: displayQuality, terse: true)
@@ -889,7 +920,7 @@ struct HorizontalCompressionSlider: View {
                     .frame(width: trackWidth, height: 3)
                     .position(x: geo.size.width / 2, y: centerY)
 
-                ForEach(CompressionScale.anchors(for: optimiser.type), id: \.self) { anchor in
+                ForEach(CompressionScale.anchors(for: optimiser.compressionSliderType), id: \.self) { anchor in
                     let x = xPosition(for: anchor, trackLeft: trackLeft, trackWidth: trackWidth)
                     RoundedRectangle(cornerRadius: 0.5)
                         .fill(.primary.opacity(0.3))
@@ -925,11 +956,11 @@ struct HorizontalCompressionSlider: View {
             SliderEventOverlay(
                 buttonSize: size,
                 isHorizontal: true,
-                snapPoints: CompressionScale.magneticValues(for: optimiser.type),
+                snapPoints: CompressionScale.magneticValues(for: optimiser.compressionSliderType),
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
-                    optimiser.stepIndicator = CompressionScale.stepLabel(for: CompressionScale.quality(forPosition: p, type: optimiser.type), type: optimiser.type)
+                    optimiser.stepIndicator = CompressionScale.stepLabel(for: CompressionScale.quality(forPosition: p, type: optimiser.compressionSliderType), type: optimiser.compressionSliderType)
                 },
                 onRelease: { value in
                     let p = (1.0 - value) / 0.9
@@ -937,7 +968,7 @@ struct HorizontalCompressionSlider: View {
                     dragPosition = nil
                     optimiser.stepIndicator = ""
                     optimiser.showCompressionSlider = false
-                    let cq = CompressionScale.quality(forPosition: p, type: optimiser.type)
+                    let cq = CompressionScale.quality(forPosition: p, type: optimiser.compressionSliderType)
                     if cq != startCQ { optimiser.reoptimise(compression: cq) }
                 },
                 onCancel: {
@@ -1335,10 +1366,10 @@ struct CardCompressionSlider: View {
     @ObservedObject var optimiser: Optimiser
 
     var pos: Double {
-        dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.type)
+        dragPosition ?? CompressionScale.position(for: currentCompressionQuality(for: optimiser), type: optimiser.compressionSliderType)
     }
     var displayQuality: CompressionQuality? {
-        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.type) }
+        dragPosition.map { CompressionScale.quality(forPosition: $0, type: optimiser.compressionSliderType) }
     }
     var hint: String {
         compressionLabel(for: optimiser, quality: displayQuality, terse: false)
@@ -1349,16 +1380,16 @@ struct CardCompressionSlider: View {
             hint: hint,
             formatChangeOptimiser: optimiser,
             formatChangeQuality: displayQuality,
-            snapPoints: CompressionScale.magneticValues(for: optimiser.type),
+            snapPoints: CompressionScale.magneticValues(for: optimiser.compressionSliderType),
             position: pos,
-            anchors: CompressionScale.anchors(for: optimiser.type),
+            anchors: CompressionScale.anchors(for: optimiser.compressionSliderType),
             onDrag: { v in dragPosition = (1.0 - v) / 0.9 },
             onRelease: { v in
                 let p = (1.0 - v) / 0.9
                 let start = currentCompressionQuality(for: optimiser)
                 dragPosition = nil
                 optimiser.showCompressionSlider = false
-                let cq = CompressionScale.quality(forPosition: p, type: optimiser.type)
+                let cq = CompressionScale.quality(forPosition: p, type: optimiser.compressionSliderType)
                 if cq != start {
                     optimiser.reoptimise(compression: cq)
                     optimiser.collapseHoverOverlay = true

@@ -48,7 +48,7 @@ struct AudioMetadata {
     let duration: TimeInterval?
     let bitrate: Int?
     let sampleRate: Double?
-    let codec: String?
+    let codec: FourCharCode?
 }
 
 class Audio: Optimisable {
@@ -92,7 +92,7 @@ class Audio: Optimisable {
     var sampleRate: Double? {
         metadata?.sampleRate
     }
-    var codec: String? {
+    var codec: FourCharCode? {
         metadata?.codec
     }
 
@@ -210,7 +210,7 @@ class Audio: Optimisable {
             duration: duration,
             bitrate: bitrate,
             sampleRate: sampleRate,
-            codec: format.ffmpegCodec
+            codec: producedCodec(for: format)
         ), fileSize: outputPath.fileSize(), thumb: false)
 
         let inputExtension = path.extension?.lowercased()
@@ -339,8 +339,33 @@ class Audio: Optimisable {
             duration: duration,
             bitrate: bitrate,
             sampleRate: sampleRate,
-            codec: format.ffmpegCodec
+            codec: producedCodec(for: format)
         ), fileSize: outputPath.fileSize(), thumb: false)
+    }
+}
+
+/// Codec display name for ambiguous audio containers. AAC fourcc is `aac ` (kAudioFormatMPEG4AAC),
+/// ALAC `alac`, Opus `opus`, Vorbis is not AVAsset-readable in ogg (returns nil upstream).
+func audioCodecDisplayName(_ fourcc: FourCharCode) -> String? {
+    func code(_ s: String) -> FourCharCode {
+        s.utf8.reduce(0) { $0 << 8 | FourCharCode($1) }
+    }
+    switch fourcc {
+    case kAudioFormatMPEG4AAC, code("aac "): return "AAC"
+    case kAudioFormatAppleLossless, code("alac"): return "ALAC"
+    case kAudioFormatOpus, code("opus"): return "OPUS"
+    default: return nil
+    }
+}
+
+/// The fourcc Clop's own encoder writes for a target format, so a freshly produced `Audio` carries
+/// its codec immediately instead of waiting for a re-read via `getAudioMetadata`. Clop only ever
+/// writes AAC to m4a and Opus to ogg, so the ambiguous alternatives (ALAC, Vorbis) never apply here.
+private func producedCodec(for format: AudioFormat) -> FourCharCode? {
+    switch format {
+    case .aac: kAudioFormatMPEG4AAC
+    case .opus: kAudioFormatOpus
+    default: nil
     }
 }
 
@@ -361,9 +386,8 @@ func getAudioMetadata(path: FilePath) async throws -> AudioMetadata? {
         sampleRate = asbd?.pointee.mSampleRate
     }
 
-    let codec = descriptions.first.flatMap { desc -> String? in
-        let mediaSubType = CMFormatDescriptionGetMediaSubType(desc)
-        return String(describing: mediaSubType)
+    let codec = descriptions.first.map { desc in
+        CMFormatDescriptionGetMediaSubType(desc)
     }
 
     return AudioMetadata(duration: duration, bitrate: bitrate, sampleRate: sampleRate, codec: codec)

@@ -675,14 +675,11 @@ final class PipelineExecution {
             return
         }
 
-        // Video codec targets (not file extensions) need special handling
-        let videoCodecArgs: (encoder: [String], ext: String)? = switch formatStr {
-        case "hevc": (["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"], "mp4")
-        case "x265": (["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"], "mp4")
-        case "av1": (["-vcodec", "libsvtav1"], "mkv")
-        case "webm": (["-vcodec", "libvpx-vp9", "-crf", "32", "-b:v", "0"], "webm")
-        default: nil
-        }
+        // Video codec targets (not file extensions) need special handling. Pipelines are
+        // deterministic automation, so they always use the legacy default quality (cq: nil);
+        // the per-result slider override applies only to interactive re-encodes.
+        let videoCodecArgs: (encoder: [String], ext: String)? = videoConversionArgs(format: formatStr, cq: nil)
+            .map { (encoder: $0.args, ext: $0.outputExt) }
 
         if let videoCodecArgs, fileType == .video {
             let vid = Video(inputFile)
@@ -693,7 +690,7 @@ final class PipelineExecution {
             let converted = try? await withCheckedThrowingContinuation { (cont: CheckedContinuation<Video, Error>) in
                 videoOptimisationQueue.addOperation {
                     do {
-                        cont.resume(returning: try vid.optimise(
+                        try cont.resume(returning: vid.optimise(
                             optimiser: optimiserRef, forceMP4: forceMP4, outputExtension: outExt, backup: false,
                             encoderOverride: encoderArgs
                         ))
@@ -703,6 +700,18 @@ final class PipelineExecution {
                 }
             }
             if let result = converted {
+                // Mirror runVideoPipeline's finalization: reflect the new codec in `type` and clear
+                // the ingest detection — it describes the CURRENT file, which was just re-encoded.
+                if let codec = encoderArgs.codecUTType {
+                    // Record provenance the way the direct convert path does (`convertedFromURL` gates
+                    // `stickyConversionFormat`) so a later slider re-run keeps the conversion: the
+                    // step's input file is the pre-conversion source.
+                    if optimiser.convertedFromURL == nil {
+                        optimiser.convertedFromURL = optimiser.url ?? inputFile.url
+                    }
+                    optimiser.type = .video(codec)
+                }
+                optimiser.detectedVideoCodec = nil
                 currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
                 if !hide { shownVisibleResult = true }

@@ -37,6 +37,9 @@ class Video: Optimisable {
                     if let optimiser, optimiser.oldSize == nil {
                         optimiser.oldSize = self.size
                     }
+                    if let optimiser, let metadata = self.metadata {
+                        optimiser.detectedVideoCodec = metadata.codec.flatMap(videoCodecUTType)
+                    }
                 }
             }
         }
@@ -78,6 +81,9 @@ class Video: Optimisable {
         await MainActor.run {
             if let optimiser = video.optimiser, optimiser.oldSize == nil, let metadata {
                 optimiser.oldSize = metadata.resolution
+            }
+            if let optimiser = video.optimiser, let metadata {
+                optimiser.detectedVideoCodec = metadata.codec.flatMap(videoCodecUTType)
             }
         }
 
@@ -419,6 +425,22 @@ struct VideoMetadata {
     let fps: Float
     var duration: TimeInterval?
     let hasAudio: Bool
+    var codec: FourCharCode?
+}
+
+/// Display-codec for a video track's fourcc. H.264 (`avc1`) returns nil — it's every container's default.
+/// Only VP9 (`vp09`) maps to `.webm`; VP8 stays nil so it never badges as "VP9" and a VP8 file can
+/// still be converted to VP9.
+func videoCodecUTType(_ fourcc: FourCharCode) -> UTType? {
+    func code(_ s: String) -> FourCharCode {
+        s.utf8.reduce(0) { $0 << 8 | FourCharCode($1) }
+    }
+    switch fourcc {
+    case code("hvc1"), code("hev1"): return .hevcVideo
+    case code("av01"): return .av1Video
+    case code("vp09"): return .webm
+    default: return nil
+    }
 }
 
 func videoHasAudio(path: FilePath) async throws -> Bool {
@@ -445,7 +467,8 @@ func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
     }
     let fps = try await track.load(.nominalFrameRate)
     let duration = try await track.load(.timeRange).duration
-    return VideoMetadata(resolution: CGSize(width: abs(size.width), height: abs(size.height)), fps: fps, duration: duration.seconds, hasAudio: tracks.contains(where: { $0.mediaType == .audio }))
+    let codec: FourCharCode? = await (try? track.load(.formatDescriptions))?.first.map { CMFormatDescriptionGetMediaSubType($0) }
+    return VideoMetadata(resolution: CGSize(width: abs(size.width), height: abs(size.height)), fps: fps, duration: duration.seconds, hasAudio: tracks.contains(where: { $0.mediaType == .audio }), codec: codec)
 }
 
 let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}).(\d{2})"#, as: (Substring, Substring, Substring, Substring, Substring).self).anchorsMatchLineEndings(true)

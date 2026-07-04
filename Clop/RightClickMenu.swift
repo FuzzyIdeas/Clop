@@ -423,7 +423,7 @@ struct ConvertMenu: View {
         ForEach(optimiser.convertibleTypes) { type in
             Button(type.preferredFilenameExtension ?? type.identifier) {
                 optimiser.convert(to: type)
-            }.disabled(optimiser.type.utType == type)
+            }.disabled(optimiser.type.utType == type || optimiser.videoCodecType == type)
         }
     }
 }

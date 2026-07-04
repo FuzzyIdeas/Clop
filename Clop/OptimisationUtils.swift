@@ -314,6 +314,10 @@ enum TempPipelineSegment {
     /// Set on the main actor (the slider) and read by the background encode; the per-id in-flight
     /// pipeline is terminated before a new encode starts, so there is no concurrent read+write.
     nonisolated(unsafe) var compressionOverride: CompressionQuality?
+    /// Ingest-detected codec of the CURRENT file, display-only (chip badge + convert-target
+    /// exclusion). Behaviour keys off `type`, which only changes for Clop-made conversions:
+    /// retyping arrivals would e.g. strip the crop button from an incoming HEVC mp4.
+    @Published var detectedVideoCodec: UTType?
     var downscaleDebounceTask: Task<Void, Never>?
     var lowerBitrateDebounceTask: Task<Void, Never>?
     var pdfDPIDebounceTask: Task<Void, Never>?
@@ -541,7 +545,7 @@ enum TempPipelineSegment {
             parts.append("Scale: \((downscaleFactor * 100).intround)%")
         }
         if let cq = compressionOverride {
-            parts.append("Compression: \(CompressionScale.label(for: cq, type: type))")
+            parts.append("Compression: \(CompressionScale.label(for: cq, type: compressionSliderType))")
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " | ") + (aggressive ? " (aggressive)" : "")
@@ -597,6 +601,65 @@ enum TempPipelineSegment {
         return type.convertibleTypes
     }
 
+    /// The result's real video codec when it differs from what the container implies.
+    var videoCodecType: UTType? {
+        switch type {
+        case .video(.hevcVideo): .hevcVideo
+        case .video(.av1Video): .av1Video
+        case .video(.webm) where convertedFromURL != nil: .webm
+        default: detectedVideoCodec
+        }
+    }
+
+    /// The type the compression slider should style itself for: the codec type only when this
+    /// result is a Clop-made conversion the slider can actually re-encode (sticky), otherwise the
+    /// plain video type, so an arriving .webm doesn't get a "VP9 · N%" label on a drag that would
+    /// run a plain optimise.
+    var compressionSliderType: ItemType {
+        guard type.isVideo else { return type }
+        return stickyConversionFormat() != nil ? type : .video(.mpeg4Movie)
+    }
+
+    /// Codec shown on ambiguous audio containers (m4a can be AAC or ALAC, ogg Opus or Vorbis).
+    /// Clop's own conversions know their codec from `AudioFormat`; arrivals use the fetched fourcc.
+    var audioCodecName: String? {
+        guard type.isAudio, let ext = (url ?? originalURL)?.filePath?.extension?.lowercased(),
+              ext == "m4a" || ext == "ogg" || ext == "oga"
+        else { return nil }
+        if convertedFromURL != nil, let fmt = currentAudioFormat {
+            switch fmt {
+            case .aac: return "AAC"
+            case .opus: return "OPUS"
+            default: break
+            }
+        }
+        return audio?.codec.flatMap(audioCodecDisplayName)
+    }
+
+    /// Codec appended to the extension chip when the extension alone is ambiguous or misleading:
+    /// mp4/mov badge non-H.264 codecs, mkv always shows its codec (codec-agnostic container),
+    /// webm only badges a non-VP9 codec, m4a/ogg always show their audio codec. Plain extensions
+    /// (H.264 mp4, mp3, png, ...) get no badge.
+    var codecBadge: String? {
+        if type.isVideo {
+            let ext = (url ?? originalURL)?.filePath?.extension?.lowercased() ?? ""
+            switch videoCodecType {
+            case .some(.hevcVideo): return "HEVC"
+            case .some(.av1Video): return "AV1"
+            case .some(.webm): return ext == "webm" ? nil : "VP9"
+            default: return nil
+            }
+        }
+        return audioCodecName
+    }
+
+    /// Extension chip text: `mp4` or `mp4 · HEVC`.
+    var formatChipText: String {
+        let ext = url?.filePath?.extension ?? originalURL?.filePath?.extension ?? ""
+        guard let badge = codecBadge else { return ext }
+        return "\(ext) · \(badge)"
+    }
+
     nonisolated static func == (lhs: Optimiser, rhs: Optimiser) -> Bool {
         lhs.id == rhs.id
     }
@@ -612,6 +675,30 @@ enum TempPipelineSegment {
               !ext.isEmpty, ext != cur.fileExtension
         else { return nil }
         return cur
+    }
+
+    /// The format a compression re-encode must keep so it doesn't revert a manual conversion:
+    /// the Clop-set codec for video conversions, the current image format when it differs from the
+    /// original file's. Mirrors the audio fix (`audioConversionFormat` recovers audio's format inside
+    /// `executeTempPipeline`). `convertedFromURL` gates this to conversions Clop actually performed —
+    /// ingest-detected codecs are informational and must not change what a re-encode produces.
+    /// GIF→video-codec results are deliberately excluded: their pristine original is a GIF, which
+    /// the temp pipeline's video branch can't re-encode from, so those keep today's behaviour.
+    func stickyConversionFormat() -> String? {
+        guard let source = convertedFromURL else { return nil }
+        let sourceIsGIF = source.pathExtension.lowercased() == "gif"
+        switch type {
+        case .video(.hevcVideo) where !sourceIsGIF: return "hevc"
+        case .video(.av1Video) where !sourceIsGIF: return "av1"
+        case .video(.webm) where !sourceIsGIF: return "webm"
+        case let .image(ut):
+            guard let ext = ut.preferredFilenameExtension?.lowercased(),
+                  let origExt = (originalURL ?? startingURL)?.pathExtension.lowercased(),
+                  !origExt.isEmpty, origExt != ext
+            else { return nil }
+            return ext
+        default: return nil
+        }
     }
 
     /// Guarantee at least a placeholder thumbnail (the file's QuickLook / system icon) so a result never
@@ -795,14 +882,9 @@ enum TempPipelineSegment {
                         var ffmpegEncoder: [String]?
                         var outExt: String?
                         for step in steps {
-                            if case let .convert(fmt, _) = step {
-                                switch fmt {
-                                case "hevc": ffmpegEncoder = ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]; outExt = "mp4"
-                                case "x265": ffmpegEncoder = ["-vcodec", "libx265", "-crf", "28", "-tag:v", "hvc1", "-preset", "medium"]; outExt = "mp4"
-                                case "av1": ffmpegEncoder = ["-vcodec", "libsvtav1"]; outExt = "mkv"
-                                case "webm": ffmpegEncoder = ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]; outExt = "webm"
-                                default: break
-                                }
+                            if case let .convert(fmt, _) = step, let conv = videoConversionArgs(format: fmt, cq: compressionOverride) {
+                                ffmpegEncoder = conv.args
+                                outExt = conv.outputExt == "mp4" ? "mp4" : conv.outputExt
                             }
                         }
 
@@ -907,7 +989,10 @@ enum TempPipelineSegment {
 
     func convert(to type: UTType, optimise: Bool = false, additive: Bool = false) {
         guard !isPreview else { return }
-        guard type != self.type.utType else { return }
+        // Also refuse converting to the codec the file already has (`videoCodecType` is nil for
+        // non-videos and unknown codecs, and nil never equals a non-optional `type`, so this only
+        // blocks real same-codec re-encodes): a detected-HEVC mp4 must not re-encode HEVC→HEVC.
+        guard type != self.type.utType, type != videoCodecType else { return }
         // Keep-only-last: remember the prior converted output so the next successful conversion can delete
         // it. Skipped when additive (Option-click), so both formats are kept side by side.
         supersededConvertURL = additive ? nil : previousManualConvertOutput()
@@ -1022,6 +1107,9 @@ enum TempPipelineSegment {
                     mainActor {
                         if self.convertedFromURL == nil { self.convertedFromURL = self.url }
                         self.type = .image(.gif)
+                        // The GIF replaced the video, so a codec detected on the source must not
+                        // linger (it would grey out that codec's convert target for the GIF).
+                        self.detectedVideoCodec = nil
                         self.url = result.path.url
                         self.error = nil
                         self.notice = nil
@@ -1673,7 +1761,18 @@ enum TempPipelineSegment {
         // pristine original in a single pass (optimise [+ downscale]) instead of stacking encodes on
         // top of the previous result. The image/video pipelines read `compressionOverride` for the
         // factor; the downscale step carries the current resize.
-        updateTempPipeline(with: .optimise())
+        // A converted result must stay converted: put the conversion (not a plain optimise, which
+        // would evict it — optimise/convert are mutually exclusive in the encoding group) into the
+        // pipeline, so the re-run re-encodes from the pristine original in the current codec/format
+        // with the new factor.
+        if tempPipeline.contains(where: { $0.stepName == "convert" }) {
+            // A convert step already in the pipeline re-runs with the new `compressionOverride`;
+            // adding a plain optimise would evict it (optimise/convert are mutually exclusive).
+        } else if let fmt = stickyConversionFormat() {
+            updateTempPipeline(with: .convert(to: fmt))
+        } else {
+            updateTempPipeline(with: .optimise())
+        }
         if downscaleFactor < 1 {
             updateTempPipeline(with: .downscale(factor: downscaleFactor))
         } else {
@@ -2144,23 +2243,16 @@ enum TempPipelineSegment {
     /// updates the optimiser on completion, and records the source url so "Restore original" can revert.
     private func convertToVideoFormat(_ video: Video, to type: UTType) {
         let isCodecConversion = type == .hevcVideo || type == .av1Video || type == .webm
-        let encoderOverride: [String]? = if type == .hevcVideo {
-            ["-vcodec", "hevc_videotoolbox", "-q:v", "40", "-tag:v", "hvc1"]
-        } else if type == .av1Video {
-            ["-vcodec", "libsvtav1"]
-        } else if type == .webm {
-            ["-vcodec", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1"]
-        } else {
-            nil
+        let formatKey: String? = switch type {
+        case .hevcVideo: "hevc"
+        case .av1Video: "av1"
+        case .webm: "webm"
+        default: nil
         }
-        let forceMP4 = type == .hevcVideo || type == .mpeg4Movie
-        let outputExt: String? = if type == .av1Video {
-            "mkv"
-        } else if type == .webm {
-            "webm"
-        } else {
-            nil
-        }
+        let conversion = formatKey.flatMap { videoConversionArgs(format: $0, cq: compressionOverride) }
+        let encoderOverride = conversion?.args
+        let forceMP4 = conversion?.outputExt == "mp4" || type == .mpeg4Movie
+        let outputExt: String? = (conversion?.outputExt).flatMap { $0 == "mp4" ? nil : $0 }
 
         DispatchQueue.global().async { [weak self] in
             guard let self else { return }
@@ -2175,6 +2267,9 @@ enum TempPipelineSegment {
             mainActor {
                 if self.convertedFromURL == nil { self.convertedFromURL = self.url }
                 self.type = isCodecConversion ? .video(type) : .video(UTType(filenameExtension: result.path.extension ?? "mp4") ?? .mpeg4Movie)
+                // Detection describes the CURRENT file and this encode replaced it: codec targets are
+                // shadowed by `type` above, container targets (MP4/MOV) are default-args H.264.
+                self.detectedVideoCodec = nil
                 self.url = result.path.url
                 self.error = nil
                 self.notice = nil
