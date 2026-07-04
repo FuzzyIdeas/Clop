@@ -1,3 +1,24 @@
+# 3.2.3
+
+**[Download Clop 3.2.3 →](https://files.lowtechguys.com/releases/Clop-3.2.3.dmg)**
+## Features
+
+- **Compression slider for every format**: dragging the compression button on a converted result re-encodes it in its current format at the chosen quality, instead of silently switching it back to the original format
+    > Works for HEVC, AV1 and WebM video conversions and for image conversions like WEBP
+- **Codec badges**: the format chip shows the real codec when the extension alone can't (`mp4 · HEVC`, `mkv · AV1`, `m4a · AAC`, `ogg · OPUS`), including for files that arrive already encoded that way
+
+## Fixes
+
+- Converting a file to the codec it is already in is no longer offered; it used to re-encode the file for nothing
+
+- Converting audio to a lossless format (WAV, FLAC, AIFF) no longer shows a nonsense bitrate like `192 kbps → 0 kbps`; lossless files have no bitrate to tune, so none is shown
+
+- Cleaning up old working files no longer freezes the app when the disk is slow
+
+## Improvements
+
+- Floating results can be dragged out even when the drag starts on one of the action buttons (a plain click still triggers the button). Downscale and compression keep their press-and-drag slider behaviour
+
 # 3.2.2
 
 **[Download Clop 3.2.2 →](https://files.lowtechguys.com/releases/Clop-3.2.2.dmg)**
