@@ -24,6 +24,11 @@ func effectiveBehaviour(type: ClopFileType, kind: OutputKind, overrides: Placeme
 /// Compute the destination path for a produced file. Returns nil for `.temporary` (leave in place)
 /// or when no template/key applies. `path` is the ORIGINAL source path (used for the dir + templates);
 /// the produced file's extension is applied by the caller via `produced`.
+///
+/// Idempotent: a `path` that already sits at the templated location is returned unchanged. The
+/// drop zone and file watchers copy the original to the templated destination BEFORE optimising
+/// (so the original survives untouched) and the pipeline places its output from that copy's path;
+/// templating it again would stack suffixes (`img-optim.png` -> `img-optim-optim.png`).
 func destinationPath(type: ClopFileType, kind: OutputKind, path: FilePath, overrides: PlacementOverride?) throws -> FilePath? {
     switch effectiveBehaviour(type: type, kind: kind, overrides: overrides) {
     case .temporary:
@@ -32,9 +37,17 @@ func destinationPath(type: ClopFileType, kind: OutputKind, path: FilePath, overr
         return path
     case .sameFolder:
         let template = overrides?.sameFolderTemplate ?? type.sameFolderTemplateKey(for: kind).map { Defaults[$0] } ?? "%f"
+        if nameMatchesTemplate(path.stem ?? path.name.string, template: template) {
+            return path
+        }
         return path.dir / generateFileName(template: template, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     case .specificFolder:
         let template = overrides?.specificFolderTemplate ?? type.specificFolderTemplateKey(for: kind).map { Defaults[$0] } ?? "%P/optimised/%f"
+        let pathWithoutExtension = (path.dir / (path.stem ?? path.name.string)).string
+        let isAbsoluteTemplate = template.hasPrefix("/") || template.hasPrefix("%P") || template.hasPrefix("%F")
+        if nameMatchesTemplate(pathWithoutExtension, template: template, allowPathPrefix: !isAbsoluteTemplate) {
+            return path
+        }
         return try generateFilePath(template: template, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber], mkdir: true)
     }
 }
