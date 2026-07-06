@@ -1157,34 +1157,19 @@ struct FloatingResult: View {
                         fileDraggable(button)
                     }
                 } else {
-                    addPlaceholderSlot
+                    fileDraggable(addPlaceholderSlot)
                 }
             }
         }
         .fixedSize()
     }
 
-    /// Faint dashed slot; tapping opens a menu of actions to add to the grid.
+    /// Faint dashed slot; clicking pops a menu of actions to add to the grid. The menu opens on
+    /// mouse-up (see FloatingAddActionSlot), so the wrapping fileDraggable gets the press-drag.
     var addPlaceholderSlot: some View {
-        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
-        return Menu {
-            Section("Assign to a button") {
-                ForEach(addableActions) { action in
-                    Button(action.label) { floatingResultActions = floatingResultActions + [action] }
-                }
-            }
-        } label: {
-            SwiftUI.Image(systemName: "plus").font(.heavy(10)).foregroundStyle(.primary.opacity(0.45))
-                .frame(width: 34, height: 34)
-                .background(Color.primary.opacity(0.05), in: shape)
-                .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
-                .contentShape(shape)
+        FloatingAddActionSlot(actions: addableActions) { action in
+            floatingResultActions = floatingResultActions + [action]
         }
-        .menuButtonStyle(BorderlessButtonMenuButtonStyle())
-        .menuIndicator(.hidden)
-        .buttonStyle(.plain)
-        .fixedSize()
-        .disabled(addableActions.isEmpty)
     }
 
     /// Center: the downscale/compression slider while active, otherwise the action grid on hover.
@@ -1468,7 +1453,8 @@ struct FloatingResult: View {
     /// Wraps a card control in the same file-drag as the thumbnail background, so a press-drag that
     /// starts on the control still pulls the file out while a plain click keeps activating it. The
     /// downscale/compression grid buttons stay out of this (their mouse-down opens the slider, which
-    /// owns the still-held drag), as do the corner/placeholder menus (menus open on mouse-down).
+    /// owns the still-held drag), as does the corner ellipsis menu (SwiftUI menus open on mouse-down).
+    /// The add-placeholder slots pop their menu on mouse-up (FloatingAddActionSlot), so they opt in.
     @ViewBuilder func fileDraggable(_ content: some View) -> some View {
         if let url = optimiser.url {
             content.onDrag {

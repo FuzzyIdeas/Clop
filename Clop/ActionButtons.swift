@@ -2637,6 +2637,96 @@ struct FloatingGridActionButton: View {
 
 }
 
+/// The faint dashed "+" slot shown where a grid button was removed. Clicking pops a menu of
+/// addable actions; unlike a SwiftUI `Menu` (which opens on mouse-down and would swallow the
+/// press), the NSMenu pops on mouse-UP, so a press-drag starting on the slot can pull the file
+/// out of the floating result like the other grid buttons.
+struct FloatingAddActionSlot: View {
+    let actions: [FloatingAction]
+    let add: (FloatingAction) -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
+        Button(action: popUpMenu) {
+            SwiftUI.Image(systemName: "plus").font(.heavy(10)).foregroundStyle(.primary.opacity(0.45))
+                .frame(width: 34, height: 34)
+                .background(Color.primary.opacity(0.05), in: shape)
+                .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .background(MenuAnchor(holder: anchor))
+        .fixedSize()
+        .disabled(actions.isEmpty)
+    }
+
+    @State private var anchor = MenuAnchorHolder()
+
+    private func popUpMenu() {
+        guard let view = anchor.view else { return }
+
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        if #available(macOS 14.0, *) {
+            menu.addItem(.sectionHeader(title: "Assign to a button"))
+        } else {
+            let header = NSMenuItem(title: "Assign to a button", action: nil, keyEquivalent: "")
+            header.isEnabled = false
+            menu.addItem(header)
+        }
+
+        let target = MenuItemTarget { item in
+            guard let action = item.representedObject as? FloatingAction else { return }
+            add(action)
+        }
+        for action in actions {
+            let item = NSMenuItem(title: action.label, action: #selector(MenuItemTarget.fire(_:)), keyEquivalent: "")
+            item.target = target
+            item.representedObject = action
+            menu.addItem(item)
+        }
+
+        // NSMenuItem.target is weak and popUp tracks synchronously, so the target only needs
+        // to stay alive for the duration of this call.
+        withExtendedLifetime(target) {
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
+        }
+    }
+}
+
+/// Weakly holds the AppKit view behind a SwiftUI view so a click can anchor an NSMenu to it.
+@MainActor
+private final class MenuAnchorHolder {
+    weak var view: NSView?
+}
+
+private struct MenuAnchor: NSViewRepresentable {
+    let holder: MenuAnchorHolder
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        holder.view = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        holder.view = nsView
+    }
+}
+
+/// Forwards an NSMenuItem action to a closure.
+private final class MenuItemTarget: NSObject {
+    init(_ handler: @escaping (NSMenuItem) -> Void) {
+        self.handler = handler
+    }
+
+    let handler: (NSMenuItem) -> Void
+
+    @objc func fire(_ item: NSMenuItem) {
+        handler(item)
+    }
+}
+
 struct ActionPickerButton: View {
     let action: FloatingAction
     let size: CGFloat
