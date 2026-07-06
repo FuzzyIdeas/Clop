@@ -2,6 +2,18 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <item>
+            <title>3.2.4b2</title>
+            <pubDate>Mon, 06 Jul 2026 09:36:36 +0300</pubDate>
+            <link>https://lowtechguys.com/clop</link>
+            <sparkle:fullReleaseNotesLink>https://files.lowtechguys.com/clop/changelog.html</sparkle:fullReleaseNotesLink>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>3.2.4b2</sparkle:version>
+            <sparkle:shortVersionString>3.2.4b2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Clop-3.2.4b2.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Clop-3.2.4b2.dmg" length="100256814" type="application/octet-stream" sparkle:edSignature="uOWGx/EWzYAPeKwY02WnOGQrzzkarBUEXtt9YW3JqcZ5ZrPA4Gq7Lzfvk9VplhqjMA9/pfApkEOnTEKM81fQDw=="/>
+        </item>
+        <item>
             <title>3.2.4b1</title>
             <pubDate>Sun, 05 Jul 2026 13:14:56 +0300</pubDate>
             <link>https://lowtechguys.com/clop</link>
