@@ -367,15 +367,30 @@ extension CompressionQuality {
     }
 
     /// gifsicle args. factor 30 -> -O2 --lossy=30 (normal); 64 -> -O3 --lossy=80 --colors=N (aggressive).
+    /// Above 70 the lossy curve leaves the legacy linear scale (89 at 70) and ramps exponentially to
+    /// ~2000 at 100: web-compressor territory, trading heavy artifacting for much smaller files.
     var gifsicleArgs: [String] {
         let oLevel = factor >= 50 ? 3 : (factor >= 20 ? 2 : 1)
-        let lossy = cqClamp(Int((30.0 + Double(factor - 30) * (50.0 / 34.0)).rounded()), 0, 200)
+        let lossy = factor <= 70
+            ? cqClamp(Int((30.0 + Double(factor - 30) * (50.0 / 34.0)).rounded()), 0, 200)
+            : Int((89.0 * pow(2000.0 / 89.0, Double(factor - 70) / 30.0)).rounded())
         var args = ["-O\(oLevel)", "--lossy=\(lossy)"]
         if factor >= 50 {
             let colors = cqClamp(Int((256.0 - Double(factor - 50) * (192.0 / 50.0)).rounded()), 32, 256)
             args.append("--colors=\(colors)")
         }
         return args
+    }
+
+    /// Drop every Nth frame of animated GIFs at the top of the compression scale (nil = keep all frames).
+    /// 80 -> every 4th (25% fewer), 90 -> every 3rd (33%), 98 -> every 2nd (50%).
+    var gifFrameDropEveryNth: Int? {
+        switch factor {
+        case ..<80: nil
+        case 80 ..< 90: 4
+        case 90 ..< 98: 3
+        default: 2
+        }
     }
 
     /// cwebp / heif-enc -q quality (0-100). factor 30 -> 60 (legacy hardcoded default).

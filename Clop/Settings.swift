@@ -18,7 +18,7 @@ let FORMATS_CONVERTIBLE_TO_MP4: [UTType] = VIDEO_FORMATS.without([.mpeg4Movie])
 let FORMATS_CONVERTIBLE_TO_JPEG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let FORMATS_CONVERTIBLE_TO_PNG: [UTType] = IMAGE_FORMATS.without([.png, .jpeg, .gif])
 let ALL_AUDIO_CONVERTIBLE_FORMATS: [UTType] = AUDIO_FORMATS
-// Audio formats that can be assigned to a compatibility target (everything except the targets themselves).
+/// Audio formats that can be assigned to a compatibility target (everything except the targets themselves).
 let FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO: [UTType] = AUDIO_FORMATS.without([.mp3, .m4a].compactMap { $0 })
 
 let VIDEO_EXTENSIONS = VIDEO_FORMATS.compactMap(\.preferredFilenameExtension)
@@ -134,6 +134,8 @@ extension Defaults.Keys {
     static let useAggressiveOptimisationJPEG = Key<Bool>("useAggressiveOptimisationJPEG", default: false)
     static let useAggressiveOptimisationPNG = Key<Bool>("useAggressiveOptimisationPNG", default: false)
     static let useAggressiveOptimisationGIF = Key<Bool>("useAggressiveOptimisationGIF", default: false)
+    /// What happens to GIF timing when high compression factors (80+) drop animation frames.
+    static let gifFrameDropBehaviour = Key<GIFFrameDropBehaviour>("gifFrameDropBehaviour", default: .playFaster)
     /// Unified per-format compression value (tier + 5..100 factor). Source of truth for the
     /// compression slider; legacy aggressive/adaptive keys above are kept readable for back-compat.
     static let imageCompression = Key<CompressionQuality>("imageCompression", default: CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_NORMAL))
@@ -286,6 +288,13 @@ let DEFAULT_CROP_ASPECT_RATIOS: [CropSize] = [
     CropSize(width: 176, height: 250, name: "B5", isAspectRatio: true),
 ]
 
+/// What happens to GIF timing when high compression factors (80+) drop animation frames.
+enum GIFFrameDropBehaviour: String, Codable, Defaults.Serializable {
+    /// Frame delays are left untouched: motion stays smooth but the animation gets shorter and faster.
+    case playFaster
+    /// Dropped frames' delays are folded into the previous kept frame: same duration, choppier motion.
+    case keepDuration
+}
 
 let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     Defaults.Keys.showMenubarIcon,
@@ -398,6 +407,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .stripMetadata,
     .targetVideoFPS,
     .useAggressiveOptimisationGIF,
+    .gifFrameDropBehaviour,
     .useAggressiveOptimisationJPEG,
     .useAggressiveOptimisationMP4,
     .pdfDPI,

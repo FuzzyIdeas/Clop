@@ -1607,6 +1607,7 @@ struct ImagesSettingsView: View {
     @Default(.useAggressiveOptimisationJPEG) var useAggressiveOptimisationJPEG
     @Default(.useAggressiveOptimisationPNG) var useAggressiveOptimisationPNG
     @Default(.useAggressiveOptimisationGIF) var useAggressiveOptimisationGIF
+    @Default(.gifFrameDropBehaviour) var gifFrameDropBehaviour
     @Default(.enableAutomaticImageOptimisations) var enableAutomaticImageOptimisations
 
     var maxPhotosLengthBinding: Binding<String> {
@@ -1754,6 +1755,16 @@ struct ImagesSettingsView: View {
                         Text("Clop will automatically pick between JPEG or PNG conversion based on image entropy, and choose a fitting compression factor adaptively")
                             .round(10, weight: .regular).foregroundColor(.secondary)
                     }
+                }
+                Picker(selection: $gifFrameDropBehaviour) {
+                    Text("Play faster").tag(GIFFrameDropBehaviour.playFaster)
+                    Text("Keep duration (choppier motion)").tag(GIFFrameDropBehaviour.keepDuration)
+                } label: {
+                    Text("GIF frame dropping").regular(13)
+                        + Text("\nCompression factors above 80% drop every 4th, 3rd or 2nd frame of animated GIFs. The animation can either play faster with the remaining frames, or keep its duration by showing each frame longer").round(
+                            11,
+                            weight: .regular
+                        ).foregroundColor(.secondary)
                 }
                 // Toggle(isOn: $downscaleRetinaImages) {
                 //     Text("Downscale HiDPI images to 72 DPI").regular(13)

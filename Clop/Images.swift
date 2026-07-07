@@ -271,6 +271,50 @@ extension NSPasteboard.PasteboardType {
     static var optimisationStatus: NSPasteboard.PasteboardType = .init("clop.optimisation.status")
 }
 
+/// gifsicle args that drop every `everyNth` frame of an animated GIF (4 = 25% fewer frames, 3 = 33%, 2 = 50%).
+/// With `.playFaster` the surviving delays are left untouched (smooth motion, shorter animation); with
+/// `.keepDuration` each dropped frame's delay is folded into the previous kept frame (same duration,
+/// choppier motion). Frame 0 is never dropped. Returns nil for GIFs with 8 frames or fewer, or when
+/// the frame structure can't be read.
+func gifsicleFrameDropArgs(gif path: FilePath, everyNth: Int) -> [String]? {
+    guard everyNth >= 2, let source = CGImageSourceCreateWithURL(path.url as CFURL, nil) else {
+        return nil
+    }
+    let frameCount = CGImageSourceGetCount(source)
+    guard frameCount > 8 else {
+        return nil
+    }
+
+    guard Defaults[.gifFrameDropBehaviour] == .keepDuration else {
+        return ["--delete"] + (1 ..< frameCount).filter { $0.isMultiple(of: everyNth) }.map { "#\($0)" }
+    }
+
+    // Delays in centiseconds (the GIF wire unit), unclamped so 0.02s frames don't read as 0.1s.
+    let delays: [Int] = (0 ..< frameCount).map { index in
+        guard let props = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
+              let gif = props[kCGImagePropertyGIFDictionary] as? [CFString: Any],
+              let seconds = (gif[kCGImagePropertyGIFUnclampedDelayTime] as? Double) ?? (gif[kCGImagePropertyGIFDelayTime] as? Double)
+        else {
+            return 0
+        }
+        return Int((seconds * 100).rounded())
+    }
+
+    var args: [String] = []
+    var index = 0
+    while index < frameCount {
+        var delay = delays[index]
+        var next = index + 1
+        while next < frameCount, next.isMultiple(of: everyNth) {
+            delay += delays[next]
+            next += 1
+        }
+        args += ["-d\(delay)", "#\(index)"]
+        index = next
+    }
+    return args
+}
+
 // MARK: - Image
 
 class Image: CustomStringConvertible {
@@ -593,16 +637,21 @@ class Image: CustomStringConvertible {
         let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
         mainActor { optimiser.aggressive = cq.imageIsAggressive }
 
+        let inputFile = resizedFile ?? path
+        let frameDropArgs = cq.gifFrameDropEveryNth.flatMap { gifsicleFrameDropArgs(gif: inputFile, everyNth: $0) } ?? []
+        var args = cq.gifsicleArgs + ["--threads=\(ProcessInfo.processInfo.activeProcessorCount)", "--output", tempFile.string]
+        if frameDropArgs.isEmpty {
+            args.append(inputFile.string)
+        } else {
+            // Frame selections only apply after the input file; --unoptimize keeps frame-diffed
+            // inputs intact through deletion, and -O3 re-optimises the output anyway.
+            args = ["--unoptimize", inputFile.string] + frameDropArgs + args
+        }
+
         let backup = path.backup(path: path.clopBackupPath, operation: .copy)
         let proc = try tryProc(
             GIFSICLE.string,
-            args: cq.gifsicleArgs +
-                [
-                    "--threads=\(ProcessInfo.processInfo.activeProcessorCount)",
-                    "--output",
-                    tempFile.string,
-                    (resizedFile ?? path).string,
-                ],
+            args: args,
             tries: 3
         ) { proc in
             mainActor { optimiser.processes = [proc] }
