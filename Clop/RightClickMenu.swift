@@ -248,6 +248,9 @@ struct RightClickMenuView: View {
                         optimiser.overlayMessage = "Stripped"
                     }
                 }
+                Menu("Fit under size") {
+                    TargetSizeMenuItems(optimiser: optimiser)
+                }
                 Menu("Pass file through pipeline") {
                     RunPipelineMenu(optimiser: optimiser)
                 }

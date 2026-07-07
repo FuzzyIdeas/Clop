@@ -300,6 +300,8 @@ enum TempPipelineSegment {
     @Published var showingFormats = false
     @Published var showDownscaleSlider = false
     @Published var showCompressionSlider = false
+    /// While true, the floating card shows the "Fit under size" slider (log-scaled target size).
+    @Published var showTargetSizeSlider = false
     /// While true, the floating card shows the "Send securely" expiration overlay (slider + confirm).
     @Published var showSendExpiration = false
     /// Chosen link expiration (seconds) for the pending send; seeded from the default setting.

@@ -16,6 +16,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     case saveAs
     case addToShelf
     case sendSecurely
+    case targetSize
 
     static let maxFloatingButtons = 5
     static let maxCompactButtons = 9
@@ -40,6 +41,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         case .saveAs: "Save as..."
         case .addToShelf: "Add to shelf"
         case .sendSecurely: "Send securely"
+        case .targetSize: "Fit under size"
         }
     }
 
@@ -57,6 +59,7 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         case .saveAs: "square.and.arrow.down"
         case .addToShelf: "tray.and.arrow.down"
         case .sendSecurely: "paperplane.fill"
+        case .targetSize: "target"
         }
     }
 
@@ -218,11 +221,11 @@ struct DownscaleButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
             .onRightClick {
-                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
     }
@@ -778,11 +781,11 @@ struct CompressionButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "slider.horizontal.3").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showCompressionSlider = true
             }
             .onRightClick {
-                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showCompressionSlider = true
             }
     }
@@ -2117,11 +2120,11 @@ struct CoverArtDownscaleButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "minus").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
             .onRightClick {
-                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
     }
@@ -2135,11 +2138,11 @@ struct LowerPDFDPIButton: View {
         Button(action: {}, label: { SwiftUI.Image(systemName: "slider.horizontal.3").font(.heavy(9)) })
             .contentShape(Rectangle())
             .onMouseDown {
-                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
             .onRightClick {
-                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider else { return }
+                guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
                 optimiser.showDownscaleSlider = true
             }
     }
@@ -2464,6 +2467,154 @@ struct SendExpirationConfirmButton: View {
     }
 }
 
+/// Preset size limits shared by the "Fit under size" action button and the right-click submenu.
+let TARGET_SIZE_PRESETS: [(label: String, bytes: Int)] = [
+    ("500 KB", 500_000),
+    ("1 MB", 1_000_000),
+    ("2 MB", 2_000_000),
+    ("5 MB", 5_000_000),
+    ("8 MB (Discord)", 8_000_000),
+    ("10 MB", 10_000_000),
+    ("25 MB", 25_000_000),
+    ("50 MB", 50_000_000),
+]
+
+/// Run an inline `targetSize` pipeline on the result: probes compression factors and encoder
+/// settings first, downscaling only as a last resort.
+@MainActor func fitUnderSize(_ bytes: Int, label: String, optimiser: Optimiser) {
+    guard let url = optimiser.url, let path = url.existingFilePath else { return }
+    let fileType: ClopFileType? = switch optimiser.type {
+    case .image: .image
+    case .video: .video
+    case .audio: .audio
+    case .pdf: .pdf
+    default: nil
+    }
+    guard let fileType else { return }
+
+    let pipeline = Pipeline(steps: [.targetSize(bytes: bytes)], name: "Fit under \(label)")
+    optimiser.tempPipeline = pipeline.resolved.steps.filter { !$0.isFilter }
+    optimiser.automationPipeline = pipeline
+
+    Task { @MainActor in
+        optimiser.running = true
+        optimiser.operation = "Fitting under \(label)"
+        do {
+            let (resultFile, _, _) = try await executePipeline(
+                pipeline, file: path,
+                source: optimiser.source ?? .cli,
+                optimiser: optimiser,
+                fileType: fileType
+            )
+            optimiser.url = resultFile.url
+            optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: resultFile.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize)
+        } catch {
+            optimiser.finish(error: "Failed to fit under \(label): \(error.localizedDescription)")
+        }
+    }
+}
+
+/// Menu items for the size presets; embedded in the action button's menu and the right-click submenu.
+struct TargetSizeMenuItems: View {
+    @ObservedObject var optimiser: Optimiser
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        let currentBytes = optimiser.newBytes > 0 ? optimiser.newBytes : optimiser.oldBytes
+        ForEach(TARGET_SIZE_PRESETS, id: \.bytes) { preset in
+            Button(preset.label) {
+                if !preview { fitUnderSize(preset.bytes, label: preset.label, optimiser: optimiser) }
+            }
+            .disabled(currentBytes > 0 && currentBytes <= preset.bytes)
+        }
+    }
+}
+
+/// In the floating card, press-and-drag opens the in-card target-size slider (continuous with
+/// magnetic preset stops); elsewhere (compact) it opens a menu of the presets instead.
+struct TargetSizeButton: View {
+    @ObservedObject var optimiser: Optimiser
+    var inFloatingCard = false
+
+    @Environment(\.preview) var preview
+
+    var body: some View {
+        if inFloatingCard {
+            Button(action: {}, label: { SwiftUI.Image(systemName: "target").font(.heavy(9)) })
+                .contentShape(Rectangle())
+                .onMouseDown {
+                    guard !preview, !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
+                    optimiser.showTargetSizeSlider = true
+                }
+                .onRightClick {
+                    guard !optimiser.showDownscaleSlider, !optimiser.showCompressionSlider, !optimiser.showTargetSizeSlider else { return }
+                    optimiser.showTargetSizeSlider = true
+                }
+        } else {
+            Menu {
+                TargetSizeMenuItems(optimiser: optimiser)
+            } label: {
+                SwiftUI.Image(systemName: "target").font(.heavy(9))
+            }
+            .menuButtonStyle(BorderlessButtonMenuButtonStyle())
+            .disabled(optimiser.running)
+        }
+    }
+}
+
+/// Target-size slider for the card: log-scaled from the current file size down to ~1/200th of it,
+/// continuous but with magnetic stops on the common size limits. Releasing runs an inline
+/// `targetSize` pipeline that probes compression factors before resorting to downscaling.
+struct CardTargetSizeSlider: View {
+    @ObservedObject var optimiser: Optimiser
+
+    var maxBytes: Int {
+        max(optimiser.newBytes > 0 ? optimiser.newBytes : optimiser.oldBytes, 100_000)
+    }
+    var minBytes: Int {
+        max(50000, maxBytes / 200)
+    }
+    var bytes: Int {
+        dragBytes ?? maxBytes
+    }
+    var hint: String {
+        "fit under \(bytes.humanSize)"
+    }
+    var presetPositions: [Double] {
+        TARGET_SIZE_PRESETS.map(\.bytes).filter { $0 > minBytes && $0 < maxBytes }.map { position(forBytes: $0) }
+    }
+
+    var body: some View {
+        CardSlider(
+            hint: hint,
+            snapPoints: presetPositions.map { 1.0 - 0.9 * $0 },
+            position: position(forBytes: bytes),
+            anchors: presetPositions,
+            onDrag: { v in dragBytes = bytes(forPosition: (1.0 - v) / 0.9) },
+            onRelease: { v in
+                let target = bytes(forPosition: (1.0 - v) / 0.9)
+                dragBytes = nil
+                optimiser.showTargetSizeSlider = false
+                if target < Int(Double(maxBytes) * 0.98) {
+                    fitUnderSize(target, label: target.humanSize, optimiser: optimiser)
+                    optimiser.collapseHoverOverlay = true
+                }
+            },
+            onCancel: { dragBytes = nil; optimiser.showTargetSizeSlider = false }
+        )
+    }
+
+    func position(forBytes bytes: Int) -> Double {
+        log(Double(maxBytes) / Double(bytes)) / log(Double(maxBytes) / Double(minBytes))
+    }
+    func bytes(forPosition p: Double) -> Int {
+        Int(Double(maxBytes) * pow(Double(minBytes) / Double(maxBytes), min(max(p, 0), 1)))
+    }
+
+    @State private var dragBytes: Int?
+
+}
+
 struct ActionButton: View {
     let action: FloatingAction
     @ObservedObject var optimiser: Optimiser
@@ -2530,6 +2681,8 @@ struct ActionButton: View {
             } else {
                 SendSecurelyStartButton(optimiser: optimiser, inFloatingCard: inFloatingCard)
             }
+        case .targetSize:
+            TargetSizeButton(optimiser: optimiser, inFloatingCard: inFloatingCard)
         }
     }
 
@@ -2542,6 +2695,7 @@ struct ActionButton: View {
         case .crop: optimiser.canCrop()
         case .aggressiveOptimisation: optimiser.canReoptimise()
         case .addToShelf: runningShelfApp() != nil
+        case .targetSize: optimiser.url != nil
         default: true
         }
     }
@@ -2572,7 +2726,10 @@ struct SideButtons: View {
                     btn
                         .onHover { h in hoveringAction = h ? action : nil }
                         .helpTag(
-                            isPresented: .init(get: { hoveringAction == action && !hideFloatingResultTooltips && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
+                            isPresented: .init(
+                                get: { hoveringAction == action && !hideFloatingResultTooltips && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider && !optimiser.showTargetSizeSlider },
+                                set: { if !$0 { hoveringAction = nil } }
+                            ),
                             alignment: isTrailing ? .trailing : .leading,
                             offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
                             action.label(for: optimiser.type)

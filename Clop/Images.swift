@@ -707,7 +707,7 @@ class Image: CustomStringConvertible {
                 "--force",
                 "--speed", "\(cq.pngQuantSpeed)",
                 "--quality", cq.pngQuantQuality,
-            ] + (pngOutFile == png.path ? ["--ext", ".png"] : ["--output", pngOutFile!.string]) + [png.path.string])
+            ] + (cq.pngQuantColors.map { ["\($0)"] } ?? []) + (pngOutFile == png.path ? ["--ext", ".png"] : ["--output", pngOutFile!.string]) + [png.path.string])
 
             procs.append(pngProc)
         }
@@ -820,7 +820,7 @@ class Image: CustomStringConvertible {
             "--force",
             "--speed", "\(cq.pngQuantSpeed)",
             "--quality", cq.pngQuantQuality,
-        ] + (tempFile == path ? ["--ext", ".png"] : ["--output", tempFile.string]) + [path.string])
+        ] + (cq.pngQuantColors.map { ["\($0)"] } ?? []) + (tempFile == path ? ["--ext", ".png"] : ["--output", tempFile.string]) + [path.string])
         var procs = [pngProc]
 
         var jpegOutFile: FilePath?

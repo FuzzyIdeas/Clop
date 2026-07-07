@@ -1331,15 +1331,37 @@ final class PipelineExecution {
             img = optimised
         }
 
-        var attempts = 0
-        while let size = img.path.fileSize(), size > bytes, attempts < 5 {
-            let factor = max(0.2, (Double(bytes) / Double(size)).squareRoot() * 0.92)
+        // Probe higher compression factors before touching the resolution: pipelines re-encode
+        // from the original backup, so a probe never compounds compression artifacts. The factor
+        // step is sized to the overshoot; at 80+ this also unlocks GIF frame dropping and the
+        // extreme JPEG/PNG ramps.
+        var factor = COMPRESSION_FACTOR_AGGRESSIVE
+        for _ in 0 ..< 2 {
+            guard let size = img.path.fileSize(), size > bytes, factor < 100 else { break }
+            let overshoot = Double(size) / Double(bytes)
+            factor = overshoot > 3 ? 100 : min(100, factor + (overshoot > 1.5 ? 30 : 18))
             guard let imgData = try? Data(contentsOf: img.path.url) else { break }
             let fresh = Image(data: imgData, path: img.path, optimised: false, retinaDownscaled: false)
             guard let smaller = try? await runImagePipeline(
-                fresh, actions: [.downscale(factor: factor, cropSize: nil)],
+                fresh, actions: [.optimise],
                 allowLarger: true, hideFloatingResult: true,
-                aggressiveOptimisation: true, source: source
+                source: source, skipCache: true,
+                compression: CompressionQuality(tier: .custom, factor: factor)
+            ) else { break }
+            img = smaller
+        }
+
+        // Still too big at factor 100: resort to downscaling, keeping maximum compression.
+        var attempts = 0
+        while let size = img.path.fileSize(), size > bytes, attempts < 5 {
+            let scale = max(0.2, (Double(bytes) / Double(size)).squareRoot() * 0.92)
+            guard let imgData = try? Data(contentsOf: img.path.url) else { break }
+            let fresh = Image(data: imgData, path: img.path, optimised: false, retinaDownscaled: false)
+            guard let smaller = try? await runImagePipeline(
+                fresh, actions: [.downscale(factor: scale, cropSize: nil)],
+                allowLarger: true, hideFloatingResult: true,
+                source: source, skipCache: true,
+                compression: CompressionQuality(tier: .custom, factor: 100)
             ) else { break }
             img = smaller
             attempts += 1
@@ -1354,32 +1376,49 @@ final class PipelineExecution {
             return await (try? runVideoPipeline(vid, actions: [.optimise], allowLarger: true, hideFloatingResult: true, aggressiveOptimisation: true, source: source))?.path
         }
 
-        func encode(toFit target: Int, video: Video) async -> FilePath? {
+        func encode(toFit target: Int) async -> FilePath? {
             // 7% container overhead margin, 128 kbps reserved for audio.
             // libx264 ABR with a tight maxrate: hardware encoders ignore very low
             // bitrate targets, software x264 actually honours them.
             let totalKbps = Double(target) * 8.0 * 0.93 / duration / 1000.0
             let videoKbps = max(40.0, totalKbps - 128.0)
-            let encoderArgs = [
+            var encoderArgs = [
                 "-vcodec", "libx264",
                 "-preset", "fast",
                 "-b:v", "\(Int(videoKbps))k",
                 "-maxrate", "\(Int(videoKbps * 1.2))k",
                 "-bufsize", "\(Int(videoKbps * 2))k",
             ]
+
+            // When the bitrate would starve the pixel rate (bits-per-pixel too low), cap the frame
+            // rate at 30 and then downscale so the remaining bits go further: fewer, better pixels
+            // beat a full-resolution mush of encoder artifacts.
+            var actions: [PipelineAction] = [.optimise]
+            if let size = vid.size, size.width > 0, size.height > 0 {
+                let minBPP = 0.04
+                let fps = Double(vid.fps ?? 30)
+                var bpp = videoKbps * 1000.0 / (Double(size.width) * Double(size.height) * max(fps, 1))
+                if bpp < minBPP, fps > 30 {
+                    encoderArgs += ["-r", "30"]
+                    bpp *= fps / 30.0
+                }
+                if bpp < minBPP {
+                    let scale = max(0.25, (bpp / minBPP).squareRoot())
+                    actions = [.downscale(factor: scale, cropSize: nil)]
+                }
+            }
             return await (try? runVideoPipeline(
-                vid, actions: [.optimise],
+                vid, actions: actions,
                 allowLarger: true, hideFloatingResult: true,
                 ffmpegEncoderOverride: encoderArgs, source: source
             ))?.path
         }
 
-        guard var result = await encode(toFit: bytes, video: vid) else { return nil }
+        guard var result = await encode(toFit: bytes) else { return nil }
         // One retry on VBV overshoot, aiming proportionally lower
         if let actual = result.fileSize(), actual > bytes {
             let correctedTarget = Int(Double(bytes) * Double(bytes) / Double(actual) * 0.95)
-            let retryVid = await (try? Video.byFetchingMetadata(path: result)) ?? Video(result)
-            if let retried = await encode(toFit: correctedTarget, video: retryVid) {
+            if let retried = await encode(toFit: correctedTarget) {
                 result = retried
             }
         }
@@ -1387,16 +1426,43 @@ final class PipelineExecution {
     }
 
     private func targetSizePDF(bytes: Int, inputFile: FilePath) async -> FilePath? {
-        var result: FilePath?
-        for stop in PDF_DPI_STOPS.sorted(by: >).dropFirst() { // 250 down to 48
+        // Bisect the DPI stops (250 down to 48) for the highest quality that fits, instead of
+        // walking every stop: at most 3 Ghostscript passes plus one re-run of the winning stop.
+        let stops = Array(PDF_DPI_STOPS.sorted(by: >).dropFirst())
+
+        func encode(at stop: Int) async -> FilePath? {
             let pdf = PDF(inputFile)
-            guard let optimised = try? await runPDFPipeline(
+            let optimised = try? await runPDFPipeline(
                 pdf, actions: [.optimise],
                 allowLarger: true, hideFloatingResult: true,
                 aggressiveOptimisation: true, dpiOverride: stop, source: source
-            ) else { continue }
-            result = optimised.path
-            if let size = optimised.path.fileSize(), size <= bytes { break }
+            )
+            return optimised?.path
+        }
+
+        var lo = 0
+        var hi = stops.count - 1
+        var chosen: Int?
+        var lastEncoded: Int?
+        var result: FilePath?
+        while lo <= hi {
+            let mid = (lo + hi) / 2
+            guard let path = await encode(at: stops[mid]) else {
+                lo = mid + 1
+                continue
+            }
+            result = path
+            lastEncoded = stops[mid]
+            if let size = path.fileSize(), size <= bytes {
+                chosen = stops[mid]
+                hi = mid - 1
+            } else {
+                lo = mid + 1
+            }
+        }
+        // The last gs pass may have been a higher-DPI probe that overshot; re-encode the winner.
+        if let chosen, chosen != lastEncoded, let path = await encode(at: chosen) {
+            result = path
         }
         return result
     }

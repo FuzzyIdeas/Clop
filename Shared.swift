@@ -340,19 +340,32 @@ extension CompressionQuality {
         tier != .adaptive && factor >= 50
     }
 
-    /// jpegoptim --max quality ceiling. factor 30 -> 85 (legacy normal), ramping to 30 at max compression.
+    /// jpegoptim --max quality ceiling. factor 30 -> 85 (legacy normal). Above 70 the curve
+    /// steepens from 54 down to 18 at 100 (web-compressor territory).
     var jpegMaxQuality: Int {
-        cqClamp(Int((85.0 - Double(factor - 30) * (55.0 / 70.0)).rounded()), 25, 95)
+        factor <= 70
+            ? cqClamp(Int((85.0 - Double(factor - 30) * (55.0 / 70.0)).rounded()), 25, 95)
+            : cqClamp(Int((54.0 - Double(factor - 70) * (36.0 / 30.0)).rounded()), 18, 95)
     }
 
-    /// jpegoptim --max for the old-binary fallback and the adaptive cross-test. factor 30 -> 90, 100 -> 30.
+    /// jpegoptim --max for the old-binary fallback and the adaptive cross-test. factor 30 -> 90; above 70
+    /// it steepens from 56 down to 20 at 100, mirroring `jpegMaxQuality`.
     var jpegSecondaryMaxQuality: Int {
-        cqClamp(Int((90.0 - Double(factor - 30) * (60.0 / 70.0)).rounded()), 25, 97)
+        factor <= 70
+            ? cqClamp(Int((90.0 - Double(factor - 30) * (60.0 / 70.0)).rounded()), 25, 97)
+            : cqClamp(Int((56.0 - Double(factor - 70) * (36.0 / 30.0)).rounded()), 20, 97)
     }
 
     /// pngquant --quality string "0-MAX". factor 30 -> "0-100" (legacy normal), ramping to "0-25" at 100.
     var pngQuantQuality: String {
         "0-\(cqClamp(Int((100.0 - Double(factor - 30) * (75.0 / 70.0)).rounded()), 25, 100))"
+    }
+
+    /// pngquant palette size (its positional ncolors argument). nil below factor 80 (the default 256);
+    /// 80 -> 224 ramping to 64 at 100, the same lever as gifsicle --colors for GIFs.
+    var pngQuantColors: Int? {
+        guard factor >= 80 else { return nil }
+        return cqClamp(224 - (factor - 80) * 8, 64, 256)
     }
 
     /// pngquant --speed (1 = slowest/best quality+compression, 11 = fastest). Spend more effort the
@@ -394,12 +407,17 @@ extension CompressionQuality {
     }
 
     /// cwebp / heif-enc -q quality (0-100). factor 30 -> 60 (legacy hardcoded default).
+    /// Above 70 the curve steepens from 40 down to 15 at 100.
     var conversionQuality: Int {
-        cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 90)
+        factor <= 70
+            ? cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 90)
+            : cqClamp(Int((40.0 - Double(factor - 70) * (25.0 / 30.0)).rounded()), 15, 90)
     }
-    /// JXLCoder quality (0-100). factor 30 -> 60 (legacy).
+    /// JXLCoder quality (0-100). factor 30 -> 60 (legacy). Above 70 steepens from 40 to 15 at 100.
     var jxlQuality: Int {
-        cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 95)
+        factor <= 70
+            ? cqClamp(Int((75.0 - Double(factor) * 0.5).rounded()), 20, 95)
+            : cqClamp(Int((40.0 - Double(factor - 70) * (25.0 / 30.0)).rounded()), 15, 95)
     }
     /// JXLCoder effort (1-9). factor <50 -> 7 (legacy), ramps to 9 at high compression.
     var jxlEffort: Int {
@@ -412,9 +430,12 @@ extension CompressionQuality {
 /// The default optimise path is H.264; explicit codec conversions translate the same factor
 /// through `videoConversionArgs`. The named tiers map to the legacy VideoEncoder presets.
 extension CompressionQuality {
-    /// libx264 CRF for the software path. factor 5 -> 18 (best), 100 -> 30 (smallest); 50 ≈ 24 (≈ legacy default 23).
+    /// libx264 CRF for the software path. factor 5 -> 18 (best); 50 ≈ 24 (≈ legacy default 23).
+    /// Above 70 (CRF 26) the curve steepens to 38 at 100: each +6 CRF roughly halves the size.
     var videoH264CRF: Int {
-        cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 12.0).rounded()), 17, 32)
+        factor <= 70
+            ? cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 12.0).rounded()), 17, 32)
+            : cqClamp(26 + Int((Double(factor - 70) * (12.0 / 30.0)).rounded()), 17, 38)
     }
 
     /// Whether the software encoder lets ffmpeg pick the CRF (the "Auto" toggle, factor 0).
@@ -442,7 +463,10 @@ extension CompressionQuality {
         case .fast:
             #if arch(arm64)
                 // VideoToolbox -q:v: higher = better quality. factor 50 ≈ 46 (≈ legacy 45).
-                let q = cqClamp(Int((70.0 - Double(max(5, factor) - 5) / 95.0 * 45.0).rounded()), 25, 75)
+                // Above 70 (q 39) the curve steepens to 18 at 100.
+                let q = factor <= 70
+                    ? cqClamp(Int((70.0 - Double(max(5, factor) - 5) / 95.0 * 45.0).rounded()), 25, 75)
+                    : cqClamp(39 - Int((Double(factor - 70) * (21.0 / 30.0)).rounded()), 18, 75)
                 return ["-vcodec", "h264_videotoolbox", "-q:v", "\(q)", "-tag:v", "avc1"]
             #else
                 return videoUsesAutoCRF
@@ -461,24 +485,36 @@ extension CompressionQuality {
 // MARK: Explicit codec conversion translation (factor 5..100, higher = more compression)
 
 extension CompressionQuality {
-    /// libx265 CRF. factor 5 -> 18 (best), 100 -> 34; 50 ≈ 26 (legacy fixed value was 28).
+    /// libx265 CRF. factor 5 -> 18 (best); 50 ≈ 26 (legacy fixed value was 28).
+    /// Above 70 (CRF 29) the curve steepens to 40 at 100.
     var videoH265CRF: Int {
-        cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 16.0).rounded()), 17, 36)
+        factor <= 70
+            ? cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 16.0).rounded()), 17, 36)
+            : cqClamp(29 + Int((Double(factor - 70) * (11.0 / 30.0)).rounded()), 17, 40)
     }
 
-    /// SVT-AV1 CRF. factor 5 -> 22 (best), 100 -> 50; 50 ≈ 35 (the encoder's own default).
+    /// SVT-AV1 CRF. factor 5 -> 22 (best); 50 ≈ 35 (the encoder's own default).
+    /// Above 70 (CRF 41) the curve steepens to 55 at 100.
     var videoAV1CRF: Int {
-        cqClamp(22 + Int((Double(max(5, factor) - 5) / 95.0 * 28.0).rounded()), 20, 55)
+        factor <= 70
+            ? cqClamp(22 + Int((Double(max(5, factor) - 5) / 95.0 * 28.0).rounded()), 20, 55)
+            : cqClamp(41 + Int((Double(factor - 70) * (14.0 / 30.0)).rounded()), 20, 55)
     }
 
-    /// libvpx-vp9 CRF. factor 5 -> 18 (best), 100 -> 45; 50 ≈ 31 (legacy fixed value).
+    /// libvpx-vp9 CRF. factor 5 -> 18 (best); 50 ≈ 31 (legacy fixed value).
+    /// Above 70 (CRF 36) the curve steepens to 50 at 100.
     var videoVP9CRF: Int {
-        cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 27.0).rounded()), 15, 50)
+        factor <= 70
+            ? cqClamp(18 + Int((Double(max(5, factor) - 5) / 95.0 * 27.0).rounded()), 15, 50)
+            : cqClamp(36 + Int((Double(factor - 70) * (14.0 / 30.0)).rounded()), 15, 50)
     }
 
-    /// hevc_videotoolbox -q:v (higher = better quality). factor 5 -> 65, 100 -> 25; 55 -> 44 (the legacy fixed 40 ≈ factor 64).
+    /// hevc_videotoolbox -q:v (higher = better quality). factor 5 -> 65; 55 -> 44 (the legacy fixed 40 ≈ factor 64).
+    /// Above 70 (q 38) the curve steepens to 18 at 100.
     var videoHEVCVTQuality: Int {
-        cqClamp(Int((65.0 - Double(max(5, factor) - 5) / 95.0 * 40.0).rounded()), 20, 70)
+        factor <= 70
+            ? cqClamp(Int((65.0 - Double(max(5, factor) - 5) / 95.0 * 40.0).rounded()), 20, 70)
+            : cqClamp(38 - Int((Double(factor - 70) * (20.0 / 30.0)).rounded()), 18, 70)
     }
 }
 

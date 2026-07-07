@@ -132,10 +132,20 @@ func gsArgs(_ input: String, _ output: String, lossy: Bool, dpi: Int) -> [String
     let downsample = clampedDPI < PDF_DPI_NO_DOWNSAMPLE
     let optArgs: [String] = lossy ? gsLossyArgs(downsample: downsample) : gsLosslessArgs(downsample: downsample)
     let resArgs: [String] = gsResolutionArgs(dpi: clampedDPI)
+    // At the lowest DPI stops, also re-encode embedded images at lower JPEG quality with chroma
+    // subsampling (QFactor is inverse: higher = smaller/worse; gs defaults to ~medium quality).
+    let qFactorArgs: [String]
+    if lossy, clampedDPI <= 100 {
+        let qFactor = clampedDPI <= 48 ? 1.3 : (clampedDPI <= 72 ? 1.0 : 0.76)
+        let imageDict = "<< /QFactor \(qFactor) /Blend 1 /HSamples [2 1 1 2] /VSamples [2 1 1 2] >>"
+        qFactorArgs = ["-c", "<< /ColorImageDict \(imageDict) /GrayImageDict \(imageDict) >> setdistillerparams", "-f"]
+    } else {
+        qFactorArgs = []
+    }
     // -dColorConversionStrategy must come AFTER -dPDFSETTINGS=/screen (which re-forces an
     // sRGB conversion) so DeviceRGB wins; otherwise transparency-group icons get flattened away.
     let outArgs: [String] = ["-dColorConversionStrategy=/RGB", "-sDEVICE=pdfwrite", "-sFONTPATH=\(FONT_PATH)", "-o", output]
-    return GS_BASE_ARGS + resArgs + optArgs + outArgs + GS_PRE_ARGS + [input] + GS_POST_ARGS
+    return GS_BASE_ARGS + resArgs + optArgs + outArgs + qFactorArgs + GS_PRE_ARGS + [input] + GS_POST_ARGS
 }
 
 private struct PDFImageDimensions {

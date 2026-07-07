@@ -1188,6 +1188,8 @@ struct FloatingResult: View {
             }
         } else if optimiser.showCompressionSlider {
             sliderBand { CardCompressionSlider(optimiser: optimiser) }
+        } else if optimiser.showTargetSizeSlider {
+            sliderBand { CardTargetSizeSlider(optimiser: optimiser) }
         } else if optimiser.showSendExpiration {
             sliderBand { CardSendExpirationSlider(optimiser: optimiser) }
         } else if isExpanded, !optimiser.running, optimiser.error == nil, optimiser.notice == nil, !optimiser.showingFormats {
@@ -1200,7 +1202,7 @@ struct FloatingResult: View {
     @ViewBuilder var cardBottomContent: some View {
         if optimiser.showSendExpiration {
             SendExpirationConfirmButton(optimiser: optimiser)
-        } else if optimiser.showDownscaleSlider || optimiser.showCompressionSlider {
+        } else if optimiser.showDownscaleSlider || optimiser.showCompressionSlider || optimiser.showTargetSizeSlider {
             EmptyView()
         } else if optimiser.running {
             progressView.controlSize(.small).lineLimit(1).foregroundColor(.white)
