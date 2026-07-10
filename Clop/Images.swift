@@ -500,9 +500,14 @@ class Image: CustomStringConvertible {
         }
 
         let optimised = item.string(forType: .optimisationStatus) == "true"
-        let data: Data? = [NSPasteboard.PasteboardType.png, .jpeg, .gif, .tiff].lazy.compactMap { t in
-            item.data(forType: t)
+        // GIF data is checked first: an animated GIF often rides along with a first-frame PNG/TIFF
+        // preview, and preferring the preview would flatten the animation to a single still frame.
+        let dataAndType: (data: Data, type: UTType)? = [
+            (NSPasteboard.PasteboardType.gif, UTType.gif), (.png, .png), (.jpeg, .jpeg), (.tiff, .tiff),
+        ].lazy.compactMap { pbType, utType in
+            item.data(forType: pbType).map { ($0, utType) }
         }.first
+        let data = dataAndType?.data
 
         if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: FilePath.images, force: true),
            let img = Image(path: path, data: data, nsImage: nsImage, optimised: optimised, retinaDownscaled: false)
@@ -510,7 +515,9 @@ class Image: CustomStringConvertible {
             return img
         }
 
-        guard let img = Image(nsImage: nsImage, data: data, optimised: optimised, retinaDownscaled: false) else {
+        // Pass the type matching the picked data: the NSImage-derived type reflects the pasteboard's
+        // preferred bitmap (usually the PNG/TIFF preview), not the data chosen above.
+        guard let img = Image(nsImage: nsImage, data: data, type: dataAndType?.type, optimised: optimised, retinaDownscaled: false) else {
             throw ClopError.noClipboardImage(.init())
         }
 
@@ -658,6 +665,13 @@ class Image: CustomStringConvertible {
         }
         guard proc.terminationStatus == 0 else {
             throw ClopProcError.processError(proc)
+        }
+
+        // Belt and braces: an optimise pass must never flatten an animation. If the input had
+        // multiple frames but the output has only one (e.g. a truncated download that gifsicle
+        // salvaged a single frame from), keep the original instead of replacing it with a still.
+        if path.isAnimatedGIF, !tempFile.isAnimatedGIF {
+            throw ClopError.optimisationFailed("animated GIF would have been flattened to a single frame")
         }
 
         tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
