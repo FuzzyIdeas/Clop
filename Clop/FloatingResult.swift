@@ -587,6 +587,14 @@ struct NameFormatPill: View {
     @Environment(\.preview) var preview
     @ObservedObject var km = KM
 
+    @Default(.formatPickerStyle) var formatPickerStyle
+
+    /// True when the bottom format bar replaces the extension chip: the chip is hidden entirely and
+    /// the filename takes over its space (the bar shows the current format as its active segment).
+    var formatBarActive: Bool {
+        formatPickerStyle == .bar && !optimiser.running && optimiser.canChangeFormat()
+    }
+
     var body: some View {
         Group {
             if optimiser.editingFilename {
@@ -620,7 +628,7 @@ struct NameFormatPill: View {
                 .minimumScaleFactor(optimiser.hoveringFilename ? 0.75 : 0.9)
                 .multilineTextAlignment(.trailing)
                 // Fixed height so the hover scale factor only changes width-fitting, never the chip height.
-                .frame(maxWidth: fullWidth ? .infinity : 92, alignment: .trailing)
+                .frame(maxWidth: fullWidth ? .infinity : (formatBarActive ? 135 : 92), alignment: .trailing)
                 .frame(height: 12)
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 // Mono warm chip so the name reads as tappable at a glance; border firms up on hover.
@@ -638,18 +646,20 @@ struct NameFormatPill: View {
 
     @ViewBuilder var formatSegment: some View {
         if !optimiser.running, optimiser.canChangeFormat() {
-            // Hovering the extension chip springs the convert targets up from behind it; one click on a
-            // target converts. The accordion sits in an overlay so it doesn't affect the pill's layout,
-            // and rises into the card interior (over the thumbnail) rather than past the clipped edge.
-            Text(optimiser.formatChipText).font(.system(size: 9, weight: .bold))
-                .frame(height: 12)
-                .padding(.horizontal, 6).padding(.vertical, 2)
-                .cardChip(hovering: hoveringExt || optimiser.showingFormats)
-                .onHover { hovering in
-                    hoveringExt = hovering
-                    updateFormatsVisibility()
-                }
-                .overlay(alignment: .bottomTrailing) { formatAccordion }
+            if !formatBarActive {
+                // Hovering the extension chip springs the convert targets up from behind it; one click on a
+                // target converts. The accordion sits in an overlay so it doesn't affect the pill's layout,
+                // and rises into the card interior (over the thumbnail) rather than past the clipped edge.
+                Text(optimiser.formatChipText).font(.system(size: 9, weight: .bold))
+                    .frame(height: 12)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .cardChip(hovering: hoveringExt || optimiser.showingFormats)
+                    .onHover { hovering in
+                        hoveringExt = hovering
+                        updateFormatsVisibility()
+                    }
+                    .overlay(alignment: .bottomTrailing) { formatAccordion }
+            }
         } else {
             Text(optimiser.formatChipText).font(.system(size: 9, weight: .semibold)).foregroundColor(.white).padding(.leading, 1).padding(.trailing, 4)
         }
@@ -781,6 +791,148 @@ struct NameFormatPill: View {
 
 }
 
+// MARK: - FormatPickerBar
+
+/// One-click format switcher living on the bottom edge of the floating card, always visible in bar
+/// mode. Frameless: the segments sit directly on the card's existing bottom gradient band, so only
+/// the rounded chips read as controls — solid white for the current format, a springy white wash on
+/// hover. While a conversion runs the bar stays up (disabled) with the clicked target pulsing as a
+/// progress affordance; when it lands, the white chip glides from the old format to the new one.
+/// Option shows a "+" on targets: converting keeps the current file too.
+struct FormatPickerBar: View {
+    static let height: CGFloat = 18
+
+    @ObservedObject var optimiser: Optimiser
+
+    var body: some View {
+        let items = items
+        let activeIdx = items.firstIndex(where: \.active)
+        HStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                if idx > 0 {
+                    Rectangle().fill(Color.white.opacity(0.12))
+                        .frame(width: 1).padding(.vertical, 5)
+                }
+                let hovered = hoveredIdx == idx && !optimiser.running
+                Button { convert(to: item.format) } label: {
+                    Text((additiveConvert && !item.active ? "+" : "") + item.label)
+                        .font(.mono(8, weight: item.active ? .heavy : .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.horizontal, 2)
+                }
+                .buttonStyle(FormatBarSegmentStyle(
+                    active: item.active,
+                    hovered: hovered,
+                    pending: optimiser.running && pendingFormat != nil && item.format == pendingFormat,
+                    pulseOn: pulseOn,
+                    chipNS: chipNS
+                ))
+                // Springy micro-pop on hover; segments are flexible cells so the scale never reflows.
+                .scaleEffect(hovered ? 1.1 : 1)
+                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hoveredIdx)
+                .onHover { hovering in hoveredIdx = hovering ? idx : (hoveredIdx == idx ? nil : hoveredIdx) }
+            }
+        }
+        .padding(.horizontal, 3)
+        .frame(maxWidth: .infinity)
+        .frame(height: Self.height)
+        // Lifted slightly off the bottom edge; together with the capsule ends this keeps the end
+        // chips clear of the card's 14pt corner curve so the clip shape never slices them.
+        .padding(.bottom, 1)
+        .disabled(optimiser.running)
+        // Glides the white chip from the old format's segment to the new one when a conversion lands.
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: activeIdx)
+        .onChange(of: optimiser.running) { running in
+            guard !running else { return }
+            pendingFormat = nil
+            pulseOn = false
+        }
+    }
+
+    @State private var hoveredIdx: Int? = nil
+    /// The conversion target clicked last, pulsing while the conversion runs.
+    @State private var pendingFormat: UTType? = nil
+    @State private var pulseOn = false
+    @Namespace private var chipNS
+
+    @Environment(\.preview) private var preview
+    @ObservedObject private var km = KM
+
+    /// True while Option is held: a plain click on a format replaces the current one (keep-only-last),
+    /// Option+click keeps both. Mirrors the extension-hover accordion.
+    private var additiveConvert: Bool {
+        km.lalt || km.ralt
+    }
+
+    /// Every convertible format, the current one flagged active. When the current format isn't in the
+    /// convertible list (animated GIFs only offer video targets, TIFF/BMP arrivals aren't targets),
+    /// it gets a leading non-clickable segment so it stays visible: the extension chip is hidden in
+    /// bar mode, so the bar is the only place showing what the file currently is.
+    private var items: [(format: UTType?, label: String, active: Bool)] {
+        var items: [(format: UTType?, label: String, active: Bool)] = optimiser.convertibleTypes.compactMap { format in
+            let ext = format.preferredFilenameExtension ?? format.identifier.components(separatedBy: ".").last ?? ""
+            guard !ext.isEmpty else { return nil }
+            let label: String = switch format {
+            case .hevcVideo: "HEVC"
+            case .av1Video: "AV1"
+            default: ext.uppercased()
+            }
+            return (format, label, optimiser.type.utType == format || optimiser.videoCodecType == format)
+        }
+        if !items.contains(where: \.active),
+           let ext = (optimiser.url ?? optimiser.originalURL)?.filePath?.extension, !ext.isEmpty
+        {
+            items.insert((nil, ext.uppercased(), true), at: 0)
+        }
+        return items
+    }
+
+    private func convert(to format: UTType?) {
+        guard !preview, !optimiser.running, let format, optimiser.type.utType != format, optimiser.videoCodecType != format else { return }
+        pendingFormat = format
+        pulseOn = false
+        withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { pulseOn = true }
+        optimiser.convert(to: format, optimise: true, additive: additiveConvert)
+    }
+}
+
+/// Format-bar segment: equal-width flexible cell over the card's bottom gradient band. The active
+/// format is a solid near-white rounded chip with dark text, carrying a matched-geometry id so it
+/// glides between segments when the format changes; a pending conversion target pulses softly; and
+/// hovering an inactive segment raises a white rounded-chip wash that brightens while pressed.
+struct FormatBarSegmentStyle: ButtonStyle {
+    var active: Bool
+    var hovered: Bool
+    var pending: Bool
+    var pulseOn: Bool
+    var chipNS: Namespace.ID
+
+    func makeBody(configuration: Configuration) -> some View {
+        // Full capsule (the max radius at this chip height): its round ends echo the card's 14pt
+        // corner curvature, so the leftmost/rightmost chips nest into the corners instead of
+        // fighting them with small square-ish corners.
+        let chip = Capsule(style: .continuous)
+        return configuration.label
+            .foregroundColor(active ? .black.opacity(0.85) : .white.opacity(hovered ? 1 : 0.75))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                if active {
+                    chip.fill(Color.white.opacity(0.92))
+                        .padding(1.5)
+                        .matchedGeometryEffect(id: "formatBarChip", in: chipNS)
+                } else if pending {
+                    chip.fill(Color.white.opacity(pulseOn ? 0.4 : 0.12))
+                        .padding(1.5)
+                } else if hovered {
+                    chip.fill(Color.white.opacity(configuration.isPressed ? 0.35 : 0.2))
+                        .padding(1.5)
+                }
+            }
+            .contentShape(Rectangle())
+    }
+}
+
 // MARK: - FloatingResult
 
 struct FloatingResult: View {
@@ -815,6 +967,7 @@ struct FloatingResult: View {
     @Default(.floatingResultsCorner) var floatingResultsCorner
     @Default(.neverShowProError) var neverShowProError
     @Default(.floatingResultActions) var floatingResultActions
+    @Default(.formatPickerStyle) var formatPickerStyle
 
     @Environment(\.openWindow) var openWindow
     @Environment(\.colorScheme) var colorScheme
@@ -830,6 +983,20 @@ struct FloatingResult: View {
 
     var showsThumbnail: Bool {
         optimiser.thumbnail != nil
+    }
+
+    /// Whether bar mode reserves a bottom band on this card: the card grows by the bar's height so
+    /// the bar never squeezes the card's controls. The band is plain thumbnail while the bar is
+    /// hidden. Constant per file (type-based), so hovering never changes geometry.
+    var reservesFormatBar: Bool {
+        formatPickerStyle == .bar && optimiser.canChangeFormat()
+    }
+
+    /// Whether the bottom format-picker bar is up: always visible in bar mode, even while running
+    /// (disabled, so a clicked conversion target can pulse as progress and the active chip can glide
+    /// to the result), stepping aside only when an error or notice owns the card.
+    var showsFormatBar: Bool {
+        reservesFormatBar && optimiser.error == nil && optimiser.notice == nil
     }
 
     /// Configured grid actions (crop is a dedicated corner button, so it's excluded here). When a
@@ -861,11 +1028,13 @@ struct FloatingResult: View {
     /// the unified name·format pill on hover; a full-width filename editor while editing; the
     /// centered size-saving stats at rest.
     /// Whether the filename renders fully at the pill's resting width, so hovering it shouldn't expand
-    /// the pill (and the crop button can stay put). Mirrors NameFormatPill's 9pt name segment / 92pt cap.
+    /// the pill (and the crop button can stay put). Mirrors NameFormatPill's 9pt name segment and its
+    /// width cap: 92pt beside the extension chip, 135pt when the format bar has replaced the chip.
     var filenameFits: Bool {
         let stem = optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
         let width = (stem as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 9, weight: .medium)]).width
-        return width <= 92
+        let cap: CGFloat = formatPickerStyle == .bar && !optimiser.running && optimiser.canChangeFormat() ? 135 : 92
+        return width <= cap
     }
 
     @ViewBuilder var progressURLView: some View {
@@ -1278,7 +1447,10 @@ struct FloatingResult: View {
             OverlayMessageView(optimiser: optimiser, color: .black)
         }
         .padding(8)
-        .frame(width: Self.cardW, height: Self.cardH, alignment: .center)
+        // Bar mode: the card is taller by the bar's height (below) and the controls keep a matching
+        // constant inset, so the content area stays exactly cardW×cardH and hovering never reflows it.
+        .padding(.bottom, reservesFormatBar ? FormatPickerBar.height : 0)
+        .frame(width: Self.cardW, height: Self.cardH + (reservesFormatBar ? FormatPickerBar.height : 0), alignment: .center)
         .fixedSize()
         .background(
             SwiftUI.Image(nsImage: optimiser.thumbnail!)
@@ -1337,6 +1509,17 @@ struct FloatingResult: View {
                     }
                 })
         )
+        // Bottom-pinned format bar, applied before the clip shape so the card's rounded corners trim
+        // its first/last segments to the curvature; it slides in from under the bottom edge.
+        .overlay(alignment: .bottom) {
+            if showsFormatBar {
+                FormatPickerBar(optimiser: optimiser)
+                    // Dimmed at rest so unhovered cards stay calm; full strength while the card is
+                    // hovered or a conversion is running (the pulse doubles as progress).
+                    .opacity(isExpanded || optimiser.running ? 1 : 0.65)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -1641,6 +1824,30 @@ struct FloatingResultAllStates_Previews: PreviewProvider {
             .background(LinearGradient(colors: [Color.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
             .previewDisplayName("All States")
     }
+}
+
+#Preview("Format bar") {
+    let thumbSize = THUMB_SIZE.applying(.init(scaleX: 3, y: 3))
+
+    let img = Optimiser(id: "format-bar-image-preview", type: .image(.png))
+    img.url = "\(HOME)/Desktop/sonoma-shot.png".fileURL
+    img.thumbnail = NSImage(resource: .sonomaShot)
+    img.isPreview = true
+    img.finish(oldBytes: 750_190, newBytes: 211_932, oldSize: thumbSize)
+
+    let vid = Optimiser(id: "format-bar-video-preview", type: .video(.quickTimeMovie))
+    vid.url = "\(HOME)/Movies/meeting-recording-video.mov".fileURL
+    vid.thumbnail = NSImage(resource: .sonomaVideo)
+    vid.isPreview = true
+    vid.finish(oldBytes: 52_400_000, newBytes: 31_200_000)
+
+    return VStack(spacing: 30) {
+        FloatingResult(optimiser: img, hovering: true)
+        FloatingResult(optimiser: vid, hovering: true)
+    }
+    .padding(40)
+    .background(LinearGradient(colors: [Color.red, .orange, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+    .environment(\.preview, true)
 }
 
 // MARK: - SizeNotificationView_Previews

@@ -2246,6 +2246,7 @@ struct FloatingSettingsView: View {
     @Default(.hideFloatingResultTooltips) var hideFloatingResultTooltips
     @Default(.floatingResultActions) var floatingResultActions
     @Default(.compactResultActions) var compactResultActions
+    @Default(.formatPickerStyle) var formatPickerStyle
     @Default(.showCopyClearButtons) var showCopyClearButtons
 
     @Default(.dismissFloatingResultOnDrop) var dismissFloatingResultOnDrop
@@ -2285,6 +2286,15 @@ struct FloatingSettingsView: View {
             }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Full layout")) {
+                Picker(selection: $formatPickerStyle) {
+                    Text("format bar at the bottom").tag(FormatPickerStyle.bar)
+                    Text("hover on the file extension").tag(FormatPickerStyle.extensionHover)
+                } label: {
+                    Text("Change format by").regular(13)
+                        + Text("\n\nThe format bar shows all convertible formats as one-click segments at the bottom of the result; the extension chip pops the formats up on hover")
+                        .round(10, weight: .regular)
+                        .foregroundColor(.secondary)
+                }
                 Toggle("Show Copy all / Clear all buttons", isOn: $showCopyClearButtons)
                 Text("Dismiss result after")
                 Toggle("drag and drop outside", isOn: $dismissFloatingResultOnDrop).padding(.leading, 20)

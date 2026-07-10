@@ -228,6 +228,7 @@ extension Defaults.Keys {
 
     static let floatingResultActions = Key<[FloatingAction]>("floatingResultActions", default: FloatingAction.defaultFloating)
     static let compactResultActions = Key<[FloatingAction]>("compactResultActions", default: FloatingAction.defaultCompact)
+    static let formatPickerStyle = Key<FormatPickerStyle>("formatPickerStyle", default: .bar)
     static let showCopyClearButtons = Key<Bool>("showCopyClearButtons", default: true)
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
     static let onlyShowDropZoneOnOption = Key<Bool>("onlyShowDropZoneOnOption", default: false)
@@ -287,6 +288,14 @@ let DEFAULT_CROP_ASPECT_RATIOS: [CropSize] = [
     CropSize(width: 32, height: 9, name: "32:9", isAspectRatio: true),
     CropSize(width: 176, height: 250, name: "B5", isAspectRatio: true),
 ]
+
+/// How the floating result lets the user change a file's format.
+enum FormatPickerStyle: String, Codable, Defaults.Serializable {
+    /// A segmented bar of formats pinned to the bottom edge of the result card.
+    case bar
+    /// The extension chip next to the filename springs up a convert accordion on hover.
+    case extensionHover
+}
 
 /// What happens to GIF timing when high compression factors (80+) drop animation frames.
 enum GIFFrameDropBehaviour: String, Codable, Defaults.Serializable {
