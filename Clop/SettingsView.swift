@@ -2951,7 +2951,11 @@ struct SettingsView: View {
         } detail: {
             detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .navigationTitle(svm.tab.title)
+                // Keep the window's title as "Settings" so it exists for the Window menu,
+                // accessibility and Mission Control. `.windowStyle(.hiddenTitleBar)` keeps it
+                // from being drawn in the titlebar. Using the tab name here (as before) leaked
+                // the selected tab into the window title.
+                .navigationTitle("Settings")
         }
         .navigationSplitViewStyle(.balanced)
         .formStyle(.grouped)

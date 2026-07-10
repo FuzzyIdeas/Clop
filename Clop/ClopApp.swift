@@ -1447,9 +1447,9 @@ let CROP_WINDOW_IDENTIFIER = NSUserInterfaceItemIdentifier("clop.crop.window")
 
 extension NSWindow {
     /// The Settings scene is declared as `Window("Settings", id: "settings")`; SwiftUI maps that
-    /// scene `id` into the AppKit window identifier. Match on that instead of the title, which the
-    /// navigation sidebar now overwrites with the selected tab's name. `contains` rather than `==`
-    /// so we tolerate any prefix/suffix SwiftUI may wrap around the scene id.
+    /// scene `id` into the AppKit window identifier. Match on that instead of the title: the
+    /// identifier is stable and not localized. `contains` rather than `==` so we tolerate any
+    /// prefix/suffix SwiftUI may wrap around the scene id.
     var isSettingsWindow: Bool {
         identifier?.rawValue.contains("settings") ?? false
     }
