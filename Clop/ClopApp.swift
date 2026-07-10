@@ -450,6 +450,18 @@ class AppDelegate: AppDelegateParent {
                 floatingResultsWindow.moveToScreen(.withMouse, corner: $0.newValue)
             }
             .store(in: &observers)
+        pub(.followCursorScreen)
+            .sink {
+                if $0.newValue {
+                    startCursorScreenFollower()
+                } else {
+                    stopCursorScreenFollower()
+                }
+            }
+            .store(in: &observers)
+        if Defaults[.followCursorScreen] {
+            startCursorScreenFollower()
+        }
         pub(.keyComboModifiers)
             .sink {
                 KM.primaryKeyModifiers = $0.newValue

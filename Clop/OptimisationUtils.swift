@@ -3348,6 +3348,59 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     floatingResultsWindow.show(closeAfter: 0, fadeAfter: 0, fadeDuration: 0.2, corner: Defaults[.floatingResultsCorner], margin: FLOAT_MARGIN, marginHorizontal: 0)
 }
 
+// MARK: - Cursor screen follower
+
+@MainActor private var cursorScreenFollowerTimer: Timer?
+@MainActor private var pendingCursorScreenID: CGDirectDisplayID?
+@MainActor private var pendingCursorScreenTicks = 0
+
+/// Starts the "follow the cursor across screens" watcher: a half-second poll that moves the
+/// floating results panel to the screen the cursor is on, but only after the cursor has stayed
+/// there for ~2 seconds, so quickly crossing a monitor doesn't drag the results along.
+@MainActor func startCursorScreenFollower() {
+    stopCursorScreenFollower()
+    cursorScreenFollowerTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+        mainActor { cursorScreenFollowerTick() }
+    }
+}
+
+@MainActor func stopCursorScreenFollower() {
+    cursorScreenFollowerTimer?.invalidate()
+    cursorScreenFollowerTimer = nil
+    pendingCursorScreenID = nil
+    pendingCursorScreenTicks = 0
+}
+
+@MainActor private func cursorScreenFollowerTick() {
+    // Freeze (don't reset) the dwell count while a mouse button is down: the results shouldn't
+    // jump to another screen in the middle of a drag or a held click.
+    guard NSEvent.pressedMouseButtons == 0 else { return }
+    guard floatingResultsWindow.isVisible, let screen = NSScreen.withMouse, let screenID = screen.displayID,
+          screenID != floatingResultsWindow.screenPlacement?.displayID
+    else {
+        pendingCursorScreenID = nil
+        pendingCursorScreenTicks = 0
+        return
+    }
+
+    guard screenID == pendingCursorScreenID else {
+        pendingCursorScreenID = screenID
+        pendingCursorScreenTicks = 1
+        return
+    }
+    pendingCursorScreenTicks += 1
+    // 3 consecutive half-second ticks on the same new screen ≈ a 1.5s dwell.
+    guard pendingCursorScreenTicks >= 3 else { return }
+
+    pendingCursorScreenID = nil
+    pendingCursorScreenTicks = 0
+    // No cross-screen animation: a window frame animated between displays spills onto neighbouring
+    // monitors and looks bad no matter how it's staged. Close on the old screen, re-show on the
+    // cursor's screen (showFloatingThumbnails pins to the screen with the mouse).
+    floatingResultsWindow.close()
+    showFloatingThumbnails(force: true)
+}
+
 @MainActor func showFloatingThumbnailsAtCursor() {
     let mouseLocation = NSEvent.mouseLocation
 

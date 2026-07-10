@@ -2247,6 +2247,7 @@ struct FloatingSettingsView: View {
     @Default(.floatingResultActions) var floatingResultActions
     @Default(.compactResultActions) var compactResultActions
     @Default(.formatPickerStyle) var formatPickerStyle
+    @Default(.followCursorScreen) var followCursorScreen
     @Default(.showCopyClearButtons) var showCopyClearButtons
 
     @Default(.dismissFloatingResultOnDrop) var dismissFloatingResultOnDrop
@@ -2271,6 +2272,12 @@ struct FloatingSettingsView: View {
                     Text("Top right").tag(ScreenCorner.topRight)
                     Text("Top left").tag(ScreenCorner.topLeft)
                 }
+                Toggle(isOn: $followCursorScreen) {
+                    Text("Follow the cursor across screens").regular(13)
+                        + Text("\n\nWhen the cursor stays on another screen for a couple of seconds, move the results to that screen")
+                        .round(10, weight: .regular)
+                        .foregroundColor(.secondary)
+                }
                 Toggle(isOn: $hideFloatingResultTooltips) {
                     Text("Hide button tooltips").regular(13)
                         + Text("\n\nDon't show the action name labels that pop up while hovering result buttons")
@@ -2286,14 +2293,19 @@ struct FloatingSettingsView: View {
             }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Full layout")) {
-                Picker(selection: $formatPickerStyle) {
-                    Text("format bar at the bottom").tag(FormatPickerStyle.bar)
-                    Text("hover on the file extension").tag(FormatPickerStyle.extensionHover)
-                } label: {
-                    Text("Change format by").regular(13)
-                        + Text("\n\nThe format bar shows all convertible formats as one-click segments at the bottom of the result; the extension chip pops the formats up on hover")
+                // Subtitle sits under both the label and the picker so it can wrap across the whole
+                // row width instead of being squeezed into the label column by the picker.
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(selection: $formatPickerStyle) {
+                        Text("format bar at the bottom").tag(FormatPickerStyle.bar)
+                        Text("hover on the file extension").tag(FormatPickerStyle.extensionHover)
+                    } label: {
+                        Text("Change format by").regular(13)
+                    }
+                    Text("The format bar shows all convertible formats as one-click segments at the bottom of the result; the extension chip pops the formats up on hover")
                         .round(10, weight: .regular)
                         .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Toggle("Show Copy all / Clear all buttons", isOn: $showCopyClearButtons)
                 Text("Dismiss result after")
@@ -2347,7 +2359,10 @@ struct FloatingSettingsView: View {
 
         }
         .scrollContentBackground(.hidden)
-        .frame(maxWidth: 380).fixedSize()
+        // idealWidth keeps the window's fit-to-content width at the old 380pt: without it, the long
+        // multiline labels report their unwrapped single-line width as ideal and the pane demands
+        // ~1100px. No minWidth so a narrow window squeezes the form instead of clipping it.
+        .frame(idealWidth: 380, maxWidth: .infinity)
     }
 
     var body: some View {
@@ -2400,6 +2415,9 @@ struct FloatingSettingsView: View {
                     FloatingActionGridPicker(actions: $floatingResultActions)
                 }
             }
+            // The flexible form eats all leftover width, so the preview column needs its own
+            // breathing room from the window's right edge.
+            .padding(.trailing)
         }
         .hfill()
         .padding(.top)

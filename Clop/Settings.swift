@@ -239,6 +239,7 @@ extension Defaults.Keys {
     static let autoHideClipboardResultAfter = Key<Int>("autoHideClipboardResultAfter", default: 10)
     static let autoClearAllCompactResultsAfter = Key<Int>("autoClearAllCompactResultsAfter", default: 120)
     static let floatingResultsCorner = Key<ScreenCorner>("floatingResultsCorner", default: .bottomRight)
+    static let followCursorScreen = Key<Bool>("followCursorScreen", default: true)
     static let neverShowProError = Key<Bool>("neverShowProError", default: false)
 
     static let dismissFloatingResultOnDrop = Key<Bool>("dismissFloatingResultOnDrop", default: true)

@@ -628,7 +628,7 @@ struct NameFormatPill: View {
                 .minimumScaleFactor(optimiser.hoveringFilename ? 0.75 : 0.9)
                 .multilineTextAlignment(.trailing)
                 // Fixed height so the hover scale factor only changes width-fitting, never the chip height.
-                .frame(maxWidth: fullWidth ? .infinity : (formatBarActive ? 135 : 92), alignment: .trailing)
+                .frame(maxWidth: fullWidth ? .infinity : (formatBarActive ? 128 : 92), alignment: .trailing)
                 .frame(height: 12)
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 // Mono warm chip so the name reads as tappable at a glance; border firms up on hover.
@@ -807,11 +807,17 @@ struct FormatPickerBar: View {
     var body: some View {
         let items = items
         let activeIdx = items.firstIndex(where: \.active)
+        let anyHover = hoveredIdx != nil && !optimiser.running
         HStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
                 if idx > 0 {
                     Rectangle().fill(Color.white.opacity(0.12))
                         .frame(width: 1).padding(.vertical, 5)
+                        .offset(x: pushOffset(at: CGFloat(idx) - 0.5, count: items.count))
+                        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hoveredIdx)
+                        // Fade outside the spring: opacity must never bounce.
+                        .opacity(anyHover ? 0.4 : 1)
+                        .animation(.easeOut(duration: 0.15), value: hoveredIdx)
                 }
                 let hovered = hoveredIdx == idx && !optimiser.running
                 Button { convert(to: item.format) } label: {
@@ -828,9 +834,16 @@ struct FormatPickerBar: View {
                     pulseOn: pulseOn,
                     chipNS: chipNS
                 ))
-                // Springy micro-pop on hover; segments are flexible cells so the scale never reflows.
-                .scaleEffect(hovered ? 1.1 : 1)
+                // Hover: the format pops up and out of the row (bottom-anchored scale + a small
+                // lift) while the other formats fade and slide aside, dividers included. End
+                // formats pop inward and their push tapers to zero, so the row's outermost chips
+                // always keep their distance from the card edges.
+                .scaleEffect(hovered ? 1.22 : 1, anchor: popAnchor(for: idx, count: items.count))
+                .offset(x: pushOffset(at: CGFloat(idx), count: items.count), y: hovered ? -1 : 0)
                 .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hoveredIdx)
+                // Fade outside the spring: opacity must never bounce.
+                .opacity(anyHover && !hovered ? 0.4 : 1)
+                .animation(.easeOut(duration: 0.15), value: hoveredIdx)
                 .onHover { hovering in hoveredIdx = hovering ? idx : (hoveredIdx == idx ? nil : hoveredIdx) }
             }
         }
@@ -888,6 +901,31 @@ struct FormatPickerBar: View {
         return items
     }
 
+    /// How far the element at row position `p` (a segment's index, or index - 0.5 for the divider
+    /// rendered before it) slides away from the hovered format. Strongest right next to the hovered
+    /// format, tapering linearly to zero at the row's ends, so the outermost formats hold their
+    /// distance from the card edges while the ones in between squeeze together.
+    private func pushOffset(at p: CGFloat, count: Int) -> CGFloat {
+        guard let hoveredIdx, !optimiser.running else { return 0 }
+        let hovered = CGFloat(hoveredIdx)
+        let last = CGFloat(count - 1)
+        if p < hovered {
+            return -5 * (p / hovered)
+        }
+        if p > hovered {
+            return 5 * ((last - p) / (last - hovered))
+        }
+        return 0
+    }
+
+    /// Bottom-anchored pop that grows inward at the row's ends, keeping the end chips at their
+    /// resting distance from the card edges.
+    private func popAnchor(for idx: Int, count: Int) -> UnitPoint {
+        if idx == 0 { return .bottomLeading }
+        if idx == count - 1 { return .bottomTrailing }
+        return .bottom
+    }
+
     private func convert(to format: UTType?) {
         guard !preview, !optimiser.running, let format, optimiser.type.utType != format, optimiser.videoCodecType != format else { return }
         pendingFormat = format
@@ -925,7 +963,10 @@ struct FormatBarSegmentStyle: ButtonStyle {
                     chip.fill(Color.white.opacity(pulseOn ? 0.4 : 0.12))
                         .padding(1.5)
                 } else if hovered {
-                    chip.fill(Color.white.opacity(configuration.isPressed ? 0.35 : 0.2))
+                    // Bright ring + shadow so the hovered chip reads lit-up, not washed-out/disabled.
+                    chip.fill(Color.white.opacity(configuration.isPressed ? 0.45 : 0.28))
+                        .overlay(chip.strokeBorder(Color.white.opacity(0.85), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
                         .padding(1.5)
                 }
             }
@@ -1029,12 +1070,14 @@ struct FloatingResult: View {
     /// centered size-saving stats at rest.
     /// Whether the filename renders fully at the pill's resting width, so hovering it shouldn't expand
     /// the pill (and the crop button can stay put). Mirrors NameFormatPill's 9pt name segment and its
-    /// width cap: 92pt beside the extension chip, 135pt when the format bar has replaced the chip.
+    /// width cap: 92pt beside the extension chip, 128pt when the format bar has replaced the chip. The
+    /// pill renders the name with minimumScaleFactor 0.9 at rest, so names up to cap/0.9 still display
+    /// fully (just slightly scaled) and must count as fitting, or hovering them would expand the pill.
     var filenameFits: Bool {
         let stem = optimiser.url?.filePath?.stem ?? optimiser.originalURL?.filePath?.stem ?? ""
         let width = (stem as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 9, weight: .medium)]).width
-        let cap: CGFloat = formatPickerStyle == .bar && !optimiser.running && optimiser.canChangeFormat() ? 135 : 92
-        return width <= cap
+        let cap: CGFloat = formatPickerStyle == .bar && !optimiser.running && optimiser.canChangeFormat() ? 128 : 92
+        return width <= cap / 0.9
     }
 
     @ViewBuilder var progressURLView: some View {
