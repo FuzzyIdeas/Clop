@@ -3375,7 +3375,10 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     // Freeze (don't reset) the dwell count while a mouse button is down: the results shouldn't
     // jump to another screen in the middle of a drag or a held click.
     guard NSEvent.pressedMouseButtons == 0 else { return }
-    guard floatingResultsWindow.isVisible, let screen = NSScreen.withMouse, let screenID = screen.displayID,
+    // The panel can be ordered in while empty, so isVisible alone isn't enough: only follow the
+    // cursor when there's actually a result on screen.
+    guard floatingResultsWindow.isVisible, !OM.visibleOptimisers.isEmpty,
+          let screen = NSScreen.withMouse, let screenID = screen.displayID,
           screenID != floatingResultsWindow.screenPlacement?.displayID
     else {
         pendingCursorScreenID = nil
@@ -3394,11 +3397,11 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
 
     pendingCursorScreenID = nil
     pendingCursorScreenTicks = 0
-    // No cross-screen animation: a window frame animated between displays spills onto neighbouring
-    // monitors and looks bad no matter how it's staged. Close on the old screen, re-show on the
-    // cursor's screen (showFloatingThumbnails pins to the screen with the mouse).
-    floatingResultsWindow.close()
-    showFloatingThumbnails(force: true)
+    // Plain frame move, nothing else: closing and re-showing the panel goes through window
+    // ordering (showWindow/makeKeyAndOrderFront) and steals focus from the app the user is in,
+    // and cross-screen frame animations spill onto neighbouring monitors. A non-animated
+    // moveToScreen is a bare setFrame: the panel just teleports, focus untouched.
+    floatingResultsWindow.moveToScreen(screen, corner: Defaults[.floatingResultsCorner])
 }
 
 @MainActor func showFloatingThumbnailsAtCursor() {
