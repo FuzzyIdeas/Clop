@@ -1,3 +1,28 @@
+# 3.3.0
+
+**[Download Clop 3.3.0 →](https://files.lowtechguys.com/releases/Clop-3.3.0.dmg)**
+## Features
+
+- **Format bar**: change a file's format with one click from a bar at the bottom of each floating result
+    > The previous picker (hover on the file extension) can be brought back in Settings > Floating results
+- **Extreme compression** at the top of the compression slider, for all formats
+- **Fit under size**: compress a file under a chosen size limit
+    > Available as an action button on results and in the file's right-click menu
+- Floating results move to the screen where the cursor is
+    > Disable with *Follow the cursor across screens* in Settings > Floating results
+
+## Fixes
+
+- Animated GIFs copied as image data from other apps keep their animation when optimised, instead of being flattened to their first frame
+    > As a safety net, any optimisation that would leave a single frame out of an animated GIF now fails and keeps the original file untouched
+- With the optimised file location set to *Same folder*, files dropped on Clop or picked up from watched folders no longer produce a doubled-suffix duplicate like `photo-optim-optim.png` next to `photo-optim.png`
+    > The naming pattern was applied twice: the real optimised file got the doubled name, while the normally named copy was left unoptimised
+
+## Improvements
+
+- Floating results can also be dragged out when the drag starts on an empty `+` button slot; a plain click still opens the menu that assigns an action to the slot
+    > To keep the press free for dragging, the menu opens when the mouse is released instead of when it is pressed
+
 # 3.2.3
 
 **[Download Clop 3.2.3 →](https://files.lowtechguys.com/releases/Clop-3.2.3.dmg)**
