@@ -1205,7 +1205,11 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
 /// Whether a CLI/IPC request should be handled by the batch engine + window instead of the per-file
 /// path: a Pro-only, non-pipeline request with more files than the configured threshold.
 @MainActor func shouldRouteToBatch(_ req: OptimisationRequest) -> Bool {
-    req.pipeline == nil && proactive && req.urls.count > Defaults[.batchModeFileCountThreshold]
+    // Only route requests the batch engine can fully express. It has no arbitrary-size crop,
+    // playback speed or output-template support, so those must take the per-file path: dropping
+    // a requested operation silently is worse than skipping the batch window.
+    req.pipeline == nil && req.size == nil && req.changePlaybackSpeedFactor == nil && req.output == nil
+        && proactive && req.urls.count > Defaults[.batchModeFileCountThreshold]
 }
 
 /// Run a large CLI/IPC request through the batch engine + window, then stream exactly one response (or
@@ -1223,6 +1227,7 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
     params.audio.bitrate = req.audioBitrate
     if let dpi = req.pdfDPI { params.pdf.dpiMode = .fixed(dpi) }
     if let factor = req.downscaleFactor, factor < 1 { params.setUniformDownscale(factor) }
+    if req.removeAudio == true { params.video.removeAudio = true }
 
     await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
         BAT.start(paths: paths, params: params, source: req.source.optSource)
