@@ -626,7 +626,10 @@ class Image: CustomStringConvertible {
         }
 
         if resizeArgs.isNotEmpty {
-            resizedFile = FilePath.forResize.appending(path.nameWithoutSize).withSize(size)
+            // Built by hand instead of withSize(), which force-unwraps the extension and would
+            // crash on an extensionless GIF; gifsicle writes GIF regardless of the output name.
+            let base = FilePath.forResize.appending(path.nameWithoutSize)
+            resizedFile = base.dir / "\(base.stem ?? base.name.string)_\(size.width.evenInt)x\(size.height.evenInt).\(base.extension ?? "gif")"
             let resizeProc = try tryProc(
                 GIFSICLE.string,
                 args: ["--unoptimize", "--threads=\(ProcessInfo.processInfo.activeProcessorCount)", "--resize-method=box", "--resize-colors=256"] +
@@ -932,8 +935,14 @@ class Image: CustomStringConvertible {
 
         let size = cropSize.computedSize(from: size)
         let sizeStr = "\(size.width.evenInt)x\(size.height.evenInt)"
-        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(path.extension!)[Q=100]", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
-        let resizedPath = pathForResize.withSize(size)
+        // vipsthumbnail (and the CG fallbacks) pick the encoder from the output extension, so a
+        // mislabeled file (e.g. a PNG named .jpg) would get silently transcoded to the extension's
+        // format, flattening alpha. Name the output after the actual image format instead; the
+        // copy back to `pathForResize` below still preserves the original file name.
+        let extMatchesType = path.extension.flatMap { UTType(filenameExtension: $0) } == type
+        let ext = (extMatchesType ? path.extension : nil) ?? type.preferredFilenameExtension ?? path.extension ?? "png"
+        let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(ext)[Q=100]", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
+        let resizedPath = pathForResize.dir / "\(pathForResize.stem ?? pathForResize.name.string)_\(sizeStr).\(ext)"
 
         if let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
             // vipsthumbnail only supports centre/attention crops, arbitrary rects go through CoreGraphics
