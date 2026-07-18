@@ -242,7 +242,90 @@ extension FilePath {
     }
 
     func fetchFileType() -> String? {
-        shell("/usr/bin/file", args: ["-b", "--mime-type", string], timeout: 5).o
+        // In-process replacement for `file -b --mime-type`: forking /usr/bin/file blocked the
+        // main thread for 30s+ under memory pressure (CLOP-18X). Magic bytes win over the
+        // extension so mislabeled files keep getting detected like `file` did.
+        sniffMIMEType() ?? `extension`.flatMap { UTType(filenameExtension: $0)?.preferredMIMEType }
+    }
+
+    /// Detect the MIME type from magic bytes, in-process. Covers the formats Clop handles and
+    /// mirrors the strings `file -b --mime-type` returns for them.
+    func sniffMIMEType() -> String? {
+        guard let fh = FileHandle(forReadingAtPath: string) else { return nil }
+        defer { try? fh.close() }
+        guard let data = try? fh.read(upToCount: 512), data.count >= 4 else { return nil }
+        let b = [UInt8](data)
+
+        func str(_ offset: Int, _ len: Int) -> String? {
+            guard b.count >= offset + len else { return nil }
+            return String(decoding: b[offset ..< offset + len], as: UTF8.self)
+        }
+
+        switch (b[0], b[1], b[2], b[3]) {
+        case (0xFF, 0xD8, 0xFF, _): return "image/jpeg"
+        case (0x89, 0x50, 0x4E, 0x47): return "image/png"
+        case (0x47, 0x49, 0x46, 0x38): return "image/gif" // GIF87a / GIF89a
+        case (0x49, 0x49, 0x2A, 0x00), (0x4D, 0x4D, 0x00, 0x2A): return "image/tiff"
+        case (0xFF, 0x0A, _, _): return "image/jxl"
+        case (0x42, 0x4D, _, _): return "image/bmp"
+        case (0x1A, 0x45, 0xDF, 0xA3): // Matroska EBML: the DocType string is in the first bytes
+            return String(decoding: b, as: UTF8.self).contains("webm") ? "video/webm" : "video/x-matroska"
+        case (0x30, 0x26, 0xB2, 0x75): return "video/x-ms-wmv" // ASF
+        case (0x46, 0x4C, 0x56, 0x01): return "video/x-flv"
+        case (0x25, 0x50, 0x44, 0x46): return "application/pdf" // %PDF
+        case (0x66, 0x4C, 0x61, 0x43): return "audio/flac" // fLaC
+        case (0x4F, 0x67, 0x67, 0x53): // OggS: the codec ids are in the first pages
+            let head = String(decoding: b, as: UTF8.self)
+            if head.contains("theora") { return "video/ogg" }
+            if head.contains("OpusHead") { return "audio/opus" }
+            return "audio/ogg" // vorbis, speex, flac-in-ogg
+        case (0x49, 0x44, 0x33, _): return "audio/mpeg" // ID3
+        case (0xFE, 0xFF, _, _), (0xFF, 0xFE, _, _): return "text/plain" // UTF-16 BOM (FF FE also parses as an MP3 framesync)
+        case (0x46, 0x4F, 0x52, 0x4D): // FORM (AIFF / AIFC)
+            return str(8, 3) == "AIF" ? "audio/x-aiff" : nil
+        case (0x52, 0x49, 0x46, 0x46): // RIFF
+            switch str(8, 4) {
+            case "WEBP": return "image/webp"
+            case "WAVE": return "audio/x-wav"
+            case "AVI ": return "video/x-msvideo"
+            default: return nil
+            }
+        default: break
+        }
+
+        // ISO base media formats (ftyp box): images, video and audio share the container
+        if str(4, 4) == "ftyp", let brand = str(8, 4)?.trimmingCharacters(in: .whitespaces).lowercased() {
+            switch brand {
+            case "heic", "heix", "hevc", "hevx", "heim", "heis": return "image/heic"
+            case "mif1", "msf1": return "image/heif"
+            case "avif", "avis": return "image/avif"
+            case "qt": return "video/quicktime"
+            case "m4v", "m4vp": return "video/x-m4v"
+            case "m4a": return "audio/x-m4a"
+            case "isom", "iso2", "iso4", "iso5", "iso6", "mp41", "mp42", "mp4v", "avc1", "dash",
+                 "3gp4", "3gp5", "3gp6", "3gp7": return "video/mp4"
+            default: return nil // raws and other ftyp-based formats Clop doesn't handle
+            }
+        }
+        if b.count >= 12, b[0] == 0, b[1] == 0, b[2] == 0, b[3] == 0x0C, str(4, 4) == "JXL " {
+            return "image/jxl"
+        }
+        if b[0] == 0, b[1] == 0, b[2] == 1, b[3] >= 0xB0 { // MPEG program stream / video stream
+            return "video/x-mpeg"
+        }
+        if b[0] == 0xFF, b[1] & 0xE0 == 0xE0 { // MPEG audio frame sync
+            return b[1] & 0x06 == 0 ? "audio/aac" : "audio/mpeg" // layer bits 00 = ADTS AAC
+        }
+        let head = String(decoding: b, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if head.hasPrefix("<!doctype html") || head.contains("<html") {
+            return "text/html"
+        }
+        // Plain text (no NULs or control bytes): report it as such so a media extension on a text
+        // file (e.g. checksum refs named *.ogg) doesn't get trusted by the extension fallback.
+        if !b.contains(where: { $0 == 0 || $0 < 0x09 || ($0 > 0x0D && $0 < 0x20 && $0 != 0x1B) }) {
+            return "text/plain"
+        }
+        return nil
     }
 
     func stripExif() {
