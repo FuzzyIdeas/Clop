@@ -24,6 +24,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
     loudnormTarget: Double? = nil,
     coverArt: AudioCoverArtBehaviour? = nil,
     coverArtMaxLongEdge: Int? = nil,
+    coverArtSquare: Bool = false,
     compression: CompressionQuality? = nil,
     batchOptimiser: Optimiser? = nil
 ) async throws -> Audio? {
@@ -106,7 +107,8 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "AudioPipeline")
                     formatOverride: formatOverride,
                     loudnormTarget: loudnormTarget,
                     coverArtBehaviour: coverArt,
-                    coverArtMaxLongEdge: coverArtMaxLongEdge
+                    coverArtMaxLongEdge: coverArtMaxLongEdge,
+                    coverArtSquare: coverArtSquare
                 )
 
                 if !allowLarger, optimisedAudio!.fileSize >= fileSize {

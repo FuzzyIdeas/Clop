@@ -143,7 +143,8 @@ class Audio: Optimisable {
         formatOverride: AudioFormat? = nil,
         loudnormTarget: Double? = nil,
         coverArtBehaviour: AudioCoverArtBehaviour? = nil,
-        coverArtMaxLongEdge: Int? = nil
+        coverArtMaxLongEdge: Int? = nil,
+        coverArtSquare: Bool = false
     ) throws -> Audio {
         log.debug("Optimising audio \(self.path.string)")
         guard let name = path.lastComponent else {
@@ -167,7 +168,7 @@ class Audio: Optimisable {
         let outputPath = FilePath.audios.appending("\(name.stem).\(format.fileExtension)")
         let inputPath = path.backup(path: path.clopBackupPath, operation: .copy) ?? path
         var args = ["-y", "-i", inputPath.string]
-        args += audioCoverArtArgs(input: inputPath, format: format, stem: name.stem, behaviour: coverArtBehaviour ?? Defaults[.audioCoverArt], maxLongEdge: coverArtMaxLongEdge)
+        args += audioCoverArtArgs(input: inputPath, format: format, stem: name.stem, behaviour: coverArtBehaviour ?? Defaults[.audioCoverArt], maxLongEdge: coverArtMaxLongEdge, square: coverArtSquare)
         args += format.encodingArgs(bitrate: bitrate, aggressive: aggressive, inputSampleRate: sampleRate)
         if let loudnormTarget {
             // loudnorm resamples to 192 kHz in single-pass mode, which the AudioToolbox AAC encoder
@@ -400,7 +401,7 @@ func getAudioMetadata(path: FilePath) async throws -> AudioMetadata? {
 /// losslessly and recompresses it with Clop's image optimisers, then returns it as a second input
 /// to re-attach. Returns `["-vn"]` (strip art) when the format can't carry art, the behaviour is
 /// `.remove`, or no artwork is found.
-func audioCoverArtArgs(input: FilePath, format: AudioFormat, stem: String, behaviour: AudioCoverArtBehaviour, maxLongEdge: Int? = nil) -> [String] {
+func audioCoverArtArgs(input: FilePath, format: AudioFormat, stem: String, behaviour: AudioCoverArtBehaviour, maxLongEdge: Int? = nil, square: Bool = false) -> [String] {
     guard behaviour != .remove, format.supportsCoverArt else {
         return ["-vn"]
     }
@@ -410,7 +411,7 @@ func audioCoverArtArgs(input: FilePath, format: AudioFormat, stem: String, behav
         return ["-map", "0:a", "-map", "0:v?", "-c:v", "copy"]
     }
 
-    guard let cover = optimisedAudioCoverArt(input: input, stem: stem, maxLongEdge: maxLongEdge) else {
+    guard let cover = optimisedAudioCoverArt(input: input, stem: stem, maxLongEdge: maxLongEdge, square: square) else {
         // No embedded art (or extraction failed): nothing to optimise, strip cleanly.
         return ["-vn"]
     }
@@ -475,16 +476,37 @@ func extractedAudioCoverArt(input: FilePath, stem: String) -> FilePath? {
 
 /// Downsize an extracted cover image in place to a max long edge, preserving its format (so the
 /// header sniffing in `optimisedAudioCoverArt` still picks the right recompression path).
-func resizeCoverArt(_ path: FilePath, maxLongEdge: Int) {
-    guard maxLongEdge > 0, let data = fm.contents(atPath: path.string), let image = NSImage(data: data) else { return }
-    let px = image.realSize
-    let longEdge = max(px.width, px.height)
-    guard longEdge > CGFloat(maxLongEdge) else { return }
+func resizeCoverArt(_ path: FilePath, maxLongEdge: Int?, square: Bool = false) {
+    guard (maxLongEdge ?? 0) > 0 || square,
+          let data = fm.contents(atPath: path.string), var image = NSImage(data: data) else { return }
+    var px = image.realSize
 
-    let scale = CGFloat(maxLongEdge) / longEdge
-    let target = CGSize(width: (px.width * scale).rounded(), height: (px.height * scale).rounded())
-    guard let resized = image.resize(to: target),
-          let tiff = resized.tiffRepresentation,
+    // Square is the cover-art standard: centre-crop the shorter edge before any scaling,
+    // instead of squashing the aspect ratio.
+    var cropped = false
+    if square, px.width != px.height, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+        let side = min(cg.width, cg.height)
+        let rect = CGRect(x: (cg.width - side) / 2, y: (cg.height - side) / 2, width: side, height: side)
+        guard let squareCG = cg.cropping(to: rect) else { return }
+        image = NSImage(cgImage: squareCG, size: .zero)
+        px = image.realSize
+        cropped = true
+    }
+
+    var target = px
+    let longEdge = max(px.width, px.height)
+    if let maxLongEdge, maxLongEdge > 0, longEdge > CGFloat(maxLongEdge) {
+        let scale = CGFloat(maxLongEdge) / longEdge
+        target = CGSize(width: (px.width * scale).rounded(), height: (px.height * scale).rounded())
+    }
+
+    guard cropped || target != px else { return }
+    var resized = image
+    if target != px {
+        guard let scaled = image.resize(to: target) else { return }
+        resized = scaled
+    }
+    guard let tiff = resized.tiffRepresentation,
           let rep = NSBitmapImageRep(data: tiff) else { return }
 
     let isJPEG = data.starts(with: [0xFF, 0xD8, 0xFF] as [UInt8])
@@ -498,9 +520,9 @@ func resizeCoverArt(_ path: FilePath, maxLongEdge: Int) {
 /// while keeping the original resolution. JPEG art goes through jpegoptim (jpegli); PNG art through
 /// pngquant, with an adaptive PNG→JPEG trial for photographic covers. Returns the temp file, or nil
 /// when the input has no artwork or extraction fails.
-func optimisedAudioCoverArt(input: FilePath, stem: String, maxLongEdge: Int? = nil) -> FilePath? {
+func optimisedAudioCoverArt(input: FilePath, stem: String, maxLongEdge: Int? = nil, square: Bool = false) -> FilePath? {
     guard let coverPath = extractedAudioCoverArt(input: input, stem: stem) else { return nil }
-    if let maxLongEdge { resizeCoverArt(coverPath, maxLongEdge: maxLongEdge) }
+    if maxLongEdge != nil || square { resizeCoverArt(coverPath, maxLongEdge: maxLongEdge, square: square) }
     guard let data = fm.contents(atPath: coverPath.string) else { return nil }
 
     let cq = CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_AGGRESSIVE)

@@ -80,6 +80,7 @@ struct ImageBatchParams: Equatable {
     var convertTo: ImageConvertTarget?
     var downscaleFactor: Double? // < 1 to downscale
     var maxLongEdge: Int? // cap the long edge to this many px
+    var cropSize: CropSize? // exact crop (CLI `--size WxH`); wins over maxLongEdge/downscaleFactor
     var allowLarger = false // keep the result even if it's larger than the original (for conversions)
 }
 
@@ -88,6 +89,8 @@ struct VideoBatchParams: Equatable {
     var convertTo: VideoConvertTarget?
     var downscaleFactor: Double?
     var maxLongEdge: Int?
+    var cropSize: CropSize?
+    var playbackSpeedFactor: Double? // ≠ 1 to change the playback speed
     var fpsCap: Int?
     var removeAudio = false
     var allowLarger = false
@@ -95,6 +98,7 @@ struct VideoBatchParams: Equatable {
 
 struct PDFBatchParams: Equatable {
     var dpiMode: PDFDPIMode = .useDefault
+    var cropSize: CropSize?
 }
 
 struct AudioBatchParams: Equatable {
@@ -104,6 +108,7 @@ struct AudioBatchParams: Equatable {
     var convertLossless = false // also convert WAV/AIFF/FLAC inputs to `format`
     var coverArt: AudioCoverArtBehaviour?
     var coverArtMaxLongEdge: Int?
+    var coverArtSquare = false // centre-crop the art to a square (the cover-art standard) before capping
     var loudnorm: Double?
     var allowLarger = false
 }
@@ -319,7 +324,7 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
 
         let params = params
         orchestrator = Task {
-            let built = await Task.detached { buildBatchItems(paths, params: params) }.value
+            let built = await Task.detached { buildBatchItems(expandBatchPaths(paths), params: params) }.value
             guard !Task.isCancelled else { return }
             self.backing = built
             self.rebuildIndex()
@@ -333,11 +338,13 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
     }
 
     /// Build and immediately process with `params` (CLI / Shortcuts auto-start path; no prepare gate).
-    func start(paths: [FilePath], params: BatchParams? = nil, source: OptimisationSource? = nil) {
+    func start(paths: [FilePath], params: BatchParams? = nil, source: OptimisationSource? = nil) async {
         cancel()
         self.source = source
         let resolved = params ?? .fromDefaults()
-        backing = buildBatchItems(paths, params: resolved)
+        // Folders expand off the main actor: a big tree walk would beachball the UI otherwise.
+        let expanded = await Task.detached { expandBatchPaths(paths) }.value
+        backing = buildBatchItems(expanded, params: resolved)
         rebuildIndex()
         guard !backing.isEmpty else {
             log.debug("Batch had no supported files")
@@ -371,17 +378,7 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
 
         let params = params
         orchestrator = Task {
-            let expanded: [FilePath] = await Task.detached {
-                var out: [FilePath] = []
-                for path in paths where path.exists {
-                    if path.isDir {
-                        out.append(contentsOf: getURLsFromFolder(path.url, recursive: true, types: ALL_FORMATS).compactMap(\.existingFilePath))
-                    } else {
-                        out.append(path)
-                    }
-                }
-                return out
-            }.value
+            let expanded: [FilePath] = await Task.detached { expandBatchPaths(paths) }.value
             guard !Task.isCancelled else { return }
             // Dedup against the live batch at append time (folder expansion above is async, so an
             // up-front snapshot could be stale if drops overlap).
@@ -756,8 +753,12 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
             case .pdf:
                 let (dpi, pdfAggressive) = batchPDFDPIArgs(p.pdf.dpiMode, aggressive: aggressive)
                 let pdf = PDF(working, thumb: false)
+                var pdfActions: [PipelineAction] = [.optimise]
+                if let cropSize = p.pdf.cropSize {
+                    pdfActions.append(.downscale(factor: nil, cropSize: cropSize))
+                }
                 _ = try await runPDFPipeline(
-                    pdf, actions: [.optimise], id: id, hideFloatingResult: true,
+                    pdf, actions: pdfActions, id: id, hideFloatingResult: true,
                     aggressiveOptimisation: pdfAggressive, dpiOverride: dpi,
                     source: source, batchOptimiser: optimiser
                 )
@@ -772,7 +773,7 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
                     audio, actions: [.optimise], id: id, allowLarger: ap.allowLarger, hideFloatingResult: true,
                     source: source, bitrateOverride: ap.bitrate, aggressiveOptimisation: aggressive,
                     formatOverride: formatOverride, loudnormTarget: ap.loudnorm,
-                    coverArt: ap.coverArt, coverArtMaxLongEdge: ap.coverArtMaxLongEdge,
+                    coverArt: ap.coverArt, coverArtMaxLongEdge: ap.coverArtMaxLongEdge, coverArtSquare: ap.coverArtSquare,
                     compression: ap.compression, batchOptimiser: optimiser
                 )
 
@@ -1101,6 +1102,22 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
 
 /// Build batch items from paths using fast, extension-based type detection (NO `/usr/bin/file` shell
 /// per file, which would block) so a large drop scans in milliseconds. Safe to call off the main actor.
+/// Expand folders to their optimisable contents (recursive, same filter as the window drop path);
+/// plain files pass through. Walks whole trees, so call it off the main actor for big folders.
+/// Every batch entry point goes through this: passing a folder whose files sit in subfolders used
+/// to build an empty batch from `prepare`/`start` because `buildBatchItems` skips non-file paths.
+func expandBatchPaths(_ paths: [FilePath]) -> [FilePath] {
+    var out: [FilePath] = []
+    for path in paths where path.exists {
+        if path.isDir {
+            out.append(contentsOf: getURLsFromFolder(path.url, recursive: true, types: ALL_FORMATS).compactMap(\.existingFilePath))
+        } else {
+            out.append(path)
+        }
+    }
+    return out
+}
+
 func buildBatchItems(_ paths: [FilePath], params: BatchParams) -> [BatchItem] {
     var built: [BatchItem] = []
     // Dedup by path: BatchItem.id == source path, and the index dictionaries are built with
@@ -1136,8 +1153,12 @@ private func batchItemType(_ path: FilePath) -> ItemType {
 
 // MARK: - Action builders
 
-/// A long-edge cap expressed as a `.downscale` crop, or a plain downscale factor, or nothing.
-private func batchResizeAction(maxLongEdge: Int?, downscaleFactor: Double?) -> PipelineAction? {
+/// An exact crop, or a long-edge cap expressed as a `.downscale` crop, or a plain downscale
+/// factor, or nothing.
+private func batchResizeAction(cropSize: CropSize? = nil, maxLongEdge: Int?, downscaleFactor: Double?) -> PipelineAction? {
+    if let cropSize {
+        return .downscale(factor: nil, cropSize: cropSize)
+    }
     if let edge = maxLongEdge, edge > 0 {
         return .downscale(factor: nil, cropSize: CropSize(width: edge, height: edge, longEdge: true))
     }
@@ -1153,7 +1174,7 @@ private func batchImageActions(_ p: ImageBatchParams) -> [PipelineAction] {
         actions.append(.convert(format: utType))
     }
     actions.append(.optimise)
-    if let resize = batchResizeAction(maxLongEdge: p.maxLongEdge, downscaleFactor: p.downscaleFactor) {
+    if let resize = batchResizeAction(cropSize: p.cropSize, maxLongEdge: p.maxLongEdge, downscaleFactor: p.downscaleFactor) {
         actions.append(resize)
     }
     return actions
@@ -1161,8 +1182,11 @@ private func batchImageActions(_ p: ImageBatchParams) -> [PipelineAction] {
 
 private func batchVideoActions(_ p: VideoBatchParams) -> [PipelineAction] {
     var actions: [PipelineAction] = [.optimise]
-    if let resize = batchResizeAction(maxLongEdge: p.maxLongEdge, downscaleFactor: p.downscaleFactor) {
+    if let resize = batchResizeAction(cropSize: p.cropSize, maxLongEdge: p.maxLongEdge, downscaleFactor: p.downscaleFactor) {
         actions.append(resize)
+    }
+    if let speed = p.playbackSpeedFactor, speed > 0, speed != 1 {
+        actions.append(.changePlaybackSpeed(factor: speed))
     }
     if p.removeAudio {
         actions.append(.removeAudio)
@@ -1205,11 +1229,11 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
 /// Whether a CLI/IPC request should be handled by the batch engine + window instead of the per-file
 /// path: a Pro-only, non-pipeline request with more files than the configured threshold.
 @MainActor func shouldRouteToBatch(_ req: OptimisationRequest) -> Bool {
-    // Only route requests the batch engine can fully express. It has no arbitrary-size crop,
-    // playback speed or output-template support, so those must take the per-file path: dropping
-    // a requested operation silently is worse than skipping the batch window.
-    req.pipeline == nil && req.size == nil && req.changePlaybackSpeedFactor == nil && req.output == nil
-        && proactive && req.urls.count > Defaults[.batchModeFileCountThreshold]
+    // Only route requests the batch engine can fully express. Batch placement knows "in place"
+    // or "to folder" but not per-file output templates, so those keep the per-file path:
+    // dropping a requested operation silently is worse than skipping the batch window.
+    let outputExpressible = req.output == nil || req.output?.existingFilePath?.isDir == true
+    return req.pipeline == nil && outputExpressible && proactive && req.urls.count > Defaults[.batchModeFileCountThreshold]
 }
 
 /// Run a large CLI/IPC request through the batch engine + window, then stream exactly one response (or
@@ -1228,9 +1252,17 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
     if let dpi = req.pdfDPI { params.pdf.dpiMode = .fixed(dpi) }
     if let factor = req.downscaleFactor, factor < 1 { params.setUniformDownscale(factor) }
     if req.removeAudio == true { params.video.removeAudio = true }
+    if let size = req.size {
+        params.images.cropSize = size
+        params.video.cropSize = size
+        params.pdf.cropSize = size
+    }
+    if let speed = req.changePlaybackSpeedFactor, speed != 1 { params.video.playbackSpeedFactor = speed }
+    // shouldRouteToBatch only lets folder outputs through; templates stay on the per-file path.
+    if let output = req.output, output.existingFilePath?.isDir == true { params.output = output }
 
+    await BAT.start(paths: paths, params: params, source: req.source.optSource)
     await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-        BAT.start(paths: paths, params: params, source: req.source.optSource)
         guard BAT.isRunning else {
             cont.resume()
             return
