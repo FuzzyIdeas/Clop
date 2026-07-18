@@ -1,3 +1,19 @@
+# 3.3.1
+
+**[Download Clop 3.3.1 →](https://files.lowtechguys.com/releases/Clop-3.3.1.dmg)**
+## Features
+
+- Batch audio crops landscape cover art (like embedded YouTube thumbnails) to a centred *square* (the cover-art standard) by default, leaving portrait art such as audiobook covers in shape; next to the cover size in the batch Adjust panel, *Square* also squares portrait art and *Long edge* turns the cropping off entirely
+
+## Fixes
+
+- Rare crashes and 30-second freezes right after copying something, caused by the clipboard being read while it was changing
+- Freezes when optimising files while the Mac is low on memory (file type detection now happens in-process instead of launching a helper for every file)
+- Freeze at launch right after login, while the watched folders were being set up
+- Downscaling keeps the image's real format when the file extension is wrong (a PNG named `.jpg` no longer turns into a JPEG and loses transparency)
+- Cropping, changing playback speed, or using a custom output path on many files at once from the CLI no longer skips those operations (they were lost when the request was routed through batch mode)
+- Batch mode finds files inside subfolders when a folder is dropped on the drop zone or batch window (it could show an empty batch before)
+
 # 3.3.0
 
 **[Download Clop 3.3.0 →](https://files.lowtechguys.com/releases/Clop-3.3.0.dmg)**
