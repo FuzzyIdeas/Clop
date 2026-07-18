@@ -108,7 +108,7 @@ struct AudioBatchParams: Equatable {
     var convertLossless = false // also convert WAV/AIFF/FLAC inputs to `format`
     var coverArt: AudioCoverArtBehaviour?
     var coverArtMaxLongEdge: Int?
-    var coverArtSquare = false // centre-crop the art to a square (the cover-art standard) before capping
+    var coverArtSquaring: CoverArtSquaring = .landscapeOnly // default squares only landscape art (video thumbnails) to avoid chopping portrait book covers
     var loudnorm: Double?
     var allowLarger = false
 }
@@ -773,7 +773,7 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
                     audio, actions: [.optimise], id: id, allowLarger: ap.allowLarger, hideFloatingResult: true,
                     source: source, bitrateOverride: ap.bitrate, aggressiveOptimisation: aggressive,
                     formatOverride: formatOverride, loudnormTarget: ap.loudnorm,
-                    coverArt: ap.coverArt, coverArtMaxLongEdge: ap.coverArtMaxLongEdge, coverArtSquare: ap.coverArtSquare,
+                    coverArt: ap.coverArt, coverArtMaxLongEdge: ap.coverArtMaxLongEdge, coverArtSquaring: ap.coverArtSquaring,
                     compression: ap.compression, batchOptimiser: optimiser
                 )
 

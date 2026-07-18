@@ -192,7 +192,7 @@ enum LoudnessChoice: String, CaseIterable, Identifiable {
     @Published var audioLoudness: LoudnessChoice = .off
     @Published var audioCover: AudioCoverArtBehaviour = .optimise
     @Published var audioCoverSize = 0
-    @Published var audioCoverSquare = false
+    @Published var audioCoverSquaring: CoverArtSquaring = .landscapeOnly
 
     @Published var imageKeepIfLarger = true
     @Published var videoKeepIfLarger = true
@@ -255,7 +255,7 @@ enum LoudnessChoice: String, CaseIterable, Identifiable {
         pdfDPI = .from(Defaults[.pdfDPI])
         audioCompression = Double(Defaults[.audioCompression].factor)
         audioCover = Defaults[.audioCoverArt]
-        audioCoverSquare = false
+        audioCoverSquaring = .landscapeOnly
     }
 
     /// Re-clamp a manually-set bitrate into the current format's range. A SwiftUI Slider won't write
@@ -297,7 +297,7 @@ enum LoudnessChoice: String, CaseIterable, Identifiable {
         audioLoudness = .from(p.audio.loudnorm)
         audioCover = p.audio.coverArt ?? .optimise
         audioCoverSize = p.audio.coverArtMaxLongEdge ?? 0
-        audioCoverSquare = p.audio.coverArtSquare
+        audioCoverSquaring = p.audio.coverArtSquaring
         audioKeepIfLarger = p.audio.allowLarger
     }
 
@@ -329,7 +329,7 @@ enum LoudnessChoice: String, CaseIterable, Identifiable {
         p.audio.loudnorm = audioLoudness.lufs
         p.audio.coverArt = audioCover
         p.audio.coverArtMaxLongEdge = audioCoverSize > 0 ? audioCoverSize : nil
-        p.audio.coverArtSquare = audioCoverSquare
+        p.audio.coverArtSquaring = audioCoverSquaring
         p.audio.allowLarger = audioFormat != .keep && audioKeepIfLarger
         return p
     }
@@ -628,9 +628,10 @@ struct BatchParamColumns: View {
             ParamRow("Cover size", disabled: form.audioCoverSizeDisabled) {
                 HStack(spacing: 6) {
                     numberSuffix($form.audioCoverSize, "px")
-                    Picker("", selection: $form.audioCoverSquare) {
-                        Text("Long edge").tag(false)
-                        Text("Square").tag(true)
+                    Picker("", selection: $form.audioCoverSquaring) {
+                        Text("Square if landscape").tag(CoverArtSquaring.landscapeOnly)
+                        Text("Square").tag(CoverArtSquaring.always)
+                        Text("Long edge").tag(CoverArtSquaring.never)
                     }.labelsHidden().fixedSize()
                 }
             }
