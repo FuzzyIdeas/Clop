@@ -1533,11 +1533,9 @@ class Image: CustomStringConvertible {
 
 @MainActor var lastClipboardImageHash: String?
 
-@MainActor func optimiseClipboardImage(image: Image? = nil, item: NSPasteboardItem? = nil) {
-    guard let img = image ?? (try? Image.fromPasteboard(item: item)) else {
-        return
-    }
-
+/// The image is decoded on the clipboard queue (never on the main actor, where a pasteboard read
+/// would both race the watcher queue and hang the UI on a slow pasteboard server).
+@MainActor func optimiseClipboardImage(image img: Image) {
     if img.optimised {
         let type: ItemType = .image(img.type)
         let pipelines = pipelinesFor(type: type, source: .clipboard)

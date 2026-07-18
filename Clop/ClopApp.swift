@@ -162,9 +162,10 @@ extension String {
 }
 
 /// Determine which app placed the current clipboard content, for the `copiedBy` pipeline filter.
-/// Prefers the explicit `org.nspasteboard.source` bundle id, then the last-focused / frontmost app.
-@MainActor func clipboardSourceApp(item: NSPasteboardItem?) -> (bundleID: String?, name: String?) {
-    if let bundleID = item?.string(forType: NSPasteboard.PasteboardType("org.nspasteboard.source")), !bundleID.isEmpty {
+/// Prefers the explicit `org.nspasteboard.source` bundle id (already read on the clipboard queue,
+/// since the pasteboard must not be touched from the main actor), then the last-focused / frontmost app.
+@MainActor func clipboardSourceApp(sourceBundleID: String?) -> (bundleID: String?, name: String?) {
+    if let bundleID = sourceBundleID, !bundleID.isEmpty {
         let name = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).flatMap { Bundle(url: $0)?.name }
         return (bundleID, name)
     }
@@ -1263,7 +1264,11 @@ class AppDelegate: AppDelegateParent {
             }
             pbChangeCount = newChangeCount
 
-            guard let item = pb.pasteboardItems?.first, item.string(forType: .optimisationStatus) == nil, !TRANSIENT_TYPES.hasElements(from: Set(item.types)) else {
+            guard let item = pb.pasteboardItems?.first, item.string(forType: .optimisationStatus) == nil else {
+                return
+            }
+            let types = item.types
+            guard !TRANSIENT_TYPES.hasElements(from: Set(types)) else {
                 return
             }
 
@@ -1276,22 +1281,36 @@ class AppDelegate: AppDelegateParent {
             }
 
             // Resolve everything that needs the pasteboard here, off the main thread, so the main
-            // actor never blocks on a slow pasteboard server.
+            // actor never blocks on a slow pasteboard server. The NSPasteboardItem itself must not
+            // cross to the main actor either: NSPasteboard's type cache is not thread-safe, and
+            // reading the item on the main actor while this queue polls changeCount crashes in
+            // -[NSPasteboard _updateTypeCacheIfNeeded] (CLOP-26B, CLOP-26E, CLOP-262).
             let existingFilePath = item.existingFilePath
-            let isPhotos = item.types.contains(.photosReferenceAsset)
+            let isPhotos = types.contains(.photosReferenceAsset)
+            let sourceBundleID = item.string(forType: NSPasteboard.PasteboardType("org.nspasteboard.source"))
+
+            // Decode the image here too: NSImage(pasteboard:) is a slow XPC round-trip that used to
+            // hang the main thread for 30s+ (CLOP-26F). The condition mirrors the branch order in
+            // handleClipboardChange so the image is only resolved when it will actually be used.
+            let willBeHandledAsImage = !isPhotos
+                && !(existingFilePath?.isPDF ?? false)
+                && !(existingFilePath?.isAudio ?? false)
+                && !(Defaults[.optimiseVideoClipboard] && (existingFilePath?.isVideo ?? false))
+            let image: Image? = willBeHandledAsImage ? (try? Image.fromPasteboard(item: item)) : nil
+            _ = image?.hash // force the lazy sha256 while still off the main thread
 
             mainActor {
-                self.handleClipboardChange(item: item, existingFilePath: existingFilePath, isPhotos: isPhotos, newChangeCount: newChangeCount)
+                self.handleClipboardChange(types: types, image: image, sourceBundleID: sourceBundleID, existingFilePath: existingFilePath, isPhotos: isPhotos, newChangeCount: newChangeCount)
             }
         }
         timer.resume()
         clipboardWatcher = timer
     }
 
-    /// Handle a detected clipboard change on the main actor. The pasteboard was already read on the
-    /// clipboard queue, so the (potentially slow) file-path resolution is passed in via
-    /// `existingFilePath` rather than re-read here.
-    @MainActor func handleClipboardChange(item: NSPasteboardItem, existingFilePath: FilePath?, isPhotos: Bool, newChangeCount: Int) {
+    /// Handle a detected clipboard change on the main actor. All pasteboard reads (including image
+    /// decoding) already happened on the clipboard queue: NSPasteboard is not thread-safe, so the
+    /// main actor must never touch it while the watcher queue is polling.
+    @MainActor func handleClipboardChange(types: [NSPasteboard.PasteboardType], image: Image?, sourceBundleID: String?, existingFilePath: FilePath?, isPhotos: Bool, newChangeCount: Int) {
         guard !pauseForNextClipboardEvent else {
             pauseForNextClipboardEvent = false
             return
@@ -1302,8 +1321,8 @@ class AppDelegate: AppDelegateParent {
 
         scalingFactor = 1
         // Capture the app that placed this clipboard content for the `copiedBy` pipeline filter.
-        OM.lastClipboardSourceApp = clipboardSourceApp(item: item)
-        DebugDump.record("[clipboard] >>> handled by Clop: change #\(newChangeCount)  types=[\(item.types.map(\.rawValue).joined(separator: " "))]")
+        OM.lastClipboardSourceApp = clipboardSourceApp(sourceBundleID: sourceBundleID)
+        DebugDump.record("[clipboard] >>> handled by Clop: change #\(newChangeCount)  types=[\(types.map(\.rawValue).joined(separator: " "))]")
 
         if optimiseVideoClipboard, let path = existingFilePath, path.isVideo {
             let ignore = Defaults[.videoFormatsToSkip]
@@ -1400,7 +1419,9 @@ class AppDelegate: AppDelegateParent {
             optimiseClipboardPhotos()
             return
         }
-        optimiseClipboardImage(item: item)
+        if let image {
+            optimiseClipboardImage(image: image)
+        }
     }
 
     @objc func statusBarButtonClicked(_ sender: NSClickGestureRecognizer) {
