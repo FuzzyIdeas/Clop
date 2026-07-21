@@ -57,6 +57,72 @@ class TextDebounce: ObservableObject {
     private var subscriptions = Set<AnyCancellable>()
 }
 
+// MARK: - SidebarHue
+
+/// A muted, earthy sidebar colour with a light/dark pair: deeper on the light
+/// sidebar, lifted on the dark one so the glyph keeps its weight either way.
+/// Skin / stone / clay / sage / terracotta tones instead of saturated system
+/// colours, shared across the lowtechguys settings sidebars (keep rcmd, Lunar,
+/// Cling, Clop, Pipiri, Crank in step when the palette changes).
+struct SidebarHue {
+    static let sage = rgb(0.39, 0.49, 0.26, 0.60, 0.66, 0.50)
+    static let dustyBlue = rgb(0.24, 0.43, 0.63, 0.53, 0.64, 0.75)
+    static let periwinkle = rgb(0.41, 0.37, 0.68, 0.62, 0.60, 0.80)
+    static let terracotta = rgb(0.74, 0.35, 0.23, 0.82, 0.52, 0.40)
+    static let skin = rgb(0.74, 0.47, 0.30, 0.80, 0.64, 0.52)
+    static let plum = rgb(0.58, 0.30, 0.55, 0.68, 0.55, 0.67)
+    static let mutedTeal = rgb(0.15, 0.50, 0.45, 0.47, 0.68, 0.63)
+    static let clay = rgb(0.63, 0.40, 0.24, 0.72, 0.57, 0.46)
+    static let stone = rgb(0.45, 0.43, 0.37, 0.66, 0.64, 0.57)
+    static let ochre = rgb(0.78, 0.56, 0.16, 0.83, 0.68, 0.40)
+    static let dustyRose = rgb(0.76, 0.39, 0.40, 0.80, 0.60, 0.58)
+
+    let light: Color
+    let dark: Color
+
+    func color(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? dark : light
+    }
+
+    private static func rgb(_ lr: Double, _ lg: Double, _ lb: Double, _ dr: Double, _ dg: Double, _ db: Double) -> SidebarHue {
+        SidebarHue(
+            light: Color(.sRGB, red: lr, green: lg, blue: lb),
+            dark: Color(.sRGB, red: dr, green: dg, blue: db)
+        )
+    }
+
+}
+
+// MARK: - SidebarIcon
+
+/// The category glyph as a soft tinted tile: the earthy hue drives both the
+/// glyph and a low-opacity same-hue background. `.resizable` into a fixed inner
+/// frame keeps every glyph one size with a consistent inset from the tile edge.
+struct SidebarIcon: View {
+    let symbol: String
+    let hue: SidebarHue
+    var dimmed = false
+
+    var body: some View {
+        let color = hue.color(for: scheme)
+        let tileOpacity = (scheme == .dark ? 0.22 : 0.15) * (dimmed ? 0.7 : 1)
+        SwiftUI.Image(systemName: symbol)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .symbolRenderingMode(.monochrome)
+            .foregroundStyle(color.opacity(dimmed ? 0.55 : 1))
+            .frame(width: 12, height: 12)
+            .frame(width: 20, height: 20)
+            .background(
+                color.opacity(tileOpacity),
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+    }
+
+    @Environment(\.colorScheme) private var scheme
+
+}
+
 struct DirListView: View {
     static var shouldSave = false
 
@@ -2841,11 +2907,7 @@ struct SettingsSidebarRow: View {
             Label {
                 Text(tab.title)
             } icon: {
-                SwiftUI.Image(systemName: tab.symbol)
-                    .foregroundStyle(.white)
-                    .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 20, height: 20)
-                    .background(tab.tint.gradient, in: RoundedRectangle(cornerRadius: 5))
+                SidebarIcon(symbol: tab.symbol, hue: tab.hue)
             }
         }
     }
@@ -2907,23 +2969,23 @@ struct SettingsView: View {
             }
         }
 
-        var tint: Color {
+        var hue: SidebarHue {
             switch self {
-            case .general: .gray
-            case .clipboard: .cyan
-            case .files: .teal
-            case .video: .blue
-            case .audio: .indigo
-            case .images: .green
-            case .pdf: .red
-            case .dropzone: .orange
-            case .presetZones: .mint
-            case .floating: Color(red: 0.2, green: 0.6, blue: 0.8)
-            case .keys: .brown
-            case .pipelines: .purple
-            case .automation: .pink
-            case .licenseUpdates: .yellow
-            case .about: .pink
+            case .general: .stone
+            case .clipboard: .dustyBlue
+            case .files: .skin
+            case .video: .periwinkle
+            case .audio: .plum
+            case .images: .sage
+            case .pdf: .terracotta
+            case .dropzone: .mutedTeal
+            case .presetZones: .ochre
+            case .floating: .dustyRose
+            case .keys: .clay
+            case .pipelines: .periwinkle
+            case .automation: .sage
+            case .licenseUpdates: .ochre
+            case .about: .dustyRose
             }
         }
     }
