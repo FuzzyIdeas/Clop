@@ -91,6 +91,68 @@ private struct FloatingListHeightKey: PreferenceKey {
     }
 }
 
+/// Shared look for the floating-result action chips (drag all / copy all / clear all). At rest (results
+/// window not hovered) they are frosted-glass ghosts: a glassy backing with a border and text in one
+/// full-strength colour, the whole chip dimmed so it reads as inactive while staying legible over
+/// whatever the floating window sits on. On hover they snap to the solid pill. `hovered` tracks the
+/// whole list's hover so the chips light up as the cursor approaches.
+struct FloatingActionChip: ViewModifier {
+    var hovered: Bool
+    var pressed = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        content
+            .font(hovered ? .bold(11) : .semibold(11))
+            .foregroundStyle(Self.warmInk)
+            .frame(height: 18)
+            .padding(.horizontal, 8)
+            .modifier(GlassChipFill(shape: shape, tintOpacity: hovered ? (pressed ? 1 : 0.9) : 0))
+            .overlay(shape.strokeBorder(Self.warmInk.opacity(hovered ? 0 : 1), lineWidth: hovered ? 0 : 1.5))
+            .shadow(color: .black.opacity(hovered ? 0.16 : 0), radius: 3, y: 1)
+            .scaleEffect(pressed ? 0.96 : 1)
+            .contentShape(shape)
+            // Border and text keep their full colour; the whole chip is dimmed at rest for a subdued look.
+            .opacity(hovered ? 1 : 0.8)
+            .animation(.easeOut(duration: 0.13), value: hovered)
+            .animation(.easeOut(duration: 0.12), value: pressed)
+    }
+
+    /// Warm-tinted ink for the label and border: a warm near-black in light mode, warm ivory in dark, so
+    /// the chips read warmer than neutral gray.
+    private static let warmInk = Color(light: Color(red: 0.24, green: 0.17, blue: 0.09), dark: Color(red: 0.98, green: 0.93, blue: 0.84))
+
+}
+
+/// Glassy chip backing that matches the result cards: liquid glass on macOS 26+, a frosted material
+/// fallback below. `tintOpacity` layers a scheme-inverted fill under the glass, faint at rest (keeps the
+/// label legible over any background) and near-solid on hover.
+private struct GlassChipFill: ViewModifier {
+    var shape: RoundedRectangle
+    var tintOpacity: Double
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .background(Color.inverted.opacity(tintOpacity), in: shape)
+                .glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(Color.inverted.opacity(tintOpacity), in: shape)
+                .background(.thinMaterial, in: shape)
+        }
+    }
+}
+
+struct FloatingActionButtonStyle: ButtonStyle {
+    var hovered: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .modifier(FloatingActionChip(hovered: hovered, pressed: configuration.isPressed))
+    }
+}
+
 struct FloatingResultList: View {
     var optimisers: [Optimiser]
 
@@ -102,11 +164,7 @@ struct FloatingResultList: View {
 
     var dragAllButton: some View {
         SwiftUI.Image(systemName: "line.3.horizontal")
-            .font(.medium(11))
-            .frame(height: 18)
-            .padding(.horizontal, 8)
-            .background(RoundedRectangle(cornerRadius: 7).fill(Color.inverted.opacity(0.9)))
-            .foregroundColor(.primary)
+            .modifier(FloatingActionChip(hovered: hovered))
             // A real multi-item AppKit drag so the drop lands EVERY file. SwiftUI's `.onDrag` returns one
             // provider == one item, which is why "drag all" used to drop a single file. See onDragAllFiles.
             .onDragAllFiles(help: "Drag all") { preview ? [] : optimisers }
@@ -125,8 +183,7 @@ struct FloatingResultList: View {
                 copiedText = "Copy all"
             }
         }
-        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary, radius: 7, verticalPadding: 2))
-        .font(.medium(11))
+        .buttonStyle(FloatingActionButtonStyle(hovered: hovered))
         .focusable(false)
     }
 
@@ -140,8 +197,7 @@ struct FloatingResultList: View {
                 optimiser.remove(after: 100, withAnimation: true, force: true)
             }
         }
-        .buttonStyle(FlatButton(color: .inverted.opacity(0.9), textColor: .primary, radius: 7, verticalPadding: 2))
-        .font(.medium(11))
+        .buttonStyle(FloatingActionButtonStyle(hovered: hovered))
         .focusable(false)
     }
 
@@ -201,7 +257,11 @@ struct FloatingResultList: View {
             lastCount = newCount
         }
         .onAppear { lastCount = optimisers.count }
+        // Drives the subdued->solid snap on the action chips: the whole list counts as "window hovered".
+        .onHover { hovered = $0 }
     }
+
+    @State private var hovered = false
 
     // Measured natural height of the stack, and the height it's pinned to while a result is being removed.
     // Holding the pre-removal height (bottom-anchored) keeps the window from shrinking mid-drop, so the
