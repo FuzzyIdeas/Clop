@@ -94,10 +94,12 @@ enum ClipboardType: Equatable {
     }
 
     static func lastItem() -> ClipboardType {
-        guard let item = NSPasteboard.general.pasteboardItems?.first else {
-            return .unknown
+        withGeneralPasteboard { pb in
+            guard let item = pb.pasteboardItems?.first else {
+                return .unknown
+            }
+            return fromPasteboardItem(item)
         }
-        return fromPasteboardItem(item)
     }
 
     static func fromPasteboardItem(_ item: NSPasteboardItem) -> ClipboardType {

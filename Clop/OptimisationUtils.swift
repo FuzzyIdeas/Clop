@@ -1284,7 +1284,13 @@ enum TempPipelineSegment {
         path = newPath
         filename = newPath.name.string
 
-        if let items = NSPasteboard.general.pasteboardItems, items.count == 1, let item = items.first, item.filePath?.name == currentPath.name {
+        let clipboardHasCurrentFile = withGeneralPasteboard { pb in
+            if let items = pb.pasteboardItems, items.count == 1, let item = items.first, item.filePath?.name == currentPath.name {
+                return true
+            }
+            return false
+        }
+        if clipboardHasCurrentFile {
             copyToClipboard()
         }
     }
@@ -1962,10 +1968,10 @@ enum TempPipelineSegment {
             item.setData(data, forType: .pdf)
         }
 
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.writeObjects([item])
-
+        withGeneralPasteboard { pb in
+            pb.clearContents()
+            pb.writeObjects([item])
+        }
     }
 
     func showInFinder() {
@@ -2452,8 +2458,6 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
     func copyAllClipboardImagesToClipboard() {
         let optimisers = clipboardImageOptimisers
         guard optimisers.isNotEmpty else { return }
-        let pb = NSPasteboard.general
-        pb.clearContents()
 
         let items: [NSPasteboardItem] = optimisers.compactMap { opt in
             guard let url = opt.url else { return nil }
@@ -2463,7 +2467,10 @@ class OptimisationManager: ObservableObject, QLPreviewPanelDataSource {
             item.setString("true", forType: .optimisationStatus)
             return item
         }
-        pb.writeObjects(items)
+        withGeneralPasteboard { pb in
+            pb.clearContents()
+            pb.writeObjects(items)
+        }
     }
 
     func updateProgress() {
@@ -3659,9 +3666,10 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
 
         if req.copyToClipboard, !copiedFiles.isEmpty {
             await MainActor.run {
-                let pb = NSPasteboard.general
-                pb.clearContents()
-                pb.writeObjects(copiedFiles.map { $0 as NSURL })
+                withGeneralPasteboard { pb in
+                    pb.clearContents()
+                    pb.writeObjects(copiedFiles.map { $0 as NSURL })
+                }
             }
         }
 

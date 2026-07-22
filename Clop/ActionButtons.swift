@@ -2308,9 +2308,10 @@ struct WarpDropActiveButton: View {
             Divider()
             Button {
                 if !preview {
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(session.directURL, forType: .string)
+                    withGeneralPasteboard { pb in
+                        pb.clearContents()
+                        pb.setString(session.directURL, forType: .string)
+                    }
                     optimiser.overlayMessage = "Copied link"
                 }
             } label: {
@@ -2318,9 +2319,10 @@ struct WarpDropActiveButton: View {
             }
             Button {
                 if !preview {
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(session.roomURL, forType: .string)
+                    withGeneralPasteboard { pb in
+                        pb.clearContents()
+                        pb.setString(session.roomURL, forType: .string)
+                    }
                     optimiser.overlayMessage = "Copied link"
                 }
             } label: {

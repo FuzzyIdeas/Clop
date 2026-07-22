@@ -1121,9 +1121,6 @@ final class PipelineExecution {
     // MARK: - Clipboard Steps
 
     func handleCopyToClipboard(format: ClipboardCopyFormat, relativeTo: String?) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-
         let item = NSPasteboardItem()
         switch format {
         case .path:
@@ -1153,7 +1150,10 @@ final class PipelineExecution {
             item.setString("[\(name)](\(path))", forType: .string)
         }
         item.setString("true", forType: .optimisationStatus)
-        pasteboard.writeObjects([item])
+        withGeneralPasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.writeObjects([item])
+        }
         try? currentFile.setOptimisationStatusXattr("true")
     }
 

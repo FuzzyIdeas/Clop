@@ -246,8 +246,10 @@ func fileActions(for url: URL) -> some View {
         NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "")
     }
     Button("Copy Path") {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(url.path, forType: .string)
+        withGeneralPasteboard { pb in
+            pb.clearContents()
+            pb.setString(url.path, forType: .string)
+        }
     }
 }
 

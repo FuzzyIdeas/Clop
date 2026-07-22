@@ -497,9 +497,10 @@ struct BatchRightClickMenuView: View {
         if sm.optimisers.allSatisfy({ wdm.session(forOptimiser: $0) != nil }) {
             Button("Copy all send links") {
                 let links = sm.optimisers.compactMap { wdm.session(forOptimiser: $0)?.shareURL }
-                let pb = NSPasteboard.general
-                pb.clearContents()
-                pb.setString(links.joined(separator: "\n"), forType: .string)
+                withGeneralPasteboard { pb in
+                    pb.clearContents()
+                    pb.setString(links.joined(separator: "\n"), forType: .string)
+                }
                 sm.selection = []
             }
         } else {

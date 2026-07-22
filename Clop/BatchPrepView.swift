@@ -1179,11 +1179,12 @@ private func batchReveal(_ items: [BatchItem]) {
 private func batchCopyFiles(_ items: [BatchItem]) {
     let urls = batchResultURLs(items)
     guard !urls.isEmpty else { return }
-    let pb = NSPasteboard.general
-    let type = NSPasteboard.PasteboardType("NSFilenamesPboardType")
-    pb.clearContents()
-    pb.declareTypes([type], owner: nil)
-    pb.setPropertyList(urls.map(\.path), forType: type)
+    withGeneralPasteboard { pb in
+        let type = NSPasteboard.PasteboardType("NSFilenamesPboardType")
+        pb.clearContents()
+        pb.declareTypes([type], owner: nil)
+        pb.setPropertyList(urls.map(\.path), forType: type)
+    }
 }
 
 // MARK: - Status cell
@@ -1296,8 +1297,9 @@ struct BatchFailuresSheet: View {
             if let log = item.errorLog { entry += "\n\n\(log)" }
             return entry
         }.joined(separator: "\n\n———\n\n")
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(text, forType: .string)
+        withGeneralPasteboard { pb in
+            pb.clearContents()
+            pb.setString(text, forType: .string)
+        }
     }
 }

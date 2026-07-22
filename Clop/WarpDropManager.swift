@@ -87,9 +87,10 @@ struct WarpDropSession: Identifiable {
     }
 
     func copyLink() {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(shareURL, forType: .string)
+        withGeneralPasteboard { pb in
+            pb.clearContents()
+            pb.setString(shareURL, forType: .string)
+        }
     }
 
     func stop() {
@@ -257,9 +258,10 @@ func warpDropSend(optimisers: [Optimiser], expiration: TimeInterval? = nil) {
     guard fresh.isNotEmpty else {
         let links = optimisers.compactMap { WDM.session(forOptimiser: $0)?.shareURL }
         if links.isNotEmpty {
-            let pb = NSPasteboard.general
-            pb.clearContents()
-            pb.setString(links.joined(separator: "\n"), forType: .string)
+            withGeneralPasteboard { pb in
+                pb.clearContents()
+                pb.setString(links.joined(separator: "\n"), forType: .string)
+            }
         }
         return
     }
@@ -289,9 +291,10 @@ private func warpDropSendFiles(_ files: [URL], overlayOptimisers: [Optimiser], e
                     let shareURL = files.count == 1
                         ? "https://drop.lowtechguys.com/d/\(roomID)"
                         : "https://drop.lowtechguys.com/r/\(roomID)"
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(shareURL, forType: .string)
+                    withGeneralPasteboard { pb in
+                        pb.clearContents()
+                        pb.setString(shareURL, forType: .string)
+                    }
 
                     for optimiser in overlayOptimisers {
                         optimiser.warpDropConnecting = false
@@ -355,9 +358,10 @@ func warpDropSendAndWait(url: URL, optimiser: Optimiser, expiration: TimeInterva
                 roomIDRef.value = roomID
                 Task { @MainActor in
                     let shareURL = "https://drop.lowtechguys.com/d/\(roomID)"
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(shareURL, forType: .string)
+                    withGeneralPasteboard { pb in
+                        pb.clearContents()
+                        pb.setString(shareURL, forType: .string)
+                    }
                     optimiser.overlayMessage = "Copied link"
                 }
             },

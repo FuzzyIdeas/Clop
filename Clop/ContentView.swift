@@ -180,9 +180,10 @@ struct MenuView: View {
                 Divider()
                 Button("Copy all links") {
                     let links = wdm.sessions.map(\.shareURL).joined(separator: "\n")
-                    let pb = NSPasteboard.general
-                    pb.clearContents()
-                    pb.setString(links, forType: .string)
+                    withGeneralPasteboard { pb in
+                        pb.clearContents()
+                        pb.setString(links, forType: .string)
+                    }
                 }
                 Button("Stop all") {
                     wdm.stopAll()

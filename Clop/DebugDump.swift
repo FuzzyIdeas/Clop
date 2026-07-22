@@ -518,19 +518,23 @@ enum DebugDump {
             }
         }
 
-        recorder.append("[info] clipboard changeCount at start: \(NSPasteboard.general.changeCount)")
-        var lastChangeCount = NSPasteboard.general.changeCount
+        let startChangeCount = withGeneralPasteboard { $0.changeCount }
+        recorder.append("[info] clipboard changeCount at start: \(startChangeCount)")
+        var lastChangeCount = startChangeCount
         clipboardMonitorTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            let pb = NSPasteboard.general
-            let changeCount = pb.changeCount
-            guard changeCount != lastChangeCount else { return }
-            lastChangeCount = changeCount
-            let item = pb.pasteboardItems?.first
-            let types = item?.types.map(\.rawValue).joined(separator: " ") ?? "<no items>"
-            let source = item?.string(forType: NSPasteboard.PasteboardType("org.nspasteboard.source"))
-                ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "<unknown>"
+            let change: (changeCount: Int, types: String, source: String?)? = withGeneralPasteboard { pb in
+                let changeCount = pb.changeCount
+                guard changeCount != lastChangeCount else { return nil }
+                lastChangeCount = changeCount
+                let item = pb.pasteboardItems?.first
+                let types = item?.types.map(\.rawValue).joined(separator: " ") ?? "<no items>"
+                let source = item?.string(forType: NSPasteboard.PasteboardType("org.nspasteboard.source"))
+                return (changeCount, types, source)
+            }
+            guard let change else { return }
+            let source = change.source ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "<unknown>"
             mainActor {
-                eventRecorder?.append("[clipboard] change #\(changeCount)  source=\(source)  types=[\(types)]")
+                eventRecorder?.append("[clipboard] change #\(change.changeCount)  source=\(source)  types=[\(change.types)]")
             }
         }
     }

@@ -464,64 +464,65 @@ class Image: CustomStringConvertible {
     }
 
     class func fromPasteboard(item: NSPasteboardItem? = nil, anyType: Bool = false) throws -> Image {
-        let pb = NSPasteboard.general
-        guard let items = pb.pasteboardItems, items.count == 1, let item = item ?? items.first else {
-            #if DEBUG
-                pb.pasteboardItems?.forEach { item in
-                    item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
-                        print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
+        try withGeneralPasteboard { pb in
+            guard let items = pb.pasteboardItems, items.count == 1, let item = item ?? items.first else {
+                #if DEBUG
+                    pb.pasteboardItems?.forEach { item in
+                        item.types.filter { ![NSPasteboard.PasteboardType.rtf, NSPasteboard.PasteboardType(rawValue: "public.utf16-external-plain-text")].contains($0) }.forEach { type in
+                            print(type.rawValue + " " + (item.string(forType: type) ?! String(describing: item.propertyList(forType: type) ?? item.data(forType: type) ?? "<EMPTY DATA>")))
+                        }
                     }
-                }
-            #endif
+                #endif
 
-            throw ClopError.noClipboardImage(.init())
+                throw ClopError.noClipboardImage(.init())
 
-        }
-        let typeSet = NSOrderedSet(array: item.types)
-        var allowImage = try anyType || (
-            !typeSet.intersectsSet(NOT_IMAGE_TYPES) &&
-                !isRaw(pasteboardItem: item) &&
-                (NOT_IMAGE_TYPE_PATTERN.firstMatch(in: item.types.map(\.rawValue).joined(separator: " "))) == nil
-        )
-        let nsImageFromPath: () -> NSImage? = {
-            guard Defaults[.optimiseImagePathClipboard], let path = item.existingFilePath, path.isImage, !path.hasOptimisationStatusXattr() else {
-                return nil
             }
-            return NSImage(contentsOfFile: path.string)
-        }
+            let typeSet = NSOrderedSet(array: item.types)
+            var allowImage = try anyType || (
+                !typeSet.intersectsSet(NOT_IMAGE_TYPES) &&
+                    !isRaw(pasteboardItem: item) &&
+                    (NOT_IMAGE_TYPE_PATTERN.firstMatch(in: item.types.map(\.rawValue).joined(separator: " "))) == nil
+            )
+            let nsImageFromPath: () -> NSImage? = {
+                guard Defaults[.optimiseImagePathClipboard], let path = item.existingFilePath, path.isImage, !path.hasOptimisationStatusXattr() else {
+                    return nil
+                }
+                return NSImage(contentsOfFile: path.string)
+            }
 
-        var nsImage: NSImage?
-        if allowImage || typeSet.contains(NSPasteboard.PasteboardType.icon), let img = nsImageFromPath() {
-            nsImage = img
-            allowImage = true
-        }
-        guard allowImage, let nsImage = nsImage ?? NSImage(pasteboard: pb) ?? nsImageFromPath() else {
-            throw ClopError.noClipboardImage(.init())
-        }
+            var nsImage: NSImage?
+            if allowImage || typeSet.contains(NSPasteboard.PasteboardType.icon), let img = nsImageFromPath() {
+                nsImage = img
+                allowImage = true
+            }
+            guard allowImage, let nsImage = nsImage ?? NSImage(pasteboard: pb) ?? nsImageFromPath() else {
+                throw ClopError.noClipboardImage(.init())
+            }
 
-        let optimised = item.string(forType: .optimisationStatus) == "true"
-        // GIF data is checked first: an animated GIF often rides along with a first-frame PNG/TIFF
-        // preview, and preferring the preview would flatten the animation to a single still frame.
-        let dataAndType: (data: Data, type: UTType)? = [
-            (NSPasteboard.PasteboardType.gif, UTType.gif), (.png, .png), (.jpeg, .jpeg), (.tiff, .tiff),
-        ].lazy.compactMap { pbType, utType in
-            item.data(forType: pbType).map { ($0, utType) }
-        }.first
-        let data = dataAndType?.data
+            let optimised = item.string(forType: .optimisationStatus) == "true"
+            // GIF data is checked first: an animated GIF often rides along with a first-frame PNG/TIFF
+            // preview, and preferring the preview would flatten the animation to a single still frame.
+            let dataAndType: (data: Data, type: UTType)? = [
+                (NSPasteboard.PasteboardType.gif, UTType.gif), (.png, .png), (.jpeg, .jpeg), (.tiff, .tiff),
+            ].lazy.compactMap { pbType, utType in
+                item.data(forType: pbType).map { ($0, utType) }
+            }.first
+            let data = dataAndType?.data
 
-        if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: FilePath.images, force: true),
-           let img = Image(path: path, data: data, nsImage: nsImage, optimised: optimised, retinaDownscaled: false)
-        {
+            if let originalPath = item.existingFilePath, let path = try? originalPath.copy(to: FilePath.images, force: true),
+               let img = Image(path: path, data: data, nsImage: nsImage, optimised: optimised, retinaDownscaled: false)
+            {
+                return img
+            }
+
+            // Pass the type matching the picked data: the NSImage-derived type reflects the pasteboard's
+            // preferred bitmap (usually the PNG/TIFF preview), not the data chosen above.
+            guard let img = Image(nsImage: nsImage, data: data, type: dataAndType?.type, optimised: optimised, retinaDownscaled: false) else {
+                throw ClopError.noClipboardImage(.init())
+            }
+
             return img
         }
-
-        // Pass the type matching the picked data: the NSImage-derived type reflects the pasteboard's
-        // preferred bitmap (usually the PNG/TIFF preview), not the data chosen above.
-        guard let img = Image(nsImage: nsImage, data: data, type: dataAndType?.type, optimised: optimised, retinaDownscaled: false) else {
-            throw ClopError.noClipboardImage(.init())
-        }
-
-        return img
     }
 
     func runThroughShortcut(shortcut: Shortcut? = nil, optimiser: Optimiser, allowLarger: Bool, aggressiveOptimisation: Bool, source: OptimisationSource?) throws -> Image? {
@@ -1323,9 +1324,10 @@ class Image: CustomStringConvertible {
         }
         item.setString("true", forType: .optimisationStatus)
 
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.writeObjects([item])
+        withGeneralPasteboard { pb in
+            pb.clearContents()
+            pb.writeObjects([item])
+        }
     }
 
     /// Re-quantize the freshly resized PNG to a small palette so a downscaled flat/low-colour image does
@@ -1476,13 +1478,11 @@ class Image: CustomStringConvertible {
 }
 
 @MainActor func optimiseClipboardPhotos() {
-    let pb = NSPasteboard.general
-
     guard Defaults[.enablePhotosIntegration] else {
         return
     }
 
-    let identifiers = getPhotoAssetIdentifiers(from: pb)
+    let identifiers = withGeneralPasteboard { getPhotoAssetIdentifiers(from: $0) }
     guard !identifiers.isEmpty else {
         return
     }
@@ -1533,8 +1533,10 @@ class Image: CustomStringConvertible {
                     item.setString("true", forType: .optimisationStatus)
                     return item
                 }
-                pb.clearContents()
-                pb.writeObjects(pbItems)
+                withGeneralPasteboard { pb in
+                    pb.clearContents()
+                    pb.writeObjects(pbItems)
+                }
             }
         }
     }

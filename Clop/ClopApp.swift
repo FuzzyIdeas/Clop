@@ -1509,7 +1509,25 @@ let cursorDropZoneWindow = OSDWindow(swiftuiView: DropZoneView().any, releaseWhe
 var clipboardWatcher: DispatchSourceTimer?
 /// Dedicated serial queue for all pasteboard polling/reads, so the (synchronous, sometimes slow)
 /// pasteboard-server round-trips never run on the main thread. See `initClipboardOptimiser`.
-let clipboardQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "com.lowtechguys.Clop").clipboard")
+private let clipboardQueueKey = DispatchSpecificKey<Void>()
+let clipboardQueue: DispatchQueue = {
+    let q = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "com.lowtechguys.Clop").clipboard")
+    q.setSpecific(key: clipboardQueueKey, value: ())
+    return q
+}()
+
+/// NSPasteboard is NOT thread-safe: its internal type cache corrupts when the clipboard-watcher queue
+/// polls NSPasteboard.general while another thread (usually the main thread) reads or writes it,
+/// crashing in the pasteboard's cache update (CLOP-1AN, CLOP-26B/26E/262). Route every access to
+/// NSPasteboard.general through this one serial queue. A reentrant call (already on clipboardQueue,
+/// e.g. the watcher tick decoding an image) runs the body inline to avoid deadlocking on itself.
+@discardableResult
+func withGeneralPasteboard<T>(_ body: (NSPasteboard) throws -> T) rethrows -> T {
+    if DispatchQueue.getSpecific(key: clipboardQueueKey) != nil {
+        return try body(.general)
+    }
+    return try clipboardQueue.sync { try body(.general) }
+}
 let fileCleanerQueue = DispatchQueue(label: "\(Bundle.main.bundleIdentifier ?? "com.lowtechguys.Clop").file-cleaner", qos: .utility)
 var pbChangeCount = NSPasteboard.general.changeCount
 let THUMB_SIZE = CGSize(width: 300, height: 220)

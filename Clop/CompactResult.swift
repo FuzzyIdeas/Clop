@@ -715,9 +715,10 @@ class SelectionManager: ObservableObject {
     }
 
     func copyToClipboard() {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.writeObjects(optimisers.compactMap { $0.url as NSURL? })
+        withGeneralPasteboard { pb in
+            pb.clearContents()
+            pb.writeObjects(optimisers.compactMap { $0.url as NSURL? })
+        }
     }
 
     func restoreOriginal() {

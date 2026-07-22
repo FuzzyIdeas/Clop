@@ -115,10 +115,11 @@ struct FloatingResultList: View {
     var copyAllButton: some View {
         Button(copiedText) {
             guard !preview else { return }
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
             let urls = optimisers.compactMap(\.url)
-            pasteboard.writeObjects(urls as [NSPasteboardWriting])
+            withGeneralPasteboard { pasteboard in
+                pasteboard.clearContents()
+                pasteboard.writeObjects(urls as [NSPasteboardWriting])
+            }
             copiedText = "Copied!"
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 copiedText = "Copy all"
