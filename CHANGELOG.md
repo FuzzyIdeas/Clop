@@ -1,3 +1,17 @@
+# 3.3.2
+
+**[Download Clop 3.3.2 →](https://files.lowtechguys.com/releases/Clop-3.3.2.dmg)**
+## Fixes
+
+- Settings sidebar no longer collapses out of view with no way to reopen it
+- Rare crash when copying images to the clipboard
+- Optimising or converting a video into a folder on another drive no longer freezes Clop
+
+## Improvements
+
+- Restyled settings sidebar
+- Restyled the drag, copy and clear buttons on floating results
+
 # 3.3.1
 
 **[Download Clop 3.3.1 →](https://files.lowtechguys.com/releases/Clop-3.3.1.dmg)**
