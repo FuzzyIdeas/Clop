@@ -52,30 +52,42 @@ func destinationPath(type: ClopFileType, kind: OutputKind, path: FilePath, overr
     }
 }
 
-/// Place a freshly-produced temp file (`produced`) according to the behaviour for `(type, kind)`.
-/// - temporary: leave `produced` where it is, original untouched.
-/// - inPlace: move the original into the backup cache, then put `produced` at the original's
-///   location (with `produced`'s extension, so a conversion replaces the original).
-/// - sameFolder / specificFolder: write `produced` to the templated destination, original kept.
-@MainActor func placeOutput(produced: FilePath, original: FilePath, type: ClopFileType, kind: OutputKind, overrides: PlacementOverride? = nil) throws -> PlacedOutput {
-    let behaviour = effectiveBehaviour(type: type, kind: kind, overrides: overrides)
-    let producedExt = produced.extension ?? original.extension ?? ""
+/// Cheap, decision-only step: resolve the behaviour and destination path (including the auto-increment
+/// naming counter). Carries no heavy file I/O, so it is safe to run on the main actor to keep the
+/// counter serialized. Pair with `executePlacement` which does the actual move/copy off the main thread.
+struct PlacementPlan {
+    let behaviour: FileBehaviour
+    /// nil means "leave `produced` where it is, original untouched" (temporary or no destination).
+    let dest: FilePath?
+}
 
+func planPlacement(produced: FilePath, original: FilePath, type: ClopFileType, kind: OutputKind, overrides: PlacementOverride? = nil) throws -> PlacementPlan {
+    let behaviour = effectiveBehaviour(type: type, kind: kind, overrides: overrides)
     guard behaviour != .temporary else {
-        return PlacedOutput(path: produced, backup: nil, originalRemoved: false)
+        return PlacementPlan(behaviour: behaviour, dest: nil)
     }
     guard var dest = try destinationPath(type: type, kind: kind, path: original, overrides: overrides) else {
-        return PlacedOutput(path: produced, backup: nil, originalRemoved: false)
+        return PlacementPlan(behaviour: behaviour, dest: nil)
     }
     // For inPlace and sameFolder the destination is derived from the original (which keeps the
     // original extension); apply the produced file's extension so conversions land as e.g. .webp.
+    let producedExt = produced.extension ?? original.extension ?? ""
     if dest.extension?.lowercased() != producedExt.lowercased() {
         dest = dest.withExtension(producedExt)
     }
+    return PlacementPlan(behaviour: behaviour, dest: dest)
+}
 
+/// Heavy file I/O: backup move + copy to the destination. For large or cross-volume files this can
+/// take tens of seconds, so it MUST run OFF the main thread (it blocked the main thread for 30s+ on
+/// big videos — CLOP-277, CLOP-1A7). Never call this under `DispatchQueue.main.sync`.
+func executePlacement(_ plan: PlacementPlan, produced: FilePath, original: FilePath) throws -> PlacedOutput {
+    guard let dest = plan.dest else {
+        return PlacedOutput(path: produced, backup: nil, originalRemoved: false)
+    }
     var backup: FilePath?
     var originalRemoved = false
-    if behaviour == .inPlace, original.exists, let backupPath = original.clopBackupPath {
+    if plan.behaviour == .inPlace, original.exists, let backupPath = original.clopBackupPath {
         if original == produced {
             // The optimiser worked in place, so `produced` IS the original and already sits at the
             // destination. Moving it into the backup cache here would orphan the destination (the copy
@@ -97,4 +109,14 @@ func destinationPath(type: ClopFileType, kind: OutputKind, path: FilePath, overr
     let finalPath = produced == dest ? produced : try produced.copy(to: dest, force: true)
     try? finalPath.setOptimisationStatusXattr("true")
     return PlacedOutput(path: finalPath, backup: backup, originalRemoved: originalRemoved)
+}
+
+/// Place a freshly-produced temp file (`produced`) according to the behaviour for `(type, kind)`.
+/// - temporary: leave `produced` where it is, original untouched.
+/// - inPlace: move the original into the backup cache, then put `produced` at the original's
+///   location (with `produced`'s extension, so a conversion replaces the original).
+/// - sameFolder / specificFolder: write `produced` to the templated destination, original kept.
+@MainActor func placeOutput(produced: FilePath, original: FilePath, type: ClopFileType, kind: OutputKind, overrides: PlacementOverride? = nil) throws -> PlacedOutput {
+    let plan = try planPlacement(produced: produced, original: original, type: type, kind: kind, overrides: overrides)
+    return try executePlacement(plan, produced: produced, original: original)
 }

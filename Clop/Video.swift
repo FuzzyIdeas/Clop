@@ -398,13 +398,15 @@ class Video: Optimisable {
         var newVideo = Video(path: outputPath, metadata: metadata, convertedFrom: convertedFrom)
 
         if let convertedFrom, convertedFrom.path.exists {
-            // placeOutput is @MainActor; dispatch synchronously so we can use the result
-            // here on the background optimisation queue thread.
             let kind: OutputKind = manualConversion ? .manualConvert : .autoConvert
-            let placedResult: Result<PlacedOutput, Error> = DispatchQueue.main.sync {
-                Result { try placeOutput(produced: newVideo.path, original: convertedFrom.path, type: .video, kind: kind, overrides: optimiser.placementOverride) }
+            // Plan (naming/decision, cheap) on the main actor so the auto-increment counter stays
+            // serialized with other placements, but run the file move/copy on this background
+            // optimisation thread. Doing the move under DispatchQueue.main.sync blocked the main
+            // thread for 30s+ on large or cross-volume videos (CLOP-277, CLOP-1A7).
+            let plan = try DispatchQueue.main.sync {
+                try planPlacement(produced: newVideo.path, original: convertedFrom.path, type: .video, kind: kind, overrides: optimiser.placementOverride)
             }
-            let placed = try placedResult.get()
+            let placed = try executePlacement(plan, produced: newVideo.path, original: convertedFrom.path)
             if placed.path != newVideo.path {
                 newVideo = Video(path: placed.path, metadata: metadata, convertedFrom: convertedFrom)
             }
