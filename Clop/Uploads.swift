@@ -54,6 +54,9 @@ class Yoink: AppIntegration {
     override var SETAPP_BUNDLE_ID: String? {
         "at.EternalStorms.Yoink-setapp"
     }
+    override var alternateBundleIDs: [String] {
+        ["at.EternalStorms.Yoink-demo"]
+    }
 
     override var appNameQuery: String {
         "kMDItemFSName == 'Yoink.app'"
@@ -127,6 +130,15 @@ class AppIntegration {
     var SETAPP_BUNDLE_ID: String? {
         nil
     }
+    /// Extra bundle IDs (demo/trial variants) that count as the same app for detection and opening.
+    var alternateBundleIDs: [String] {
+        []
+    }
+
+    /// All bundle IDs that identify this app, in priority order.
+    var bundleIDs: [String] {
+        ([BUNDLE_ID] + [SETAPP_BUNDLE_ID].compactMap { $0 } + alternateBundleIDs).filter { !$0.isEmpty }
+    }
 
     var webURL: URL? {
         nil
@@ -185,14 +197,12 @@ class AppIntegration {
     }
 
     func runningApp() -> NSRunningApplication? {
-        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: BUNDLE_ID).first else {
-            if let id = SETAPP_BUNDLE_ID, let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first {
+        for id in bundleIDs {
+            if let app = NSRunningApplication.runningApplications(withBundleIdentifier: id).first {
                 return app
             }
-            return nil
         }
-
-        return app
+        return nil
     }
 
     func isRunning() -> Bool {
