@@ -68,6 +68,15 @@
 
 		<dict>
 			<key>Identifier</key>
+			<string>at.EternalStorms.Yoink-demo</string>
+			<key>Name</key>
+			<string>Yoink (Demo)</string>
+			<key>Purpose</key>
+			<string>Used to shelf files with Yoink (demo variant).</string>
+		</dict>
+
+		<dict>
+			<key>Identifier</key>
 			<string>com.hachipoo.Dockside</string>
 			<key>Name</key>
 			<string>Dockside</string>
