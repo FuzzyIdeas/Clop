@@ -618,6 +618,7 @@ extension Optimiser {
             }
 
             if batch.count > 1 {
+                exec.optimiseFollows = pipeline.steps.dropFirst(stepIndex + batch.count).contains(where: \.isOptimise)
                 let consumed = await exec.handleCompiledBatch(batch, startIndex: stepIndex)
                 exec.didWork = true
                 stepIndex += consumed
@@ -628,6 +629,7 @@ extension Optimiser {
         let stepDesc = step.displayString
         exec.stepIndex = stepIndex
         exec.stepDesc = stepDesc
+        exec.optimiseFollows = pipeline.steps.dropFirst(stepIndex + 1).contains(where: \.isOptimise)
         log.debug("Pipeline: step[\(stepIndex)] \(stepDesc) started on \(exec.currentFile.string)")
 
         switch step {
@@ -651,8 +653,10 @@ extension Optimiser {
             await exec.handleLowerBitrate(kbps: kbps, location: location)
         case let .convert(formatStr, location):
             await exec.handleConvert(formatStr: formatStr, location: location)
-        case let .crop(width, height, longEdge, location):
-            await exec.handleCrop(width: width, height: height, longEdge: longEdge, location: location)
+        case let .crop(_, _, _, _, _, location):
+            if let cropSize = step.cropSize {
+                await exec.handleCrop(cropSize: cropSize, location: location)
+            }
         case let .copy(to):
             try exec.handleCopy(to: to)
         case let .move(to):

@@ -2595,7 +2595,9 @@ func compactPipelinePromptContext(task: String?) -> String {
     - convert(to, location) [image,video,audio] (sameFolder). img: webp|avif|heic|jxl|jpeg|png|gif;
       video: mp4|hevc|x265|av1|webm|gif (AV1 video = `av1`, NOT the `avif` image format);
       audio: m4a|mp3|ogg|flac|wav|aiff. No-op if already that format.
-    - crop(width, height, longEdge, location) [image,video]. Give >=1; missing side keeps aspect; longEdge = longest side.
+    - crop(width, height, longEdge, aspectRatio, smartCrop, location) [image,video]. Give >=1 of
+      width/height/longEdge/aspectRatio; missing side keeps aspect; longEdge = longest side;
+      aspectRatio = shape like 16:9 (no resize); smartCrop keeps the most interesting area.
     - extractPagesAsImages(format jpeg|png, quality low|medium|high, location) [pdf] (sameFolder).
     - targetSize(size) [all]: iteratively compress under a limit, e.g. 500KB, 10MB, 25MB. No trailing `optimise`.
     - stripExif [image,video]. watermark(image, position bottomRight|bottomLeft|topRight|topLeft|center,
@@ -2731,9 +2733,16 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
       - Converting to the format the file is already in is an idempotent no-op: it does NO work and the
         file is passed through unchanged (jpg/jpeg and tif/tiff count as the same format). So `convert`
         only re-encodes when the input isn't already that format.
-    - `crop(width, height, longEdge, location)`: resize to exact pixels. [image, video]
-      - Provide at least one. `width`/`height` in px (the missing one is computed, aspect kept).
-        `longEdge` sets the longest side instead of width/height.
+    - `crop(width, height, longEdge, aspectRatio, smartCrop, location)`: resize to exact pixels, or
+      crop to a shape. [image, video]
+      - Provide at least one of `width`/`height`/`longEdge`/`aspectRatio`. `width`/`height` in px (the
+        missing one is computed, aspect kept). `longEdge` sets the longest side instead of width/height.
+      - `aspectRatio` crops to a shape instead of a pixel size, e.g. `16:9`, `4:3`, `1:1`, `1.91:1`.
+        It trims to the ratio at the source's own resolution and does not resize, so it composes with a
+        pixel crop step. A ratio wider than tall forces landscape output (and taller than wide,
+        portrait), matching `clop crop 16:9`. It wins over width/height/longEdge if both are given.
+      - `smartCrop: true` picks the most interesting region instead of the centre. Applies to any crop.
+      - A file already at the requested size or shape is left untouched instead of re-encoded.
     - `extractPagesAsImages(format, quality, location)`: render PDF pages to images. [pdf]
       - `format`: jpeg (default), png. `quality`: low (1x/72dpi), medium (2x/144dpi, default), high (3x/216dpi).
     - `targetSize(size, location)`: compress iteratively until the file fits under a limit. [image, video, pdf, audio]
@@ -2838,18 +2847,23 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
 
     ## Avoiding double encoding
 
-    Every `crop`, `downscale` and `convert` already re-encodes AND compresses the file during its own
-    pass; they are not just geometry/format changes. So a separate `optimise` after them usually just
-    re-encodes an already-compressed file: slower, and for lossy formats it loses a little more quality
-    each time.
+    Every `crop`, `downscale` and `convert` re-encodes the file during its own pass; they are not just
+    geometry/format changes. Each step already compresses to the configured quality on its own, so a
+    trailing `optimise` is not needed to get a small file.
 
+    - A trailing `optimise` is not double compression. When a later step optimises, the earlier
+      crop/downscale/convert deliberately keeps its output at maximum quality and lets that step do the
+      single lossy encode. So `crop(width: 1600) -> convert(to: jpeg)` and
+      `crop(width: 1600) -> convert(to: jpeg) -> optimise` both cost exactly one lossy encode and land
+      at the same quality. Write whichever reads better; add `optimise` when you want to spell out the
+      encoder or DPI.
     - Consecutive in-place processing steps are compiled into ONE ffmpeg/vips pass, so they encode only
       once. A step with a non-`inPlace` `location` ends that batch and starts a fresh encode (this is how
       multi-output pipelines are built). `targetSize`, `stripExif`, `watermark`, `capFps`, `normalize`
       and any GIF conversion never batch; they always run as their own pass.
-    - Prefer letting `convert`, `downscale` or `crop` produce the final encoding instead of adding a
-      trailing `optimise`. e.g. write `crop(width: 1600) -> convert(to: webp)`, not
-      `crop(width: 1600) -> convert(to: webp) -> optimise`.
+    - What DOES cost quality is stacking two encoding passes that both compress, i.e. steps split
+      across separate passes by a non-`inPlace` `location`. Keep steps `inPlace` when you want them
+      compiled into one pass.
     - For a SAVED pipeline whose steps already encode the file (any `convert`/`downscale`/`crop`), turn
       on "Skip optimisation" so Clop doesn't optimise the original before running your steps. Inline
       `clop pipeline run` never adds an implicit optimise, so there's nothing to skip there.
