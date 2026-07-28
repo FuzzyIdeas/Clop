@@ -1775,9 +1775,11 @@ struct ImagesSettingsView: View {
 
                 HStack(spacing: 6) {
                     Text("Downscale to").regular(13).lineLimit(1).fixedSize()
+                    // No .fixedSize() here: it collapses the field to its ideal width, which is ~0
+                    // while the value is unset, leaving nothing to click inside the 70pt frame.
                     TextField("", text: maxPhotosLengthBinding)
                         .lineLimit(1)
-                        .fixedSize()
+                        .multilineTextAlignment(.trailing)
                         .frame(width: 70, alignment: .trailing)
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("px").mono(13).opacity(maxPhotosLength != nil ? 1 : 0.3).lineLimit(1).fixedSize()
