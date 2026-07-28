@@ -232,6 +232,11 @@ extension UTType {
 let VIDEO_FORMATS: [UTType] = [.quickTimeMovie, .mpeg4Movie, .webm, .mkv, .mpeg2Video, .avi, .m4v, .mpeg].compactMap { $0 }
 let IMAGE_FORMATS: [UTType] = [.webP, .avif, .heic, .jxl, .bmp, .tiff, .png, .jpeg, .gif].compactMap { $0 }
 let AUDIO_FORMATS: [UTType] = [.wav, .aiff, .mp3, .flac, .m4a, .oggAudio].compactMap { $0 }
+/// Image formats whose conversion encoder takes Clop's compression quality directly. Everything else
+/// (JPEG, PNG, GIF, …) is written by `convert` at maximum quality through the system encoder, which
+/// has no quality knob, so reaching the configured quality needs a separate optimisation pass.
+let QUALITY_AWARE_CONVERT_FORMATS: [UTType] = [.avif, .webP, .heic, .jxl].compactMap { $0 }
+
 let IMAGE_VIDEO_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS
 let ALL_FORMATS = IMAGE_FORMATS + VIDEO_FORMATS + AUDIO_FORMATS + [.pdf]
 

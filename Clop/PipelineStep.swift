@@ -244,7 +244,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     case downscale(factor: Double, location: String = "inPlace")
     case lowerBitrate(kbps: Int, location: String = "inPlace")
     case convert(to: String, location: String = "sameFolder")
-    case crop(width: Int? = nil, height: Int? = nil, longEdge: Int? = nil, location: String = "inPlace")
+    case crop(width: Int? = nil, height: Int? = nil, longEdge: Int? = nil, aspectRatio: String? = nil, smartCrop: Bool = false, location: String = "inPlace")
     case extractPagesAsImages(format: String = "jpeg", quality: String = "medium", location: String = "sameFolder")
     case targetSize(bytes: Int, location: String = "inPlace")
     case stripExif
@@ -286,7 +286,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .downscale(factor, location): "downscale-\(factor)-\(location)"
         case let .lowerBitrate(kbps, location): "lowerBitrate-\(kbps)-\(location)"
         case let .convert(to, location): "convert-\(to)-\(location)"
-        case let .crop(width, height, longEdge, location): "crop-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(location)"
+        case let .crop(width, height, longEdge, aspectRatio, smartCrop, location): "crop-\(aspectRatio ?? "")-\(longEdge ?? width ?? 0)-\(height ?? 0)-\(smartCrop)-\(location)"
         case let .extractPagesAsImages(format, quality, location): "extractPagesAsImages-\(format)-\(quality)-\(location)"
         case let .targetSize(bytes, location): "targetSize-\(bytes)-\(location)"
         case .stripExif: "stripExif"
@@ -364,11 +364,13 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
             var params = ["to: \(to)"]
             if location != "sameFolder" { params.append("location: \(location)") }
             return "convert(\(params.joined(separator: ", ")))"
-        case let .crop(width, height, longEdge, location):
+        case let .crop(width, height, longEdge, aspectRatio, smartCrop, location):
             var params: [String] = []
+            if let aspectRatio { params.append("aspectRatio: \(aspectRatio)") }
             if let longEdge { params.append("longEdge: \(longEdge)") }
             if let width { params.append("width: \(width)") }
             if let height { params.append("height: \(height)") }
+            if smartCrop { params.append("smartCrop: true") }
             if location != "inPlace" { params.append("location: \(location)") }
             return "crop(\(params.joined(separator: ", ")))"
         case let .extractPagesAsImages(format, quality, location):
@@ -434,12 +436,36 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .downscale(_, location): location
         case let .lowerBitrate(_, location): location
         case let .convert(_, location): location
-        case let .crop(_, _, _, location): location
+        case let .crop(_, _, _, _, _, location): location
         case let .extractPagesAsImages(_, _, location): location
         case let .targetSize(_, location): location
         case let .watermark(_, _, _, _, location): location
         default: nil
         }
+    }
+
+    /// The crop a `crop` step resolves to, nil for every other step. `aspectRatio` crops to a shape
+    /// rather than to pixel dimensions, so it carries `isAspectRatio` and lets `computedSize(from:)`
+    /// derive the pixels from each file; it wins over width/height/longEdge when both are given.
+    var cropSize: CropSize? {
+        guard case let .crop(width, height, longEdge, aspectRatio, smartCrop, _) = self else { return nil }
+
+        if let aspectRatio, let ratio = CropSize(aspectRatio: aspectRatio) {
+            return ratio.withSmartCrop(smartCrop)
+        }
+
+        let useLongEdge = longEdge != nil
+        return CropSize(
+            width: useLongEdge ? (longEdge ?? 0) : (width ?? 0),
+            height: useLongEdge ? (longEdge ?? 0) : (height ?? 0),
+            longEdge: useLongEdge,
+            smartCrop: smartCrop
+        )
+    }
+
+    var isOptimise: Bool {
+        if case .optimise = self { return true }
+        return false
     }
 
     var isFileOperation: Bool {
@@ -548,6 +574,8 @@ extension PipelineStep: Decodable {
                 width: c.decodeIfPresent(Int.self, forKey: DynKey("width")),
                 height: c.decodeIfPresent(Int.self, forKey: DynKey("height")),
                 longEdge: c.decodeIfPresent(Int.self, forKey: DynKey("longEdge")),
+                aspectRatio: c.decodeIfPresent(String.self, forKey: DynKey("aspectRatio")),
+                smartCrop: c.decodeIfPresent(Bool.self, forKey: DynKey("smartCrop")) ?? false,
                 location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
             )
         } else if container.contains(DynKey("extractPagesAsImages")) {

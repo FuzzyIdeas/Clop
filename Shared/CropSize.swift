@@ -94,6 +94,39 @@ struct CropSize: Codable, Hashable, Identifiable {
         self.cropRect = cropRect
     }
 
+    /// Parse a `W:H` aspect ratio such as `16:9`, `4:3` or `1.91:1`. Decimals are scaled up to whole
+    /// numbers on both sides (`1.91:1` becomes `191:100`) so the ratio stays exact.
+    /// Mirrors what the CLI accepts for `clop crop 16:9`.
+    init?(aspectRatio: String) {
+        let sides = aspectRatio.split(separator: ":")
+        guard sides.count == 2 else { return nil }
+
+        /// Returns the side as a whole number plus how many decimal places it was scaled by.
+        func scaled(_ side: Substring) -> (value: Int, decimals: Int)? {
+            let text = side.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+            let halves = text.split(separator: ".", omittingEmptySubsequences: false)
+            guard halves.count <= 2, let whole = Int(halves[0]) else { return nil }
+            guard halves.count == 2 else { return (whole, 0) }
+
+            let decimals = String(halves[1])
+            guard !decimals.isEmpty, let fraction = Int(decimals) else { return nil }
+            return (whole * Int(pow(10.0, decimals.count.d)) + fraction, decimals.count)
+        }
+
+        guard let w = scaled(sides[0]), let h = scaled(sides[1]) else { return nil }
+
+        var width = w.value
+        var height = h.value
+        if w.decimals > h.decimals {
+            height *= Int(pow(10.0, (w.decimals - h.decimals).d))
+        } else if h.decimals > w.decimals {
+            width *= Int(pow(10.0, (h.decimals - w.decimals).d))
+        }
+        guard width > 0, height > 0 else { return nil }
+
+        self.init(width: width, height: height, name: aspectRatio, isAspectRatio: true)
+    }
+
     enum CodingKeys: String, CodingKey {
         case width
         case height

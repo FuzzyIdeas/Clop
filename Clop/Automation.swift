@@ -306,6 +306,25 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ParamTemplate(name: "height", description: "max height in pixels, width is computed if not set", suggestions: ["1080", "900", "720", "1024", "96"], freeText: true),
             ParamTemplate(name: "longEdge", description: "target size for longest dimension (use instead of width/height)", suggestions: ["1920", "1600", "1280", "1024", "512"], freeText: true),
             ParamTemplate(
+                name: "aspectRatio",
+                description: "crop to a shape instead of pixel dimensions (use instead of width/height)",
+                suggestions: ["16:9", "4:3", "3:2", "1:1", "9:16"],
+                freeText: true,
+                valueDescriptions: [
+                    "16:9": "widescreen",
+                    "4:3": "classic",
+                    "3:2": "35mm photo",
+                    "1:1": "square",
+                    "9:16": "vertical video",
+                ]
+            ),
+            ParamTemplate(
+                name: "smartCrop",
+                description: "keep the most interesting part of the frame instead of the centre",
+                suggestions: ["true", "false"],
+                freeText: false
+            ),
+            ParamTemplate(
                 name: "location",
                 description: "where to save the result",
                 suggestions: ["inPlace", "sameFolder", "temporaryFolder", "template"],
@@ -731,9 +750,13 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         let width = params["width"].flatMap { Int($0) }
         let height = params["height"].flatMap { Int($0) }
         let longEdge = params["longEdge"].flatMap { Int($0) }
-        guard width != nil || height != nil || longEdge != nil else { return nil }
+        // Only accept a ratio the parser understands, so a typo fails the step instead of silently
+        // falling back to an unbounded crop.
+        let aspectRatio = params["aspectRatio"].flatMap { CropSize(aspectRatio: $0) == nil ? nil : $0 }
+        guard width != nil || height != nil || longEdge != nil || aspectRatio != nil else { return nil }
+        let smartCrop = params["smartCrop"] == "true"
         let location = params["location"] ?? "inPlace"
-        return .crop(width: width, height: height, longEdge: longEdge, location: location)
+        return .crop(width: width, height: height, longEdge: longEdge, aspectRatio: aspectRatio, smartCrop: smartCrop, location: location)
 
     case "copy":
         guard let to = params["to"], !to.isEmpty else { return nil }

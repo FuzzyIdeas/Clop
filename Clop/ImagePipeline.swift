@@ -129,7 +129,8 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     source: OptimisationSource? = nil,
     skipCache: Bool = false,
     compression: CompressionQuality? = nil,
-    batchOptimiser: Optimiser? = nil
+    batchOptimiser: Optimiser? = nil,
+    optimiseFollows: Bool = false
 ) async throws -> Image? {
     let path = img.path
     var img = img
@@ -300,12 +301,31 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
             do {
                 log.debug("Running image pipeline \(effectiveActions) for \(pathString)")
 
-                for action in effectiveActions {
+                for (actionIndex, action) in effectiveActions.enumerated() {
                     guard let ci = currentImage else { break }
 
                     switch action {
                     case let .convert(format):
-                        let converted = try ci.convert(to: format, asTempFile: true, cq: optimiser.compressionOverride)
+                        var converted = try ci.convert(to: format, asTempFile: true, cq: optimiser.compressionOverride)
+
+                        // JPEG/PNG/GIF leave `convert` at maximum quality because the system encoder
+                        // has no quality knob, so compress them here to honour the compression
+                        // setting. Skipped when an `optimise` runs later, either further down this
+                        // same pass or as a following pipeline step, so that a file the user asked to
+                        // optimise themselves is only lossily encoded once.
+                        let optimiseRunsLater = optimiseFollows
+                            || effectiveActions.dropFirst(actionIndex + 1).contains(where: \.isOptimise)
+                        if !optimiseRunsLater, !QUALITY_AWARE_CONVERT_FORMATS.contains(format),
+                           let compressed = try? converted.optimise(
+                               optimiser: optimiser,
+                               allowLarger: true,
+                               aggressiveOptimisation: aggressiveOptimisation,
+                               adaptiveSize: false
+                           )
+                        {
+                            converted = compressed
+                        }
+
                         var placedImage = converted
                         if id != Optimiser.IDs.clipboardImage {
                             let placed = try placeOutput(produced: converted.path, original: savePath ?? img.path, type: .image, kind: .manualConvert, overrides: optimiser.placementOverride)

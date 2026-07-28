@@ -42,6 +42,9 @@ final class PipelineExecution {
     var shouldStop = false
     var stepIndex = 0
     var stepDesc = ""
+    /// True when a later step in the pipeline optimises the file. Conversions to formats without a
+    /// quality-aware encoder then stay at maximum quality and let that step do the single lossy pass.
+    var optimiseFollows = false
 
     let originalFile: FilePath
     let fileType: ClopFileType
@@ -577,7 +580,7 @@ final class PipelineExecution {
                 let img = Image(data: data, path: inputFile, retinaDownscaled: false)
                 if let result = try? await runImagePipeline(
                     img,
-                    actions: [action],
+                    actions: imageActions(for: action),
                     id: encodeID(forLocation: location),
                     saveTo: clipboardSaveTo,
                     copyToClipboard: copyResultToClipboard,
@@ -733,7 +736,8 @@ final class PipelineExecution {
                         allowLarger: true,
                         hideFloatingResult: hide,
                         source: source,
-                        compression: optimiser.compressionOverride
+                        compression: optimiser.compressionOverride,
+                        optimiseFollows: optimiseFollows
                     ) {
                         currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
                         if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
@@ -777,11 +781,7 @@ final class PipelineExecution {
         }
     }
 
-    func handleCrop(width: Int?, height: Int?, longEdge: Int?, location: String) async {
-        let useLongEdge = longEdge != nil
-        let targetW = useLongEdge ? (longEdge ?? 0).d : (width ?? 0).d
-        let targetH = useLongEdge ? (longEdge ?? 0).d : (height ?? 0).d
-        let cs = CropSize(width: targetW, height: targetH, longEdge: useLongEdge)
+    func handleCrop(cropSize cs: CropSize, location: String) async {
         let action = PipelineAction.downscale(factor: nil, cropSize: cs)
         let inputFile = tempCopyIfNeeded(currentFile, location: location)
         let usedTempCopy = inputFile != currentFile
@@ -792,13 +792,10 @@ final class PipelineExecution {
                 let img = Image(data: data, path: inputFile, retinaDownscaled: false)
                 let imgW = img.size.width
                 let imgH = img.size.height
-                let maxDim = max(imgW, imgH)
-                let needsCrop = useLongEdge
-                    ? (targetW > 0 && maxDim > targetW)
-                    : (targetW > 0 && imgW > targetW) || (targetH > 0 && imgH > targetH)
+                let needsCrop = cropChangesSize(cs, source: img.size)
                 if needsCrop, let result = try? await runImagePipeline(
                     img,
-                    actions: [action],
+                    actions: imageActions(for: action),
                     id: encodeID(forLocation: location),
                     saveTo: clipboardSaveTo,
                     copyToClipboard: copyResultToClipboard,
@@ -820,10 +817,7 @@ final class PipelineExecution {
         case .video:
             let vid = await (try? Video.byFetchingMetadata(path: inputFile)) ?? Video(inputFile)
             let vidSize = vid.size ?? .zero
-            let maxDim = max(vidSize.width, vidSize.height)
-            let needsCrop = useLongEdge
-                ? (targetW > 0 && maxDim > targetW)
-                : (targetW > 0 && vidSize.width > targetW) || (targetH > 0 && vidSize.height > targetH)
+            let needsCrop = cropChangesSize(cs, source: vidSize)
             if needsCrop, let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: false, hideFloatingResult: hide, source: source) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
                 if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
@@ -1274,6 +1268,31 @@ final class PipelineExecution {
         }
     }
 
+    /// A single-step image resize needs an explicit optimise to reach the configured quality, because
+    /// the resizer writes at maximum quality. The compiled-batch path already appends one when no step
+    /// in the batch encodes the file; this keeps a lone `crop`/`downscale` consistent with it. Skipped
+    /// when a later step optimises, so the file is only lossily encoded once. Video is excluded: its
+    /// resize goes through ffmpeg, which already encodes at the target quality.
+    private func imageActions(for action: PipelineAction) -> [PipelineAction] {
+        optimiseFollows ? [action] : [action, .optimise]
+    }
+
+    /// Whether a crop would actually change the file, so an already-conforming file is left untouched
+    /// instead of being re-encoded for nothing. Pixel crops only apply when the source is bigger than
+    /// the target; ratio crops apply whenever the source's shape differs from the requested ratio.
+    private func cropChangesSize(_ cs: CropSize, source: NSSize) -> Bool {
+        guard source.width > 0, source.height > 0 else { return false }
+
+        if cs.isAspectRatio {
+            let target = cs.computedSize(from: source)
+            return target.width.evenInt < source.width.evenInt || target.height.evenInt < source.height.evenInt
+        }
+        if cs.longEdge {
+            return cs.width > 0 && max(source.width, source.height) > cs.width.d
+        }
+        return (cs.width > 0 && source.width > cs.width.d) || (cs.height > 0 && source.height > cs.height.d)
+    }
+
     private func forkTempPath(for file: FilePath) -> FilePath {
         URL.temporaryDirectory.appendingPathComponent("clop-fork-\(Int.random(in: 1000 ... 10_000_000))-\(file.name.string)").filePath!
     }
@@ -1658,7 +1677,8 @@ final class PipelineExecution {
             saveTo: clipboardSaveTo,
             copyToClipboard: copyResultToClipboard,
             allowLarger: outExt != nil, hideFloatingResult: hide,
-            aggressiveOptimisation: aggressive, source: source
+            aggressiveOptimisation: aggressive, source: source,
+            optimiseFollows: optimiseFollows
         ) else { return false }
 
         currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)

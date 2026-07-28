@@ -771,13 +771,10 @@ enum TempPipelineSegment {
             switch step {
             case let .downscale(factor, _):
                 actions.append(.downscale(factor: factor, cropSize: nil))
-            case let .crop(width, height, longEdge, _):
-                let cs = CropSize(
-                    width: longEdge ?? width ?? 0,
-                    height: longEdge != nil ? (longEdge ?? 0) : (height ?? 0),
-                    longEdge: longEdge != nil
-                )
-                actions.append(.downscale(factor: nil, cropSize: cs))
+            case .crop:
+                if let cs = step.cropSize {
+                    actions.append(.downscale(factor: nil, cropSize: cs))
+                }
             case let .changeSpeed(factor):
                 actions.append(.changePlaybackSpeed(factor: factor))
             case .removeAudio:
