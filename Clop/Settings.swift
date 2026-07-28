@@ -21,9 +21,16 @@ let ALL_AUDIO_CONVERTIBLE_FORMATS: [UTType] = AUDIO_FORMATS
 /// Audio formats that can be assigned to a compatibility target (everything except the targets themselves).
 let FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO: [UTType] = AUDIO_FORMATS.without([.mp3, .m4a].compactMap { $0 })
 
-let VIDEO_EXTENSIONS = VIDEO_FORMATS.compactMap(\.preferredFilenameExtension)
-let IMAGE_EXTENSIONS = IMAGE_FORMATS.compactMap(\.preferredFilenameExtension) + ["jpg"]
-let AUDIO_EXTENSIONS = AUDIO_FORMATS.compactMap(\.preferredFilenameExtension) + ["ogg", "opus"]
+/// Every filename extension a format can appear as, not only the system's preferred spelling.
+/// `preferredFilenameExtension` yields a single spelling per type (`aiff`, `tiff`, `jpeg`), so a file
+/// named with an alias that the very same UTType declares (`aif`, `tif`, `jpg`) went unrecognised.
+func filenameExtensions(of types: [UTType], plus extras: [String] = []) -> [String] {
+    (types.flatMap { $0.tags[.filenameExtension] ?? [] } + extras).uniqued
+}
+
+let VIDEO_EXTENSIONS = filenameExtensions(of: VIDEO_FORMATS)
+let IMAGE_EXTENSIONS = filenameExtensions(of: IMAGE_FORMATS, plus: ["jpg"])
+let AUDIO_EXTENSIONS = filenameExtensions(of: AUDIO_FORMATS, plus: ["ogg", "opus"])
 
 let VIDEO_PASTEBOARD_TYPES = VIDEO_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }
 let IMAGE_PASTEBOARD_TYPES = IMAGE_FORMATS.compactMap { NSPasteboard.PasteboardType(rawValue: $0.identifier) }

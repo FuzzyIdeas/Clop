@@ -622,7 +622,7 @@ var processTerminated = Set<pid_t>()
 @MainActor func shouldHandleVideo(event: EonilFSEventsEvent) async -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
-          VIDEO_EXTENSIONS.contains(ext), !Defaults[.videoFormatsToSkip].lazy.compactMap(\.preferredFilenameExtension).contains(ext)
+          VIDEO_EXTENSIONS.contains(ext), !filenameExtensions(of: Array(Defaults[.videoFormatsToSkip])).contains(ext)
     else {
         return false
 

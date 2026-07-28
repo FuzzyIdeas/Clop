@@ -1644,10 +1644,7 @@ class Image: CustomStringConvertible {
         return false
     }
 
-    let formatsToSkip = Defaults[.imageFormatsToSkip]
-        .lazy
-        .compactMap { $0 == .jpeg ? ["jpg", "jpeg"] : [$0.preferredFilenameExtension] }
-        .joined()
+    let formatsToSkip = filenameExtensions(of: Array(Defaults[.imageFormatsToSkip]))
     guard !formatsToSkip.contains(ext) else {
         return false
     }

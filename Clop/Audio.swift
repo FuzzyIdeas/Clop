@@ -747,7 +747,7 @@ func audioCoverArt(from path: FilePath) async -> NSImage? {
 @MainActor func shouldHandleAudio(event: EonilFSEventsEvent) async -> Bool {
     let path = FilePath(event.path)
     guard let flag = event.flag, let stem = path.stem, !stem.starts(with: "."), let ext = path.extension?.lowercased(),
-          AUDIO_EXTENSIONS.contains(ext), !Defaults[.audioFormatsToSkip].lazy.compactMap(\.preferredFilenameExtension).contains(ext)
+          AUDIO_EXTENSIONS.contains(ext), !filenameExtensions(of: Array(Defaults[.audioFormatsToSkip])).contains(ext)
     else {
         return false
     }
