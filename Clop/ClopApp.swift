@@ -204,6 +204,14 @@ func installUncaughtExceptionLogger() {
 }
 
 class AppDelegate: AppDelegateParent {
+    /// What a read of the drag pasteboard resolved to, computed off the main thread and applied on it.
+    enum DragResolution {
+        /// Promised files that aren't written to disk yet: signal the drag, offer nothing to optimise.
+        case promises
+        /// What Clop could optimise out of the dragged items, possibly empty.
+        case items([ClipboardType])
+    }
+
     var proDebugCancellables = Set<AnyCancellable>()
 
     var videoWatcher: FileOptimisationWatcher?
@@ -225,70 +233,39 @@ class AppDelegate: AppDelegateParent {
         }
     }
 
+    /// Owned by `clipboardQueue` once the drag monitor is running, like `pbChangeCount`.
     var lastDragChangeCount = NSPasteboard(name: .drag).changeCount
+    /// Set while a drag-pasteboard read is in flight so the ~60/s drag events don't pile up behind
+    /// one slow read. Main actor only.
+    @MainActor var resolvingDrag = false
 
     @MainActor lazy var dragMonitor = GlobalEventMonitor(mask: [.leftMouseDragged]) { event in
         guard self.finishedOnboarding, NSEvent.pressedMouseButtons > 0, proactive || DM.optimisationCount <= 5 else {
             return
         }
 
-        let drag = NSPasteboard(name: .drag)
-//        drag.debug()
-        guard self.lastDragChangeCount != drag.changeCount else {
-            return
+        // Every read below is a synchronous XPC round-trip to the pasteboard server, one per item and
+        // per type. Doing them here froze the UI for 30s+ mid-drag whenever that server was slow
+        // (CLOP-273), the same failure the clipboard watcher had (CLOP-A3, CLOP-AC). Resolve on the
+        // pasteboard queue and hop back to the main actor with plain values.
+        guard !self.resolvingDrag else { return }
+        self.resolvingDrag = true
+
+        clipboardQueue.async {
+            let drag = NSPasteboard(name: .drag)
+            let changeCount = drag.changeCount
+            guard self.lastDragChangeCount != changeCount else {
+                mainActor { self.resolvingDrag = false }
+                return
+            }
+            self.lastDragChangeCount = changeCount
+            let resolution = self.resolveDraggedItems(on: drag)
+
+            mainActor {
+                self.resolvingDrag = false
+                self.applyDragResolution(resolution)
+            }
         }
-        DM.dropped = false
-        self.lastDragChangeCount = drag.changeCount
-
-        guard let items = drag.pasteboardItems, !items.contains(where: { $0.types.set.hasElements(from: [.promise, .promisedFileName, .promisedFileURL, .promisedSuggestedFileName, .promisedMetadata]) }) else {
-            DM.itemsToOptimise = []
-            self.draggingSet.send(true)
-            return
-        }
-
-        dropZoneKeyGlobalMonitor.start()
-        dropZoneKeyLocalMonitor.start()
-        presetZonesKeyGlobalMonitor.start()
-        presetZonesKeyLocalMonitor.start()
-
-        let toOptimise: [ClipboardType] = items.compactMap { item -> ClipboardType? in
-            let types = item.types
-            guard !types.contains(.init("com.apple.finalcutpro.xml")) else {
-                return nil
-            }
-
-            if types.contains(.fileURL), let url = item.string(forType: .fileURL)?.url,
-               let path = url.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF
-            {
-                return .file(path)
-            }
-
-            if let str = item.string(forType: .string), let path = str.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF {
-                return .file(path)
-            }
-
-            if types.contains(.URL), let url = item.string(forType: .URL)?.url ?? item.string(forType: .string)?.url, url.isImage || url.isVideo || url.isPDF {
-                return .url(url)
-            }
-
-            if types.set.hasElements(from: IMAGE_VIDEO_PASTEBOARD_TYPES) || types.contains(.pdf) {
-                return .file(FilePath.tmp)
-            }
-
-            if let str = item.string(forType: .string), let url = str.url, url.isImage || url.isVideo || url.isPDF {
-                return .url(url)
-            }
-
-            return nil
-        }
-
-        guard toOptimise.isNotEmpty else {
-            DM.itemsToOptimise = []
-            return
-        }
-
-        DM.itemsToOptimise = toOptimise
-        self.draggingSet.send(true)
     }
 
     @MainActor lazy var mouseUpMonitor = GlobalEventMonitor(mask: [.leftMouseUp]) { event in
@@ -580,6 +557,75 @@ class AppDelegate: AppDelegateParent {
         sem.wait()
 
         return resp.jsonData
+    }
+
+    /// Read what Clop could optimise out of the drag pasteboard. Runs on `clipboardQueue`, never on
+    /// the main thread: `pasteboardItems`, `types` and every `string(forType:)` hit the pasteboard
+    /// server separately.
+    func resolveDraggedItems(on drag: NSPasteboard) -> DragResolution {
+        guard let items = drag.pasteboardItems, !items.contains(where: { $0.types.set.hasElements(from: [.promise, .promisedFileName, .promisedFileURL, .promisedSuggestedFileName, .promisedMetadata]) }) else {
+            return .promises
+        }
+
+        let toOptimise: [ClipboardType] = items.compactMap { item -> ClipboardType? in
+            let types = item.types
+            guard !types.contains(.init("com.apple.finalcutpro.xml")) else {
+                return nil
+            }
+
+            if types.contains(.fileURL), let url = item.string(forType: .fileURL)?.url,
+               let path = url.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF
+            {
+                return .file(path)
+            }
+
+            if let str = item.string(forType: .string), let path = str.existingFilePath, path.isImage || path.isVideo || path.isAudio || path.isPDF {
+                return .file(path)
+            }
+
+            if types.contains(.URL), let url = item.string(forType: .URL)?.url ?? item.string(forType: .string)?.url, url.isImage || url.isVideo || url.isPDF {
+                return .url(url)
+            }
+
+            if types.set.hasElements(from: IMAGE_VIDEO_PASTEBOARD_TYPES) || types.contains(.pdf) {
+                return .file(FilePath.tmp)
+            }
+
+            if let str = item.string(forType: .string), let url = str.url, url.isImage || url.isVideo || url.isPDF {
+                return .url(url)
+            }
+
+            return nil
+        }
+        return .items(toOptimise)
+    }
+
+    /// Apply a resolved drag. The read that produced it happened off the main thread, so the drag can
+    /// already be over by now: applying then would leave a drop zone on screen that nothing clears,
+    /// because `mouseUpMonitor` has already run.
+    @MainActor func applyDragResolution(_ resolution: DragResolution) {
+        guard NSEvent.pressedMouseButtons > 0 else { return }
+
+        DM.dropped = false
+
+        guard case let .items(toOptimise) = resolution else {
+            DM.itemsToOptimise = []
+            draggingSet.send(true)
+            return
+        }
+
+        dropZoneKeyGlobalMonitor.start()
+        dropZoneKeyLocalMonitor.start()
+        presetZonesKeyGlobalMonitor.start()
+        presetZonesKeyLocalMonitor.start()
+
+        guard toOptimise.isNotEmpty else {
+            DM.itemsToOptimise = []
+            return
+        }
+
+        DM.itemsToOptimise = toOptimise
+        draggingSet.send(true)
     }
 
     func allowedChannels(for _: SPUUpdater) -> Set<String> {
