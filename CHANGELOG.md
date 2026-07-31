@@ -1,3 +1,24 @@
+# 3.3.3
+
+**[Download Clop 3.3.3 →](https://files.lowtechguys.com/releases/Clop-3.3.3.dmg)**
+## Features
+
+- **Aspect ratio and smart crop** for pipelines, catching up with what the `clop crop` command could already do
+    > `crop(aspectRatio: 16:9)` trims to a shape rather than a pixel size (`4:3`, `1:1`, `1.91:1` and the like). It crops at the file's own resolution, so it stacks with a pixel crop.
+    >
+    > `crop(smartCrop: true)` keeps the most interesting part of the frame instead of the centre. Works on any crop.
+    >
+    > A file already at the requested size or shape is left alone instead of re-encoded.
+
+## Fixes
+
+- Dragging files could freeze Clop for 30 seconds or more when macOS was slow to hand over the dragged items
+- Converted images in a pipeline could come out many times larger than expected when no `optimise` step followed
+    > Crop, downscale and convert compress to your quality setting on their own. Add `optimise` and they hand the compression over to it, so the file is still only encoded once either way.
+- `.aif` audio, `.tif` images and other alternate spellings of a format's extension were ignored by watched folders
+- Downscale size field in the Photos settings can be clicked and typed into, not just reached with Tab
+- *Add to shelf* works with the trial version of Yoink (the button only appeared for the App Store and Setapp copies)
+
 # 3.3.2
 
 **[Download Clop 3.3.2 →](https://files.lowtechguys.com/releases/Clop-3.3.2.dmg)**
