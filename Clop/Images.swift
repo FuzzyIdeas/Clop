@@ -315,6 +315,15 @@ func gifsicleFrameDropArgs(gif path: FilePath, everyNth: Int) -> [String]? {
     return args
 }
 
+/// The type an image's own bytes say it is, or nil when the magic bytes aren't one Clop handles.
+///
+/// This has to be consulted before the filename extension, never after. A JPEG saved as `.png` used to
+/// come out typed `.png`, which sent it to pngquant, which rejects non-PNG input and failed the whole
+/// optimisation. `data` is already in memory at every call site, so identifying it costs no file I/O.
+func typeFromContent(of data: Data) -> UTType? {
+    mimeTypeFromMagicBytes(data).flatMap { UTType(mimeType: $0) }
+}
+
 // MARK: - Image
 
 class Image: CustomStringConvertible {
@@ -322,7 +331,7 @@ class Image: CustomStringConvertible {
         self.path = path
         self.data = data
         image = nsImage ?? NSImage(data: data)!
-        self.type = type ?? image.type ?? UTType(filenameExtension: path.extension ?? "") ?? UTType(mimeType: path.fetchFileType() ?? "") ?? .png
+        self.type = type ?? image.type ?? typeFromContent(of: data) ?? UTType(filenameExtension: path.extension ?? "") ?? .png
         self.retinaDownscaled = retinaDownscaled
 
         if let optimised {
@@ -352,7 +361,7 @@ class Image: CustomStringConvertible {
 
             rpath = tempPath
         }
-        let rtype = type ?? UTType(filenameExtension: rpath.extension ?? "") ?? UTType(mimeType: rpath.fetchFileType() ?? "") ?? .png
+        let rtype = type ?? typeFromContent(of: data) ?? UTType(filenameExtension: rpath.extension ?? "") ?? .png
         self.path = rpath
         self.data = data
         self.type = rtype
@@ -1164,6 +1173,11 @@ class Image: CustomStringConvertible {
         guard !optimised else {
             throw ClopError.alreadyOptimised(path)
         }
+
+        // Pick the optimiser from what the bytes actually are, not from `type`. `type` can still come
+        // from the filename when nothing better is known, and handing pngquant a JPEG (or jpegoptim a
+        // PNG) makes it exit non-zero and fail the optimisation with a confusing error.
+        let type = typeFromContent(of: data) ?? type
 
         let img: Image
         switch type {

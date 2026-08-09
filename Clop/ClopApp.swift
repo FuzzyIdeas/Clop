@@ -319,6 +319,7 @@ class AppDelegate: AppDelegateParent {
         sentryCrashExceptionApplicationType = SentryCrashExceptionApplication.self
         if !SWIFTUI_PREVIEW {
             handleCLIInstall()
+            Optimisable.warmUpIconCache()
 
             NSApplication.shared.windows.first { $0.isSettingsWindow }?.close()
             unarchiveBinaries()
