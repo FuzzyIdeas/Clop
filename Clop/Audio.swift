@@ -711,7 +711,7 @@ func resolveOriginalAudioCoverArt(cached: FilePath?, optimiser: Optimiser, audio
 /// embedded cover art (what Finder shows) when the file has any. Used by every audio optimiser path.
 @MainActor func setAudioThumbnail(on optimiser: Optimiser, path: FilePath) {
     if optimiser.thumbnail == nil {
-        optimiser.thumbnail = Optimisable.fallbackThumbnail(for: path.url, path: path)
+        Optimisable.setFallbackThumbnail(on: optimiser, for: path.url, path: path)
     }
     Task {
         if let art = await audioCoverArt(from: path) {

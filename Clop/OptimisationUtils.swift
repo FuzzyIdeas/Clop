@@ -707,7 +707,7 @@ enum TempPipelineSegment {
     /// renders as an empty no-thumbnail card. No-op once a real thumbnail is set.
     @MainActor func ensurePlaceholderThumbnail() {
         guard thumbnail == nil, let fileURL = url ?? originalURL, fileURL.isFileURL, let filePath = fileURL.filePath else { return }
-        thumbnail = Optimisable.fallbackThumbnail(for: fileURL, path: filePath)
+        Optimisable.setFallbackThumbnail(on: self, for: fileURL, path: filePath)
     }
 
     /// Register/unregister this optimiser's `Progress` in the system-wide tree, unless this is a
@@ -1202,23 +1202,15 @@ enum TempPipelineSegment {
     }
 
     func refetch() {
-        if let image, image.path != self.url?.filePath {
-            self.image = fetchImage()
-            refreshImageThumbnail()
-            return
-        }
-        if let video, video.path != self.url?.filePath {
-            self.video = fetchVideo()
-            return
-        }
-        if let pdf, pdf.path != self.url?.filePath {
-            self.pdf = fetchPDF()
-            return
-        }
-        if let audio, audio.path != self.url?.filePath {
-            self.audio = fetchAudio()
-            return
-        }
+        // Batch runs are headless: nothing ever reads these wrappers, so decoding them is pure waste.
+        // Every `fetch*` reads the whole file, and `url` is set on the main actor for each of hundreds
+        // of items, which hung the app for 30s+ on big files and network volumes (CLOP-25Y).
+        guard !batchSilent else { return }
+
+        // `image`/`video`/`pdf`/`audio` are lazy, so the old path comparisons (`if let image, …`) read
+        // the file just to find out which wrapper this is, and then read it a second time to replace it.
+        // Each `fetch*` already returns nil unless `type` matches, so only one of them can do any work:
+        // fetch it once and keep the result.
         if let image = fetchImage() {
             self.image = image
             refreshImageThumbnail()
@@ -3060,8 +3052,18 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
         // Per-run compression override (CLI/Shortcuts): set it on the optimiser before
         // any pipeline runs, so the image/video/audio encode paths pick it up.
         let forceReencode = compression != nil || audioBitrate != nil
-        if forceReencode, item.path.exists {
-            let type = ItemType.from(filePath: item.path)
+        let wantsPipelineLookup = !skipPipelineLookup && source != nil && aggressiveOptimisation != true
+            && scalingFactor == nil && cropSize == nil && changePlaybackSpeedFactor == nil && removeAudio == nil
+
+        // `exists` stats the file and `ItemType.from` sniffs its first 512 bytes; both are synchronous
+        // reads that stall for 30s+ on a slow or unresponsive volume, and running them on the main actor
+        // froze the whole app (CLOP-27D). Resolve the type once, off-main, and reuse it for both checks.
+        let itemPath = item.path
+        let resolvedType: ItemType? = (forceReencode || wantsPipelineLookup)
+            ? await Task.detached(priority: .userInitiated) { itemPath.exists ? ItemType.from(filePath: itemPath) : nil }.value
+            : nil
+
+        if forceReencode, let type = resolvedType {
             if type.isImage || type.isVideo || type.isAudio || type.isPDF {
                 let optimiser = OM.optimiser(id: id, type: type, operation: "Optimising", hidden: hideFloatingResult, source: source)
                 optimiser.compressionOverride = compression
@@ -3078,11 +3080,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
         // and let the pipeline produce the single result on a hidden parent.
         // Explicit transformations (downscale, crop, speed-up, Cmd-drop aggressive)
         // keep the normal flow: the user asked for that exact operation.
-        if !skipPipelineLookup, let source, aggressiveOptimisation != true,
-           scalingFactor == nil, cropSize == nil, changePlaybackSpeedFactor == nil, removeAudio == nil,
-           item.path.exists
-        {
-            let type = ItemType.from(filePath: item.path)
+        if wantsPipelineLookup, let source, let type = resolvedType {
             let pipelines = pipelinesFor(type: type, source: source)
             let allSkip = !pipelines.isEmpty && pipelines.allSatisfy(\.skipsPreOptimisation)
             if allSkip, type.isImage || type.isVideo || type.isAudio || type.isPDF {
