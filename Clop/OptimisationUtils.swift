@@ -3590,6 +3590,13 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
 
                     if req.output == nil, let optURL = respPath.fileURL, optURL != url, optURL.deletingLastPathComponent() != url.deletingLastPathComponent() {
                         let newURL = url.deletingLastPathComponent().appendingPathComponent(optURL.lastPathComponent)
+                        // Replacing a file unlinks it first, which needs write permission on the folder
+                        // rather than on the file. Without this check the failure surfaced as Foundation's
+                        // "couldn't be removed because you don't have permission to access it", which
+                        // names the file and hides the fact that the folder is the problem.
+                        guard fm.isWritableFile(atPath: newURL.deletingLastPathComponent().path) else {
+                            throw ClopError.folderNotWritable(FilePath(newURL.deletingLastPathComponent().path))
+                        }
                         if fm.fileExists(atPath: newURL.path) {
                             try fm.removeItem(at: newURL)
                         }

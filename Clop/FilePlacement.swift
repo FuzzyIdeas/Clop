@@ -75,6 +75,14 @@ func planPlacement(produced: FilePath, original: FilePath, type: ClopFileType, k
     if dest.extension?.lowercased() != producedExt.lowercased() {
         dest = dest.withExtension(producedExt)
     }
+    // Writing the result needs write permission on the CONTAINING FOLDER, not on the file: replacing a
+    // file unlinks it first. Renders written to a root-owned folder (`/Library/Application Support/…`,
+    // where apps like KeyShot put theirs) are perfectly readable, so optimisation ran and then the
+    // placement failed, which surfaced as "no change" with the file silently untouched. Check up front
+    // so the reason is reported before anything gets encoded.
+    guard fm.isWritableFile(atPath: dest.dir.string) else {
+        throw ClopError.folderNotWritable(dest.dir)
+    }
     return PlacementPlan(behaviour: behaviour, dest: dest)
 }
 
