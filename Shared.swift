@@ -83,6 +83,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case encryptedPDF(FilePath)
     case invalidPDF(FilePath)
     case couldNotCreateOutputDirectory(String)
+    case folderNotWritable(FilePath)
     case unknownType
 
     var localizedDescription: String {
@@ -141,6 +142,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             return "PDF is encrypted: \(p)"
         case let .couldNotCreateOutputDirectory(location):
             return "Could not create output directory: \(location)"
+        case let .folderNotWritable(folder):
+            return "No permission to write in \(folder.string)"
         case .unknownType:
             return "Unknown type"
         }
@@ -195,6 +198,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Can't parse PDF"
         case .couldNotCreateOutputDirectory:
             "Could not create output directory"
+        case .folderNotWritable:
+            "Folder is read-only"
         case .decompressingBinariesError:
             "Decompressing binaries"
         case .unknownType:

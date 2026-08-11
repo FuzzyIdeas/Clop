@@ -1819,17 +1819,29 @@ class ContextualMenuServiceProvider: NSObject {
                 continue
             }
             Task {
-                try await optimiseItem(
-                    item,
-                    id: item.id,
-                    hideFloatingResult: false,
-                    downscaleTo: nil,
-                    changePlaybackSpeedBy: nil,
-                    aggressiveOptimisation: nil,
-                    optimisationCount: &manualOptimisationCount,
-                    copyToClipboard: false,
-                    source: .service
-                )
+                do {
+                    try await optimiseItem(
+                        item,
+                        id: item.id,
+                        hideFloatingResult: false,
+                        downscaleTo: nil,
+                        changePlaybackSpeedBy: nil,
+                        aggressiveOptimisation: nil,
+                        optimisationCount: &manualOptimisationCount,
+                        copyToClipboard: false,
+                        source: .service
+                    )
+                } catch let error as ClopError {
+                    // A bare `try await` inside this Task discarded every failure: the result card sat
+                    // at "Optimising" forever and the file was silently left untouched, which read as
+                    // "Clop stopped working" for anyone optimising into a read-only folder. Every other
+                    // entry point (Shortcuts, drop zone, URL handler, CLI) already reports its errors.
+                    log.error("Error optimising \(item.id) from the Services menu: \(error.description)")
+                    await MainActor.run { opt(item.id)?.finish(error: error.humanDescription) }
+                } catch {
+                    log.error("Error optimising \(item.id) from the Services menu: \(error)")
+                    await MainActor.run { opt(item.id)?.finish(error: "Optimisation failed") }
+                }
             }
         }
     }

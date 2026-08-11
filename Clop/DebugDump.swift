@@ -227,6 +227,10 @@ enum DebugDump {
             lines.append("    running: \(o.running)  operation: \(o.operation)  progress: \(o.progress.fractionCompleted)  step: \(o.stepIndicator)")
             if let error = o.error { lines.append("    error: \(error)") }
             if let notice = o.notice { lines.append("    notice: \(notice)") }
+            // `info` carries the outcomes that aren't failures ("File already fully compressed"), which
+            // is exactly what a "nothing happened" report looks like from the outside. Leaving it out
+            // made a run that deliberately kept the original indistinguishable from one that crashed.
+            if let info = o.info { lines.append("    info: \(info)") }
             lines.append("    bytes: \(o.oldBytes) -> \(o.newBytes)")
             if let old = o.oldSize { lines.append("    size: \(Int(old.width))x\(Int(old.height)) -> \(o.newSize.map { "\(Int($0.width))x\(Int($0.height))" } ?? "<nil>")") }
             if let old = o.oldBitrate { lines.append("    bitrate: \(old) -> \(o.newBitrate.map(String.init) ?? "<nil>")") }
