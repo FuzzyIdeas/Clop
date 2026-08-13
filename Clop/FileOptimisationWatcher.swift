@@ -42,7 +42,7 @@ class FileOptimisationWatcher {
         self.handler = handler
 
         pub(pathsKey).sink { [weak self] change in
-            self?.paths = change.newValue
+            self?.paths = change.newValue.map(\.resolvedPath)
             self?.startWatching()
         }.store(in: &observers)
 
@@ -91,7 +91,8 @@ class FileOptimisationWatcher {
 
     var pathsKey: Defaults.Key<[String]>
     var enabledKey: Defaults.Key<Bool>
-    lazy var paths: [String] = Defaults[pathsKey]
+    /// Absolute, ready for FSEvents. Defaults stores them portable (`~/…`), see `String.portablePath`.
+    lazy var paths: [String] = Defaults[pathsKey].map(\.resolvedPath)
     lazy var enabled: Bool = Defaults[enabledKey]
 
     var maxFilesToHandleKey: Defaults.Key<Int>

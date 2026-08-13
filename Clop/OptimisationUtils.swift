@@ -2977,7 +2977,8 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
         guard !template.isEmpty else { return true }
         return nameMatchesTemplate(path.stem ?? path.name.string, template: template)
     case .specificFolder:
-        let template = Defaults[type.specificFolderNameTemplateKey]
+        // Stored portable (`~/Pictures/%f`), so expand before comparing against a real path.
+        let template = Defaults[type.specificFolderNameTemplateKey].resolvedPath
         guard !template.isEmpty else { return true }
         let pathWithoutExtension = (path.dir / (path.stem ?? path.name.string)).string
         let isAbsoluteTemplate = template.hasPrefix("/") || template.hasPrefix("%P") || template.hasPrefix("%F")
