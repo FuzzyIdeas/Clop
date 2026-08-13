@@ -190,7 +190,7 @@ extension FilePath {
         hasExtension(from: AUDIO_EXTENSIONS)
     }
 
-    static var workdir = FilePath.dir(Defaults[.workdir], permissions: 0o755) {
+    static var workdir = FilePath.dir(Defaults[.workdir].resolvedPath, permissions: 0o755) {
         didSet {
             if !workdir.exists {
                 workdir.mkdir(withIntermediateDirectories: true, permissions: 0o755)

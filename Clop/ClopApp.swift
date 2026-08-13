@@ -124,8 +124,16 @@ enum OptimisationSource: Codable, Equatable, Hashable {
         case .cli: "cli"
         case .dropZone: "dropZone"
         case .finder: "finder"
-        case let .dir(dir): dir
+        // Portable, because this is the key the per-folder pipelines are stored under and settings
+        // sync between Macs that can have different usernames. See `String.portablePath`.
+        case let .dir(dir): dir.portablePath
         }
+    }
+
+    /// The folder this source watches, absolute and ready for the filesystem.
+    var dirPath: String? {
+        guard case let .dir(dir) = self else { return nil }
+        return dir.resolvedPath
     }
 
     var displayLabel: String {
@@ -156,7 +164,7 @@ extension String {
         case "openWith", "open-with", "open with": .openWith
         case "fileWatcher", "file-watcher", "file watcher": .fileWatcher
         case "dropZone", "drop-zone", "drop zone": .dropZone
-        default: .dir(self)
+        default: .dir(portablePath)
         }
     }
 }
@@ -405,7 +413,7 @@ class AppDelegate: AppDelegateParent {
             clopDebugLog("proactive observer: onTrial changed to \(newValue) (productActivated=\(p.productActivated), proactive will be \(p.productActivated || newValue))")
         }.store(in: &proDebugCancellables)
 
-        Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0) }
+        Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0.resolvedPath) }
         migrateShortcutsToPipelines()
         migrateToUnifiedCompression()
         seedBuiltinPipelines()
@@ -420,7 +428,7 @@ class AppDelegate: AppDelegateParent {
             .store(in: &observers)
         pub(.workdir)
             .sink {
-                FilePath.workdir = FilePath.dir($0.newValue, permissions: 0o777)
+                FilePath.workdir = FilePath.dir($0.newValue.resolvedPath, permissions: 0o777)
             }
             .store(in: &observers)
         pub(.floatingResultsCorner)
@@ -1140,7 +1148,7 @@ class AppDelegate: AppDelegateParent {
                         return
                     }
                 }
-                let matchedDir = Defaults[.videoDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let matchedDir = matchingWatchedDir(for: path, in: Defaults[.videoDirs])
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .video(UTType.from(filePath: path) ?? .mpeg4Movie)
@@ -1179,7 +1187,7 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task {
-                let matchedDir = Defaults[.imageDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let matchedDir = matchingWatchedDir(for: path, in: Defaults[.imageDirs])
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 guard let img = Image(path: path, retinaDownscaled: false) else { return }
@@ -1218,7 +1226,7 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task {
-                let matchedDir = Defaults[.pdfDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let matchedDir = matchingWatchedDir(for: path, in: Defaults[.pdfDirs])
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .pdf
@@ -1256,7 +1264,7 @@ class AppDelegate: AppDelegateParent {
                 return
             }
             Task {
-                let matchedDir = Defaults[.audioDirs].filter { path.string.starts(with: $0) }.max(by: \.count)
+                let matchedDir = matchingWatchedDir(for: path, in: Defaults[.audioDirs])
                 let source = matchedDir?.optSource
                 let hide = matchedDir.map { Defaults[.dirsHideFloatingResult].contains($0) } ?? false
                 let type: ItemType = .audio(UTType.from(filePath: path) ?? .mp3)

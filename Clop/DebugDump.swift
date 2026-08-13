@@ -284,7 +284,7 @@ enum DebugDump {
             lines.append("")
             lines.append("# \(title) (\(byDir.count) folders)")
             for (dir, pipelines) in byDir.sorted(by: { $0.key < $1.key }) {
-                let exists = FileManager.default.fileExists(atPath: dir)
+                let exists = FileManager.default.fileExists(atPath: dir.resolvedPath)
                 lines.append("  \(dir)\(exists ? "" : "  [MISSING]")")
                 for p in pipelines {
                     let r = p.resolved
@@ -505,7 +505,7 @@ enum DebugDump {
         let recorder = EventRecorder()
         eventRecorder = recorder
 
-        let dirs = Set(Defaults[.imageDirs] + Defaults[.videoDirs] + Defaults[.pdfDirs] + Defaults[.audioDirs])
+        let dirs = Set((Defaults[.imageDirs] + Defaults[.videoDirs] + Defaults[.pdfDirs] + Defaults[.audioDirs]).map(\.resolvedPath))
             .filter { FileManager.default.fileExists(atPath: $0) }
             .sorted()
         recorder.append("[info] raw fsevents stream on \(dirs.count) watched folders: \(dirs.joined(separator: " "))")

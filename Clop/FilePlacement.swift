@@ -42,7 +42,8 @@ func destinationPath(type: ClopFileType, kind: OutputKind, path: FilePath, overr
         }
         return path.dir / generateFileName(template: template, for: path, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber])
     case .specificFolder:
-        let template = overrides?.specificFolderTemplate ?? type.specificFolderTemplateKey(for: kind).map { Defaults[$0] } ?? "%P/optimised/%f"
+        // Stored portable (`~/Pictures/%f`), so expand before anything treats it as a real path.
+        let template = (overrides?.specificFolderTemplate ?? type.specificFolderTemplateKey(for: kind).map { Defaults[$0] } ?? "%P/optimised/%f").resolvedPath
         let pathWithoutExtension = (path.dir / (path.stem ?? path.name.string)).string
         let isAbsoluteTemplate = template.hasPrefix("/") || template.hasPrefix("%P") || template.hasPrefix("%F")
         if nameMatchesTemplate(pathWithoutExtension, template: template, allowPathPrefix: !isAbsoluteTemplate) {

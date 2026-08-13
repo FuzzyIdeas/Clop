@@ -33,7 +33,7 @@ extension String: @retroactive Identifiable {
     }
 }
 
-let NOT_ALLOWED_TO_WATCH = [FilePath.clopBackups.string, FilePath.images.string, FilePath.videos.string, FilePath.forResize.string, FilePath.conversions.string, FilePath.downloads.string]
+let NOT_ALLOWED_TO_WATCH = [FilePath.clopBackups, FilePath.images, FilePath.videos, FilePath.forResize, FilePath.conversions, FilePath.downloads].map(\.portablePath)
 
 import Combine
 
@@ -257,7 +257,7 @@ struct DirListView: View {
                         onCompletion: { result in
                             switch result {
                             case let .success(success):
-                                dirs = (dirs + success.map(\.path)).uniqued.without(NOT_ALLOWED_TO_WATCH)
+                                dirs = (dirs + success.map(\.path.portablePath)).uniqued.without(NOT_ALLOWED_TO_WATCH)
                             case let .failure(failure):
                                 log.error("\(failure.localizedDescription)")
                             }
@@ -298,7 +298,7 @@ struct DirListView: View {
                 saveIgnoreRules(text: textDebounce.text, dir: selectedDirs.first)
             }
 
-            textDebounce.debouncedText = (try? String(contentsOfFile: "\(dir)/.clopignore-\(fileType.rawValue)")) ?? ""
+            textDebounce.debouncedText = (try? String(contentsOfFile: "\(dir.resolvedPath)/.clopignore-\(fileType.rawValue)")) ?? ""
             textDebounce.text = textDebounce.debouncedText
         }
         .onChange(of: enabled) { enabled in
@@ -337,7 +337,7 @@ struct DirListView: View {
     func saveIgnoreRules(text: String, dir: String? = nil) {
         guard let dir = dir ?? selectedDirs.first else { return }
 
-        let clopIgnore = "\(dir)/.clopignore-\(fileType.rawValue)"
+        let clopIgnore = "\(dir.resolvedPath)/.clopignore-\(fileType.rawValue)"
         guard text.isNotEmpty else {
             log.debug("Deleting \(clopIgnore)")
             try? fm.removeItem(atPath: clopIgnore)
@@ -846,9 +846,15 @@ struct CompactSpecificFolderTemplate: View {
         ))?.flatMap(\.shellString) ?? "Invalid path"
     }
 
+    /// Stores a pasted home path as `~/…` so the template still points somewhere real on the other
+    /// Macs it syncs to, where the username differs.
+    var portableTemplate: Binding<String> {
+        Binding(get: { template }, set: { template = $0.portablePath })
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            TextField("", text: $template, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
+            TextField("", text: portableTemplate, prompt: Text(DEFAULT_SPECIFIC_FOLDER_NAME_TEMPLATE))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 6)
                 .frame(height: 24)
@@ -2527,7 +2533,7 @@ struct EditorAppRow: View {
                 Button("Choose app…", action: pick)
             }
         }
-        .onAppear { appPath = Defaults[key] }
+        .onAppear { appPath = Defaults[key].resolvedPath }
     }
 
     @State private var appPath = ""
@@ -2559,7 +2565,7 @@ struct EditorAppRow: View {
         panel.begin { resp in
             guard resp == .OK, let url = panel.url else { return }
             appPath = url.path
-            Defaults[key] = url.path
+            Defaults[key] = url.path.portablePath
         }
     }
 }
@@ -2696,10 +2702,10 @@ struct GeneralSettingsView: View {
         Binding(
             get: { workdir.shellString },
             set: { value in
-                guard !value.isEmpty, let path = value.existingFilePath else {
+                guard !value.isEmpty, let path = value.resolvedPath.existingFilePath else {
                     return
                 }
-                workdir = path.string
+                workdir = path.portablePath
             }
         )
     }

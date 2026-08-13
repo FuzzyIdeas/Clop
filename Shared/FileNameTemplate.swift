@@ -138,12 +138,15 @@ enum FileNameToken: String {
     case fullPath = "%F"
 }
 
-func generateFilePath(template: FilePath, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath {
+func generateFilePath(template rawTemplate: FilePath, for path: FilePath? = nil, autoIncrementingNumber: inout Int, mkdir: Bool) throws -> FilePath {
     let num_ = autoIncrementingNumber
-    log.trace("Generating file path from '\(template.string)' for '\(path?.string ?? "NOPATH")' [num: \(num_), mkdir: \(mkdir)]")
+    log.trace("Generating file path from '\(rawTemplate.string)' for '\(path?.string ?? "NOPATH")' [num: \(num_), mkdir: \(mkdir)]")
     let num = autoIncrementingNumber + 1
     var placeholderNum = 0
 
+    // Templates are stored portable (`~/Pictures/%f`), so the home prefix has to come back before
+    // the path is treated as absolute, otherwise `~` lands as a literal folder name.
+    let template = FilePath(rawTemplate.string.resolvedPath)
     var newpath = template
     newpath.components = FilePath.ComponentView(
         newpath.components.map { component in
@@ -185,6 +188,7 @@ func generateFilePath(template: String, for path: FilePath? = nil, autoIncrement
     let num_ = autoIncrementingNumber
     log.trace("Generating file path from '\(template)' for '\(path?.string ?? "NOPATH")' [num: \(num_), mkdir: \(mkdir)]")
     let pathString = generateFileName(template: template, for: path, autoIncrementingNumber: &autoIncrementingNumber, safe: false)
+        .resolvedPath
     guard var newpath = pathString.filePath?.lexicallyNormalized() else {
         return nil
     }

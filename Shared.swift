@@ -928,6 +928,62 @@ extension FilePath {
     }
 }
 
+// MARK: - Portable paths
+
+let HOME_DIR = NSHomeDirectory()
+
+extension String {
+    /// Absolute path -> portable path: `/Users/alin/Desktop` becomes `~/Desktop`.
+    ///
+    /// Everything that ends up in Defaults must be stored this way. Settings sync through iCloud
+    /// and the other Mac can have a different username, so an absolute home path arrives pointing
+    /// at a folder that isn't there. Paths outside the home folder (`/Volumes/…`, `/Library/…`)
+    /// are left alone, and a string that already starts with `~` comes back unchanged.
+    var portablePath: String {
+        guard hasPrefix(HOME_DIR) else { return self }
+        let rest = dropFirst(HOME_DIR.count)
+        guard rest.isEmpty || rest.hasPrefix("/") else { return self }
+        return "~\(rest)"
+    }
+
+    /// Every absolute home path embedded in a longer string turned portable. For text that carries
+    /// paths inside it rather than being one, like pipeline source code.
+    var portablePathsInText: String {
+        replacingOccurrences(of: "\(HOME_DIR)/", with: "~/")
+    }
+
+    /// Portable path -> absolute path. Handles `~`, `~/`, `$HOME` and `${HOME}`.
+    ///
+    /// Anything that touches the filesystem has to go through this, since the stored form is
+    /// portable. Absolute paths and paths with no home prefix come back unchanged.
+    var resolvedPath: String {
+        if self == "~" || hasPrefix("~/") {
+            return HOME_DIR + dropFirst(1)
+        }
+        for prefix in ["$HOME", "${HOME}"] where hasPrefix(prefix) {
+            let rest = dropFirst(prefix.count)
+            if rest.isEmpty || rest.hasPrefix("/") {
+                return HOME_DIR + rest
+            }
+        }
+        return self
+    }
+}
+
+extension FilePath {
+    /// The portable form of this path, for storing in Defaults. See `String.portablePath`.
+    var portablePath: String {
+        string.portablePath
+    }
+}
+
+/// The deepest watched folder containing `path`, returned in the same (portable) form it is stored
+/// in, so the result can be used as a key for `dirsHideFloatingResult` and the pipeline dicts.
+func matchingWatchedDir(for path: FilePath, in dirs: [String]) -> String? {
+    let portable = path.portablePath
+    return dirs.filter { portable.hasPrefix($0.portablePath) }.max(by: { $0.count < $1.count })
+}
+
 let ARCH: String = {
     var ret = 0
     var size = MemoryLayout.size(ofValue: ret)

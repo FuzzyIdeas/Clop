@@ -1813,9 +1813,13 @@ struct Clop: ParsableCommand {
                 if resolved.displayText == "(no steps)" {
                     return .missing
                 }
-                // Orphaned folder automation: source is an absolute path not in watchedDirs.
-                if source.hasPrefix("/"), !watchedDirs.contains(source) {
-                    return .orphaned
+                // Orphaned folder automation: source is a path not in watchedDirs. Compare portable
+                // forms, since either side can still hold a pre-migration absolute path.
+                if source.hasPrefix("/") || source.hasPrefix("~") {
+                    let portable = source.portablePath
+                    if !watchedDirs.contains(where: { $0.portablePath == portable }) {
+                        return .orphaned
+                    }
                 }
                 return nil
             }
@@ -2079,7 +2083,7 @@ struct Clop: ParsableCommand {
                 var dict: [String: Any] = [
                     "id": UUID().uuidString,
                     "name": name,
-                    "rawText": steps,
+                    "rawText": steps.portablePathsInText,
                     "steps": [Any](),
                     "skipOptimisation": skipOptimisation,
                     "hideResult": hideResult,
@@ -2226,7 +2230,7 @@ struct Clop: ParsableCommand {
                 case .inline:
                     let pipelineData: [String: Any] = [
                         "id": UUID().uuidString,
-                        "rawText": pipeline,
+                        "rawText": pipeline.portablePathsInText,
                         "steps": [Any](),
                         "skipOptimisation": skipOptimisation,
                         "hideResult": hideResult,
@@ -2238,7 +2242,7 @@ struct Clop: ParsableCommand {
                     throw ValidationError("Invalid pipeline '\(pipeline)'")
                 }
 
-                // A folder source is keyed by its normalized absolute path, matching how the app
+                // A folder source is keyed by its normalized portable path, matching how the app
                 // stores watched dirs and looks up folder automations.
                 let folder = normalizedFolderSource(source)
                 let storedSource = folder ?? source
@@ -2256,7 +2260,7 @@ struct Clop: ParsableCommand {
                 if let folder {
                     let dirsKey = watchedDirsKey(for: type)
                     var dirs = defaults.array(forKey: dirsKey) as? [String] ?? defaultWatchedDirs(for: type)
-                    if !dirs.contains(folder) {
+                    if !dirs.contains(where: { $0.portablePath == folder }) {
                         dirs.append(folder)
                         defaults.set(dirs, forKey: dirsKey)
                         notes.append("now watching this folder")
@@ -2314,7 +2318,7 @@ struct Clop: ParsableCommand {
                 let key = automationKey(for: type)
                 var automationDict = defaults.dictionary(forKey: key) as? [String: [String]] ?? [:]
 
-                // Resolve the stored key: a folder source normalizes to an absolute path, but fall
+                // Resolve the stored key: a folder source normalizes to a portable path, but fall
                 // back to the raw source for automations saved before normalization existed.
                 let folder = normalizedFolderSource(source)
                 let storedSource: String = {
@@ -2423,7 +2427,7 @@ struct Clop: ParsableCommand {
                     case .inline:
                         pipelineDict = [
                             "id": UUID().uuidString,
-                            "rawText": pipeline,
+                            "rawText": pipeline.portablePathsInText,
                             "steps": [Any](),
                             "skipOptimisation": skipOptimisation,
                             "hideResult": hideResult,
@@ -3143,7 +3147,7 @@ func watcherEnabledKey(for type: String) -> (key: String, default: Bool) {
 /// doesn't silently drop the implicit default folders.
 func defaultWatchedDirs(for type: String) -> [String] {
     switch type {
-    case "image", "video": [URL.desktopDirectory.path]
+    case "image", "video": [URL.desktopDirectory.path.portablePath]
     default: []
     }
 }
@@ -3156,13 +3160,13 @@ let FIXED_AUTOMATION_SOURCES: Set = [
     "service", "photos", "shortcuts", "cli", "finder",
 ]
 
-/// If `source` names a folder (not a fixed keyword), return its normalized absolute path
-/// (expanding `~`, standardizing). The app keys folder automations and watched dirs by this exact
-/// absolute path, so attach/detach must normalize identically. Returns nil for keyword sources.
+/// If `source` names a folder (not a fixed keyword), return its normalized portable path
+/// (standardized, then the home folder collapsed back to `~`). The app keys folder automations and
+/// watched dirs by this exact string, so attach/detach must normalize identically. Returns nil for
+/// keyword sources.
 func normalizedFolderSource(_ source: String) -> String? {
     guard !FIXED_AUTOMATION_SOURCES.contains(source) else { return nil }
-    let expanded = (source as NSString).expandingTildeInPath
-    return URL(fileURLWithPath: expanded).standardizedFileURL.path
+    return URL(fileURLWithPath: source.resolvedPath).standardizedFileURL.path.portablePath
 }
 
 let CHECKMARK = "✓".green()

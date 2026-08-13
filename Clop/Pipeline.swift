@@ -139,18 +139,29 @@ struct Pipeline: Codable, Hashable, Identifiable, Defaults.Serializable {
         return rawText ?? steps.map(\.displayString).joined(separator: " -> ")
     }
 
+    /// The same pipeline with any absolute home path in its source turned portable, so it still
+    /// points somewhere real after syncing to a Mac with a different username.
+    var portablePaths: Pipeline {
+        guard let rawText, rawText.contains(HOME_DIR) else { return self }
+        var copy = self
+        copy.updateFromText(rawText)
+        return copy
+    }
+
     /// Create a lightweight reference pipeline pointing to a library pipeline.
     static func reference(to lib: Pipeline) -> Pipeline {
         Pipeline(id: UUID().uuidString, steps: [], libraryID: lib.id)
     }
 
     static func cleanupPipelineText(_ text: String) -> String {
-        text.replacingOccurrences(of: ")->", with: ") ->")
+        text.portablePathsInText
+            .replacingOccurrences(of: ")->", with: ") ->")
             .replacingOccurrences(of: "->(", with: "-> (")
     }
 
     static func parseSteps(from text: String) -> [PipelineStep] {
-        text.components(separatedBy: "->")
+        text.portablePathsInText
+            .components(separatedBy: "->")
             .flatMap { $0.components(separatedBy: "\n") }
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
@@ -375,12 +386,9 @@ struct TemplateContext {
             result = result.replacingOccurrences(of: "$\(i + 1)", with: capture)
         }
 
-        // Expand tilde
-        if result.hasPrefix("~/") {
-            result = HOME.string + result.dropFirst(1)
-        }
-
-        return result
+        // Paths are stored portable (`~/…`, `$HOME/…`) so they survive syncing to a Mac with a
+        // different username. Expand back before anything touches the filesystem.
+        return result.resolvedPath
     }
 }
 

@@ -64,8 +64,10 @@ struct OpenWithMenuView: View {
     } else {
         ""
     }
-    guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return nil }
-    return URL(fileURLWithPath: path)
+    // Stored portable, so the setting survives syncing to a Mac with a different username.
+    let resolved = path.resolvedPath
+    guard !resolved.isEmpty, FileManager.default.fileExists(atPath: resolved) else { return nil }
+    return URL(fileURLWithPath: resolved)
 }
 
 /// A 14pt icon for an application bundle, sized for a menu item.
