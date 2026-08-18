@@ -560,6 +560,7 @@ struct VideoSettingsView: View {
     @Default(.capVideoFPS) var capVideoFPS
     @Default(.targetVideoFPS) var targetVideoFPS
     @Default(.minVideoFPS) var minVideoFPS
+    @Default(.playbackSpeedFrameBehaviour) var playbackSpeedFrameBehaviour
     @Default(.maxVideoFileCount) var maxVideoFileCount
     @Default(.removeAudioFromVideos) var removeAudioFromVideos
     @Default(.convertAudioToAAC) var convertAudioToAAC
@@ -685,6 +686,12 @@ struct VideoSettingsView: View {
                         }.buttonStyle(ToggleButton(isOn: .oneway { minVideoFPS == 60 }))
                     }
                     .padding(.leading, 10)
+                }
+                Picker(selection: $playbackSpeedFrameBehaviour) {
+                    Text("Keep frames (smoother, higher fps)").tag(PlaybackSpeedFrameBehaviour.keepFrames)
+                    Text("Drop frames (smaller file)").tag(PlaybackSpeedFrameBehaviour.dropFrames)
+                } label: {
+                    Text("Playback speed change").regular(13)
                 }
 
             }

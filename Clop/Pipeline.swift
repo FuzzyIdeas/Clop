@@ -730,6 +730,10 @@ extension Optimiser {
     log.debug("Pipeline: checking pipelines for file=\(file.string) type=\(String(describing: type)) source=\(source.string)")
     let pipelines = explicitPipelines?.map(\.resolved) ?? pipelinesFor(type: type, source: source)
 
+    // A fresh run means a fresh source file, so any pristine copy remembered for manual
+    // adjustments of the previous result is stale.
+    optimiser.adjustmentSourceURL = nil
+
     // Seed the temp pipeline
     if let first = pipelines.first {
         optimiser.automationPipeline = first

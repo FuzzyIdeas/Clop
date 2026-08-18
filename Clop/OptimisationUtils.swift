@@ -380,6 +380,12 @@ enum TempPipelineSegment {
 
     @Published var stepIndicator = ""
 
+    /// The pristine file that repeated manual adjustments re-render from. Kept because the backup
+    /// name hashes the file's timestamp: once an adjustment rewrites the file in place, its
+    /// `clopBackupPath` points at a name that was never written, and the next adjustment would
+    /// start from the already adjusted result (2x then 1.5x giving 3x instead of 1.5x).
+    @Published var adjustmentSourceURL: URL?
+
     /// The pristine uncropped file that rect crops should start from. The backup name
     /// hashes the file's timestamp, so in-place changes (like a previous crop) can make
     /// it unresolvable: fall back to the URLs tracked at optimisation time.
@@ -387,6 +393,9 @@ enum TempPipelineSegment {
         guard let url, let path = url.filePath else { return nil }
         if let backup = path.clopBackupPath, backup.exists {
             return backup.url
+        }
+        if let remembered = adjustmentSourceURL?.existingFilePath {
+            return remembered.url
         }
         let ext = path.extension?.lowercased()
         for candidate in [originalURL, startingURL] {
@@ -666,6 +675,18 @@ enum TempPipelineSegment {
         lhs.id == rhs.id
     }
 
+    /// Resolves the pristine source for an adjustment of `path`, remembering it for the next one.
+    /// `Video.optimise` writes its backup at exactly `path.clopBackupPath`, so recording that path
+    /// before the file is rewritten keeps it resolvable afterwards.
+    func adjustmentSource(for path: FilePath) -> FilePath? {
+        if let existing = adjustmentSourceURL?.existingFilePath {
+            return existing
+        }
+        let resolved = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath
+        adjustmentSourceURL = (resolved ?? path.clopBackupPath)?.url
+        return resolved
+    }
+
     /// `currentAudioFormat`, but only when a conversion is actually in effect (the result's format
     /// differs from `originalExtension`). Used as a `formatOverride` when re-encoding from the pristine
     /// original so recompressing a converted file keeps the converted format instead of reverting to the
@@ -835,9 +856,7 @@ enum TempPipelineSegment {
         // originalURL can point at the backup, which "Restore original" moves back
         // over the working file, so only trust it if the file still exists
         guard var originalFilePath = originalURL?.existingFilePath ?? path else { return }
-        let backupPath = (originalFilePath.clopBackupPath?.exists ?? false)
-            ? originalFilePath.clopBackupPath
-            : convertedFromURL?.existingFilePath
+        let backupPath = adjustmentSource(for: originalFilePath)
         if !originalFilePath.exists, let backupPath {
             _ = try? backupPath.copy(to: originalFilePath)
         }
@@ -1413,7 +1432,15 @@ enum TempPipelineSegment {
             running = true
             operation = effectiveFactor == 1.0 ? "Restoring speed" : "Changing speed to \(effectiveFactor)x"
             let oldBytes = oldBytes
-            let speedSource = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath! : path
+            // The atempo pass has no backup step of its own, so snapshot the file before the first
+            // speed change: without it, a second one would compound on the first result.
+            let speedSource: FilePath = if let pristine = adjustmentSource(for: path) {
+                pristine
+            } else if let backup = path.clopBackupPath, (try? path.copy(to: backup, force: true)) != nil {
+                backup
+            } else {
+                path
+            }
             let optimiser = self
             audioOptimisationQueue.addOperation {
                 let audio = Audio(speedSource)
@@ -1432,7 +1459,7 @@ enum TempPipelineSegment {
             return
         }
 
-        let originalPath = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : convertedFromURL?.existingFilePath
+        let originalPath = adjustmentSource(for: path)
         if !path.exists, let originalPath {
             _ = try? originalPath.copy(to: path)
         }
@@ -1924,6 +1951,7 @@ enum TempPipelineSegment {
         isOriginal = true
         tempPipeline = []
         automationPipeline = nil
+        adjustmentSourceURL = nil
     }
 
     nonisolated func hash(into hasher: inout Hasher) {
