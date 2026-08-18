@@ -274,25 +274,47 @@ class Video: Optimisable {
         var additionalArgs = [String]()
 
         var newFPS = fps
+        // Whether an explicit frame rate ceiling is in play, either from the caller or the settings.
+        let fpsCapped = fpsOverride != nil || Defaults[.capVideoFPS]
+        // A speed-up that keeps every frame legitimately ends up above the source rate.
+        var speedRaisedFPS = false
+
+        var fpsCap: Float?
         if let fpsOverride {
-            newFPS = Float(fpsOverride)
-            additionalArgs += ["-fpsmax", "\(fpsOverride)"]
+            fpsCap = Float(fpsOverride)
         } else if Defaults[.capVideoFPS] {
-            newFPS = Defaults[.targetVideoFPS]
-            if newFPS == -2, let fps {
-                newFPS = max(fps / 2, Defaults[.minVideoFPS])
-            } else if newFPS == -4, let fps {
-                newFPS = max(fps / 4, Defaults[.minVideoFPS])
-            } else if newFPS! < 0 {
-                newFPS = 60
+            var target = Defaults[.targetVideoFPS]
+            if target == -2, let fps {
+                target = max(fps / 2, Defaults[.minVideoFPS])
+            } else if target == -4, let fps {
+                target = max(fps / 4, Defaults[.minVideoFPS])
+            } else if target < 0 {
+                target = 60
             }
-            additionalArgs += ["-fpsmax", "\(newFPS!)"]
+            fpsCap = target
+        }
+        // A cap at or above the source rate has nothing to drop, so it shouldn't reach ffmpeg at all.
+        let capsBelowSource = if let fpsCap, let fps { fpsCap < fps } else { fpsCap != nil }
+        if let fpsCap, capsBelowSource {
+            newFPS = fpsCap
+            additionalArgs += ["-fpsmax", "\(fpsCap)"]
         }
 
         var filters = getScaleFilters(cropSize: cropSize, newSize: newSize)
 
         if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor > 0 {
             filters.append("setpts=PTS/\(String(format: "%.2f", changePlaybackSpeedFactor))")
+            // setpts alone keeps every frame, so the frame rate scales with the speed factor.
+            // Resampling back to the source rate drops (or duplicates) frames instead.
+            if Defaults[.playbackSpeedFrameBehaviour] == .dropFrames, let fps, fps > 0 {
+                filters.append("fps=\(String(format: "%.3f", fps))")
+                newFPS = fps
+            } else if let fps, fps > 0 {
+                let spedUpFPS = Float(Double(fps) * changePlaybackSpeedFactor)
+                // `-fpsmax` still trims the result, so the reported rate is the lower of the two.
+                newFPS = fpsCapped ? min(spedUpFPS, newFPS ?? spedUpFPS) : spedUpFPS
+                speedRaisedFPS = newFPS! > fps
+            }
         }
 
         if filters.isNotEmpty {
@@ -300,6 +322,16 @@ class Video: Optimisable {
             try inputPath.copy(to: pathForFilters, force: true)
             inputPath = pathForFilters
             additionalArgs += ["-vf", filters.joined(separator: ",")]
+        }
+
+        if !capsBelowSource {
+            // Variable frame rate sources report their average, so a screen recording that runs at
+            // 60fps while something moves and holds still in between comes out as ~23fps. ffmpeg
+            // would resample the output to that average and throw away every frame landing in an
+            // occupied slot, which stutters exactly the parts that do move. Passing the frames
+            // through keeps them, and the encoder needs a time base fine enough to hold their real
+            // timestamps too, or they round onto the same tick and the frames are wasted bytes.
+            additionalArgs += ["-fps_mode", "passthrough", "-enc_time_base", filters.isNotEmpty ? "filter" : "demux"]
         }
 
         let duration = duration
@@ -382,7 +414,7 @@ class Video: Optimisable {
         }
         try? outputPath.setOptimisationStatusXattr("true")
 
-        if Defaults[.capVideoFPS], let fps, let new = newFPS, new > fps {
+        if Defaults[.capVideoFPS], !speedRaisedFPS, let fps, let new = newFPS, new > fps {
             newFPS = fps
         }
         let resultingSize = if let size, let cropSize {

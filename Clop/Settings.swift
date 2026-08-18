@@ -130,6 +130,7 @@ extension Defaults.Keys {
     static let capVideoFPS = Key<Bool>("capVideoFPS", default: true)
     static let targetVideoFPS = Key<Float>("targetVideoFPS", default: 60)
     static let minVideoFPS = Key<Float>("minVideoFPS", default: 30)
+    static let playbackSpeedFrameBehaviour = Key<PlaybackSpeedFrameBehaviour>("playbackSpeedFrameBehaviour", default: .keepFrames)
     static let removeAudioFromVideos = Key<Bool>("removeAudioFromVideos", default: false)
     static let convertAudioToAAC = Key<Bool>("convertAudioToAAC", default: false)
 
@@ -305,6 +306,14 @@ enum FormatPickerStyle: String, Codable, Defaults.Serializable {
     case extensionHover
 }
 
+/// What happens to the frames when a video's playback speed is changed.
+enum PlaybackSpeedFrameBehaviour: String, Codable, Defaults.Serializable {
+    /// All frames are kept, so the frame rate rises with the speed factor and motion looks smoother.
+    case keepFrames
+    /// Frames are dropped so the frame rate stays the same as the source, resulting in a smaller file.
+    case dropFrames
+}
+
 /// What happens to GIF timing when high compression factors (80+) drop animation frames.
 enum GIFFrameDropBehaviour: String, Codable, Defaults.Serializable {
     /// Frame delays are left untouched: motion stays smooth but the animation gets shorter and faster.
@@ -391,6 +400,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .maxImageResolution,
     .maxVideoResolution,
     .minVideoFPS,
+    .playbackSpeedFrameBehaviour,
     .removeAudioFromVideos,
     .convertAudioToAAC,
     .optimisedImageBehaviour,
