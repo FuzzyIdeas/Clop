@@ -3014,6 +3014,13 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     }
 }
 
+/// `copyItem` is synchronous, so copying a source file to its templated destination on the main
+/// actor freezes the UI for as long as the copy takes: tens of seconds for a large file or a slow,
+/// sleeping or network destination volume (CLOP-132). Hand it to a detached task instead.
+@MainActor func copyToTemplatedPath(_ src: FilePath, to dest: FilePath) async throws -> FilePath {
+    try await Task.detached { try src.copy(to: dest, force: true) }.value
+}
+
 @discardableResult
 @MainActor func optimiseItem(
     _ item: ClipboardType,
@@ -3128,7 +3135,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
         switch item {
         case var .image(img):
             if outFilePath == nil, let newPath = try getTemplatedPath(type: .image, path: img.path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != img.path {
-                img = try img.copyWithPath(img.path.copy(to: newPath, force: true))
+                img = try await img.copyWithPath(copyToTemplatedPath(img.path, to: newPath))
             }
 
             let imgActions: [PipelineAction] = if let cropSize {
@@ -3172,7 +3179,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 }
 
                 if outFilePath == nil, let newPath = try getTemplatedPath(type: .image, path: img.path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != img.path {
-                    path = try path.copy(to: newPath, force: true)
+                    path = try await copyToTemplatedPath(path, to: newPath)
                     img = img.copyWithPath(path)
                 }
 
@@ -3222,7 +3229,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
 
                 let willConvert = Defaults[.formatsToConvertToMP4].contains(path.url.utType() ?? .mpeg4Movie)
                 if !willConvert, outFilePath == nil, let newPath = try getTemplatedPath(type: .video, path: path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != path {
-                    path = try path.copy(to: newPath, force: true)
+                    path = try await copyToTemplatedPath(path, to: newPath)
                 }
 
                 let fileVidActions = buildPipeline(
@@ -3266,7 +3273,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 }
 
                 if outFilePath == nil, let newPath = try getTemplatedPath(type: .pdf, path: path, optimisedFileBehaviour: optimisedFileBehaviour), newPath != path {
-                    path = try path.copy(to: newPath, force: true)
+                    path = try await copyToTemplatedPath(path, to: newPath)
                 }
 
                 var filePdfActions: [PipelineAction] = [.optimise]
