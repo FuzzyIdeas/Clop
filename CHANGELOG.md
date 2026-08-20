@@ -1,3 +1,38 @@
+# 3.3.5
+
+**[Download Clop 3.3.5 →](https://files.lowtechguys.com/releases/Clop-3.3.5.dmg)**
+## Features
+
+- **Playback speed change** setting picks what happens to a video's frames when you speed it up or slow it down
+    > *Keep frames* raises the frame rate along with the speed, so a 2x speed-up of a 30fps clip plays back at 60fps and looks smoother
+    >
+    > *Drop frames* stays at the source frame rate for a smaller file
+    >
+    > Set it in Settings > Videos, under *Optimisation rules*
+
+## Fixes
+
+- Optimised videos keep every frame of the source. Screen recordings suffered the most: a 60fps recording that holds still between bursts of motion averages out to ~23fps, and more than half its frames were being thrown away, so anything that moved stuttered
+- Changing a video's playback speed twice applies the new factor to the original, so 2x then 1.5x gives 1.5x instead of 3x. Same for audio
+
+# 3.3.4
+
+**[Download Clop 3.3.4 →](https://files.lowtechguys.com/releases/Clop-3.3.4.dmg)**
+## Fixes
+
+- Images whose contents don't match their extension no longer fail to optimise, a JPEG named `.png` is compressed as a JPEG
+- Fixed a possible crash while optimising an image, when a compression pass had to be retried
+- Fixed a possible freeze when optimising a file that sits on a slow, sleeping or network drive
+- Fixed a possible freeze when starting a batch with many or large files
+- Optimising from the **Services** menu shows failures on the result card, instead of leaving it stuck on "Optimising" with the file quietly untouched
+- Files in a read-only folder report which folder can't be written to, instead of a message naming the file. The original is left intact either way
+
+## Improvements
+
+- Placeholder icons on result cards show up instantly
+- Folders, templates and pipeline paths are stored as `~/Pictures` instead of `/Users/name/Pictures`, so settings synced through iCloud keep working on a Mac with a different username
+- A save location typed as `~/Pictures/%f` now saves there, instead of creating a folder called `~` next to the file
+
 # 3.3.3
 
 **[Download Clop 3.3.3 →](https://files.lowtechguys.com/releases/Clop-3.3.3.dmg)**
