@@ -373,6 +373,16 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                             if id != Optimiser.IDs.clipboardImage, let savePath, let ext = currentImage!.path.extension {
                                 currentImage = try currentImage?.copyWithPath(currentImage!.path.copy(to: savePath.withExtension(ext), force: true))
                             }
+                            // The encoder wrote the new format next to its input. When that input is the
+                            // copy Clop made at the templated destination ("same folder" with `%f-optimised`),
+                            // nothing points at it any more, so it would sit in the user's folder as a stale
+                            // `img-optimised.png` beside the `img-optimised.jpg` that replaced it.
+                            if id != Optimiser.IDs.clipboardImage, let newPath = currentImage?.path, newPath != ci.path,
+                               ci.path.exists, !ci.path.starts(with: FilePath.workdir),
+                               isTemplatedCopy(type: .image, path: ci.path, overrides: optimiser.placementOverride)
+                            {
+                                try? ci.path.delete()
+                            }
                             mainActor {
                                 optimiser.url = currentImage!.path.url
                                 optimiser.type = .image(currentImage!.type)

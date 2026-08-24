@@ -129,3 +129,27 @@ func executePlacement(_ plan: PlacementPlan, produced: FilePath, original: FileP
     let plan = try planPlacement(produced: produced, original: original, type: type, kind: kind, overrides: overrides)
     return try executePlacement(plan, produced: produced, original: original)
 }
+
+/// Whether `path` is a copy Clop itself made at the templated destination, so nothing but Clop
+/// points at it. True only for `sameFolder`/`specificFolder` with a template that renames the file:
+/// `inPlace`, `temporary` and a bare `%f` all leave the user's own file at that path.
+///
+/// Used to clear the intermediate an adaptive conversion strands: the encoder writes the new format
+/// next to its input, so `img-optimised.png` stays in the folder beside the `img-optimised.jpg` that
+/// superseded it.
+func isTemplatedCopy(type: ClopFileType, kind: OutputKind = .optimised, path: FilePath, overrides: PlacementOverride? = nil) -> Bool {
+    switch effectiveBehaviour(type: type, kind: kind, overrides: overrides) {
+    case .temporary, .inPlace:
+        return false
+    case .sameFolder:
+        let template = overrides?.sameFolderTemplate ?? type.sameFolderTemplateKey(for: kind).map { Defaults[$0] } ?? "%f"
+        guard !template.isEmpty, template != "%f" else { return false }
+        return nameMatchesTemplate(path.stem ?? path.name.string, template: template)
+    case .specificFolder:
+        let template = (overrides?.specificFolderTemplate ?? type.specificFolderTemplateKey(for: kind).map { Defaults[$0] } ?? "%P/optimised/%f").resolvedPath
+        guard !template.isEmpty else { return false }
+        let pathWithoutExtension = (path.dir / (path.stem ?? path.name.string)).string
+        let isAbsoluteTemplate = template.hasPrefix("/") || template.hasPrefix("%P") || template.hasPrefix("%F")
+        return nameMatchesTemplate(pathWithoutExtension, template: template, allowPathPrefix: !isAbsoluteTemplate)
+    }
+}
