@@ -413,7 +413,6 @@ class AppDelegate: AppDelegateParent {
             clopDebugLog("proactive observer: onTrial changed to \(newValue) (productActivated=\(p.productActivated), proactive will be \(p.productActivated || newValue))")
         }.store(in: &proDebugCancellables)
 
-        Defaults[.videoDirs] = Defaults[.videoDirs].filter { fm.fileExists(atPath: $0.resolvedPath) }
         migrateShortcutsToPipelines()
         migrateToUnifiedCompression()
         seedBuiltinPipelines()
