@@ -206,10 +206,22 @@ class FileOptimisationWatcher {
 
     func startWatching() {
         stopWatching()
-        guard !paths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
+
+        // FSEvents refuses to start the whole stream if any single path is missing, so a folder on an
+        // unmounted volume, or one that only exists on another Mac (settings sync through iCloud), would
+        // silently stop every other watched folder from working. Skip the missing ones here rather than
+        // deleting them from the stored list: watching restarts on every settings change, so a folder
+        // comes back on its own once its volume is mounted.
+        let existingPaths = paths.filter { fm.fileExists(atPath: $0) }
+        guard !existingPaths.isEmpty, enabled, !Defaults[.pauseAutomaticOptimisations] else { return }
+
+        let typeName = fileType.description
+        for path in paths where !existingPaths.contains(path) {
+            log.debug("Not watching \(path) for \(typeName) optimisation, folder doesn't exist")
+        }
 
         do {
-            try LowtechFSEvents.startWatching(paths: paths, for: ObjectIdentifier(self), latency: 0.3, flags: [.noDefer, .fileEvents, .ignoreSelf, .markSelf]) { [weak self] event in
+            try LowtechFSEvents.startWatching(paths: existingPaths, for: ObjectIdentifier(self), latency: 0.3, flags: [.noDefer, .fileEvents, .ignoreSelf, .markSelf]) { [weak self] event in
                 guard event.flag?.contains(.ownEvent) == false else { return }
                 // The FSEvents callback is delivered on the main thread. Return immediately and do the
                 // work on the main actor: `shouldHandle` runs its blocking filesystem checks (xattr,
