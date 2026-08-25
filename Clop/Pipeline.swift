@@ -470,18 +470,19 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         // If the result ended up in a different directory (e.g. format conversion
         // changed the extension so the tool wrote to a temp path), move it next
         // to the original with the correct filename.
-        if resultFile.dir != original.dir, let filename = resultFile.lastComponent?.string {
-            let dest = original.dir.appending(filename)
-            if let moved = try? resultFile.move(to: dest, force: true) {
-                // Conversion produced a valid file with a different extension;
-                // trash the original input file since the caller asked for inPlace.
-                if moved.extension != original.extension, original.exists, (moved.fileSize() ?? 0) > 0 {
-                    try? fm.trashItem(at: original.url, resultingItemURL: nil)
-                }
-                return moved
-            }
+        var result = resultFile
+        if resultFile.dir != original.dir, let filename = resultFile.lastComponent?.string,
+           let moved = try? resultFile.move(to: original.dir.appending(filename), force: true)
+        {
+            result = moved
         }
-        return resultFile
+        // A conversion leaves the input behind under its old extension, and inPlace means
+        // the original is replaced. The trashing used to be nested inside the move above, so
+        // a tool that already wrote next to the original (webp conversions do) left both files.
+        if result != original, result.extension != original.extension, original.exists, (result.fileSize() ?? 0) > 0 {
+            try? fm.trashItem(at: original.url, resultingItemURL: nil)
+        }
+        return result
     case "sameFolder":
         var filename = resultFile.lastComponent?.string ?? resultFile.name.string
         // Strip the pipeline-<UUID>- prefix added by tempCopyIfNeeded

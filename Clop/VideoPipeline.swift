@@ -40,6 +40,14 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     let hasDownscale = actions.contains(where: \.isDownscale)
     let hasSpeedChange = actions.contains(where: \.isChangePlaybackSpeed)
 
+    // A `Video(path)` built by a caller fetches its metadata in a detached Task that has
+    // usually not finished by the time it gets here, so `video.size` is nil and the downscale
+    // compiles to a plain re-encode at the original resolution. ffmpeg then refuses it outright,
+    // because with no resize the output path is the input path.
+    if hasDownscale, video.metadata == nil {
+        video.metadata = try? await getVideoMetadata(path: path)
+    }
+
     // Compile actions into Video.optimise() parameters
     var resizeTo: CGSize?
     var cropTo: CropSize?
