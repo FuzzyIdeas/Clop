@@ -700,6 +700,13 @@ func shell(_ command: String, args: [String] = [], timeout: TimeInterval? = nil)
 
     let pipe = Pipe()
     task.standardOutput = pipe
+    task.standardError = FileHandle.nullDevice
+    // Inheriting our stdin means anything that decides to prompt blocks forever
+    // on a descriptor nobody will write to.
+    task.standardInput = FileHandle.nullDevice
+
+    let exited = DispatchSemaphore(value: 0)
+    task.terminationHandler = { _ in exited.signal() }
 
     do {
         try task.run()
@@ -708,18 +715,50 @@ func shell(_ command: String, args: [String] = [], timeout: TimeInterval? = nil)
         return nil
     }
 
+    // Drained as the child writes rather than read after it exits: a pipe holds
+    // 64KB and then blocks the writer, so waiting first and reading afterwards
+    // deadlocks on any command that prints more than that.
+    let handle = pipe.fileHandleForReading
+    let output = NSMutableData()
+    let outputLock = NSLock()
+    let drained = DispatchSemaphore(value: 0)
+    handle.readabilityHandler = { handle in
+        let data = handle.availableData
+        guard !data.isEmpty else {
+            handle.readabilityHandler = nil
+            drained.signal()
+            return
+        }
+        outputLock.lock()
+        output.append(data)
+        outputLock.unlock()
+    }
+
     if let timeout {
-        let result = asyncNow { task.waitUntilExit() }.wait(for: timeout)
-        if result == .timedOut {
+        // Riding the termination handler instead of parking a global-queue
+        // thread in waitUntilExit(), which a cancelled work item never leaves.
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
             task.terminate()
+            if exited.wait(timeout: .now() + 2) == .timedOut, task.isRunning {
+                kill(task.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 1)
+            }
+            handle.readabilityHandler = nil
             return nil
         }
     } else {
         task.waitUntilExit()
     }
 
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    return String(data: data, encoding: .utf8)
+    // The child is gone but the last chunk it wrote may still be in flight on
+    // the handler's own queue. EOF follows the exit, so this is bounded.
+    if drained.wait(timeout: .now() + 5) == .timedOut {
+        handle.readabilityHandler = nil
+    }
+
+    outputLock.lock()
+    defer { outputLock.unlock() }
+    return String(data: output as Data, encoding: .utf8)
 }
 
 extension URL {

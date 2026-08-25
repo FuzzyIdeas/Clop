@@ -337,7 +337,9 @@ func isPDFValid(path: FilePath) -> Bool {
     return document.pageCount > 0
 }
 
-@MainActor func updateProgressGS(pipe: Pipe, url: URL, optimiser: Optimiser, pageCount: Int? = nil) {
+@MainActor func updateProgressGS(pipe: Pipe?, url: URL, optimiser: Optimiser, pageCount: Int? = nil) {
+    guard let pipe else { return }
+
     mainActor {
         optimiser.progress = Progress(totalUnitCount: pageCount?.i64 ?? 100)
         optimiser.progress.fileURL = url
@@ -347,14 +349,23 @@ func isPDFValid(path: FilePath) -> Bool {
     }
 
     let handle = pipe.fileHandleForReading
+    // The pipe is drained from the moment the process starts, so the banner
+    // that carries the duration or the page count can already be in the buffer
+    // by the time this handler goes on. Parse everything collected so far on
+    // the first pass, then only what follows.
+    var seeded = false
     handle.readabilityHandler = { pipe in
         let data = pipe.availableData
+        pipe.outputBuffer.append(data)
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
+            pipe.outputBuffer.finish()
             mainActor { optimiser.unpublishProgress() }
             return
         }
-        guard let string = String(data: data, encoding: .utf8) else {
+        let chunk = seeded ? data : Data(pipe.outputBuffer.text.utf8)
+        seeded = true
+        guard let string = String(data: chunk, encoding: .utf8) else {
             return
         }
 
@@ -472,11 +483,11 @@ class PDF: Optimisable {
         }
         // Recompress images (lossy) only when we're actually downsampling below full DPI.
         let args = gsArgs(inputPath.string, tempFile.string, lossy: effectiveDPI < PDF_DPI_NO_DOWNSAMPLE, dpi: effectiveDPI)
-        let proc = try tryProc(GS.string, args: args, tries: 3, captureOutput: true, env: GHOSTSCRIPT_ENV) { proc in
+        let proc = try tryProc(GS.string, args: args, tries: 3, env: GHOSTSCRIPT_ENV) { proc in
             mainActor { [weak self] in
                 guard let self else { return }
                 optimiser.processes = [proc]
-                updateProgressGS(pipe: proc.standardOutput as! Pipe, url: path.url, optimiser: optimiser, pageCount: document.pageCount)
+                updateProgressGS(pipe: proc.standardOutput as? Pipe, url: path.url, optimiser: optimiser, pageCount: document.pageCount)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -699,17 +710,24 @@ extension PDF {
                 let args = ["-dFirstPage=\(chunk.first)", "-dLastPage=\(chunk.last)"] + baseArgs
 
                 do {
-                    let proc = try tryProc(GS.string, args: args, tries: 2, captureOutput: true, env: GHOSTSCRIPT_ENV) { p in
+                    let proc = try tryProc(GS.string, args: args, tries: 2, env: GHOSTSCRIPT_ENV) { p in
                         mainActor { optimiser.processes.append(p) }
                         if let pipe = p.standardOutput as? Pipe {
                             let handle = pipe.fileHandleForReading
+                            // Pages printed before this handler went on are
+                            // already in the buffer; count them once here.
+                            var seeded = false
                             handle.readabilityHandler = { pipe in
                                 let data = pipe.availableData
+                                pipe.outputBuffer.append(data)
                                 guard !data.isEmpty else {
                                     handle.readabilityHandler = nil
+                                    pipe.outputBuffer.finish()
                                     return
                                 }
-                                guard let string = String(data: data, encoding: .utf8) else { return }
+                                let chunk = seeded ? data : Data(pipe.outputBuffer.text.utf8)
+                                seeded = true
+                                guard let string = String(data: chunk, encoding: .utf8) else { return }
                                 var n = 0
                                 for line in string.components(separatedBy: .newlines) where line.hasPrefix("Page ") {
                                     n += 1

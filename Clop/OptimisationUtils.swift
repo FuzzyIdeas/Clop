@@ -1733,8 +1733,11 @@ enum TempPipelineSegment {
                 let pid = process.processIdentifier
                 mainActor { processTerminated.insert(pid) }
 
-                (process.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
-                (process.standardError as? Pipe)?.fileHandleForReading.readabilityHandler = nil
+                // The readability handlers used to be detached here, before the
+                // signal. That stopped the pipes draining while the child was
+                // still writing, so a chatty process could block in write() and
+                // never get far enough to handle the SIGTERM. They tear
+                // themselves down at EOF instead.
                 process.terminate()
             }
         }

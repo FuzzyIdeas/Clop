@@ -447,10 +447,13 @@ final class PipelineExecution {
             proc.standardOutput = FileHandle.nullDevice
             let errPipe = Pipe()
             proc.standardError = errPipe
+            // Drained as it fills: reading only after waitUntilExit() deadlocks
+            // once the child has written the 64KB a pipe holds.
+            errPipe.drainIntoBuffer()
             do { try proc.run() } catch { return nil }
             proc.waitUntilExit()
             guard proc.terminationStatus == 0, tempFile.exists, (tempFile.fileSize() ?? 0) > 0 else {
-                let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                let err = errPipe.drainedText()
                 log.error("Pipeline: stripExif failed for \(input.string): \(err)")
                 return nil
             }
@@ -987,6 +990,11 @@ final class PipelineExecution {
             let errPipe = Pipe()
             task.standardOutput = outPipe
             task.standardError = errPipe
+            // Both drained as they fill. Reading only after waitUntilExit()
+            // hung the app on any script that printed more than the 64KB a pipe
+            // holds, which for a user's own script is not an edge case.
+            outPipe.drainIntoBuffer()
+            errPipe.drainIntoBuffer()
 
             do {
                 try task.run()
@@ -995,10 +1003,8 @@ final class PipelineExecution {
             }
             task.waitUntilExit()
 
-            let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let stdout = String(data: outData, encoding: .utf8) ?? ""
-            let stderr = String(data: errData, encoding: .utf8) ?? ""
+            let stdout = outPipe.drainedText()
+            let stderr = errPipe.drainedText()
 
             if task.terminationStatus != 0 {
                 let logContent = """
@@ -1529,10 +1535,11 @@ final class PipelineExecution {
             proc.standardOutput = FileHandle.nullDevice
             let errPipe = Pipe()
             proc.standardError = errPipe
+            errPipe.drainIntoBuffer()
             do { try proc.run() } catch { return false }
             proc.waitUntilExit()
             if proc.terminationStatus != 0 {
-                let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                let err = errPipe.drainedText()
                 log.error("Pipeline: watermark ffmpeg failed for \(input.string): \(err.suffix(500))")
             }
             return proc.terminationStatus == 0 && output.exists && (output.fileSize() ?? 0) > 0

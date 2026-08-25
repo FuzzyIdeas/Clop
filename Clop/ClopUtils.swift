@@ -4,7 +4,7 @@
 //
 //  Created by Alin Panaitiu on 12.07.2023.
 //
-
+import Atomics
 import Defaults
 import Foundation
 import Lowtech
@@ -32,52 +32,215 @@ extension String {
     }
 }
 
+// MARK: - ProcessOutputBuffer
+
+/// What a child wrote to a `Pipe`, kept alive for as long as the pipe is.
+///
+/// A pipe holds 64KB and then blocks the writer. Nothing ever read the stdout
+/// pipe and only some calls installed a progress handler on stderr, so a tool
+/// that printed more than that (a vips or pngquant warning storm on a broken
+/// file) stalled in `write()` forever and took `waitUntilExit()` down with it.
+/// Everything is drained as it arrives now, and kept so the error paths have
+/// something to log: they used to read the pipe again from scratch, which for
+/// any process with a progress handler returned nothing at all because the
+/// handler had already consumed every byte.
+final class ProcessOutputBuffer {
+    /// Head and tail, so a chatty process can't grow this without bound. The
+    /// head holds the banner where ffmpeg prints `Duration:`, the tail holds
+    /// the error that actually killed the run.
+    static let maxBytes = 256 * 1024
+
+    var text: String {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let start = head.s ?? ""
+        let end = tail.s ?? ""
+        guard dropped > 0 else { return start + end }
+        return "\(start)\n… \(dropped) bytes dropped …\n\(end)"
+    }
+
+    /// The drain hit EOF, so everything the child wrote is in here.
+    func finish() {
+        lock.lock()
+        let wasFinished = finished
+        finished = true
+        lock.unlock()
+
+        guard !wasFinished else { return }
+        finishedSignal.signal()
+    }
+
+    /// Wait for the drain to hit EOF. The child exiting isn't enough on its own:
+    /// its last chunk is still in flight on the handler's own queue.
+    @discardableResult
+    func waitUntilFinished(timeout: TimeInterval = 5) -> Bool {
+        lock.lock()
+        let alreadyFinished = finished
+        lock.unlock()
+        if alreadyFinished { return true }
+
+        guard finishedSignal.wait(timeout: .now() + timeout) == .success else { return false }
+        lock.lock()
+        finished = true
+        lock.unlock()
+        finishedSignal.signal()
+        return true
+    }
+
+    func append(_ data: Data) {
+        guard !data.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+
+        let half = Self.maxBytes / 2
+        if head.count < half {
+            let room = half - head.count
+            head.append(data.prefix(room))
+            guard data.count > room else { return }
+            tail.append(data.dropFirst(room))
+        } else {
+            tail.append(data)
+        }
+
+        if tail.count > half {
+            let excess = tail.count - half
+            tail = Data(tail.dropFirst(excess))
+            dropped += excess
+        }
+    }
+
+    private let lock = NSLock()
+    private let finishedSignal = DispatchSemaphore(value: 0)
+    private var head = Data()
+    private var tail = Data()
+    private var dropped = 0
+    private var finished = false
+}
+
+private let outputBufferKey = UnsafeRawPointer(UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1))
+private let outputBufferLock = NSLock()
+
+extension FileHandle {
+    /// Attached to the pipe's read handle so it dies with the pipe, which means
+    /// a retry that swaps in a fresh `Pipe` starts from an empty buffer.
+    var outputBuffer: ProcessOutputBuffer {
+        outputBufferLock.lock()
+        defer { outputBufferLock.unlock() }
+
+        if let existing = objc_getAssociatedObject(self, outputBufferKey) as? ProcessOutputBuffer {
+            return existing
+        }
+        let buffer = ProcessOutputBuffer()
+        objc_setAssociatedObject(self, outputBufferKey, buffer, .OBJC_ASSOCIATION_RETAIN)
+        return buffer
+    }
+}
+
+extension Pipe {
+    /// Keep reading as the child writes so it can never block on a full pipe.
+    ///
+    /// A handler that needs the bytes for itself (the progress parsers) replaces
+    /// this one and has to keep feeding `outputBuffer`, or the drain stops.
+    func drainIntoBuffer() {
+        let handle = fileHandleForReading
+        _ = handle.outputBuffer
+        handle.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                handle.outputBuffer.finish()
+                return
+            }
+            handle.outputBuffer.append(data)
+        }
+    }
+
+    /// Everything the child wrote, once the drain has seen EOF.
+    ///
+    /// Install `drainIntoBuffer()` before `run()` and read this after the exit,
+    /// never `readDataToEndOfFile()` after `waitUntilExit()`: a pipe holds 64KB
+    /// and then blocks the writer, so a child that prints more than that never
+    /// reaches the exit the read is waiting for.
+    func drainedText(timeout: TimeInterval = 5) -> String {
+        let buffer = fileHandleForReading.outputBuffer
+        if !buffer.waitUntilFinished(timeout: timeout) {
+            fileHandleForReading.readabilityHandler = nil
+        }
+        return buffer.text
+    }
+}
+
+/// Runs so far, to keep two identical command lines started at the same moment
+/// from writing into one log file.
+private let processLogCounter = ManagedAtomic<UInt64>(0)
+
 func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: String]? = nil, out: Pipe? = nil, err: Pipe? = nil) -> Process? {
-    let outputDir = FilePath.processLogs.appending("\(launchPath) \(args)".safeShortFilename)
+    let run = processLogCounter.wrappingIncrementThenLoad(ordering: .relaxed)
+    let outputDir = FilePath.processLogs.appending("\(launchPath) \(args)".safeShortFilename + "-\(run)")
 
     let task = Process()
     var env = env ?? ProcessInfo.processInfo.environment
 
+    // Both handles have to be closed by hand if the launch never happens, so
+    // hold them here rather than only on the Process.
+    var openedHandles: [FileHandle] = []
+    var launched = false
+    defer {
+        if !launched {
+            for handle in openedHandles {
+                try? handle.close()
+            }
+        }
+    }
+
     if let out {
         task.standardOutput = out
+        out.drainIntoBuffer()
     } else {
         let stdoutFilePath = outputDir.withExtension("out").string
         fm.createFile(atPath: stdoutFilePath, contents: nil, attributes: nil)
         guard let stdoutFile = FileHandle(forWritingAtPath: stdoutFilePath) else {
+            log.error("Could not open the stdout log for \(launchPath) \(args)")
             return nil
         }
+        openedHandles.append(stdoutFile)
         task.standardOutput = stdoutFile
         env["__swift_stdout"] = stdoutFilePath
     }
 
     if let err {
         task.standardError = err
+        err.drainIntoBuffer()
     } else {
         let stderrFilePath = outputDir.withExtension("err").string
         fm.createFile(atPath: stderrFilePath, contents: nil, attributes: nil)
         guard let stderrFile = FileHandle(forWritingAtPath: stderrFilePath) else {
+            log.error("Could not open the stderr log for \(launchPath) \(args)")
             return nil
         }
+        openedHandles.append(stderrFile)
         task.standardError = stderrFile
         env["__swift_stderr"] = stderrFilePath
     }
 
-    task.launchPath = launchPath
+    // Without this the child inherits our stdin, and anything that decides to
+    // prompt (ffmpeg asking to overwrite) blocks forever on a descriptor
+    // nobody will ever write to.
+    task.standardInput = FileHandle.nullDevice
+    task.executableURL = URL(fileURLWithPath: launchPath)
     task.arguments = args
     task.environment = env
 
     task.terminationHandler = { process in
-        do {
-            if let stdoutFile = process.standardOutput as? FileHandle {
-                try stdoutFile.synchronize()
-                try stdoutFile.close()
-            }
-            if let stderrFile = process.standardError as? FileHandle {
-                try stderrFile.synchronize()
-                try stderrFile.close()
-            }
-        } catch {
-            log.error("Error handling termination of process \(launchPath) \(args) [PID: \(process.processIdentifier)]: \(error)")
+        // Closed one at a time: a throw on the first used to skip the second and
+        // leak that descriptor. Nothing is synchronized because the parent never
+        // writes through these handles, the child has its own.
+        if let stdoutFile = process.standardOutput as? FileHandle {
+            try? stdoutFile.close()
+        }
+        if let stderrFile = process.standardError as? FileHandle {
+            try? stderrFile.close()
         }
     }
 
@@ -87,31 +250,31 @@ func shellProc(_ launchPath: String = "/bin/zsh", args: [String], env: [String: 
         log.error("Error running \(launchPath) \(args): \(error)")
         return nil
     }
+    launched = true
 
     return task
 }
 
 extension Process {
     var out: String {
-        let env: [String: String]? = environment
-        if let env, let out = env["__swift_stdout"], let out = fm.contents(atPath: out)?.s {
-            return out
-        } else if let pipe = standardOutput as? Pipe {
-            let handle = pipe.fileHandleForReading
-            try? handle.seek(toOffset: 0)
-            return handle.readDataToEndOfFile().s ?? ""
+        if let path = environment?["__swift_stdout"], let contents = fm.contents(atPath: path)?.s {
+            return contents
+        }
+        // Never re-read the pipe here: the bytes are gone the moment a
+        // readability handler took them, and `readDataToEndOfFile()` on a
+        // handle another handler is still reading is a race on top of that.
+        if let pipe = standardOutput as? Pipe {
+            return pipe.drainedText(timeout: 2)
         }
         return ""
     }
 
     var err: String {
-        let env: [String: String]? = environment
-        if let env, let err = env["__swift_stderr"], let err = fm.contents(atPath: err)?.s {
-            return err
-        } else if let pipe = standardError as? Pipe {
-            let handle = pipe.fileHandleForReading
-            try? handle.seek(toOffset: 0)
-            return handle.readDataToEndOfFile().s ?? ""
+        if let path = environment?["__swift_stderr"], let contents = fm.contents(atPath: path)?.s {
+            return contents
+        }
+        if let pipe = standardError as? Pipe {
+            return pipe.drainedText(timeout: 2)
         }
         return ""
     }
@@ -498,15 +661,25 @@ extension Process {
         "\(executableURL?.path ?? "") \(arguments?.joined(separator: " ") ?? "")"
     }
 
+    /// Was this killed by us, rather than failing on its own?
+    ///
+    /// Not memoized: `memoz` keys on object identity and caches the first
+    /// answer, so a process asked before it was killed stayed "not terminated"
+    /// for the rest of its life, and the retry loop treated a cancellation as a
+    /// real failure and ran the command again.
     var terminated: Bool {
-        memoz._terminated
+        _terminated
     }
     var _terminated: Bool {
-        (terminationReason == .uncaughtSignal && [SIGKILL, SIGTERM].contains(terminationStatus)) ||
-            mainThread { processTerminated.contains(processIdentifier) }
+        // terminationReason and terminationStatus raise an ObjC exception while
+        // the process is still running, which no Swift catch can hold.
+        if !isRunning, terminationReason == .uncaughtSignal, [SIGKILL, SIGTERM].contains(terminationStatus) {
+            return true
+        }
+        return mainThread { processTerminated.contains(processIdentifier) }
     }
     func terminatedAsync() async -> Bool {
-        if terminationReason == .uncaughtSignal, [SIGKILL, SIGTERM].contains(terminationStatus) {
+        if !isRunning, terminationReason == .uncaughtSignal, [SIGKILL, SIGTERM].contains(terminationStatus) {
             return true
         }
         return await MainActor.run { processTerminated.contains(processIdentifier) }
@@ -528,7 +701,7 @@ struct Proc: Hashable {
     }
 }
 
-func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWait: (([Proc: Process]) -> Void)? = nil) throws -> [Proc: Process] {
+func tryProcs(_ procs: [Proc], tries: Int, beforeWait: (([Proc: Process]) -> Void)? = nil) throws -> [Proc: Process] {
     var outPipes = procs.dict { ($0, Pipe()) }
     var errPipes = procs.dict { ($0, Pipe()) }
 
@@ -573,7 +746,7 @@ func tryProcs(_ procs: [Proc], tries: Int, captureOutput: Bool = false, beforeWa
 
 }
 
-func tryProc(_ cmd: String, argArray: [[String]], captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
+func tryProc(_ cmd: String, argArray: [[String]], env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
     var outPipe = Pipe()
     var errPipe = Pipe()
 
@@ -613,7 +786,7 @@ func tryProc(_ cmd: String, argArray: [[String]], captureOutput: Bool = false, e
 
 }
 
-func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
+func tryProc(_ cmd: String, args: [String], tries: Int, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) throws -> Process {
     var outPipe = Pipe()
     var errPipe = Pipe()
 
@@ -647,7 +820,7 @@ func tryProc(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = fa
     return proc
 }
 
-func tryProcAsync(_ cmd: String, args: [String], tries: Int, captureOutput: Bool = false, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) async throws -> Process {
+func tryProcAsync(_ cmd: String, args: [String], tries: Int, env: [String: String]? = nil, beforeWait: ((Process) -> Void)? = nil) async throws -> Process {
     var outPipe = Pipe()
     var errPipe = Pipe()
 
