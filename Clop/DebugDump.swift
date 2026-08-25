@@ -602,6 +602,11 @@ enum DebugDump {
         let pipe = Pipe()
         proc.standardOutput = pipe
         proc.standardError = pipe
+        // Drained as it fills. Reading after the wait meant a binary that
+        // printed more than the 64KB a pipe holds blocked in write(), never
+        // exited, and came back as a timeout with none of its output.
+        pipe.drainIntoBuffer()
+        proc.standardInput = FileHandle.nullDevice
 
         do { try proc.run() } catch { return nil }
 
@@ -614,8 +619,7 @@ enum DebugDump {
             proc.waitUntilExit()
             return "<timed out after \(Int(timeout))s>"
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return pipe.drainedText().trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func runProcessSync(launchPath: String, arguments: [String], workingDirectory: URL? = nil, stdoutTo: URL? = nil) throws {

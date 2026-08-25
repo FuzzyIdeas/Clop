@@ -191,10 +191,10 @@ class Audio: Optimisable {
         }
 
         let audioURL = path.url
-        let proc = try tryProc(FFMPEG.string, args: args, tries: 1, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 1) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: audioURL, optimiser: optimiser, duration: realDuration)
+                updateProgressFFmpeg(pipe: proc.standardError as? Pipe, url: audioURL, optimiser: optimiser, duration: realDuration)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -272,10 +272,10 @@ class Audio: Optimisable {
         }
 
         let audioURL = path.url
-        let proc = try tryProc(FFMPEG.string, args: args, tries: 1, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 1) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: audioURL, optimiser: optimiser, duration: realDuration)
+                updateProgressFFmpeg(pipe: proc.standardError as? Pipe, url: audioURL, optimiser: optimiser, duration: realDuration)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -325,10 +325,10 @@ class Audio: Optimisable {
         }
 
         let audioURL = path.url
-        let proc = try tryProc(FFMPEG.string, args: args, tries: 1, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 1) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: audioURL, optimiser: optimiser, duration: realDuration)
+                updateProgressFFmpeg(pipe: proc.standardError as? Pipe, url: audioURL, optimiser: optimiser, duration: realDuration)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -439,7 +439,7 @@ func optimiseCoverJPEG(_ path: FilePath) {
     #else
         let archArgs: [String] = []
     #endif
-    _ = try? tryProc(JPEGOPTIM.string, args: ["--strip-all", "--force", "--max", "\(AUDIO_COVER_JPEG_QUALITY)"] + archArgs + [path.string], tries: 2, captureOutput: true)
+    _ = try? tryProc(JPEGOPTIM.string, args: ["--strip-all", "--force", "--max", "\(AUDIO_COVER_JPEG_QUALITY)"] + archArgs + [path.string], tries: 2)
 }
 
 /// Extract the embedded cover art as losslessly as possible (copy the original encoded bytes, no
@@ -454,7 +454,7 @@ func extractedAudioCoverArt(input: FilePath, stem: String) -> FilePath? {
     // Lossless extraction: copy the original encoded packet straight out, no re-encode or resize.
     guard let proc = try? tryProc(FFMPEG.string, args: [
         "-y", "-i", input.string, "-an", "-map", "0:v:0", "-c:v", "copy", "-f", "image2", rawPath.string,
-    ], tries: 1, captureOutput: true),
+    ], tries: 1),
     proc.terminationStatus == 0, let data = fm.contents(atPath: rawPath.string), !data.isEmpty
     else {
         try? rawPath.delete()
@@ -547,7 +547,7 @@ func optimisedAudioCoverArt(input: FilePath, stem: String, maxLongEdge: Int? = n
 
     if data.starts(with: [0x89, 0x50, 0x4E, 0x47] as [UInt8]) {
         // Baseline: pngquant the PNG in place at aggressive settings.
-        _ = try? tryProc(PNGQUANT.string, args: ["--force", "--speed", "\(cq.pngQuantSpeed)", "--quality", cq.pngQuantQuality, "--ext", ".png", coverPath.string], tries: 2, captureOutput: true)
+        _ = try? tryProc(PNGQUANT.string, args: ["--force", "--speed", "\(cq.pngQuantSpeed)", "--quality", cq.pngQuantQuality, "--ext", ".png", coverPath.string], tries: 2)
 
         // Adaptive, mirroring Clop's image optimisation: photographic (high-entropy) art usually
         // shrinks far more as JPEG. Convert the original to a 100%-quality JPEG, jpegoptim it, and
@@ -673,7 +673,7 @@ func resolveOriginalAudioCoverArt(cached: FilePath?, optimiser: Optimiser, audio
             var scaleArgs = ["-y", "-i", coverOrig.string, "-vf", scaleFilter]
             if !isPNG { scaleArgs += ["-q:v", "3"] }
             scaleArgs.append(scaledPath.string)
-            guard let sproc = try? tryProc(FFMPEG.string, args: scaleArgs, tries: 1, captureOutput: true),
+            guard let sproc = try? tryProc(FFMPEG.string, args: scaleArgs, tries: 1),
                   sproc.terminationStatus == 0, (scaledPath.fileSize() ?? 0) > 0
             else {
                 fail("Downscale failed")
@@ -689,7 +689,7 @@ func resolveOriginalAudioCoverArt(cached: FilePath?, optimiser: Optimiser, audio
         var muxArgs = ["-y", "-i", audioPath.string, "-i", coverToEmbed.string, "-map", "0:a", "-map", "1:v", "-c:a", "copy", "-c:v", "copy", "-disposition:v:0", "attached_pic"]
         if ext.lowercased() == "mp3" { muxArgs += ["-id3v2_version", "3"] }
         muxArgs.append(outPath.string)
-        guard let mproc = try? tryProc(FFMPEG.string, args: muxArgs, tries: 1, captureOutput: true),
+        guard let mproc = try? tryProc(FFMPEG.string, args: muxArgs, tries: 1),
               mproc.terminationStatus == 0, (outPath.fileSize() ?? 0) > 0
         else {
             fail("Downscale failed")

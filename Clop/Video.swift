@@ -122,10 +122,10 @@ class Video: Optimisable {
         let fpsArgs = ["-fpsmax", fps.s]
 
         let videoURL = path.url
-        let ffmpegProc = try tryProc(FFMPEG.string, args: ["-i", path.string] + progressArgs + fpsArgs + ["\(tempDir.string)/frame%04d.png"], tries: 3, captureOutput: true) { proc in
+        let ffmpegProc = try tryProc(FFMPEG.string, args: ["-i", path.string] + progressArgs + fpsArgs + ["\(tempDir.string)/frame%04d.png"], tries: 3) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: videoURL, optimiser: optimiser, duration: duration?.i64)
+                updateProgressFFmpeg(pipe: proc.standardError as? Pipe, url: videoURL, optimiser: optimiser, duration: duration?.i64)
             }
         }
         guard ffmpegProc.terminationStatus == 0 else {
@@ -137,12 +137,11 @@ class Video: Optimisable {
         let gifskiProc = try tryProc(
             GIFSKI.string,
             args: ["-o", gif.string, "--width", maxWidth.s, "--fps", fps.s, "--quality", Defaults[.useAggressiveOptimisationGIF] ? 60.s : 90.s] + pngs.map(\.string),
-            tries: 3,
-            captureOutput: true
+            tries: 3
         ) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressGifski(pipe: proc.standardOutput as! Pipe, url: videoURL, optimiser: optimiser, frames: pngs.count.i64)
+                updateProgressGifski(pipe: proc.standardOutput as? Pipe, url: videoURL, optimiser: optimiser, frames: pngs.count.i64)
             }
         }
         guard gifskiProc.terminationStatus == 0 else {
@@ -222,9 +221,9 @@ class Video: Optimisable {
         let outputPath = URL.temporaryDirectory.appendingPathComponent("\(path.stem ?? path.name.string)_no_audio.\(path.extension ?? "mp4")").filePath!
         let args = ["-y", "-i", path.string, "-an", "-vcodec", "copy", "-movflags", "+faststart", "-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
         let url = path.url
-        let proc = try tryProc(FFMPEG.string, args: args, tries: 3, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 3) { proc in
             mainActor {
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: url, optimiser: optimiser)
+                updateProgressFFmpeg(pipe: proc.standardError as? Pipe, url: url, optimiser: optimiser)
             }
         }
         proc.waitUntilExit()
@@ -397,10 +396,10 @@ class Video: Optimisable {
         let argArray = [args, args2, args3]
 
         let videoURL = path.url
-        let proc = try tryProc(FFMPEG.string, argArray: argArray, captureOutput: true) { proc in
+        let proc = try tryProc(FFMPEG.string, argArray: argArray) { proc in
             mainActor {
                 optimiser.processes = [proc]
-                updateProgressFFmpeg(pipe: proc.standardError as! Pipe, url: videoURL, optimiser: optimiser, duration: realDuration)
+                updateProgressFFmpeg(pipe: proc.standardError as? Pipe, url: videoURL, optimiser: optimiser, duration: realDuration)
             }
         }
         guard proc.terminationStatus == 0 else {
@@ -508,7 +507,9 @@ func getVideoMetadata(path: FilePath) async throws -> VideoMetadata? {
 let FFMPEG_DURATION_REGEX = try! Regex(#"^\s*Duration: (\d{2,}):(\d{2,}):(\d{2,}).(\d{2})"#, as: (Substring, Substring, Substring, Substring, Substring).self).anchorsMatchLineEndings(true)
 let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Substring, Substring).self).anchorsMatchLineEndings(true)
 
-@MainActor func updateProgressGifski(pipe: Pipe, url: URL, optimiser: Optimiser, frames: Int64) {
+@MainActor func updateProgressGifski(pipe: Pipe?, url: URL, optimiser: Optimiser, frames: Int64) {
+    guard let pipe else { return }
+
     /* Gifski output
          ^MFrame 1 / 88  _...........................................................  52s ^M1.2MB GIF; Frame 10 / 88  #####_...............  ......
           ......................  7s ^M786KB GIF; Frame 18 / 88  ##########_......................................  5s ^M671KB GIF; Frame 19  / 88
@@ -529,14 +530,22 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
     }
 
     let handle = pipe.fileHandleForReading
+    // The pipe is drained from the moment the process starts, so some output
+    // can already be in the buffer by the time this handler goes on. Parse
+    // everything collected so far on the first pass, then only what follows.
+    var seeded = false
     handle.readabilityHandler = { pipe in
         let data = pipe.availableData
+        pipe.outputBuffer.append(data)
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
+            pipe.outputBuffer.finish()
             mainActor { optimiser.unpublishProgress() }
             return
         }
-        guard let string = String(data: data.replacing([0x13], with: []), encoding: .utf8) else {
+        let chunk = seeded ? data : Data(pipe.outputBuffer.text.utf8)
+        seeded = true
+        guard let string = String(data: chunk.replacing([0x13], with: []), encoding: .utf8) else {
             return
         }
 
@@ -554,7 +563,9 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
     }
 }
 
-@MainActor func updateProgressFFmpeg(pipe: Pipe, url: URL, optimiser: Optimiser, duration: Int64? = nil) {
+@MainActor func updateProgressFFmpeg(pipe: Pipe?, url: URL, optimiser: Optimiser, duration: Int64? = nil) {
+    guard let pipe else { return }
+
     mainActor {
         optimiser.progress = Progress(totalUnitCount: duration ?? 100)
         optimiser.progress.fileURL = url
@@ -568,14 +579,23 @@ let GIFSKI_FRAME_REGEX = try! Regex(#"Frame (\d+) / (\d+)"#, as: (Substring, Sub
     }
 
     let handle = pipe.fileHandleForReading
+    // The pipe is drained from the moment the process starts, so the banner
+    // that carries the duration or the page count can already be in the buffer
+    // by the time this handler goes on. Parse everything collected so far on
+    // the first pass, then only what follows.
+    var seeded = false
     handle.readabilityHandler = { pipe in
         let data = pipe.availableData
+        pipe.outputBuffer.append(data)
         guard !data.isEmpty else {
             handle.readabilityHandler = nil
+            pipe.outputBuffer.finish()
             mainActor { optimiser.unpublishProgress() }
             return
         }
-        guard let string = String(data: data, encoding: .utf8) else {
+        let chunk = seeded ? data : Data(pipe.outputBuffer.text.utf8)
+        seeded = true
+        guard let string = String(data: chunk, encoding: .utf8) else {
             return
         }
 
