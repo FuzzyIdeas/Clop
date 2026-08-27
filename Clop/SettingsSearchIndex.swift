@@ -23,10 +23,6 @@ struct SettingEntry: Identifiable, Hashable {
     let tab: SettingsView.Tabs
     let section: String
 
-    var searchCorpus: String {
-        ([title, subtitle, section, tab.title] + keywords).joined(separator: " ").lowercased()
-    }
-
     /// The words of each field, kept apart so a hit in the title can outrank one buried in a subtitle.
     var searchFields: [(weight: Double, words: [String])] {
         [
@@ -34,6 +30,18 @@ struct SettingEntry: Identifiable, Hashable {
             (2.5, keywords.flatMap { SettingsSearchIndex.words($0) }),
             (1.0, SettingsSearchIndex.words(subtitle)),
             (0.6, SettingsSearchIndex.words(section) + SettingsSearchIndex.words(tab.title)),
+        ]
+    }
+
+    /// The same fields unsplit, for the subsequence pass. It runs across word boundaries, so it needs
+    /// the text rather than the words: "autoconv" is nowhere in `searchFields` and sits right there in
+    /// "Auto-conversion behaviour".
+    var searchTexts: [(weight: Double, text: String)] {
+        [
+            (3.0, title.lowercased()),
+            (2.5, keywords.joined(separator: " ").lowercased()),
+            (1.0, subtitle.lowercased()),
+            (0.6, "\(section) \(tab.title)".lowercased()),
         ]
     }
 }
@@ -826,20 +834,105 @@ enum SettingsSearchIndex {
 
     static let byID: [String: SettingEntry] = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
 
+    /// Words a query carries and a settings row does not. Dropped rather than down-weighted, because
+    /// `requireAll` is the problem: someone types "replacing the original video", the row that answers
+    /// it has no "the" anywhere, and requiring the word throws the answer away and keeps whichever
+    /// rows happen to have a full sentence for a subtitle.
+    ///
+    /// A fixed list rather than one read off the index. In 125 rows "the" looks rare enough to matter
+    /// and it never does, so frequency is the wrong instrument here.
+    static let stopWords: Set = [
+        "an", "and", "any", "are", "as", "at", "be", "but", "by", "can", "do", "does", "for", "from",
+        "get", "has", "have", "how", "if", "in", "into", "is", "it", "its", "me", "my", "no", "not",
+        "of", "on", "or", "so", "some", "that", "the", "their", "them", "then", "there", "these",
+        "they", "this", "to", "was", "what", "when", "where", "which", "why", "will", "with", "would",
+        "you", "your",
+    ]
+
     /// Split into lowercase words. Shared by the index and the query so both are cut the same way.
     static func words(_ text: String) -> [String] {
         text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
     }
 
-    /// Does a query word match an indexed word?
+    /// How well a query word matches an indexed word, 0 when it does not.
     ///
-    /// Prefix, not equality, because people and agents inflect: someone asks why Clop is not
-    /// "replacing" the file and the row's keyword is "replace". Four characters is the shortest prefix
-    /// worth trusting; below that "in" would match "inPlace" and every other word starting in-.
-    static func wordMatches(_ query: String, _ indexed: String) -> Bool {
-        if query == indexed { return true }
-        guard query.count >= 4, indexed.count >= 4 else { return false }
-        return query.hasPrefix(indexed.prefix(4)) && (query.hasPrefix(indexed) || indexed.hasPrefix(query))
+    /// Graded rather than yes/no, because the rungs have to outrank each other: typing "send" must put
+    /// the row called "Send securely" above a row that merely mentions "sender" in a keyword.
+    ///
+    /// The prefix rung carries the field while you are still typing, and it has no minimum length on
+    /// purpose. An earlier version needed four characters before it would look at a prefix at all,
+    /// which meant "sen" found nothing and the field looked broken until the fourth keystroke.
+    static func wordScore(_ query: String, _ indexed: String) -> Double {
+        if query == indexed { return 1 }
+        if indexed.hasPrefix(query) { return 0.9 }
+        // Neither is a prefix of the other, and they can still be the same word: "replacing" and
+        // "replace" part ways at the seventh letter. A strict prefix test scores that pair zero, which
+        // is exactly how a question about Clop "replacing" the original missed the row whose keyword is
+        // "replace". Scored by how much of the longer word the stem accounts for, so a real inflection
+        // lands near a prefix hit and "compression" against "compatibility" lands nowhere.
+        let stem = sharedPrefixLength(query, indexed)
+        let ratio = Double(stem) / Double(max(query.count, indexed.count))
+        if stem >= 4, ratio >= 0.5 { return 0.85 * ratio }
+        if query.count >= 4, indexed.contains(query) { return 0.5 }
+        return 0
+    }
+
+    /// Is `query` a subsequence of `text`, and how tightly packed? nil when it is not in there at all.
+    ///
+    /// The fzf trick, and the net for typos and abbreviations: "clipbord" and "metdata" are nobody's
+    /// word, and both are one dropped letter from a row that exists. Runs of adjacent letters and
+    /// letters landing on a word boundary score higher, which is what keeps the loose matches off rows
+    /// that merely happen to contain the letters somewhere.
+    ///
+    /// Four characters minimum: below that the letters of a query are scattered through most of the
+    /// index and the score means nothing.
+    static func subsequenceScore(_ query: String, _ text: String) -> Double? {
+        guard query.count >= 4, text.count >= query.count else { return nil }
+        let q = Array(query), t = Array(text)
+        var score = 0, streak = 0, ti = 0
+
+        for ch in q {
+            var found = false
+            while ti < t.count {
+                if t[ti] == ch {
+                    let atWordStart = ti == 0 || !(t[ti - 1].isLetter || t[ti - 1].isNumber)
+                    streak += 1
+                    score += 1 + streak * 3 + (atWordStart ? 6 : 0)
+                    ti += 1
+                    found = true
+                    break
+                }
+                streak = 0
+                ti += 1
+            }
+            guard found else { return nil }
+        }
+
+        // Against a perfect contiguous run starting at a word boundary, so a long subtitle that happens
+        // to contain the letters cannot outscore a short title that spells them out.
+        let perfect = q.indices.reduce(6) { $0 + 1 + ($1 + 1) * 3 }
+        return min(1, Double(score) / Double(perfect))
+    }
+
+    /// The best any field of `entry` does with one query word.
+    static func tokenScore(_ token: String, in entry: SettingEntry) -> Double {
+        var best = 0.0
+        for field in entry.searchFields {
+            for word in field.words {
+                let score = wordScore(token, word)
+                guard score > 0 else { continue }
+                best = max(best, field.weight * score)
+            }
+        }
+        guard best == 0 else { return best }
+
+        // Only once no whole word matched. Held below the weakest whole-word rung deliberately: a
+        // subsequence hit is a guess, and it must never push a row that really carries the word down.
+        for field in entry.searchTexts {
+            guard let score = subsequenceScore(token, field.text) else { continue }
+            best = max(best, field.weight * score * 0.4)
+        }
+        return best
     }
 
     /// Rows matching the query, best first.
@@ -848,48 +941,50 @@ enum SettingsSearchIndex {
     /// typing two words expects both to count. An agent hands over a whole sentence full of words no
     /// row carries, so `MCPSettingsBridge.matches` passes false and leans on the scoring instead.
     static func rank(_ query: String, requireAll: Bool, limit: Int = 25) -> [SettingEntry] {
-        let queryWords = words(query).filter { $0.count > 1 }
-        guard !queryWords.isEmpty else { return [] }
-        let weights = Dictionary(uniqueKeysWithValues: Set(queryWords).map { ($0, idf($0)) })
+        var tokens = Array(Set(words(query).filter { $0.count > 1 && !stopWords.contains($0) }))
+        // Unless the query is nothing but function words, in which case they are all there is to go on.
+        if tokens.isEmpty { tokens = Array(Set(words(query).filter { $0.count > 1 })) }
+        guard !tokens.isEmpty else { return [] }
 
-        return all.compactMap { entry -> (SettingEntry, Double)? in
-            var score = 0.0
+        // Scored once per row and word, then reused for the weighting below. The weighting needs to
+        // know how many rows each word hits, and running a fuzzy matcher over the whole index twice is
+        // the expensive half of a keystroke.
+        let scores = all.map { entry in tokens.map { tokenScore($0, in: entry) } }
+        let hits = tokens.indices.map { t in scores.reduce(0.0) { $0 + ($1[t] > 0 ? 1 : 0) } }
+        // Squared, so the one word that decides the answer dominates the ones every row carries. Plain
+        // inverse document frequency damps too gently for a query that is a whole sentence: "the" is in
+        // 37 rows and "mp4" is in 5, and a title match on "the" was outscoring the row that actually
+        // answers the question.
+        let weights = hits.map { pow(Foundation.log((Double(all.count) + 1) / ($0 + 1)) + 0.1, 2) }
+
+        return zip(all, scores).compactMap { entry, rowScores -> (SettingEntry, Double)? in
+            var total = 0.0
             var matched = 0
-            for word in Set(queryWords) {
-                var best = 0.0
-                for field in entry.searchFields where field.words.contains(where: { wordMatches(word, $0) }) {
-                    best = max(best, field.weight)
-                }
-                guard best > 0 else { continue }
+            for (t, score) in rowScores.enumerated() where score > 0 {
                 matched += 1
-                score += best * (weights[word] ?? 1)
+                total += score * weights[t]
             }
             guard matched > 0 else { return nil }
-            if requireAll, matched < Set(queryWords).count { return nil }
-            return (entry, score)
+            if requireAll, matched < tokens.count { return nil }
+            return (entry, total)
         }
         .sorted { $0.1 == $1.1 ? $0.0.title < $1.0.title : $0.1 > $1.1 }
         .prefix(limit)
         .map(\.0)
     }
 
-    /// Rows matching every word of the query, best first. What the Settings search field calls.
+    /// What the Settings search field calls: rows matching every word, best first.
+    ///
+    /// Falling back to the partial match keeps the field from dead-ending. Someone types a phrase with
+    /// one word no row carries and the answer is still one word away, so showing the rows that match
+    /// the rest beats "Nothing matches".
     static func search(_ query: String) -> [SettingEntry] {
-        rank(query, requireAll: true)
+        let strict = rank(query, requireAll: true)
+        return strict.isEmpty ? rank(query, requireAll: false) : strict
     }
 
-    /// How much one query word is worth: a lot when few rows carry it, almost nothing when most do.
-    ///
-    /// Without this, a question like "why is Clop not replacing the mov with the optimised mp4" ranks
-    /// by its most common word. "optimised" is in half the index and "mov" is in one row, and the
-    /// answer is the row with "mov" in it. This is plain inverse document frequency, and it does the
-    /// job a stop-word list would do without anyone having to maintain the list.
-    private static func idf(_ word: String) -> Double {
-        let total = Double(all.count)
-        let hits = all.reduce(0.0) { count, entry in
-            count + (entry.searchFields.contains { $0.words.contains { wordMatches(word, $0) } } ? 1 : 0)
-        }
-        return Foundation.log((total + 1) / (hits + 1)) + 0.1
+    private static func sharedPrefixLength(_ a: String, _ b: String) -> Int {
+        zip(a, b).prefix { $0 == $1 }.count
     }
 
 }

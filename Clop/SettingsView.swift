@@ -3139,6 +3139,8 @@ struct SettingsView: View {
 
     @ObservedObject var svm = settingsViewManager
 
+    @FocusState var searchFocused: Bool
+
     var body: some View {
         if svm.windowOpen {
             settings
@@ -3146,17 +3148,49 @@ struct SettingsView: View {
     }
 
     var sidebar: some View {
-        Group {
-            if svm.searchQuery.isEmpty {
-                tabList
-            } else {
-                searchResults
+        VStack(spacing: 0) {
+            searchField
+            Group {
+                if svm.searchQuery.isEmpty {
+                    tabList
+                } else {
+                    searchResults
+                }
             }
+            .listStyle(.sidebar)
         }
-        .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         .modifier(HideSidebarToggleIfAvailable())
-        .searchable(text: $svm.searchQuery, placement: .sidebar, prompt: "Search settings")
+    }
+
+    /// Clop's own field instead of `.searchable`, so `⌘F` can put the cursor in it: focusing a
+    /// `.searchable` field from code needs macOS 15 and Clop runs on 13. rcmd's Settings window has
+    /// the same field for the same reason.
+    var searchField: some View {
+        HStack(spacing: 6) {
+            // `SwiftUI.Image` qualified: Clop has its own `Image` type for optimisable files.
+            SwiftUI.Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+            TextField("Search settings", text: $svm.searchQuery)
+                .textFieldStyle(.plain)
+                .focused($searchFocused)
+            if !svm.searchQuery.isEmpty {
+                Button { svm.searchQuery = "" } label: {
+                    SwiftUI.Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.quaternary))
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .onExitCommand { svm.searchQuery = "" }
     }
 
     /// What the search field finds, in place of the tab list.
@@ -3240,6 +3274,14 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .formStyle(.grouped)
+        .background {
+            // ⌘F puts the cursor in the sidebar's search field from anywhere in Settings. A hidden
+            // button is how a shortcut reaches a `@FocusState` without a menu command.
+            Button("") { searchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notif in
             guard !SWIFTUI_PREVIEW, let window = notif.object as? NSWindow else { return }
             if window.isSettingsWindow {
@@ -3327,7 +3369,6 @@ struct SettingsView: View {
 }
 
 @MainActor var tabKeyMonitor = LocalEventMonitor(mask: .keyDown) { event in
-    print("tabKeyMonitor", event)
     guard let combo = event.keyCombo else { return event }
 
     if combo.modifierFlags == [.command, .shift] {
