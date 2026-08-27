@@ -114,7 +114,7 @@ extension Defaults.Keys {
     static let formatsToConvertToAAC = Key<Set<UTType>>("formatsToConvertToAAC", default: [.aiff, .flac].compactMap { $0 }.set)
     static let formatsToConvertToMP3 = Key<Set<UTType>>("formatsToConvertToMP3", default: [UTType.wav].set)
     static let convertedImageBehaviour = Key<FileBehaviour>("convertedImageBehaviour", default: .sameFolder)
-    static let convertedVideoBehaviour = Key<FileBehaviour>("convertedVideoBehaviour", default: .sameFolder)
+    static let convertedVideoBehaviour = Key<FileBehaviour>("convertedVideoBehaviour", default: .inPlace)
 
     static let optimisedImageBehaviour = Key<FileBehaviour>("optimisedImageBehaviour", default: .inPlace)
     static let optimisedVideoBehaviour = Key<FileBehaviour>("optimisedVideoBehaviour", default: .inPlace)
