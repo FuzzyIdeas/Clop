@@ -1,6 +1,7 @@
 import Defaults
 import Foundation
 import Lowtech
+import UniformTypeIdentifiers
 
 // MARK: - MCPSettingKey
 
@@ -241,6 +242,134 @@ enum MCPSettingsBridge {
                 return "\(name) takes one of: \(T.allCases.map(\.rawValue).joined(separator: ", ")). Got '\(raw)'"
             }
             Defaults[key] = value
+            return nil
+        }
+    }
+
+    private static func float(_ name: String, _ key: Defaults.Key<Float>) -> MCPSettingKey {
+        MCPSettingKey(name: name, type: "number", allowed: nil) {
+            String(Defaults[key])
+        } write: { raw in
+            guard let value = Float(raw.trimmingCharacters(in: .whitespaces)) else {
+                return "\(name) takes a number, not '\(raw)'"
+            }
+            Defaults[key] = value
+            return nil
+        }
+    }
+
+    private static func double(_ name: String, _ key: Defaults.Key<Double>) -> MCPSettingKey {
+        MCPSettingKey(name: name, type: "number", allowed: nil) {
+            String(Defaults[key])
+        } write: { raw in
+            guard let value = Double(raw.trimmingCharacters(in: .whitespaces)) else {
+                return "\(name) takes a number, not '\(raw)'"
+            }
+            Defaults[key] = value
+            return nil
+        }
+    }
+
+    /// An `Int?` where nil is a real state the user can choose, so it reads and writes as an empty
+    /// string rather than as a number an agent would have to guess the meaning of.
+    private static func optionalInt(_ name: String, _ key: Defaults.Key<Int?>) -> MCPSettingKey {
+        MCPSettingKey(name: name, type: "int?", allowed: nil) {
+            Defaults[key].map(String.init) ?? ""
+        } write: { raw in
+            let trimmed = raw.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || ["none", "off", "unlimited", "no limit"].contains(trimmed.lowercased()) {
+                Defaults[key] = nil
+                return nil
+            }
+            guard let value = Int(trimmed) else {
+                return "\(name) takes a whole number, or nothing at all to turn it off. Got '\(raw)'"
+            }
+            Defaults[key] = value
+            return nil
+        }
+    }
+
+    /// A list of strings, comma separated in both directions.
+    private static func stringList(_ name: String, _ key: Defaults.Key<[String]>) -> MCPSettingKey {
+        MCPSettingKey(name: name, type: "list", allowed: nil) {
+            Defaults[key].joined(separator: ", ")
+        } write: { raw in
+            Defaults[key] = raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            return nil
+        }
+    }
+
+    private static func stringSet(_ name: String, _ key: Defaults.Key<Set<String>>) -> MCPSettingKey {
+        MCPSettingKey(name: name, type: "list", allowed: nil) {
+            Defaults[key].sorted().joined(separator: ", ")
+        } write: { raw in
+            Defaults[key] = Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
+            return nil
+        }
+    }
+
+    /// A set of file types, spoken as extensions because that is what people and agents say. `allowed`
+    /// is the same fixed list the UI offers, so a write can neither add a type the control cannot show
+    /// nor silently drop one it can.
+    private static func utTypeSet(_ name: String, _ key: Defaults.Key<Set<UTType>>, _ allowed: [UTType]) -> MCPSettingKey {
+        func ext(_ type: UTType) -> String {
+            type.preferredFilenameExtension ?? type.identifier
+        }
+        return MCPSettingKey(name: name, type: "list", allowed: allowed.map(ext)) {
+            Defaults[key].map(ext).sorted().joined(separator: ", ")
+        } write: { raw in
+            let wanted = raw.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: ".", with: "") }
+                .filter { !$0.isEmpty }
+            var chosen: Set<UTType> = []
+            var unknown: [String] = []
+            for want in wanted {
+                if let match = allowed.first(where: { ext($0).lowercased() == want || $0.identifier.lowercased() == want }) {
+                    chosen.insert(match)
+                } else {
+                    unknown.append(want)
+                }
+            }
+            guard unknown.isEmpty else {
+                return "\(name) does not know \(unknown.joined(separator: ", ")). It takes any of: \(allowed.map(ext).joined(separator: ", "))"
+            }
+            Defaults[key] = chosen
+            return nil
+        }
+    }
+
+    /// Compression, which is a named tier plus a 0 to 100 factor rather than one value.
+    ///
+    /// Reads back as "tier:factor" always, including for `.custom`, which the Settings UI never writes
+    /// but presets and pipelines do. Anything an agent reads is therefore something it can write back
+    /// unchanged. A bare tier name keeps the current factor, and a bare number sets the factor and
+    /// leaves the tier alone.
+    private static func compression(_ name: String, _ key: Defaults.Key<CompressionQuality>) -> MCPSettingKey {
+        MCPSettingKey(
+            name: name, type: "compression",
+            allowed: CompressionTier.allCases.map(\.rawValue) + ["<tier>:<0-100>", "<0-100>"]
+        ) {
+            "\(Defaults[key].tier.rawValue):\(Defaults[key].factor)"
+        } write: { raw in
+            let trimmed = raw.trimmingCharacters(in: .whitespaces).lowercased()
+            let parts = trimmed.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            let current = Defaults[key]
+
+            if parts.count == 1, let factor = Int(parts[0]) {
+                Defaults[key] = CompressionQuality(tier: current.tier, factor: factor)
+                return nil
+            }
+            guard let tier = CompressionTier.allCases.first(where: { $0.rawValue.lowercased() == parts[0] }) else {
+                return "\(name) takes one of: \(CompressionTier.allCases.map(\.rawValue).joined(separator: ", ")), optionally followed by :factor. Got '\(raw)'"
+            }
+            guard parts.count == 2 else {
+                Defaults[key] = CompressionQuality(tier: tier, factor: current.factor)
+                return nil
+            }
+            guard let factor = Int(parts[1]), (0 ... 100).contains(factor) else {
+                return "\(name)'s factor is a whole number from 0 to 100. Got '\(parts[1])'"
+            }
+            Defaults[key] = CompressionQuality(tier: tier, factor: factor)
             return nil
         }
     }
