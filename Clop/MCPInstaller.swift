@@ -315,11 +315,11 @@ enum MCPInstaller {
 
     @MainActor private static func askToEnable() -> Bool {
         let alert = NSAlert()
-        alert.messageText = "Let agents change things through MCP?"
+        alert.messageText = "Let agents control Clop through MCP?"
         alert.informativeText = """
-        An agent asked for it. Through MCP it can already read your settings and pipelines. Allowing it also lets it optimise, convert and downscale your files, change any setting, and save new pipelines that Clop runs.
+        An AI agent asked for MCP access which allows it to optimise, convert and downscale your files, change any setting, and write or run pipelines.
 
-        You can take it back in Clop Settings, MCP.
+        You can also toggle this in Clop's Settings -> MCP.
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Allow")
@@ -331,7 +331,7 @@ enum MCPInstaller {
     @MainActor private static func showProRequired() {
         let alert = NSAlert()
         alert.messageText = "MCP needs Clop Pro"
-        alert.informativeText = "An agent asked to drive Clop through MCP. That is a Pro feature."
+        alert.informativeText = "An agent asked for access to controlling Clop through MCP. That is a Pro feature."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Manage Licence")
         alert.addButton(withTitle: "Not now")
