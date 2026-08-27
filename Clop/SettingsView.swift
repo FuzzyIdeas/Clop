@@ -2930,7 +2930,7 @@ struct SettingsSidebarRow: View {
 
 struct SettingsView: View {
     enum Tabs: Int, Hashable, CaseIterable, Identifiable {
-        case general, clipboard, files, video, audio, images, pdf, dropzone, presetZones, floating, keys, pipelines, automation, licenseUpdates, about
+        case general, clipboard, files, video, audio, images, pdf, dropzone, presetZones, floating, keys, pipelines, automation, mcp, licenseUpdates, about
 
         var id: Int {
             rawValue
@@ -2959,6 +2959,7 @@ struct SettingsView: View {
             case .keys: "Keyboard Shortcuts"
             case .pipelines: "Pipelines"
             case .automation: "Automation"
+            case .mcp: "MCP"
             case .licenseUpdates: "License & updates"
             case .about: "About"
             }
@@ -2979,6 +2980,7 @@ struct SettingsView: View {
             case .keys: "command.square"
             case .pipelines: "arrow.triangle.branch"
             case .automation: "hammer"
+            case .mcp: "sparkles"
             case .licenseUpdates: "key"
             case .about: "info.circle"
             }
@@ -2999,6 +3001,7 @@ struct SettingsView: View {
             case .keys: .clay
             case .pipelines: .periwinkle
             case .automation: .sage
+            case .mcp: .mutedTeal
             case .licenseUpdates: .ochre
             case .about: .dustyRose
             }
@@ -3008,7 +3011,7 @@ struct SettingsView: View {
     static let topTabs: [Tabs] = [.general, .clipboard, .files]
     static let fileTypeTabs: [Tabs] = [.video, .audio, .images, .pdf]
     static let dropTabs: [Tabs] = [.dropzone, .presetZones, .floating]
-    static let automationTabs: [Tabs] = [.keys, .pipelines, .automation]
+    static let automationTabs: [Tabs] = [.keys, .pipelines, .automation, .mcp]
     static let supportTabs: [Tabs] = [.licenseUpdates, .about]
 
     @ObservedObject var svm = settingsViewManager
@@ -3139,6 +3142,7 @@ struct SettingsView: View {
         case .keys: KeysSettingsView()
         case .pipelines: PipelinesSettingsView()
         case .automation: AutomationSettingsView()
+        case .mcp: MCPSettingsView()
         case .licenseUpdates: LicenseUpdatesSettingsView()
         case .about:
             AboutSettingsView()
