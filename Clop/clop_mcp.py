@@ -24,6 +24,7 @@ import itertools
 import json
 import os
 import select
+import re
 import secrets
 import subprocess
 import sys
@@ -108,7 +109,9 @@ def _next_step(message):
     if "clop pro" in low:
         # Clop already said which licence it wants, so only the next step is added.
         return " The user can buy a licence at " + BUY_URL + "."
-    if "pro" in low:
+    # A whole word, not a substring: "process", "provide" and "property" all contain "pro", and each
+    # of them used to get a licence pitch bolted onto an unrelated error.
+    if re.search(r"\bpro\b", low):
         return " Clop's MCP server needs Clop Pro. The user can buy a licence at " + BUY_URL + "."
     if "script" in low and "allow" in low:
         return (" Script steps are behind their own switch. Ask the user to allow them in "
@@ -152,6 +155,22 @@ def run(args, timeout=30, want_json=True):
         return {"output": out}
     if parsed.get("ok") is False:
         raise ClopError(_annotate(parsed.get("error") or err or "Clop refused the request"))
+
+    # A file command reports per-file outcomes in done[] and failed[] and still exits 0, so a licence
+    # refusal or a gate refusal used to arrive as a SUCCESSFUL tool result carrying a bare internal
+    # string. The agent was told nothing it could act on and had no reason to think anything went
+    # wrong. Every failure message gets the same next step a top-level error would, and a call where
+    # nothing succeeded is an error.
+    failed = parsed.get("failed") or []
+    if failed:
+        for item in failed:
+            if isinstance(item, dict) and item.get("error"):
+                item["error"] = _annotate(item["error"])
+        if not (parsed.get("done") or []):
+            raise ClopError("; ".join(
+                item["error"] for item in failed
+                if isinstance(item, dict) and item.get("error")
+            ) or "Clop could not process any of the files")
     return _prune(parsed)
 
 
@@ -1156,7 +1175,10 @@ def error(id, code, message):
 
 
 def handle_initialize(mid, params):
-    STATE.protocol = params.get("protocolVersion", DEFAULT_PROTOCOL)
+    # Only a string. A client sending a number here used to poison every later version
+    # comparison, so an elicitation-capable tool failed with a Python type error.
+    _v = params.get("protocolVersion")
+    STATE.protocol = _v if isinstance(_v, str) else DEFAULT_PROTOCOL
     STATE.modes = elicitation_modes(params.get("capabilities") or {})
     STATE.client_name = (params.get("clientInfo") or {}).get("name") or ""
     reply(mid, {
@@ -1172,6 +1194,20 @@ def call_tool(mid, params):
     tool = TOOLS_BY_NAME.get(name)
     if not tool:
         reply(mid, {"content": [{"type": "text", "text": f"unknown tool: {name}"}], "isError": True})
+        return
+
+    # Checked from the tool's own schema rather than in each handler, so a missing argument names
+    # itself. Without this the agent was handed a raw Python KeyError, "tool error: 'key'", which
+    # names nothing it can act on.
+    missing = [
+        field for field in (tool["inputSchema"].get("required") or [])
+        if args.get(field) in (None, "")
+    ]
+    if missing:
+        reply(mid, {
+            "content": [{"type": "text", "text": f"{name} needs {', '.join(missing)}"}],
+            "isError": True,
+        })
         return
 
     previous = (CURRENT.request_id, CURRENT.name, CURRENT.args, CURRENT.params)
@@ -1222,6 +1258,11 @@ def handle(msg):
                                "inputSchema": t["inputSchema"]} for t in TOOLS]})
     elif method == "tools/call":
         call_tool(mid, msg.get("params") or {})
+    elif method is None:
+        # A message with an id and no method is a RESPONSE, never a request. This happens when an
+        # elicitation answer arrives after the pump gave up on it. Answering it would mean sending a
+        # reply to a reply, which clients may surface as a server fault.
+        log("ignoring late or unmatched response", mid)
     elif is_request:
         error(mid, -32601, f"method not found: {method}")
     # else: unknown notification, ignore

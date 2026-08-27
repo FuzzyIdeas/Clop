@@ -73,6 +73,7 @@
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */ = {isa = PBXBuildFile; productRef = C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */; };
 		C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C401AA2E1B00010000A001 /* CropWindow.swift */; };
+		F66DD8631260A579FB340E97 /* clop_mcp.py in Resources */ = {isa = PBXBuildFile; fileRef = 2008091B6D489B64297F9518 /* clop_mcp.py */; };
 		CFC255D257204AA01D35190D /* MCPSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */; };
 		47AFFCF655530AA9B36633CF /* SettingsSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */; };
 		5D7BD406A1EC0515A4AB9070 /* MCPSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */; };
@@ -206,6 +207,7 @@
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C7C401AA2E1B00010000A001 /* CropWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CropWindow.swift; sourceTree = "<group>"; };
+		2008091B6D489B64297F9518 /* clop_mcp.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = clop_mcp.py; sourceTree = "<group>"; };
 		D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPSettings.swift; sourceTree = "<group>"; };
 		24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsSearchIndex.swift; sourceTree = "<group>"; };
 		395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPSettingsPane.swift; sourceTree = "<group>"; };
@@ -336,6 +338,7 @@
 				C71AAAD72D2D500300CA86D9 /* PresetZones.swift */,
 				C73802062BDCD76D001BEE6C /* CompareView.swift */,
 				C7C401AA2E1B00010000A001 /* CropWindow.swift */,
+				2008091B6D489B64297F9518 /* clop_mcp.py */,
 				D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */,
 				24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */,
 				395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */,
@@ -507,6 +510,7 @@
 				C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */,
 				C7CC9E242E57299900EAFCA1 /* InternetAccessPolicy.plist in Resources */,
 				C73802032BD1B804001BEE6C /* bin.tar.lrz in Resources */,
+				F66DD8631260A579FB340E97 /* clop_mcp.py in Resources */,
 				C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */,
 				C73802022BD1B804001BEE6C /* bin.tar.lrz.sha256 in Resources */,
 			);

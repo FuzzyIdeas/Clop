@@ -23,6 +23,10 @@ PROJ = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Clop.xcod
 
 # An existing file whose four lines are unambiguous, used to locate each list.
 ANCHOR = "CropWindow.swift"
+# A resource already in the Copy Bundle Resources phase. Needed because ANCHOR only appears in the
+# Sources phase, so --resource used to add the file to Sources with a "in Resources" label, which
+# builds fine and quietly ships nothing.
+RESOURCE_ANCHOR = "bin.tar.lrz"
 
 FILE_TYPES = {
     ".swift": "sourcecode.swift",
@@ -57,7 +61,9 @@ def main():
         "build": re.compile(r"^(\t\t[0-9A-F]{24} /\* %s in Sources \*/ = \{isa = PBXBuildFile.*\n)" % re.escape(ANCHOR), re.M),
         "ref": re.compile(r"^(\t\t[0-9A-F]{24} /\* %s \*/ = \{isa = PBXFileReference.*\n)" % re.escape(ANCHOR), re.M),
         "group": re.compile(r"^(\t\t\t\t[0-9A-F]{24} /\* %s \*/,\n)" % re.escape(ANCHOR), re.M),
-        "phase": re.compile(r"^(\t\t\t\t[0-9A-F]{24} /\* %s in Sources \*/,\n)" % re.escape(ANCHOR), re.M),
+        "phase": re.compile(
+            r"^(\t\t\t\t[0-9A-F]{24} /\* %s in %s \*/,\n)"
+            % (re.escape(RESOURCE_ANCHOR if args.resource else ANCHOR), phase), re.M),
     }
     for name, pat in anchors.items():
         n = len(pat.findall(text))
