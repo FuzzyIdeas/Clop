@@ -629,7 +629,9 @@ func sendOptimisationCommand(
             audioBitrate: audioBitrate,
             pipeline: pipeline,
             prepareInBatch: options.review,
-            placement: placement.isEmpty ? nil : placement
+            placement: placement.isEmpty ? nil : placement,
+
+            origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
         )
     }
 }
@@ -1422,7 +1424,9 @@ struct Clop: ParsableCommand {
                     source: "cli",
                     output: out,
                     removeAudio: removeAudio,
-                    pdfDPI: parsedPdfDpi
+                    pdfDPI: parsedPdfDpi,
+
+                    origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
                 )
             }
         }
@@ -1543,7 +1547,9 @@ struct Clop: ParsableCommand {
                     source: "cli",
                     output: out,
                     removeAudio: removeAudio,
-                    pdfDPI: parsedPdfDpi
+                    pdfDPI: parsedPdfDpi,
+
+                    origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
                 )
             }
         }
@@ -2079,7 +2085,9 @@ struct Clop: ParsableCommand {
                         adaptiveOptimisation: nil,
                         source: "cli",
                         pipeline: pipeline,
-                        placement: placement.isEmpty ? nil : placement
+                        placement: placement.isEmpty ? nil : placement,
+
+                        origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
                     )
                 }
             }
