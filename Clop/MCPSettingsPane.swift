@@ -14,10 +14,7 @@ import SwiftUI
 struct MCPSettingsView: View {
     var body: some View {
         Form {
-            Section(header: SectionHeader(
-                title: "MCP",
-                subtitle: "Let an AI agent drive Clop"
-            )) {
+            Section(header: SectionHeader(title: "MCP")) {
                 if !proactive {
                     proRow
                 }
