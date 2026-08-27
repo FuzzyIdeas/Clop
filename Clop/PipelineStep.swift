@@ -240,7 +240,7 @@ private func fileDPI(_ file: FilePath) -> Int? {
 
 enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     // Processing steps (explicit, no implicit optimisation)
-    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil, dpi: Int? = nil, location: String = "inPlace")
+    case optimise(encoder: EncoderQuality = .medium, adaptive: Bool = false, videoEncoder: VideoEncoder? = nil, dpi: Int? = nil, location: String = "inPlace", compression: CompressionQuality? = nil)
     case downscale(factor: Double, location: String = "inPlace")
     case lowerBitrate(kbps: Int, location: String = "inPlace")
     case convert(to: String, location: String = "sameFolder")
@@ -282,7 +282,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var id: String {
         switch self {
-        case let .optimise(encoder, adaptive, videoEncoder, dpi, location): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)-\(dpi ?? 0)-\(location)"
+        case let .optimise(encoder, adaptive, videoEncoder, dpi, location, compression): "optimise-\(videoEncoder?.rawValue ?? encoder.rawValue)-\(adaptive)-\(dpi ?? 0)-\(location)-\(compression.map { "\($0.tier.rawValue):\($0.factor)" } ?? "")"
         case let .downscale(factor, location): "downscale-\(factor)-\(location)"
         case let .lowerBitrate(kbps, location): "lowerBitrate-\(kbps)-\(location)"
         case let .convert(to, location): "convert-\(to)-\(location)"
@@ -346,9 +346,10 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
 
     var displayString: String {
         switch self {
-        case let .optimise(encoder, adaptive, videoEncoder, dpi, location):
+        case let .optimise(encoder, adaptive, videoEncoder, dpi, location, compression):
             var params = ["encoder: \(videoEncoder?.rawValue ?? encoder.rawValue)"]
             if adaptive { params.append("adaptive: true") }
+            if let compression { params.append("compression: \(compression.factor)") }
             if let dpi { params.append("dpi: \(dpi)") }
             if location != "inPlace" { params.append("location: \(location)") }
             return "optimise(\(params.joined(separator: ", ")))"
@@ -432,7 +433,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     /// The `location` parameter of processing steps. nil for steps without one.
     var location: String? {
         switch self {
-        case let .optimise(_, _, _, _, location): location
+        case let .optimise(_, _, _, _, location, _): location
         case let .downscale(_, location): location
         case let .lowerBitrate(_, location): location
         case let .convert(_, location): location
@@ -548,7 +549,9 @@ extension PipelineStep: Decodable {
                 adaptive: c.decodeIfPresent(Bool.self, forKey: DynKey("adaptive")) ?? false,
                 videoEncoder: c.decodeIfPresent(VideoEncoder.self, forKey: DynKey("videoEncoder")),
                 dpi: c.decodeIfPresent(Int.self, forKey: DynKey("dpi")),
-                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace"
+                location: c.decodeIfPresent(String.self, forKey: DynKey("location")) ?? "inPlace",
+                // Absent in every pipeline saved before this existed, so decodeIfPresent, not decode.
+                compression: c.decodeIfPresent(CompressionQuality.self, forKey: DynKey("compression"))
             )
         } else if container.contains(DynKey("downscale")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("downscale"))

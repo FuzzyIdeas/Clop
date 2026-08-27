@@ -508,11 +508,10 @@ func parsePDFDPIArgument(_ value: String?, flag: String = "--pdf-dpi") throws ->
 /// file type supports ('adaptive' for images, 'auto' for the video software encoder).
 func parseCompressionArgument(_ value: String?, allowAdaptive: Bool, allowAuto: Bool, flag: String = "--compression") throws -> CompressionQuality? {
     guard let value, !value.isEmpty else { return nil }
+    if let quality = parseCompressionValue(value, allowAdaptive: allowAdaptive, allowAuto: allowAuto) {
+        return quality
+    }
     switch value.lowercased() {
-    case "adaptive" where allowAdaptive:
-        return CompressionQuality(tier: .adaptive, factor: COMPRESSION_FACTOR_NORMAL)
-    case "auto" where allowAuto:
-        return CompressionQuality(tier: .custom, factor: 0)
     default:
         var allowed = ["a factor between 5 (best quality) and 100 (smallest file)"]
         if allowAdaptive { allowed.append("'adaptive'") }
@@ -2809,8 +2808,9 @@ func compactPipelinePromptContext(task: String?) -> String {
     `inPlace`, except `convert`/`extractPagesAsImages` default to `sameFolder`.
 
     ## Steps ([types]; defaults in (), value sets after :)
-    - optimise(encoder, adaptive, dpi, location) [all]. encoder img/pdf/audio: medium|aggressive|lossless;
-      video: fast|slowHighQuality|visuallyLossless. adaptive (img, may change ext). dpi (pdf): 300|150|72|48.
+    - optimise(encoder, compression, adaptive, dpi, location) [all]. encoder img/pdf/audio: medium|aggressive|lossless;
+      video: fast|slowHighQuality|visuallyLossless. compression [img,video,audio]: 5 (best quality)..100
+      (smallest), or adaptive. adaptive (img, may change ext). dpi (pdf): 300|150|72|48.
     - downscale(factor 0..1, location) [image,video,audio] (for audio this lowers the bitrate).
     - lowerBitrate(kbps) [audio]: 192|160|128|96|64 (never upscales; snaps to allowed).
     - convert(to, location) [image,video,audio] (sameFolder). img: webp|avif|heic|jxl|jpeg|png|gif;
@@ -2938,9 +2938,13 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
 
     ### Processing
 
-    - `optimise(encoder, adaptive, dpi, location)`: compress in place. [image, video, pdf, audio]
+    - `optimise(encoder, compression, adaptive, dpi, location)`: compress in place. [image, video, pdf, audio]
       - `encoder`: images/pdf/audio use `medium` (default), `aggressive`, `lossless`;
         video uses `fast` (hardware H.264), `slowHighQuality` (software, smaller), `visuallyLossless`.
+      - `compression`: how hard to compress, `5` (best quality) to `100` (smallest file), or `adaptive`
+        to let Clop pick per file. [image, video, audio] This is the same scale as the app's
+        compression setting, scoped to this pipeline instead of changing it globally. Reach for it
+        when the request is "smaller" or "more compressed" without naming a size.
       - `adaptive`: `true`/`false` (images only; may change the extension, e.g. PNG↔JPEG).
       - `dpi`: PDF only, overrides encoder. 300 = no downsampling, 150 = screen reading, 72 = screen, 48 = smallest.
     - `downscale(factor, location)`: scale down, keeps aspect ratio. [image, video, audio]
