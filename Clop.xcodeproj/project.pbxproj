@@ -73,6 +73,8 @@
 		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */ = {isa = PBXBuildFile; productRef = C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */; };
 		C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C401AA2E1B00010000A001 /* CropWindow.swift */; };
+		CFC255D257204AA01D35190D /* MCPSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */; };
+		47AFFCF655530AA9B36633CF /* SettingsSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */; };
 		5D7BD406A1EC0515A4AB9070 /* MCPSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */; };
 		66FE5A755826F82F315BA65A /* MCPInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15B37294AA9D73BE8D4C34C /* MCPInstaller.swift */; };
 		90E7521FF567BEAEF63F0F0F /* JSONCEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699EE6C672814086D6D929FA /* JSONCEditor.swift */; };
@@ -204,6 +206,8 @@
 		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
 		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C7C401AA2E1B00010000A001 /* CropWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CropWindow.swift; sourceTree = "<group>"; };
+		D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPSettings.swift; sourceTree = "<group>"; };
+		24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsSearchIndex.swift; sourceTree = "<group>"; };
 		395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPSettingsPane.swift; sourceTree = "<group>"; };
 		D15B37294AA9D73BE8D4C34C /* MCPInstaller.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPInstaller.swift; sourceTree = "<group>"; };
 		699EE6C672814086D6D929FA /* JSONCEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JSONCEditor.swift; sourceTree = "<group>"; };
@@ -332,6 +336,8 @@
 				C71AAAD72D2D500300CA86D9 /* PresetZones.swift */,
 				C73802062BDCD76D001BEE6C /* CompareView.swift */,
 				C7C401AA2E1B00010000A001 /* CropWindow.swift */,
+				D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */,
+				24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */,
 				395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */,
 				D15B37294AA9D73BE8D4C34C /* MCPInstaller.swift */,
 				699EE6C672814086D6D929FA /* JSONCEditor.swift */,
@@ -574,6 +580,8 @@
 				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
 				C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */,
 				C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */,
+				CFC255D257204AA01D35190D /* MCPSettings.swift in Sources */,
+				47AFFCF655530AA9B36633CF /* SettingsSearchIndex.swift in Sources */,
 				5D7BD406A1EC0515A4AB9070 /* MCPSettingsPane.swift in Sources */,
 				66FE5A755826F82F315BA65A /* MCPInstaller.swift in Sources */,
 				90E7521FF567BEAEF63F0F0F /* JSONCEditor.swift in Sources */,
