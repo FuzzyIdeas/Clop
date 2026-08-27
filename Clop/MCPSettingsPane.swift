@@ -130,11 +130,11 @@ struct MCPSettingsView: View {
 
     private func askAboutScripts() -> Bool {
         let alert = NSAlert()
-        alert.messageText = "Let agents write script steps?"
+        alert.messageText = "Allow agents to write scripts?"
         alert.informativeText = """
-        A script step runs whatever code it contains, with your account's access to your files.
+        A script step runs arbitrary code inside a pipeline.
 
-        Clop's built-in steps cover optimising, converting, downscaling and cropping. An agent only needs a script for something none of those can do.
+        Without human verification, it can result in irretrievable file losses as scripts are not sandboxed in any way.
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Allow")
