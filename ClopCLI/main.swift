@@ -69,6 +69,58 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
+/// Send one settings request to the running app and print what comes back.
+///
+/// The app has to be running: a settings write only means anything if something applies it, and the
+/// schema carries live values. `ensureAppIsRunning` launches it and waits for the port.
+func printSettings(_ request: SettingsRequest, json: Bool) throws {
+    var req = request
+    // Set by the bundled MCP server. The app refuses writes carrying this until the user allows them.
+    req.origin = ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
+
+    guard let port = CFMessagePortCreateRemote(nil, SETTINGS_PORT_ID as CFString) else {
+        throw ValidationError("Clop is not running. Start Clop and try again.")
+    }
+    CFMessagePortInvalidate(port)
+
+    let settingsPort = LocalMachPort(portLocation: SETTINGS_PORT_ID)
+    guard let data = try settingsPort.sendAndWait(data: req.jsonData, recvTimeout: 10),
+          let response = SettingsResponse.from(data)
+    else {
+        throw ValidationError("Clop did not answer.")
+    }
+
+    guard response.ok else {
+        if json {
+            print(response.jsonString)
+            throw ExitCode.failure
+        }
+        throw ValidationError(response.error ?? "Clop refused the request.")
+    }
+
+    guard !json else {
+        print(response.jsonString)
+        return
+    }
+
+    let settings = response.settings ?? []
+    guard !settings.isEmpty else {
+        print("Nothing matched.")
+        return
+    }
+    for s in settings {
+        let where_ = [s.pane, s.section].filter { !$0.isEmpty }.joined(separator: " > ")
+        print("\(s.title)\(where_.isEmpty ? "" : "  [\(where_)]")")
+        if !s.subtitle.isEmpty { print("  \(s.subtitle)") }
+        if s.key.isEmpty {
+            print("  (no single setting behind this row)")
+        } else {
+            print("  \(s.key) = \(s.value)\(s.allowed.map { "   one of: " + $0.joined(separator: ", ") } ?? "")")
+        }
+        print("")
+    }
+}
+
 /// Whether the app's optimisation service port is registered and accepting requests.
 func optimisationServiceIsReady() -> Bool {
     guard let port = CFMessagePortCreateRemote(nil, OPTIMISATION_PORT_ID as CFString) else {
@@ -2519,6 +2571,71 @@ struct Clop: ParsableCommand {
 
     }
 
+    /// Read and change any setting Clop's Settings window shows.
+    ///
+    /// Everything goes through the running app rather than into the defaults suite: the app applies a
+    /// change live instead of on next launch, and the MCP gate can only be enforced somewhere the
+    /// caller does not control. `CLOP_ORIGIN=mcp` in the environment marks a call as coming from the
+    /// bundled MCP server, which is what the app checks.
+    struct SettingsCommand: ParsableCommand {
+        struct Schema: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Every setting, its value and what it accepts. Pass words to narrow it."
+            )
+
+            @Argument(help: "Plain language filter, e.g. 'replace the original mov'")
+            var query: [String] = []
+
+            @Flag(name: .shortAndLong, help: "Output as JSON")
+            var json = false
+
+            mutating func run() throws {
+                let q = query.joined(separator: " ")
+                try printSettings(SettingsRequest(action: .schema, query: q.isEmpty ? nil : q), json: json)
+            }
+        }
+
+        struct Get: ParsableCommand {
+            static let configuration = CommandConfiguration(abstract: "Read one setting by key.")
+
+            @Argument(help: "The setting key")
+            var key: String
+
+            @Flag(name: .shortAndLong, help: "Output as JSON")
+            var json = false
+
+            mutating func run() throws {
+                try printSettings(SettingsRequest(action: .get, key: key), json: json)
+            }
+        }
+
+        struct Set: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Change one setting. Applies immediately."
+            )
+
+            @Argument(help: "The setting key")
+            var key: String
+
+            @Argument(help: "The new value, in the string form the schema shows")
+            var value: String
+
+            @Flag(name: .shortAndLong, help: "Output as JSON")
+            var json = false
+
+            mutating func run() throws {
+                try printSettings(SettingsRequest(action: .set, key: key, value: value), json: json)
+            }
+        }
+
+        static let configuration = CommandConfiguration(
+            commandName: "settings",
+            abstract: "Read and change Clop's settings.",
+            subcommands: [Schema.self, Get.self, Set.self],
+            defaultSubcommand: Schema.self
+        )
+    }
+
     /// What the bundled MCP server asks before it does anything.
     ///
     /// Reads the app's own defaults suite rather than talking to the app, so it answers whether or not
@@ -2593,6 +2710,7 @@ struct Clop: ParsableCommand {
             UncropPdf.self,
             StripExif.self,
             PipelineCommand.self,
+            SettingsCommand.self,
             MCPCommand.self,
         ]
     )

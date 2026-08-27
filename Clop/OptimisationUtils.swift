@@ -3783,6 +3783,7 @@ enum BatchOptimisationError: Error {
 }
 
 let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
+let SETTINGS_PORT = LocalMachPort(portLocation: SETTINGS_PORT_ID)
 let OPTIMISATION_STOP_PORT = LocalMachPort(portLocation: OPTIMISATION_STOP_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)

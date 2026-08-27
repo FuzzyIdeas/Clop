@@ -26,6 +26,16 @@ struct SettingEntry: Identifiable, Hashable {
     var searchCorpus: String {
         ([title, subtitle, section, tab.title] + keywords).joined(separator: " ").lowercased()
     }
+
+    /// The words of each field, kept apart so a hit in the title can outrank one buried in a subtitle.
+    var searchFields: [(weight: Double, words: [String])] {
+        [
+            (3.0, SettingsSearchIndex.words(title)),
+            (2.5, keywords.flatMap { SettingsSearchIndex.words($0) }),
+            (1.0, SettingsSearchIndex.words(subtitle)),
+            (0.6, SettingsSearchIndex.words(section) + SettingsSearchIndex.words(tab.title)),
+        ]
+    }
 }
 
 // MARK: - SettingsSearchIndex
@@ -414,24 +424,70 @@ enum SettingsSearchIndex {
 
     static let byID: [String: SettingEntry] = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
 
-    /// Rows matching every word of the query, best first.
-    ///
-    /// Every word has to hit somewhere, which is what a person typing two words into a field expects.
-    /// The agent-facing matcher in `MCPSettingsBridge.matches` relaxes that for a whole question.
-    static func search(_ query: String) -> [SettingEntry] {
-        let words = query.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
-        guard words.isNotEmpty else { return [] }
+    /// Split into lowercase words. Shared by the index and the query so both are cut the same way.
+    static func words(_ text: String) -> [String] {
+        text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+    }
 
-        return all.compactMap { entry -> (SettingEntry, Int)? in
-            let corpus = entry.searchCorpus
-            guard words.allSatisfy({ corpus.contains($0) }) else { return nil }
-            // A hit in the title is worth more than one buried in a subtitle: someone searching
-            // "placement" wants the row called that, not the six rows that mention it in passing.
-            let title = entry.title.lowercased()
-            let score = words.reduce(0) { $0 + (title.contains($1) ? 3 : 1) }
+    /// Does a query word match an indexed word?
+    ///
+    /// Prefix, not equality, because people and agents inflect: someone asks why Clop is not
+    /// "replacing" the file and the row's keyword is "replace". Four characters is the shortest prefix
+    /// worth trusting; below that "in" would match "inPlace" and every other word starting in-.
+    static func wordMatches(_ query: String, _ indexed: String) -> Bool {
+        if query == indexed { return true }
+        guard query.count >= 4, indexed.count >= 4 else { return false }
+        return query.hasPrefix(indexed.prefix(4)) && (query.hasPrefix(indexed) || indexed.hasPrefix(query))
+    }
+
+    /// Rows matching the query, best first.
+    ///
+    /// `requireAll` is what separates the two callers. The Settings field passes true, because someone
+    /// typing two words expects both to count. An agent hands over a whole sentence full of words no
+    /// row carries, so `MCPSettingsBridge.matches` passes false and leans on the scoring instead.
+    static func rank(_ query: String, requireAll: Bool, limit: Int = 25) -> [SettingEntry] {
+        let queryWords = words(query).filter { $0.count > 1 }
+        guard !queryWords.isEmpty else { return [] }
+        let weights = Dictionary(uniqueKeysWithValues: Set(queryWords).map { ($0, idf($0)) })
+
+        return all.compactMap { entry -> (SettingEntry, Double)? in
+            var score = 0.0
+            var matched = 0
+            for word in Set(queryWords) {
+                var best = 0.0
+                for field in entry.searchFields where field.words.contains(where: { wordMatches(word, $0) }) {
+                    best = max(best, field.weight)
+                }
+                guard best > 0 else { continue }
+                matched += 1
+                score += best * (weights[word] ?? 1)
+            }
+            guard matched > 0 else { return nil }
+            if requireAll, matched < Set(queryWords).count { return nil }
             return (entry, score)
         }
         .sorted { $0.1 == $1.1 ? $0.0.title < $1.0.title : $0.1 > $1.1 }
+        .prefix(limit)
         .map(\.0)
     }
+
+    /// Rows matching every word of the query, best first. What the Settings search field calls.
+    static func search(_ query: String) -> [SettingEntry] {
+        rank(query, requireAll: true)
+    }
+
+    /// How much one query word is worth: a lot when few rows carry it, almost nothing when most do.
+    ///
+    /// Without this, a question like "why is Clop not replacing the mov with the optimised mp4" ranks
+    /// by its most common word. "optimised" is in half the index and "mov" is in one row, and the
+    /// answer is the row with "mov" in it. This is plain inverse document frequency, and it does the
+    /// job a stop-word list would do without anyone having to maintain the list.
+    private static func idf(_ word: String) -> Double {
+        let total = Double(all.count)
+        let hits = all.reduce(0.0) { count, entry in
+            count + (entry.searchFields.contains { $0.words.contains { wordMatches(word, $0) } } ? 1 : 0)
+        }
+        return Foundation.log((total + 1) / (hits + 1)) + 0.1
+    }
+
 }

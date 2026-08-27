@@ -288,6 +288,7 @@ class AppDelegate: AppDelegateParent {
 
     var machPortThread: Thread?
     var machPortStopThread: Thread?
+    var machPortSettingsThread: Thread?
 
     var finishedOnboarding = Defaults[.finishedOnboarding] || Defaults[.launchCount] > 5
 
@@ -923,8 +924,23 @@ class AppDelegate: AppDelegateParent {
             RunLoop.current.run()
         }
 
+        // Settings get its own port. A settings call and an optimisation call have nothing in common,
+        // and keeping them apart means a malformed one of either can never be read as the other.
+        machPortSettingsThread = Thread {
+            SETTINGS_PORT.listen { data in
+                guard let data, let req = SettingsRequest.from(data) else { return nil }
+
+                // `listen` runs on this thread; the bridge reads and writes Defaults and is MainActor.
+                var response = SettingsResponse(ok: false, error: "Clop did not answer")
+                awaitSync { await MainActor.run { response = MCPSettingsBridge.handle(req) } }
+                return Unmanaged.passRetained(response.jsonData as CFData)
+            }
+            RunLoop.current.run()
+        }
+
         machPortThread?.start()
         machPortStopThread?.start()
+        machPortSettingsThread?.start()
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
