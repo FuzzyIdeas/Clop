@@ -36,6 +36,9 @@ class DragManager: ObservableObject {
             dropZoneKeyLocalMonitor.stop()
             presetZonesKeyGlobalMonitor.stop()
             presetZonesKeyLocalMonitor.stop()
+            modifierTapCancelGlobalMonitor.stop()
+            modifierTapCancelLocalMonitor.stop()
+            presetZonesPinned = false
             DM.showDropZone = false
             DM.showPresetZones = false
         }
@@ -70,6 +73,10 @@ class DragManager: ObservableObject {
                 log.debug("Option pressed, hiding drop zone")
                 hideCursorDropZone()
                 dropZoneAtCursor = false
+                // The preset zones are drawn inside the drop zone, so they go with it. Leaving them on
+                // would have the next reveal open straight into them.
+                showPresetZones = false
+                presetZonesPinned = false
                 if !Defaults[.enableFloatingResults], floatingResultsWindow.isVisible {
                     floatingResultsWindow.close()
                 }
@@ -261,7 +268,13 @@ struct DropZonePresetsView: View {
                 }
             }
         }
-        .onAppear { cachePresetZones() }
+        .onAppear {
+            cachePresetZones()
+            // SwiftUI can keep this view's state across a hide/reveal, and a stale index leaves a zone
+            // reading as hovered: `hovered` flips the icon 170° on its Y axis, so it comes back mirrored.
+            selectedPresetIndex = nil
+            selectedPreset = nil
+        }
         .onChange(of: presetZones) { _ in cachePresetZones() }
 
     }
@@ -457,9 +470,6 @@ struct DropZoneView: View {
 
     var presetFileType: ClopFileType?
 
-    var ctrlPressed: Bool {
-        keysManager.lctrl || keysManager.rctrl
-    }
     var cmdPressed: Bool {
         keysManager.lcmd || keysManager.rcmd
     }
@@ -547,11 +557,6 @@ struct DropZoneView: View {
         .frame(width: FloatingResult.cardW, height: FloatingResult.cardH, alignment: floatingResultsCorner.isTrailing ? .trailing : .leading)
         .padding()
         .fixedSize()
-        .onChange(of: ctrlPressed) { ctrlPressed in
-            if !Defaults[.onlyShowPresetZonesOnControlTapped] {
-                dragManager.showPresetZones = ctrlPressed
-            }
-        }
         .onChange(of: dragManager.showPresetZones) { showing in
             // Clear any stale preset selection when preset zones hide, so a
             // subsequent drop on the main zone doesn't inherit it.
