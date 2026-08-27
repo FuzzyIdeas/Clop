@@ -210,10 +210,11 @@ enum SettingsSearchIndex {
             keywords: ["mute", "silent", "sound", "audio track", "strip"], tab: .video, section: "Optimisation rules"
         ),
         SettingEntry(
-            id: "video.optimisationrules.capVideoFPS", keys: ["capVideoFPS"],
+            id: "video.optimisationrules.capVideoFPS", keys: ["capVideoFPS", "targetVideoFPS"],
             title: "Cap frames per second",
-            subtitle: "Limit the frame rate of optimised videos",
-            keywords: ["fps", "frame rate", "frames per second", "30fps", "60fps", "smooth", "slow"], tab: .video, section: "Optimisation rules"
+            subtitle: "",
+            keywords: ["fps", "frame rate", "frames per second", "30fps", "60fps", "smooth", "slow", "half", "quarter", "1/2 of source", "1/4 of source", "choppy", "screen recording", "stuttering"], tab: .video,
+            section: "Optimisation rules"
         ),
         SettingEntry(
             id: "video.optimisationrules.playbackSpeedFrameBehaviour", keys: ["playbackSpeedFrameBehaviour"],
@@ -231,8 +232,8 @@ enum SettingsSearchIndex {
         SettingEntry(
             id: "audio.optimisationrules.audioCoverArt", keys: ["audioCoverArt"],
             title: "Cover art",
-            subtitle: "What to do with embedded artwork when optimising audio",
-            keywords: [], tab: .audio, section: "Optimisation rules"
+            subtitle: "Cover art is kept only for formats that can store it (AAC, MP3, FLAC); it is dropped for others.",
+            keywords: ["artwork", "thumbnail", "picture", "embedded", "id3", "m4a", "strip", "remove", "metadata", "tag", "album"], tab: .audio, section: "Optimisation rules"
         ),
 
         SettingEntry(
@@ -418,6 +419,407 @@ enum SettingsSearchIndex {
             title: "Allow agents to write script steps",
             subtitle: "A script step runs arbitrary code. Off means Clop refuses a pipeline from an agent that contains one, and names the step. Scripts you write yourself are unaffected",
             keywords: ["mcp", "agent", "script", "shell", "code", "pipeline", "dangerous"], tab: .mcp, section: ""
+        ),
+
+        // MARK: added from the domain sweep
+
+        SettingEntry(
+            id: "video.watchpaths.videoDirs", keys: [],
+            title: "Watch paths",
+            subtitle: "Optimise videos as they appear in these folders",
+            keywords: ["directory", "desktop", "downloads", "monitor", "automatic", "add", "clopignore", "ignore rules", "not picking up", "nothing happens", "unwatched"], tab: .video, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "video.watchpaths.enableAutomaticVideoOptimisations", keys: ["enableAutomaticVideoOptimisations"],
+            title: "Enable video auto-optimiser",
+            subtitle: "",
+            keywords: ["watch", "folders", "background", "monitor", "stopped working", "disabled", "paused", "desktop", "nothing happens", "turn off"], tab: .video, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "video.optimisationrules.videoCompression", keys: ["videoCompression"],
+            title: "Compression",
+            subtitle: "",
+            keywords: ["encoder", "hardware", "software", "adaptive", "visually lossless", "quality", "crf", "bitrate", "factor", "auto", "slower", "cpu", "battery", "smaller size", "better quality"], tab: .video,
+            section: "Optimisation rules"
+        ),
+        SettingEntry(
+            id: "video.optimisationrules.minVideoFPS", keys: ["minVideoFPS"],
+            title: "but no less than",
+            subtitle: "",
+            keywords: ["fps", "minimum", "floor", "10fps", "24fps", "30fps", "60fps", "1/2 of source", "1/4 of source", "fraction", "frame rate", "too slow", "choppy", "stuttering"], tab: .video, section: "Optimisation rules"
+        ),
+        SettingEntry(
+            id: "video.watchedfilefilters.minVideoSizeKB", keys: ["minVideoSizeKB", "maxVideoSizeMB"],
+            title: "File size",
+            subtitle: "Only optimises files between the set sizes",
+            keywords: ["mb", "kb", "gb", "skipped", "ignored", "too big", "too large", "too small", "threshold", "limit", "range", "untouched"], tab: .video, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "video.watchedfilefilters.minVideoResolution", keys: ["minVideoResolution", "maxVideoResolution"],
+            title: "Resolution",
+            subtitle: "Only optimises files with width and height between the set values",
+            keywords: ["px", "pixels", "4k", "1080p", "tiny", "thumbnail", "upscaled", "skipped", "ignored", "threshold", "limit", "range", "dimensions"], tab: .video, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "video.watchedfilefilters.maxVideoFileCount", keys: ["maxVideoFileCount"],
+            title: "File count",
+            subtitle: "Skips optimisation when more than this many videos are copied or moved at once",
+            keywords: ["batch", "bulk", "drag", "import", "multiple", "dozens", "threshold", "limit", "nothing happens", "ignored"], tab: .video, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "video.watchedfilefilters.videoFormatsToSkip", keys: ["videoFormatsToSkip"],
+            title: "Ignore videos with extension",
+            subtitle: "",
+            keywords: ["mkv", "m4v", "avi", "webm", "mov", "mp4", "mpeg", "skip", "exclude", "deny list", "format", "untouched", "left alone"], tab: .video, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "video.compatibility.formatsToConvertToMP4", keys: ["formatsToConvertToMP4"],
+            title: "Convert to mp4",
+            subtitle: "",
+            keywords: ["mov", "webm", "mkv", "avi", "mpeg", "m4v", "quicktime", "container", "remux", "incompatible", "cannot open", "unsupported", "automatic"], tab: .video, section: "Compatibility"
+        ),
+        SettingEntry(
+            id: "general.editwithexternalapp.editorAppVideo", keys: ["editorAppVideo"],
+            title: "Videos",
+            subtitle: "",
+            keywords: ["editor", "external app", "open with", "capcut", "final cut", "premiere", "davinci", "cmd e", "right click", "choose app", "bundle path"], tab: .general, section: "Edit with external app"
+        ),
+        SettingEntry(
+            id: "files.videos.sameFolderNameTemplateVideo", keys: ["sameFolderNameTemplateVideo"],
+            title: "Name template for optimised videos saved in the same folder",
+            subtitle: "",
+            keywords: ["pattern", "rename", "filename", "suffix", "counter", "date", "clop", "placeholder", "token", "variables"], tab: .files, section: "Videos"
+        ),
+        SettingEntry(
+            id: "files.videos.specificFolderNameTemplateVideo", keys: ["specificFolderNameTemplateVideo"],
+            title: "Path template for optimised videos saved in a specific folder",
+            subtitle: "",
+            keywords: ["destination", "output directory", "subfolder", "pattern", "rename", "filename", "where", "placeholder", "token", "location"], tab: .files, section: "Videos"
+        ),
+        SettingEntry(
+            id: "files.videos.convertedSameFolderNameTemplateVideo", keys: ["convertedSameFolderNameTemplateVideo"],
+            title: "Name template for converted videos saved in the same folder",
+            subtitle: "",
+            keywords: ["mp4", "mov", "pattern", "rename", "filename", "suffix", "leftover", "duplicate", "placeholder", "token"], tab: .files, section: "Videos"
+        ),
+        SettingEntry(
+            id: "files.videos.convertedSpecificFolderNameTemplateVideo", keys: ["convertedSpecificFolderNameTemplateVideo"],
+            title: "Path template for converted videos saved in a specific folder",
+            subtitle: "",
+            keywords: ["mp4", "mov", "destination", "output directory", "subfolder", "pattern", "where", "placeholder", "token", "location"], tab: .files, section: "Videos"
+        ),
+        SettingEntry(
+            id: "images.watchpaths.imageDirs", keys: [],
+            title: "Watch paths",
+            subtitle: "Optimise images as they appear in these folders",
+            keywords: ["directories", "desktop", "downloads", "screenshots", "monitor", "automatic", "clopignore", "ignore rules", "per-folder", "add", "remove"], tab: .images, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "images.watchpaths.enableAutomaticImageOptimisations", keys: ["enableAutomaticImageOptimisations"],
+            title: "Enable image auto-optimiser",
+            subtitle: "",
+            keywords: ["watch", "folder", "background", "screenshots", "stopped working", "nothing happens", "turn off", "pause", "monitor", "checkbox"], tab: .images, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "images.photosintegration.maxCopiedPhotosCount", keys: ["maxCopiedPhotosCount"],
+            title: "File count",
+            subtitle: "",
+            keywords: ["photos", "photos.app", "copied at once", "batch", "bulk", "how many", "limit", "threshold", "skip", "albums"], tab: .images, section: "Photos integration"
+        ),
+        SettingEntry(
+            id: "images.photosintegration.maxPhotosLength", keys: ["maxPhotosLength"],
+            title: "Downscale to",
+            subtitle: "",
+            keywords: ["photos", "px", "pixels", "resize", "longest edge", "shrink", "huge", "crop", "empty", "unlimited"], tab: .images, section: "Photos integration"
+        ),
+        SettingEntry(
+            id: "images.optimisationrules.imageCompression", keys: ["imageCompression"],
+            title: "Compression",
+            subtitle: "",
+            keywords: ["quality", "factor", "percent", "slider", "adaptive", "lossy", "aggressive", "smaller", "blurry", "artifacts", "entropy", "jpeg", "png", "file size"], tab: .images, section: "Optimisation rules"
+        ),
+        SettingEntry(
+            id: "images.watchedfilefilters.minImageSizeKB", keys: ["minImageSizeKB", "maxImageSizeMB"],
+            title: "File size",
+            subtitle: "",
+            keywords: ["skip", "limit", "range", "kb", "mb", "bytes", "megabytes", "too small", "too large", "threshold", "ignore", "not optimised"], tab: .images, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "images.watchedfilefilters.minImageResolution", keys: ["minImageResolution", "maxImageResolution"],
+            title: "Resolution",
+            subtitle: "",
+            keywords: ["pixels", "px", "width", "height", "dimensions", "skip", "limit", "range", "icons", "thumbnails", "huge", "ignore"], tab: .images, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "images.watchedfilefilters.maxImageFileCount", keys: ["maxImageFileCount"],
+            title: "File count",
+            subtitle: "",
+            keywords: ["batch", "bulk", "how many", "at once", "copied at once", "moved at once", "limit", "threshold", "skip", "mass copy"], tab: .images, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "images.watchedfilefilters.imageFormatsToSkip", keys: ["imageFormatsToSkip"],
+            title: "Ignore images with extension",
+            subtitle: "",
+            keywords: ["tiff", "psd", "raw", "skip", "exclude", "never optimise", "leave alone", "format", "blacklist", "deny list"], tab: .images, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "images.compatibility.formatsToConvertToJPEG", keys: ["formatsToConvertToJPEG"],
+            title: "Convert to jpeg",
+            subtitle: "",
+            keywords: ["webp", "avif", "heic", "bmp", "jxl", "tiff", "compatibility", "cannot open", "unsupported", "automatic", "before optimisation"], tab: .images, section: "Compatibility"
+        ),
+        SettingEntry(
+            id: "images.compatibility.formatsToConvertToPNG", keys: ["formatsToConvertToPNG"],
+            title: "Convert to png",
+            subtitle: "",
+            keywords: ["tiff", "bmp", "webp", "avif", "heic", "jxl", "transparency", "alpha", "lossless", "compatibility", "unsupported", "cannot open"], tab: .images, section: "Compatibility"
+        ),
+        SettingEntry(
+            id: "files.images.sameFolderNameTemplateImage", keys: ["sameFolderNameTemplateImage"],
+            title: "Name template for Same folder as original",
+            subtitle: "",
+            keywords: ["%f", "suffix", "optimised", "rename", "naming", "filename", "variables", "date", "counter", "overwrite"], tab: .files, section: "Images"
+        ),
+        SettingEntry(
+            id: "files.images.specificFolderNameTemplateImage", keys: ["specificFolderNameTemplateImage"],
+            title: "Path template for Specific folder",
+            subtitle: "",
+            keywords: ["%P", "%f", "folder", "destination", "output path", "where", "naming", "pattern", "subfolder", "variables"], tab: .files, section: "Images"
+        ),
+        SettingEntry(
+            id: "files.images.convertedSameFolderNameTemplateImage", keys: ["convertedSameFolderNameTemplateImage"],
+            title: "Converted file name template for Same folder as original",
+            subtitle: "",
+            keywords: ["%f", "webp", "heic", "jpeg", "conversion", "rename", "naming", "pattern", "leftover", "variables", "manual convert"], tab: .files, section: "Images"
+        ),
+        SettingEntry(
+            id: "files.images.convertedSpecificFolderNameTemplateImage", keys: ["convertedSpecificFolderNameTemplateImage"],
+            title: "Converted file path template for Specific folder",
+            subtitle: "",
+            keywords: ["%P", "%f", "webp", "heic", "jpeg", "conversion", "destination", "output path", "subfolder", "naming", "manual convert"], tab: .files, section: "Images"
+        ),
+        SettingEntry(
+            id: "general.editwithexternalapp.editorAppImage", keys: ["editorAppImage"],
+            title: "Images",
+            subtitle: "",
+            keywords: ["editor", "external app", "open with", "photoshop", "pixelmator", "affinity", "preview", "edit with", "⌘e", "cmd e", "choose app"], tab: .general, section: "Edit with external app"
+        ),
+        SettingEntry(
+            id: "audio.watchpaths.audioDirs", keys: [],
+            title: "Watch paths",
+            subtitle: "Optimise audio files as they appear in these folders",
+            keywords: ["folder", "directory", "watched", "monitor", "add folder", "incoming", "music", "downloads", "automatic", "clopignore", "ignore rules", "path list"], tab: .audio, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "audio.watchpaths.enableAutomaticAudioOptimisations", keys: ["enableAutomaticAudioOptimisations"],
+            title: "Enable **audio** auto-optimiser",
+            subtitle: "",
+            keywords: ["watch", "watcher", "folder", "automatic", "background", "turn on", "turn off", "disable", "stop", "not optimising", "nothing happens"], tab: .audio, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "audio.optimisationrules.audioCompression", keys: ["audioCompression"],
+            title: "Compression",
+            subtitle: "WAV, AIFF and FLAC are lossless, so the compression factor does not apply to them.",
+            keywords: ["quality", "bitrate", "kbps", "percent", "slider", "smaller", "file size", "vbr", "variable bitrate", "aac", "mp3", "lossy", "aggressive"], tab: .audio, section: "Optimisation rules"
+        ),
+        SettingEntry(
+            id: "audio.watchedfilefilters.minAudioSizeKB", keys: ["minAudioSizeKB", "maxAudioSizeMB"],
+            title: "File size",
+            subtitle: "",
+            keywords: ["skip", "skipped", "ignore", "threshold", "too big", "too small", "limit", "range", "mb", "kb", "large", "small", "podcast", "untouched"], tab: .audio, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "audio.watchedfilefilters.maxAudioFileCount", keys: ["maxAudioFileCount"],
+            title: "File count",
+            subtitle: "",
+            keywords: ["batch", "bulk", "many", "at once", "limit", "skip", "copied", "moved", "album", "import", "nothing happens", "too many"], tab: .audio, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "audio.compatibility.formatsToConvertToAAC", keys: ["formatsToConvertToAAC"],
+            title: "Convert to AAC (M4A)",
+            subtitle: "",
+            keywords: ["m4a", "flac", "aiff", "wav", "lossless", "target", "output", "pills", "toggle", "re-encode", "exclusive"], tab: .audio, section: "Compatibility"
+        ),
+        SettingEntry(
+            id: "audio.compatibility.formatsToConvertToMP3", keys: ["formatsToConvertToMP3"],
+            title: "Convert to MP3",
+            subtitle: "",
+            keywords: ["wav", "flac", "aiff", "lossless", "target", "output", "pills", "toggle", "re-encode", "exclusive"], tab: .audio, section: "Compatibility"
+        ),
+        SettingEntry(
+            id: "general.editwithexternalapp.editorAppAudio", keys: ["editorAppAudio"],
+            title: "Audio",
+            subtitle: "",
+            keywords: ["editor", "external app", "open with", "choose", "edit", "cmd e", "audacity", "ferrite", "fission", "default", "waveform"], tab: .general, section: "Edit with external app"
+        ),
+        SettingEntry(
+            id: "files.audio.sameFolderNameTemplateAudio", keys: ["sameFolderNameTemplateAudio"],
+            title: "Optimised audio name template",
+            subtitle: "",
+            keywords: ["filename", "rename", "pattern", "%f", "variables", "placeholder", "same folder", "placement", "copy", "beside", "next to"], tab: .files, section: "Audio"
+        ),
+        SettingEntry(
+            id: "files.audio.specificFolderNameTemplateAudio", keys: ["specificFolderNameTemplateAudio"],
+            title: "Optimised audio path template",
+            subtitle: "",
+            keywords: ["filename", "rename", "pattern", "%p", "%f", "variables", "placeholder", "specific folder", "placement", "destination", "output"], tab: .files, section: "Audio"
+        ),
+        SettingEntry(
+            id: "files.audio.convertedSameFolderNameTemplateAudio", keys: ["convertedSameFolderNameTemplateAudio"],
+            title: "Converted audio name template",
+            subtitle: "",
+            keywords: ["filename", "rename", "pattern", "%f", "conversion", "wav", "mp3", "aac", "variables", "placeholder", "same folder", "beside"], tab: .files, section: "Audio"
+        ),
+        SettingEntry(
+            id: "files.audio.convertedSpecificFolderNameTemplateAudio", keys: ["convertedSpecificFolderNameTemplateAudio"],
+            title: "Converted audio path template",
+            subtitle: "",
+            keywords: ["filename", "rename", "pattern", "%p", "%f", "conversion", "wav", "mp3", "variables", "placeholder", "specific folder", "destination", "output"], tab: .files, section: "Audio"
+        ),
+        SettingEntry(
+            id: "pdf.watchpaths.pdfDirs", keys: [],
+            title: "Watch paths",
+            subtitle: "Optimise PDFs as they appear in these folders",
+            keywords: ["directories", "monitor", "downloads", "desktop", "clopignore", "ignore rules", "drop", "incoming"], tab: .pdf, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "pdf.watchpaths.enableAutomaticPDFOptimisations", keys: ["enableAutomaticPDFOptimisations"],
+            title: "Enable PDF auto-optimiser",
+            subtitle: "",
+            keywords: ["watch", "folder", "background", "monitor", "turn off", "disable", "stop", "incoming", "downloads", "not optimising"], tab: .pdf, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "pdf.optimisationrules.pdfDPI", keys: ["pdfDPI"],
+            title: "Compression",
+            subtitle: "Clop automatically picks a per-PDF DPI from the source image density and downscales images above it",
+            keywords: ["resolution", "quality", "adaptive", "scanned", "lossless", "150", "300", "blurry", "ghostscript", "shrink", "smaller", "file size", "text quality", "pixelated"], tab: .pdf, section: "Optimisation rules"
+        ),
+        SettingEntry(
+            id: "pdf.watchedfilefilters.minPDFSizeKB", keys: ["minPDFSizeKB", "maxPDFSizeMB"],
+            title: "File size",
+            subtitle: "",
+            keywords: ["skip", "too big", "too small", "ignored", "limit", "minimum", "maximum", "mb", "kb", "range", "large", "huge", "not optimised"], tab: .pdf, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "pdf.watchedfilefilters.maxPDFFileCount", keys: ["maxPDFFileCount"],
+            title: "File count",
+            subtitle: "Skips optimisation when more than this many PDFs are copied or moved at once",
+            keywords: ["batch", "bulk", "threshold", "ignored", "watched folder", "nothing happened", "limit", "multiple files"], tab: .pdf, section: "Watched file filters"
+        ),
+        SettingEntry(
+            id: "general.editwithexternalapp.editorAppPDF", keys: ["editorAppPDF"],
+            title: "PDFs",
+            subtitle: "",
+            keywords: ["editor", "open with", "external app", "edit", "choose app", "preview", "acrobat", "pdf expert", "cmd e", "⌘e", "default app", "hand off"], tab: .general, section: "Edit with external app"
+        ),
+        SettingEntry(
+            id: "files.pdf.sameFolderNameTemplatePDF", keys: ["sameFolderNameTemplatePDF"],
+            title: "Same folder name template",
+            subtitle: "",
+            keywords: ["filename", "rename", "pattern", "suffix", "optimised", "tokens", "next to", "beside", "overwrite", "copy"], tab: .files, section: "PDF"
+        ),
+        SettingEntry(
+            id: "files.pdf.specificFolderNameTemplatePDF", keys: ["specificFolderNameTemplatePDF"],
+            title: "Specific folder name template",
+            subtitle: "",
+            keywords: ["path", "filename", "rename", "pattern", "destination", "output", "tokens", "where do they go", "subfolder"], tab: .files, section: "PDF"
+        ),
+        SettingEntry(
+            id: "images.photosintegration.photoCropOrientation", keys: ["photoCropOrientation"],
+            title: "Photos crop orientation",
+            subtitle: "",
+            keywords: ["portrait", "landscape", "adaptive", "longest edge", "height", "width", "resize", "aspect", "segmented", "picker"], tab: .images, section: "Photos integration"
+        ),
+        SettingEntry(
+            id: "clipboard.ignoredapps.clipboardIgnoredAppBundleIds", keys: [],
+            title: "Ignored apps",
+            subtitle: "Skip clipboard optimisation while one of these apps is in front",
+            keywords: ["denylist", "blacklist", "exclude", "exclusion", "bundle id", "frontmost", "foreground app", "pixelmator", "figma", "password manager", "copy", "paste", "per app"], tab: .clipboard, section: "Ignored apps"
+        ),
+        SettingEntry(
+            id: "general.main.showMenubarIcon", keys: ["showMenubarIcon", "useClassicMenubarIcon", "useGeometricMenubarIcon"],
+            title: "Menubar icon",
+            subtitle: "",
+            keywords: ["status bar", "tray", "hide", "hidden", "style", "classic", "geometric", "new", "eye slash", "top bar", "missing", "disappeared"], tab: .general, section: ""
+        ),
+        SettingEntry(
+            id: "general.main.allowClopToAppearInScreenshots", keys: ["allowClopToAppearInScreenshots"],
+            title: "Show Clop UI in screenshots",
+            subtitle: "",
+            keywords: ["screen recording", "capture", "floating results", "drop zone", "visible", "hidden", "cleanshot", "record", "demo", "share"], tab: .general, section: ""
+        ),
+        SettingEntry(
+            id: "general.main.pauseAutomaticOptimisations", keys: ["pauseAutomaticOptimisations"],
+            title: "Pause automatic optimisations",
+            subtitle: "",
+            keywords: ["resume", "stop", "disable", "snooze", "watcher", "watched folders", "clipboard", "nothing happens", "not working", "temporarily", "off"], tab: .general, section: ""
+        ),
+        SettingEntry(
+            id: "general.workingdirectory.workdir", keys: ["workdir"],
+            title: "Working directory path",
+            subtitle: "",
+            keywords: ["workdir", "folder", "cache", "temp", "temporary", "backups", "scratch", "disk space", "location", "move", "reset"], tab: .general, section: "Working directory"
+        ),
+        SettingEntry(
+            id: "keys.triggerkeys.keyComboModifiers", keys: ["keyComboModifiers"],
+            title: "Trigger keys",
+            subtitle: "",
+            keywords: ["modifier", "modifiers", "hotkey", "shortcut", "control", "shift", "option", "command", "ctrl", "hold", "combo", "global"], tab: .keys, section: "Trigger keys"
+        ),
+        SettingEntry(
+            id: "keys.actionkeys.enabledKeys", keys: ["enabledKeys"],
+            title: "Action keys",
+            subtitle: "",
+            keywords: [
+                "hotkey",
+                "shortcut",
+                "downscale",
+                "quicklook",
+                "rename",
+                "restore original",
+                "pause",
+                "escape",
+                "dismiss",
+                "clear all",
+                "bring back",
+                "speed up",
+                "aggressive",
+                "optimise aggressively",
+                "optimise clipboard",
+                "stop",
+                "paste",
+                "keycap",
+            ], tab: .keys, section: "Action keys"
+        ),
+        SettingEntry(
+            id: "keys.resizekeys.quickResizeKeys", keys: ["quickResizeKeys"],
+            title: "Resize keys",
+            subtitle: "",
+            keywords: ["downscale", "percent", "percentage", "10%", "20%", "90%", "tens", "number row", "hotkey", "shortcut", "scale", "shrink", "smaller", "trigger", "hold", "quick"], tab: .keys, section: "Resize keys"
+        ),
+        SettingEntry(
+            id: "floating.main.floatingResultActions", keys: ["floatingResultActions"],
+            title: "Action buttons",
+            subtitle: "",
+            keywords: ["floating result", "grid", "icons", "share", "quicklook", "customise", "reorder", "remove", "add", "toolbar", "send securely", "aggressive", "downscale"], tab: .floating, section: ""
+        ),
+        SettingEntry(
+            id: "floating.main.compactResultActions", keys: ["compactResultActions"],
+            title: "Side actions",
+            subtitle: "",
+            keywords: ["compact result", "icons", "buttons", "row", "customise", "add", "remove", "quicklook", "share", "crop", "show in finder", "save as"], tab: .floating, section: ""
+        ),
+        SettingEntry(
+            id: "images.watchpaths.dirsHideFloatingResult", keys: [],
+            title: "Show floating results",
+            subtitle: "Show the floating thumbnail and progress when files in this folder are optimised",
+            keywords: ["watched", "silent", "quiet", "hide", "no popup", "background", "checkbox", "column", "notification", "per directory"], tab: .images, section: "Watch paths"
+        ),
+        SettingEntry(
+            id: "presetZones.presetzones.presetZones", keys: [],
+            title: "Preset zones",
+            subtitle: "Click a zone to assign or create a pipeline. Drag files onto a zone to run its actions.",
+            keywords: ["drop target", "quadrant", "corner", "control key", "image", "video", "audio", "pdf", "automation"], tab: .presetZones, section: "Preset zones"
         ),
 
     ]
