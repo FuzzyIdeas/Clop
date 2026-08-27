@@ -16,21 +16,6 @@ struct MCPSettingKey {
     let write: @MainActor (String) -> String?
 }
 
-// MARK: - MCPSettingInfo
-
-struct MCPSettingInfo: Codable {
-    let key: String
-    let type: String
-    let value: String
-    let allowed: [String]?
-    let title: String
-    let subtitle: String
-    let keywords: [String]
-    let pane: String
-    let section: String
-    let entryID: String
-}
-
 // MARK: - MCPSettingsBridge
 
 /// Settings discovery for agents.
@@ -178,36 +163,18 @@ enum MCPSettingsBridge {
         return key.write(value)
     }
 
-    /// The Settings field's own matcher, then a per-word pass behind it.
+    /// What an agent's whole question should land on.
     ///
-    /// `SettingsSearchIndex.search` needs every word to hit, which is right for a person typing two
-    /// words into a field and wrong for an agent handing over a whole question. "why is Clop not
-    /// replacing the mov with the optimised mp4" has words no row carries. The per-word pass ranks by
-    /// how many of them a row does carry, so the sentence still lands.
+    /// The strict all-words match first, because when every word does hit, that ranking is the one the
+    /// Settings field would have shown. Behind it, the same scoring with the all-words requirement
+    /// dropped: "why is Clop not replacing the mov with the optimised mp4" has words no row carries,
+    /// and the rare ones ("mov", "mp4", "replacing") are what should decide it.
     @MainActor static func matches(_ filter: String) -> [SettingEntry] {
         let strict = SettingsSearchIndex.search(filter)
-        let words = filter.lowercased()
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .map(String.init)
-            .filter { $0.count > 2 }
-        guard words.count > 1 else { return strict }
-
-        var hits: [String: Int] = [:]
-        for word in words {
-            for entry in SettingsSearchIndex.search(word) {
-                hits[entry.id, default: 0] += 1
-            }
-        }
-        // Strict first, in its own order: when every word does hit, that ranking is the one the
-        // Settings field would have shown. The per-word rows go behind it, so a question that no row
-        // matches whole still comes back with the rows that carry most of it.
         let seen = Set(strict.map(\.id))
-        let extra = hits
-            .filter { $0.value > 1 && !seen.contains($0.key) }
-            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
-            .prefix(20)
-            .compactMap { SettingsSearchIndex.byID[$0.key] }
-        return strict + extra
+        let relaxed = SettingsSearchIndex.rank(filter, requireAll: false, limit: 20)
+            .filter { !seen.contains($0.id) }
+        return strict + relaxed
     }
 
     @MainActor private static func info(entry: SettingEntry?, key: MCPSettingKey?) -> MCPSettingInfo {
@@ -321,6 +288,51 @@ enum MCPSettingsBridge {
                 return nil
             }
             return "\(name) takes one of: \(names.map(\.0).joined(separator: ", ")). Got '\(raw)'"
+        }
+    }
+}
+
+// MARK: - Request handling
+
+extension MCPSettingsBridge {
+    /// Answers a `SettingsRequest` from the CLI, and enforces the MCP gate.
+    ///
+    /// The gate lives here rather than in the CLI because the CLI is a binary the caller controls. A
+    /// request that says it came from MCP is refused unless the user has a Pro licence and, for a
+    /// write, has allowed agent changes. A request that does not claim MCP origin is somebody using
+    /// their own CLI, which needs no permission from anyone.
+    @MainActor static func handle(_ req: SettingsRequest) -> SettingsResponse {
+        if req.origin == "mcp" {
+            guard proactive else {
+                return SettingsResponse(ok: false, error: "Clop's MCP server needs Clop Pro.")
+            }
+            if req.action == .set, !Defaults[.mcpEnabled] {
+                return SettingsResponse(
+                    ok: false,
+                    error: "Clop is not accepting changes from agents. Ask the user to allow it in Clop Settings, MCP."
+                )
+            }
+        }
+
+        switch req.action {
+        case .schema:
+            return SettingsResponse(ok: true, settings: schema(filter: req.query))
+        case .get:
+            guard let name = req.key else {
+                return SettingsResponse(ok: false, error: "get needs a key")
+            }
+            guard let found = get(name) else {
+                return SettingsResponse(ok: false, error: "no setting named '\(name)'. Ask for the schema to see every key.")
+            }
+            return SettingsResponse(ok: true, settings: [found])
+        case .set:
+            guard let name = req.key, let value = req.value else {
+                return SettingsResponse(ok: false, error: "set needs a key and a value")
+            }
+            if let problem = set(name, to: value) {
+                return SettingsResponse(ok: false, error: problem)
+            }
+            return SettingsResponse(ok: true, settings: get(name).map { [$0] })
         }
     }
 }

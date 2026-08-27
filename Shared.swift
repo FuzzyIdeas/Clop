@@ -262,6 +262,53 @@ let OPTIMISATION_PORT_ID = "com.lowtechguys.Clop.optimisationService"
 let OPTIMISATION_STOP_PORT_ID = "com.lowtechguys.Clop.optimisationServiceStop"
 let OPTIMISATION_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponse"
 let OPTIMISATION_CLI_RESPONSE_PORT_ID = "com.lowtechguys.Clop.optimisationServiceResponseCLI"
+let SETTINGS_PORT_ID = "com.lowtechguys.Clop.settingsService"
+
+// MARK: - Settings over the wire
+
+/// Reading and writing settings from the CLI.
+///
+/// A write has to go through the running app rather than straight into the defaults suite. Two reasons:
+/// the app applies a change live instead of on next launch, and the MCP gate can only be enforced
+/// somewhere the agent does not control. Its own port, so a settings call can never be confused with
+/// an optimisation request.
+struct SettingsRequest: Codable {
+    enum Action: String, Codable {
+        case schema
+        case get
+        case set
+    }
+
+    let action: Action
+    var key: String? = nil
+    var value: String? = nil
+    /// Plain-language filter for `schema`.
+    var query: String? = nil
+    /// `mcp` when the call arrived through the bundled MCP server, which is what lets the app refuse
+    /// writes until the user has allowed them. An agent driving the CLI directly is just using the CLI,
+    /// which it could always do; the gate is about the MCP surface.
+    var origin: String? = nil
+}
+
+/// One setting as an agent sees it: what it is called on screen, what it holds, and what it accepts.
+struct MCPSettingInfo: Codable {
+    let key: String
+    let type: String
+    let value: String
+    let allowed: [String]?
+    let title: String
+    let subtitle: String
+    let keywords: [String]
+    let pane: String
+    let section: String
+    let entryID: String
+}
+
+struct SettingsResponse: Codable {
+    var ok: Bool
+    var error: String? = nil
+    var settings: [MCPSettingInfo]? = nil
+}
 
 func mainActor(_ action: @escaping @MainActor () -> Void) {
     Task { await MainActor.run { action() }}
