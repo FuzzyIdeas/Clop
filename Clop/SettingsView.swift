@@ -2885,6 +2885,7 @@ struct HighlightedFolderRequest: Equatable {
 
 class SettingsViewManager: ObservableObject {
     @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .floating : .general
+    @Published var searchQuery = ""
     @Published var windowOpen = false
     @Published var scrollToFileType: ClopFileType?
     /// Set by the "Configured in Compatibility" link in File Handling to scroll the destination
@@ -3023,6 +3024,61 @@ struct SettingsView: View {
     }
 
     var sidebar: some View {
+        Group {
+            if svm.searchQuery.isEmpty {
+                tabList
+            } else {
+                searchResults
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
+        .modifier(HideSidebarToggleIfAvailable())
+        .searchable(text: $svm.searchQuery, placement: .sidebar, prompt: "Search settings")
+    }
+
+    /// What the search field finds, in place of the tab list.
+    ///
+    /// The row carries its pane and section so the answer is often readable without going anywhere,
+    /// and selecting it opens that pane. The index behind this is the same one the MCP server reads,
+    /// so a question typed here and a question asked of an agent land on the same row.
+    @ViewBuilder var searchResults: some View {
+        let results = SettingsSearchIndex.search(svm.searchQuery)
+        if results.isEmpty {
+            List {
+                Text("Nothing matches \"\(svm.searchQuery)\"")
+                    .round(12)
+                    .foregroundColor(.secondary)
+            }
+        } else {
+            List {
+                ForEach(results) { entry in
+                    Button(action: {
+                        svm.tab = entry.tab
+                        svm.searchQuery = ""
+                    }) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.title).medium(12)
+                            if !entry.subtitle.isEmpty {
+                                Text(entry.subtitle)
+                                    .round(10)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(2)
+                            }
+                            Text([entry.tab.title, entry.section].filter { !$0.isEmpty }.joined(separator: " › "))
+                                .round(9)
+                                .foregroundColor(.secondary.opacity(0.8))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    var tabList: some View {
         List(selection: $svm.tab) {
             ForEach(Self.topTabs, id: \.self) { tab in
                 SettingsSidebarRow(tab: tab)
@@ -3048,9 +3104,6 @@ struct SettingsView: View {
                 }
             }
         }
-        .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
-        .modifier(HideSidebarToggleIfAvailable())
     }
 
     var settings: some View {
