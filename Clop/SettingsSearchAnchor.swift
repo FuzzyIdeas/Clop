@@ -25,11 +25,14 @@ struct SettingsSearchAnchor: ViewModifier {
     func body(content: Content) -> some View {
         content
             .id(id)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            // The highlight is drawn OUTSIDE the row's own bounds with negative padding on the shape,
+            // never with padding on the content. Padding the content moves it, so an anchored row sat
+            // indented next to an unanchored one and the pane looked ragged for no visible reason.
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(Color.peach.opacity(isHighlighted ? 0.28 : 0))
+                    .padding(.horizontal, -6)
+                    .padding(.vertical, -4)
             )
             .animation(.easeOut(duration: 0.25), value: isHighlighted)
     }
