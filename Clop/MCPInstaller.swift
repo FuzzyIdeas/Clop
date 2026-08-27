@@ -25,8 +25,6 @@ enum MCPInstaller {
     struct Client: Identifiable {
         let id: String
         let name: String
-        /// What the user has to do after installing, when anything.
-        let detail: String
         let path: String
         let style: Style
         /// A file or app that shows the client is on this Mac.
@@ -75,37 +73,31 @@ enum MCPInstaller {
     static let clients: [Client] = [
         Client(
             id: "claude-code", name: "Claude Code",
-            detail: "",
             path: "~/.claude.json", style: .mcpServers,
             evidence: ["/opt/homebrew/bin/claude", "~/.claude"]
         ),
         Client(
             id: "claude-desktop", name: "Claude Desktop",
-            detail: "Quit and reopen Claude.",
             path: "~/Library/Application Support/Claude/claude_desktop_config.json", style: .mcpServers,
             evidence: ["/Applications/Claude.app"]
         ),
         Client(
             id: "cursor", name: "Cursor",
-            detail: "Reload the window.",
             path: "~/.cursor/mcp.json", style: .mcpServers,
             evidence: ["/Applications/Cursor.app", "~/.cursor"]
         ),
         Client(
             id: "vscode", name: "VS Code",
-            detail: "Needs the Copilot Chat agent mode.",
             path: "~/Library/Application Support/Code/User/mcp.json", style: .vsCode,
             evidence: ["/Applications/Visual Studio Code.app", "~/Library/Application Support/Code"]
         ),
         Client(
             id: "windsurf", name: "Windsurf",
-            detail: "Reload the window.",
             path: "~/.codeium/windsurf/mcp_config.json", style: .mcpServers,
             evidence: ["/Applications/Windsurf.app", "~/.codeium"]
         ),
         Client(
             id: "zed", name: "Zed",
-            detail: "Restart Zed.",
             path: "~/.config/zed/settings.json", style: .zed,
             evidence: ["/Applications/Zed.app", "~/.config/zed"]
         ),

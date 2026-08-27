@@ -77,16 +77,11 @@ struct MCPSettingsView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(client.name).medium(13)
-                // A client with nothing to say after installing shows nothing, rather than an empty
-                // line that makes its row taller than the rest.
-                let detail = rowDetail(client)
-                if !detail.isEmpty {
-                    Text(detail)
-                        .round(11)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                Text(rowDetail(client))
+                    .round(11)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
             Spacer()
             switch states[client.id] ?? .notInstalled {
@@ -119,12 +114,13 @@ struct MCPSettingsView: View {
             return failure
         }
         switch states[client.id] ?? .notInstalled {
-        case .installed:
-            return client.detail
         case .unusable:
             return "\(client.path) is not a JSON object."
-        case .notInstalled:
-            return client.isPresent ? client.path : "Not installed on this Mac."
+        case .installed, .notInstalled:
+            // Once it is added, the useful detail is where it landed.
+            return client.isPresent || states[client.id] == .installed
+                ? client.path
+                : "Not installed on this Mac."
         }
     }
 
