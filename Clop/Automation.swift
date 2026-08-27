@@ -163,6 +163,17 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
                 ]
             ),
             ParamTemplate(
+                name: "compression",
+                description: "how hard to compress, 5 (best quality) to 100 (smallest file)",
+                suggestions: ["30", "50", "64", "75", "90", "adaptive"],
+                freeText: true,
+                valueDescriptions: [
+                    "30": "Clop's normal setting",
+                    "64": "aggressive",
+                    "adaptive": "let Clop pick per file",
+                ]
+            ),
+            ParamTemplate(
                 name: "adaptive",
                 description: "auto-pick best format",
                 suggestions: ["true", "false"],
@@ -726,10 +737,12 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         let adaptive = params["adaptive"] == "true"
         let dpi = params["dpi"].flatMap { Int($0) }
         let location = params["location"] ?? "inPlace"
+        // Same grammar as the CLI's `--compression`, see `parseCompressionValue`.
+        let compression = parseCompressionValue(params["compression"])
         if let videoEncoder = VideoEncoder(rawValue: encoderStr) {
-            return .optimise(adaptive: adaptive, videoEncoder: videoEncoder, dpi: dpi, location: location)
+            return .optimise(adaptive: adaptive, videoEncoder: videoEncoder, dpi: dpi, location: location, compression: compression)
         }
-        return .optimise(encoder: EncoderQuality(rawValue: encoderStr) ?? .medium, adaptive: adaptive, dpi: dpi, location: location)
+        return .optimise(encoder: EncoderQuality(rawValue: encoderStr) ?? .medium, adaptive: adaptive, dpi: dpi, location: location, compression: compression)
 
     case "downscale":
         guard let factor = params["factor"].flatMap({ Double($0) }), factor > 0, factor <= 1 else { return nil }

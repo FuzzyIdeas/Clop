@@ -933,7 +933,7 @@ enum TempPipelineSegment {
 
         // Extract video encoder override from the pipeline
         let videoEncoderOverride: VideoEncoder? = tempPipeline.compactMap { step in
-            if case let .optimise(_, _, ve, _, _) = step { return ve }
+            if case let .optimise(_, _, ve, _, _, _) = step { return ve }
             return nil
         }.last
 
@@ -992,7 +992,7 @@ enum TempPipelineSegment {
                         }
                     } else if type.isPDF, let pdf = self.pdf {
                         // Honour DPI from a temp-pipeline `optimise(dpi:)` step, otherwise fall back to the slider override.
-                        let stepDPI: Int? = steps.compactMap { if case let .optimise(_, _, _, d, _) = $0 { return d }; return nil }.last
+                        let stepDPI: Int? = steps.compactMap { if case let .optimise(_, _, _, d, _, _) = $0 { return d }; return nil }.last
                         if let result = try? await runPDFPipeline(
                             pdf, actions: actions,
                             id: self.id,

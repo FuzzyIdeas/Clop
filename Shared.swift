@@ -382,8 +382,24 @@ struct CompressionQuality: Codable, Hashable {
 
 }
 
-// Factor anchors that reproduce the legacy presets exactly, so migration keeps behaviour identical:
-// factor 30 == the old "normal" preset, factor 64 == the old "aggressive" preset.
+/// Factor anchors that reproduce the legacy presets exactly, so migration keeps behaviour identical:
+/// factor 30 == the old "normal" preset, factor 64 == the old "aggressive" preset.
+/// The compression grammar, shared by the `--compression` flag and the pipeline DSL's
+/// `optimise(compression:)` so the two can never drift apart. Returns nil for anything it does not
+/// accept, leaving each caller to phrase its own error.
+func parseCompressionValue(_ value: String?, allowAdaptive: Bool = true, allowAuto: Bool = true) -> CompressionQuality? {
+    guard let value, !value.isEmpty else { return nil }
+    switch value.lowercased() {
+    case "adaptive" where allowAdaptive:
+        return CompressionQuality(tier: .adaptive, factor: COMPRESSION_FACTOR_NORMAL)
+    case "auto" where allowAuto:
+        return CompressionQuality(tier: .custom, factor: 0)
+    default:
+        guard let factor = Int(value), (5 ... 100).contains(factor) else { return nil }
+        return CompressionQuality(tier: .custom, factor: factor)
+    }
+}
+
 let COMPRESSION_FACTOR_NORMAL = 30
 let COMPRESSION_FACTOR_AGGRESSIVE = 64
 
