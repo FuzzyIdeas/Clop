@@ -51,6 +51,16 @@ enum MCPInstaller {
 
     // MARK: - State
 
+    enum InstallError: LocalizedError {
+        case missingServer
+
+        var errorDescription: String? {
+            switch self {
+            case .missingServer: "Clop's MCP server file is missing from the app bundle."
+            }
+        }
+    }
+
     /// What the client's config file says.
     enum ConfigState {
         case installed
@@ -110,7 +120,14 @@ enum MCPInstaller {
             return url.path
         }
         let devPath = ("~/Projects/macOS/Clop/Clop/clop_mcp.py" as NSString).expandingTildeInPath
-        return FileManager.default.fileExists(atPath: devPath) ? devPath : "clop_mcp.py"
+        return FileManager.default.fileExists(atPath: devPath) ? devPath : ""
+    }
+
+    /// Whether the server file is actually on disk. Installing without it writes a config entry that
+    /// looks fine and starts nothing, so every caller checks this first.
+    static var scriptExists: Bool {
+        let path = scriptPath
+        return !path.isEmpty && FileManager.default.fileExists(atPath: path)
     }
 
     /// The CLI the MCP server shells out to. Bundled beside the app, so the server drives the same
@@ -225,7 +242,7 @@ enum MCPInstaller {
             "control": [
                 "start": "open clop://mcp/start",
                 "stop": "open clop://mcp/stop",
-                "note": "Clop's MCP server needs Clop Pro, and refuses changes until it is started. Reading is allowed either way. Starting sticks across launches until it is stopped.",
+                "note": "Clop's MCP server needs Clop Pro. With a licence, reading works whether or not it is started; changes are refused until it is. Starting sticks across launches until it is stopped.",
             ],
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: card, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) else { return }
@@ -256,7 +273,10 @@ enum MCPInstaller {
 
     @discardableResult
     static func install(_ client: Client) -> Result<Void, Error> {
-        edit(client) { text in
+        guard scriptExists else {
+            return .failure(InstallError.missingServer)
+        }
+        return edit(client) { text in
             try JSONCEditor.setMember(in: text, container: serversKey(client.style), name: serverName, member: entry(for: client.style))
         }
     }
