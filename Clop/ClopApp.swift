@@ -561,6 +561,22 @@ class AppDelegate: AppDelegateParent {
     static func handleOptimisationRequest(_ req: OptimisationRequest) -> Data? {
         log.debug("Handling optimisation request: \(req.jsonString)")
 
+        // The MCP gate, before anything is touched. A refused agent request must never fall through to
+        // the free optimisation counter: that counter is a nag by design and resets on relaunch, so
+        // reaching it would hand an agent the very thing MCP being Pro-only is meant to prevent.
+        var refusal: String?
+        awaitSync { await MainActor.run { refusal = mcpRefusal(origin: req.origin, pipeline: req.pipeline) } }
+        if let refusal {
+            log.warning("Refused MCP request: \(refusal, privacy: .public)")
+            // The CLI collects its results off the response port rather than from this return value, so
+            // a refusal has to travel the same way a per-file error does. One per URL, or the CLI waits
+            // for a count that never arrives.
+            for url in req.urls {
+                try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: refusal, forURL: url).jsonData)
+            }
+            return nil
+        }
+
         activeCLIRequests.wrappingIncrement(ordering: .relaxed)
         defer { activeCLIRequests.wrappingDecrement(ordering: .relaxed) }
 

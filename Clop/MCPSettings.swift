@@ -555,3 +555,41 @@ extension MCPSettingsBridge {
         }
     }
 }
+
+// MARK: - The gate for everything that is not a setting
+
+/// Whether a request arriving from the MCP server is allowed to run, and why not when it is not.
+///
+/// This exists because the gate was once wired only into the settings path. An agent proved the hole
+/// by running `runScript(code: touch /tmp/...)` through a pipeline with Pro off, MCP off and script
+/// steps off, and the file appeared. Anything the CLI can be asked to DO has to come through here.
+///
+/// Returns nil when the request may proceed.
+@MainActor func mcpRefusal(origin: String?, pipeline: String?) -> String? {
+    guard origin == "mcp" else { return nil }
+
+    guard proactive else {
+        return "Clop's MCP server needs Clop Pro."
+    }
+    guard Defaults[.mcpEnabled] else {
+        return "Clop is not accepting changes from agents. Ask the user to allow it in Clop Settings, MCP."
+    }
+    guard let pipeline, !Defaults[.mcpAllowScriptSteps] else { return nil }
+
+    // A script step runs whatever code it carries. Checked on the raw DSL rather than on parsed steps
+    // so a step this build cannot parse is still refused rather than waved through.
+    guard let step = scriptStepName(in: pipeline) else { return nil }
+    return """
+    Clop is not accepting script steps from agents, and this pipeline has a \(step) step. \
+    Use a built-in step if one can do the job, or ask the user to allow script steps in Clop Settings, MCP.
+    """
+}
+
+/// The name of the first step in a pipeline that would execute arbitrary code, if any.
+private func scriptStepName(in pipeline: String) -> String? {
+    // `runShortcut` runs a user's own Shortcut, which they authored, so it is not in this list.
+    for name in ["runScript"] where pipeline.contains(name) {
+        return name
+    }
+    return nil
+}
