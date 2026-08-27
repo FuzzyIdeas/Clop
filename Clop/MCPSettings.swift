@@ -127,6 +127,70 @@ enum MCPSettingsBridge {
             ]
         ),
 
+        // MARK: added from the domain sweep
+
+        bool("enableAutomaticVideoOptimisations", .enableAutomaticVideoOptimisations),
+        int("minVideoSizeKB", .minVideoSizeKB),
+        int("maxVideoSizeMB", .maxVideoSizeMB),
+        int("minVideoResolution", .minVideoResolution),
+        int("maxVideoResolution", .maxVideoResolution),
+        int("maxVideoFileCount", .maxVideoFileCount),
+        string("editorAppVideo", .editorAppVideo),
+        string("sameFolderNameTemplateVideo", .sameFolderNameTemplateVideo),
+        string("specificFolderNameTemplateVideo", .specificFolderNameTemplateVideo),
+        string("convertedSameFolderNameTemplateVideo", .convertedSameFolderNameTemplateVideo),
+        string("convertedSpecificFolderNameTemplateVideo", .convertedSpecificFolderNameTemplateVideo),
+        compression("videoCompression", .videoCompression),
+        float("targetVideoFPS", .targetVideoFPS),
+        float("minVideoFPS", .minVideoFPS),
+        utTypeSet("videoFormatsToSkip", .videoFormatsToSkip, VIDEO_FORMATS),
+        utTypeSet("formatsToConvertToMP4", .formatsToConvertToMP4, FORMATS_CONVERTIBLE_TO_MP4),
+        bool("enableAutomaticImageOptimisations", .enableAutomaticImageOptimisations),
+        int("maxCopiedPhotosCount", .maxCopiedPhotosCount),
+        optionalInt("maxPhotosLength", .maxPhotosLength),
+        int("minImageSizeKB", .minImageSizeKB),
+        int("maxImageSizeMB", .maxImageSizeMB),
+        int("minImageResolution", .minImageResolution),
+        int("maxImageResolution", .maxImageResolution),
+        int("maxImageFileCount", .maxImageFileCount),
+        string("sameFolderNameTemplateImage", .sameFolderNameTemplateImage),
+        string("specificFolderNameTemplateImage", .specificFolderNameTemplateImage),
+        string("convertedSameFolderNameTemplateImage", .convertedSameFolderNameTemplateImage),
+        string("convertedSpecificFolderNameTemplateImage", .convertedSpecificFolderNameTemplateImage),
+        string("editorAppImage", .editorAppImage),
+        compression("imageCompression", .imageCompression),
+        utTypeSet("imageFormatsToSkip", .imageFormatsToSkip, IMAGE_FORMATS),
+        utTypeSet("formatsToConvertToJPEG", .formatsToConvertToJPEG, FORMATS_CONVERTIBLE_TO_JPEG),
+        utTypeSet("formatsToConvertToPNG", .formatsToConvertToPNG, FORMATS_CONVERTIBLE_TO_PNG),
+        bool("enableAutomaticAudioOptimisations", .enableAutomaticAudioOptimisations),
+        int("minAudioSizeKB", .minAudioSizeKB),
+        int("maxAudioSizeMB", .maxAudioSizeMB),
+        int("maxAudioFileCount", .maxAudioFileCount),
+        string("editorAppAudio", .editorAppAudio),
+        string("sameFolderNameTemplateAudio", .sameFolderNameTemplateAudio),
+        string("specificFolderNameTemplateAudio", .specificFolderNameTemplateAudio),
+        string("convertedSameFolderNameTemplateAudio", .convertedSameFolderNameTemplateAudio),
+        string("convertedSpecificFolderNameTemplateAudio", .convertedSpecificFolderNameTemplateAudio),
+        compression("audioCompression", .audioCompression),
+        utTypeSet("formatsToConvertToAAC", .formatsToConvertToAAC, FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO),
+        utTypeSet("formatsToConvertToMP3", .formatsToConvertToMP3, FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO),
+        bool("enableAutomaticPDFOptimisations", .enableAutomaticPDFOptimisations),
+        int("pdfDPI", .pdfDPI),
+        int("minPDFSizeKB", .minPDFSizeKB),
+        int("maxPDFSizeMB", .maxPDFSizeMB),
+        int("maxPDFFileCount", .maxPDFFileCount),
+        string("editorAppPDF", .editorAppPDF),
+        string("sameFolderNameTemplatePDF", .sameFolderNameTemplatePDF),
+        string("specificFolderNameTemplatePDF", .specificFolderNameTemplatePDF),
+        string("workdir", .workdir),
+        bool("showMenubarIcon", .showMenubarIcon),
+        bool("useClassicMenubarIcon", .useClassicMenubarIcon),
+        bool("useGeometricMenubarIcon", .useGeometricMenubarIcon),
+        bool("allowClopToAppearInScreenshots", .allowClopToAppearInScreenshots),
+        bool("pauseAutomaticOptimisations", .pauseAutomaticOptimisations),
+        rawValueList("floatingResultActions", .floatingResultActions),
+        rawValueList("compactResultActions", .compactResultActions),
+
         // MCP. Readable so an agent can see why it was refused; `mcpEnabled` is deliberately NOT
         // writable here, or the switch would be one the thing it gates could turn on for itself.
         bool("mcpAllowScriptSteps", .mcpAllowScriptSteps),
@@ -332,6 +396,32 @@ enum MCPSettingsBridge {
             }
             guard unknown.isEmpty else {
                 return "\(name) does not know \(unknown.joined(separator: ", ")). It takes any of: \(allowed.map(ext).joined(separator: ", "))"
+            }
+            Defaults[key] = chosen
+            return nil
+        }
+    }
+
+    /// An ordered list of enum values, comma separated. Order is meaningful for the action rows, so
+    /// this preserves what it is given rather than sorting it.
+    private static func rawValueList<T>(_ name: String, _ key: Defaults.Key<[T]>) -> MCPSettingKey
+        where T: RawRepresentable & CaseIterable & Defaults.Serializable, T.RawValue == String
+    {
+        MCPSettingKey(name: name, type: "list", allowed: T.allCases.map(\.rawValue)) {
+            Defaults[key].map(\.rawValue).joined(separator: ", ")
+        } write: { raw in
+            let wanted = raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            var chosen: [T] = []
+            var unknown: [String] = []
+            for want in wanted {
+                if let match = T.allCases.first(where: { $0.rawValue.lowercased() == want.lowercased() }) {
+                    chosen.append(match)
+                } else {
+                    unknown.append(want)
+                }
+            }
+            guard unknown.isEmpty else {
+                return "\(name) does not know \(unknown.joined(separator: ", ")). It takes any of: \(T.allCases.map(\.rawValue).joined(separator: ", "))"
             }
             Defaults[key] = chosen
             return nil
