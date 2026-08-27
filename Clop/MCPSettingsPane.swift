@@ -16,37 +16,27 @@ struct MCPSettingsView: View {
         Form {
             Section(header: SectionHeader(
                 title: "MCP",
-                subtitle: "Clop ships an MCP server: tools for optimising files, authoring pipelines and reading or changing settings"
+                subtitle: "Let an AI agent drive Clop"
             )) {
                 if !proactive {
                     proRow
                 }
-                Toggle(isOn: $mcpEnabled) {
-                    Text("Accept changes from agents").regular(13)
-                        + Text("\nOptimising files, changing settings, saving pipelines. Reading settings and pipelines stays allowed either way").round(11, weight: .regular).foregroundColor(.secondary)
-                }
-                .disabled(!proactive)
-                .onChange(of: mcpEnabled) { _ in MCPInstaller.writeServerCard() }
-                .searchAnchor("mcp.main.mcpEnabled")
+                Toggle("Enable MCP", isOn: $mcpEnabled)
+                    .disabled(!proactive)
+                    .onChange(of: mcpEnabled) { _ in MCPInstaller.writeServerCard() }
+                    .searchAnchor("mcp.main.mcpEnabled")
 
-                Toggle(isOn: $mcpAllowScriptSteps) {
-                    Text("Allow agents to write script steps").regular(13)
-                        + Text("\nA script step runs arbitrary code. Off means Clop refuses a pipeline from an agent that contains one, and names the step. Scripts you write yourself are unaffected").round(11, weight: .regular)
-                        .foregroundColor(.secondary)
-                }
-                .disabled(!proactive || !mcpEnabled)
-                .onChange(of: mcpAllowScriptSteps) { on in
-                    guard on else { return }
-                    // Asking on the way on only. Turning it off never needs a confirmation.
-                    if !askAboutScripts() { mcpAllowScriptSteps = false }
-                }
-                .searchAnchor("mcp.main.mcpAllowScriptSteps")
+                Toggle("Allow script steps", isOn: $mcpAllowScriptSteps)
+                    .disabled(!proactive || !mcpEnabled)
+                    .onChange(of: mcpAllowScriptSteps) { on in
+                        guard on else { return }
+                        // The alert carries the warning, so the row does not have to.
+                        if !askAboutScripts() { mcpAllowScriptSteps = false }
+                    }
+                    .searchAnchor("mcp.main.mcpAllowScriptSteps")
             }
 
-            Section(header: SectionHeader(
-                title: "Installed in",
-                subtitle: "Adds one entry to the agent's own config file, leaving everything else in it alone"
-            )) {
+            Section(header: SectionHeader(title: "Install in")) {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(MCPInstaller.clients) { client in
                         clientRow(client)
@@ -55,21 +45,10 @@ struct MCPSettingsView: View {
                 .padding(.vertical, 4)
             }
 
-            Section(header: SectionHeader(
-                title: "Install by hand",
-                subtitle: "For an agent that is not in the list"
-            )) {
+            Section(header: SectionHeader(title: "Install by hand")) {
                 VStack(alignment: .leading, spacing: 12) {
-                    CopyableValueRow(
-                        title: "Command line",
-                        detail: "For an agent that registers MCP servers from a terminal",
-                        value: MCPInstaller.cliCommand
-                    )
-                    CopyableValueRow(
-                        title: "Server path",
-                        detail: "Point any other MCP client at this file, run with python3",
-                        value: MCPInstaller.scriptPath
-                    )
+                    CopyableValueRow(title: "Command line", value: MCPInstaller.cliCommand)
+                    CopyableValueRow(title: "Server path", value: MCPInstaller.scriptPath)
                 }
                 .padding(.vertical, 4)
             }
@@ -86,8 +65,7 @@ struct MCPSettingsView: View {
 
     private var proRow: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("MCP needs Clop Pro").regular(13)
-                + Text("\nAgents can drive everything Clop does. That is a Pro feature").round(11, weight: .regular).foregroundColor(.secondary)
+            Text("Needs Clop Pro").regular(13)
             Spacer()
             Button("Manage Licence") { manageLicenceInSettings() }
         }
@@ -167,16 +145,11 @@ struct MCPSettingsView: View {
 /// A row whose value is the copy control: click the pill to copy it.
 private struct CopyableValueRow: View {
     let title: String
-    let detail: String
     let value: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).medium(13)
-            Text(detail)
-                .round(11)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             CopyablePill(value: value)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
