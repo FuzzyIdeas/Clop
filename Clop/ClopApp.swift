@@ -408,9 +408,13 @@ class AppDelegate: AppDelegateParent {
         let p = pro
         p.$productActivated.sink { newValue in
             clopDebugLog("proactive observer: productActivated changed to \(newValue) (onTrial=\(p.onTrial), proactive will be \(newValue || p.onTrial))")
+            // The licence resolves after launch, so the card written at startup says pro:false even for
+            // a licensed user until this lands. Rewrite it rather than let an agent read a stale no.
+            mainActor { MCPInstaller.writeServerCard() }
         }.store(in: &proDebugCancellables)
         p.$onTrial.sink { newValue in
             clopDebugLog("proactive observer: onTrial changed to \(newValue) (productActivated=\(p.productActivated), proactive will be \(p.productActivated || newValue))")
+            mainActor { MCPInstaller.writeServerCard() }
         }.store(in: &proDebugCancellables)
 
         migrateShortcutsToPipelines()
@@ -520,6 +524,9 @@ class AppDelegate: AppDelegateParent {
 
         _ = invalidReq(PRODUCTS, nil)
         setupServiceProvider()
+        // Written every launch whether or not the switch is on, so an agent can find Clop and read how
+        // to ask for permission rather than guessing.
+        MCPInstaller.writeServerCard()
         startShortcutWatcher()
         DROPSHARE.fetchAppURL()
         DROPOVER.fetchAppURL()
@@ -655,6 +662,14 @@ class AppDelegate: AppDelegateParent {
     }
 
     func handleURLs(_ application: NSApplication, _ urls: [URL]) async {
+        // `clop://` control URLs are commands, not files. They have to come out before the loop below,
+        // which turns every URL into something to optimise and would try to fetch this one.
+        let urls = await MainActor.run { urls.filter { !MCPInstaller.handle(url: $0) } }
+        guard urls.isNotEmpty else {
+            application.reply(toOpenOrPrint: .success)
+            return
+        }
+
         do {
             try await withThrowingTaskGroup(of: Void.self, returning: Void.self) { group in
                 for item in urls.map(ClipboardType.fromURL(_:)) {

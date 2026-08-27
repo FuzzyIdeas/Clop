@@ -237,6 +237,15 @@ extension Defaults.Keys {
     static let floatingResultActions = Key<[FloatingAction]>("floatingResultActions", default: FloatingAction.defaultFloating)
     static let compactResultActions = Key<[FloatingAction]>("compactResultActions", default: FloatingAction.defaultCompact)
     static let formatPickerStyle = Key<FormatPickerStyle>("formatPickerStyle", default: .bar)
+    /// Whether agents may change things through the MCP server. Reading is allowed with a Pro licence
+    /// either way; this is the switch for everything that writes. Sticks across launches, see
+    /// `MCPInstaller`.
+    static let mcpEnabled = Key<Bool>("mcpEnabled", default: false)
+    /// Whether a pipeline arriving through MCP may contain a step that runs a custom script. Separate
+    /// from `mcpEnabled` because a script is arbitrary code Clop executes, which is a sharper edge than
+    /// changing a setting. Scripts typed by hand in the pipeline editor are not affected.
+    static let mcpAllowScriptSteps = Key<Bool>("mcpAllowScriptSteps", default: false)
+
     static let showCopyClearButtons = Key<Bool>("showCopyClearButtons", default: true)
     static let enableDragAndDrop = Key<Bool>("enableDragAndDrop", default: true)
     static let onlyShowDropZoneOnOption = Key<Bool>("onlyShowDropZoneOnOption", default: false)

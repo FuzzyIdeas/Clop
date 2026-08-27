@@ -2519,6 +2519,69 @@ struct Clop: ParsableCommand {
 
     }
 
+    /// What the bundled MCP server asks before it does anything.
+    ///
+    /// Reads the app's own defaults suite rather than talking to the app, so it answers whether or not
+    /// Clop is running. The server card fills in the paths, since `MCPInstaller` lives in the app
+    /// target and resolving python from here would duplicate its shim-avoidance logic.
+    struct MCPCommand: ParsableCommand {
+        struct Status: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Whether agents may drive Clop, and where the server lives."
+            )
+
+            @Flag(name: .shortAndLong, help: "Output as JSON")
+            var json = false
+
+            mutating func run() throws {
+                let defaults = UserDefaults.app
+                // Live, from the suite the app writes. The card's copy can lag a crash.
+                let enabled = defaults?.bool(forKey: "mcpEnabled") ?? false
+                let scripts = defaults?.bool(forKey: "mcpAllowScriptSteps") ?? false
+
+                let cardPath = ("~/Library/Application Support/Clop/mcp.json" as NSString).expandingTildeInPath
+                let card = (try? Data(contentsOf: URL(fileURLWithPath: cardPath)))
+                    .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+
+                var status: [String: Any] = [
+                    "enabled": enabled,
+                    "allowScriptSteps": scripts,
+                    "pro": card["pro"] as? Bool ?? false,
+                    "requiresPro": true,
+                    "cardPath": cardPath,
+                ]
+                if let version = card["version"] as? String { status["version"] = version }
+                if let app = card["app"] as? [String: Any], let path = app["path"] as? String {
+                    status["appPath"] = path
+                }
+                if let transport = card["transport"] as? [String: Any] {
+                    status["scriptPath"] = (transport["args"] as? [String])?.first ?? ""
+                    status["pythonPath"] = transport["command"] as? String ?? ""
+                }
+
+                guard json else {
+                    print("MCP changes:     \(enabled ? "allowed" : "not allowed")")
+                    print("Script steps:    \(scripts ? "allowed" : "not allowed")")
+                    print("Clop Pro:        \(status["pro"] as? Bool == true ? "yes" : "no")")
+                    if let path = status["appPath"] as? String { print("App:             \(path)") }
+                    if !enabled {
+                        print("\nAsk the user to allow it in Clop Settings, MCP, or run: open clop://mcp/start")
+                    }
+                    return
+                }
+                let data = try JSONSerialization.data(withJSONObject: ["ok": true, "mcp": status], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+                print(String(data: data, encoding: .utf8) ?? "{}")
+            }
+        }
+
+        static let configuration = CommandConfiguration(
+            commandName: "mcp",
+            abstract: "The MCP server that lets agents drive Clop.",
+            subcommands: [Status.self],
+            defaultSubcommand: Status.self
+        )
+    }
+
     static let configuration = CommandConfiguration(
         abstract: "Clop: optimise, crop and downscale images, videos, audio files and PDFs",
         subcommands: [
@@ -2530,6 +2593,7 @@ struct Clop: ParsableCommand {
             UncropPdf.self,
             StripExif.self,
             PipelineCommand.self,
+            MCPCommand.self,
         ]
     )
 }
