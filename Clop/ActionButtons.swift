@@ -2916,6 +2916,7 @@ struct FloatingActionGridPicker: View {
         VStack(spacing: 6) {
             VStack(spacing: 1) {
                 Text("Action buttons").medium(12).foregroundColor(.secondary)
+                    .searchAnchor("floating.main.floatingResultActions")
                 Text("Tap a button to change it").regular(8).foregroundColor(.secondary.opacity(0.5))
             }
             let cols = Array(repeating: GridItem(.fixed(side), spacing: 8), count: 3)

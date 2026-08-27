@@ -246,6 +246,7 @@ struct DirListView: View {
                 .disabled(!enabled)
                 .opacity(enabled ? 1 : 0.6)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .searchAnchor("images.watchpaths.dirsHideFloatingResult")
             }.frame(height: 150)
 
             HStack(spacing: 2) {
@@ -279,6 +280,10 @@ struct DirListView: View {
                     .controlSize(.mini)
                     .toggleStyle(.checkbox)
                     .fixedSize()
+                    .searchAnchor("pdf.watchpaths.enableAutomaticPDFOptimisations")
+                    .searchAnchor("audio.watchpaths.enableAutomaticAudioOptimisations")
+                    .searchAnchor("images.watchpaths.enableAutomaticImageOptimisations")
+                    .searchAnchor("video.watchpaths.enableAutomaticVideoOptimisations")
             }
 
             if enabled, selectedDirs.count == 1, let dir = selectedDirs.first {
@@ -484,6 +489,7 @@ struct PDFSettingsView: View {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise PDFs as they appear in these folders")) {
                 DirListView(fileType: .pdf, dirs: $pdfDirs, enabled: $enableAutomaticPDFOptimisations)
             }
+            .searchAnchor("pdf.watchpaths.pdfDirs")
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack(spacing: 4) {
                     SwiftUI.Image(systemName: "folder.badge.gearshape")
@@ -493,6 +499,7 @@ struct PDFSettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text("Compression").regular(13)
+                            .searchAnchor("pdf.optimisationrules.pdfDPI")
                         Slider(
                             value: Binding(
                                 get: { Double(pdfStopIndex(pdfDPI == PDF_DPI_ADAPTIVE ? lastPDFDPI : pdfDPI)) },
@@ -521,7 +528,9 @@ struct PDFSettingsView: View {
             }
             Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minPDFSizeKB, maxMB: $maxPDFSizeMB)
+                    .searchAnchor("pdf.watchedfilefilters.minPDFSizeKB")
                 CountSliderRow(count: $maxPDFFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "PDF is" : "PDFs are") copied or moved at once" })
+                    .searchAnchor("pdf.watchedfilefilters.maxPDFFileCount")
             }
         }
         .scrollContentBackground(.hidden)
@@ -582,6 +591,7 @@ struct VideoSettingsView: View {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise videos as they appear in these folders")) {
                 DirListView(fileType: .video, dirs: $videoDirs, enabled: $enableAutomaticVideoOptimisations)
             }
+            .searchAnchor("video.watchpaths.videoDirs")
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack(spacing: 4) {
                     SwiftUI.Image(systemName: "folder.badge.gearshape")
@@ -590,6 +600,7 @@ struct VideoSettingsView: View {
                 }.font(.system(size: 11))
                 HStack(spacing: 8) {
                     Text("Compression").regular(13)
+                        .searchAnchor("video.optimisationrules.videoCompression")
                     Spacer()
                     Menu {
                         ForEach([CompressionTier.adaptive, .lossless, .fast, .smaller], id: \.self) { tier in
@@ -648,6 +659,7 @@ struct VideoSettingsView: View {
                     }
                 }
                 Toggle("Remove audio on optimised videos", isOn: $removeAudioFromVideos)
+                    .searchAnchor("video.optimisationrules.removeAudioFromVideos")
                 Toggle(isOn: $capVideoFPS.animation(.spring())) {
                     HStack {
                         Text("Cap frames per second to").regular(13).padding(.trailing, 10)
@@ -667,9 +679,11 @@ struct VideoSettingsView: View {
                         }.buttonStyle(ToggleButton(isOn: .oneway { targetVideoFPS == -4 }))
                     }.disabled(!capVideoFPS)
                 }
+                .searchAnchor("video.optimisationrules.capVideoFPS")
                 if targetVideoFPS < 0, capVideoFPS {
                     HStack {
                         Text("but no less than").regular(13).padding(.trailing, 10)
+                            .searchAnchor("video.optimisationrules.minVideoFPS")
                         Spacer()
 
                         Button("10fps") {
@@ -693,14 +707,19 @@ struct VideoSettingsView: View {
                 } label: {
                     Text("Playback speed change").regular(13)
                 }
+                .searchAnchor("video.optimisationrules.playbackSpeedFrameBehaviour")
 
             }
             Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minVideoSizeKB, maxMB: $maxVideoSizeMB)
+                    .searchAnchor("video.watchedfilefilters.minVideoSizeKB")
                 ResolutionRangeRow(label: "Resolution", minRes: $minVideoResolution, maxRes: $maxVideoResolution)
+                    .searchAnchor("video.watchedfilefilters.minVideoResolution")
                 CountSliderRow(count: $maxVideoFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "video is" : "videos are") copied or moved at once" })
+                    .searchAnchor("video.watchedfilefilters.maxVideoFileCount")
                 HStack {
                     Text("Ignore videos with extension").regular(13).padding(.trailing, 10)
+                        .searchAnchor("video.watchedfilefilters.videoFormatsToSkip")
                     Spacer()
 
                     ForEach(VIDEO_FORMATS, id: \.identifier) { format in
@@ -714,6 +733,7 @@ struct VideoSettingsView: View {
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
                     (Text("Convert to ").regular(13) + Text("mp4").mono(13)).padding(.trailing, 10)
+                        .searchAnchor("video.compatibility.formatsToConvertToMP4")
                     Spacer()
 
                     ForEach(FORMATS_CONVERTIBLE_TO_MP4, id: \.identifier) { format in
@@ -724,6 +744,7 @@ struct VideoSettingsView: View {
                     }
                 }
                 Toggle("Convert audio to AAC", isOn: $convertAudioToAAC)
+                    .searchAnchor("video.compatibility.convertAudioToAAC")
             }
             .id("compatibility")
         }
@@ -1189,10 +1210,13 @@ struct FileHandlingSettingsView: View {
                         Text("Optimised file placement").regular(13)
                             + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.images.optimisedImageBehaviour")
                     if optimisedImageBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .image, template: $sameFolderNameTemplateImage)
+                            .searchAnchor("files.images.sameFolderNameTemplateImage")
                     } else if optimisedImageBehaviour == .specificFolder {
                         CompactSpecificFolderTemplate(type: .image, template: $specificFolderNameTemplateImage)
+                            .searchAnchor("files.images.specificFolderNameTemplateImage")
                     }
                 }
 
@@ -1207,11 +1231,14 @@ struct FileHandlingSettingsView: View {
                         Text("Auto-conversion behaviour for compatible formats").regular(13)
                             + Text("\nFormats that many apps cannot open well are converted to a widely supported one automatically before optimising.").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.images.convertedImageBehaviour")
                     AutoConvertPills(groups: imageAutoConvertGroups, compatibilityTab: .images)
                     if convertedImageBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .image, template: $convertedSameFolderNameTemplateImage, inputExtension: autoImageInputExt, outputExtension: autoImageOutputExt)
+                            .searchAnchor("files.images.convertedSameFolderNameTemplateImage")
                     } else if convertedImageBehaviour == .specificFolder {
                         CompactSpecificFolderTemplate(type: .image, template: $convertedSpecificFolderNameTemplateImage, inputExtension: autoImageInputExt, outputExtension: autoImageOutputExt)
+                            .searchAnchor("files.images.convertedSpecificFolderNameTemplateImage")
                     }
                 }
 
@@ -1226,6 +1253,7 @@ struct FileHandlingSettingsView: View {
                         Text("Manual conversion behaviour").regular(13)
                             + Text("\nWhen you pick a new format by clicking the file extension on a floating result, or via the submenu **Convert to...** in the right-click menu.").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.images.manualConvertedImageBehaviour")
                     if manualConvertedImageBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .image, template: $convertedSameFolderNameTemplateImage, inputExtension: "jpeg", outputExtension: "webp")
                     } else if manualConvertedImageBehaviour == .specificFolder {
@@ -1251,10 +1279,13 @@ struct FileHandlingSettingsView: View {
                         Text("Optimised file placement").regular(13)
                             + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.videos.optimisedVideoBehaviour")
                     if optimisedVideoBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .video, template: $sameFolderNameTemplateVideo)
+                            .searchAnchor("files.videos.sameFolderNameTemplateVideo")
                     } else if optimisedVideoBehaviour == .specificFolder {
                         CompactSpecificFolderTemplate(type: .video, template: $specificFolderNameTemplateVideo)
+                            .searchAnchor("files.videos.specificFolderNameTemplateVideo")
                     }
                 }
 
@@ -1268,11 +1299,14 @@ struct FileHandlingSettingsView: View {
                         Text("Auto-conversion behaviour for compatible formats").regular(13)
                             + Text("\nFormats that many apps cannot open well are converted to a widely supported one automatically before optimising.").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.videos.convertedVideoBehaviour")
                     AutoConvertPills(groups: videoAutoConvertGroups, compatibilityTab: .video)
                     if convertedVideoBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .video, template: $convertedSameFolderNameTemplateVideo, inputExtension: autoVideoInputExt, outputExtension: "mp4")
+                            .searchAnchor("files.videos.convertedSameFolderNameTemplateVideo")
                     } else if convertedVideoBehaviour == .specificFolder {
                         CompactSpecificFolderTemplate(type: .video, template: $convertedSpecificFolderNameTemplateVideo, inputExtension: autoVideoInputExt, outputExtension: "mp4")
+                            .searchAnchor("files.videos.convertedSpecificFolderNameTemplateVideo")
                     }
                 }
 
@@ -1286,6 +1320,7 @@ struct FileHandlingSettingsView: View {
                         Text("Manual conversion behaviour").regular(13)
                             + Text("\nWhen you pick a new format by clicking the file extension on a floating result, or via the submenu **Convert to...** in the right-click menu.").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.videos.manualConvertedVideoBehaviour")
                     if manualConvertedVideoBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .video, template: $convertedSameFolderNameTemplateVideo, inputExtension: "mov", outputExtension: "mp4")
                     } else if manualConvertedVideoBehaviour == .specificFolder {
@@ -1311,10 +1346,13 @@ struct FileHandlingSettingsView: View {
                         Text("Optimised file placement").regular(13)
                             + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.audio.optimisedAudioBehaviour")
                     if optimisedAudioBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .audio, template: $sameFolderNameTemplateAudio)
+                            .searchAnchor("files.audio.sameFolderNameTemplateAudio")
                     } else if optimisedAudioBehaviour == .specificFolder {
                         CompactSpecificFolderTemplate(type: .audio, template: $specificFolderNameTemplateAudio)
+                            .searchAnchor("files.audio.specificFolderNameTemplateAudio")
                     }
                 }
 
@@ -1328,11 +1366,14 @@ struct FileHandlingSettingsView: View {
                         Text("Auto-conversion behaviour for compatible formats").regular(13)
                             + Text("\nFormats that many apps cannot open well are converted to a widely supported one automatically before optimising.").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.audio.convertedAudioBehaviour")
                     AutoConvertPills(groups: audioAutoConvertGroups, compatibilityTab: .audio)
                     if convertedAudioBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .audio, template: $convertedSameFolderNameTemplateAudio, inputExtension: autoAudioInputExt, outputExtension: autoAudioOutputExt)
+                            .searchAnchor("files.audio.convertedSameFolderNameTemplateAudio")
                     } else if convertedAudioBehaviour == .specificFolder {
                         CompactSpecificFolderTemplate(type: .audio, template: $convertedSpecificFolderNameTemplateAudio, inputExtension: autoAudioInputExt, outputExtension: autoAudioOutputExt)
+                            .searchAnchor("files.audio.convertedSpecificFolderNameTemplateAudio")
                     }
                 }
 
@@ -1346,6 +1387,7 @@ struct FileHandlingSettingsView: View {
                         Text("Manual conversion behaviour").regular(13)
                             + Text("\nWhen you pick a new format by clicking the file extension on a floating result, or via the submenu **Convert to...** in the right-click menu.").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.audio.manualConvertedAudioBehaviour")
                     if manualConvertedAudioBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .audio, template: $convertedSameFolderNameTemplateAudio, inputExtension: "wav", outputExtension: "mp3")
                     } else if manualConvertedAudioBehaviour == .specificFolder {
@@ -1371,10 +1413,13 @@ struct FileHandlingSettingsView: View {
                         Text("Optimised file placement").regular(13)
                             + Text("\nWhere the smaller file is saved, and whether it replaces the original").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("files.pdf.optimisedPDFBehaviour")
                     if optimisedPDFBehaviour == .sameFolder {
                         CompactSameFolderTemplate(type: .pdf, template: $sameFolderNameTemplatePDF)
+                            .searchAnchor("files.pdf.sameFolderNameTemplatePDF")
                     } else if optimisedPDFBehaviour == .specificFolder {
                         CompactSpecificFolderTemplate(type: .pdf, template: $specificFolderNameTemplatePDF)
+                            .searchAnchor("files.pdf.specificFolderNameTemplatePDF")
                     }
                 }
 
@@ -1594,6 +1639,7 @@ struct AudioSettingsView: View {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise audio files as they appear in these folders")) {
                 DirListView(fileType: .audio, dirs: $audioDirs, enabled: $enableAutomaticAudioOptimisations)
             }
+            .searchAnchor("audio.watchpaths.audioDirs")
             Section(header: SectionHeader(title: "Optimisation rules")) {
                 HStack(spacing: 4) {
                     SwiftUI.Image(systemName: "folder.badge.gearshape")
@@ -1603,6 +1649,7 @@ struct AudioSettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text("Compression").regular(13)
+                            .searchAnchor("audio.optimisationrules.audioCompression")
                         Slider(
                             value: Binding(
                                 get: { Double(audioCompression.factor) },
@@ -1622,6 +1669,7 @@ struct AudioSettingsView: View {
                         }
                     } label: {
                         Text("Cover art").regular(13)
+                            .searchAnchor("audio.optimisationrules.audioCoverArt")
                     }
                     Text("Cover art is kept only for formats that can store it (AAC, MP3, FLAC); it is dropped for others.")
                         .round(10, weight: .regular).foregroundColor(.secondary)
@@ -1629,7 +1677,9 @@ struct AudioSettingsView: View {
             }
             Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minAudioSizeKB, maxMB: $maxAudioSizeMB)
+                    .searchAnchor("audio.watchedfilefilters.minAudioSizeKB")
                 CountSliderRow(count: $maxAudioFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "audio file is" : "audio files are") copied or moved at once" })
+                    .searchAnchor("audio.watchedfilefilters.maxAudioFileCount")
             }
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Convert less compatible formats to AAC or MP3 before optimisation; anything not picked keeps its own format")) {
                 HStack {
@@ -1656,6 +1706,8 @@ struct AudioSettingsView: View {
                 }
             }
             .id("compatibility")
+            .searchAnchor("audio.compatibility.formatsToConvertToMP3")
+            .searchAnchor("audio.compatibility.formatsToConvertToAAC")
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -1717,6 +1769,7 @@ struct ImagesSettingsView: View {
                             .offset(x: TEXT_FIELD_OFFSET)
                     )
                     .disabled(!useCustomNameTemplateForClipboardImages)
+                    .searchAnchor("images.main.customNameTemplateForClipboardImages")
                 if useCustomNameTemplateForClipboardImages {
                     Text("Result: " + generateFileName(template: customNameTemplateForClipboardImages ?! DEFAULT_NAME_TEMPLATE, autoIncrementingNumber: &Defaults[.lastAutoIncrementingNumber]))
                         .round(12)
@@ -1761,6 +1814,7 @@ struct ImagesSettingsView: View {
         .pickerStyle(.segmented)
         .labelStyle(.titleAndIcon)
         .font(.heavy(10))
+        .searchAnchor("images.main.photoCropOrientation")
     }
 
     var body: some View {
@@ -1768,26 +1822,32 @@ struct ImagesSettingsView: View {
             Section(header: SectionHeader(title: "Watch paths", subtitle: "Optimise images as they appear in these folders")) {
                 DirListView(fileType: .image, dirs: $imageDirs, enabled: $enableAutomaticImageOptimisations)
             }
+            .searchAnchor("images.watchpaths.imageDirs")
             Section(header: SectionHeader(title: "File name handling")) {
                 Toggle(isOn: $copyImageFilePath) {
                     Text("Copy image paths").regular(13)
                         + Text("\nWhen copying optimised image data, also copy the path of the image file").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                .searchAnchor("images.filenamehandling.copyImageFilePath")
                 Toggle(isOn: $useCustomNameTemplateForClipboardImages.animation(.default)) {
                     customNameTemplate
                 }.disabled(!copyImageFilePath)
+                    .searchAnchor("images.filenamehandling.useCustomNameTemplateForClipboardImages")
             }
 
             Section(header: SectionHeader(title: "Photos integration", subtitle: "Handle images copied from the Photos app")) {
                 Toggle(isOn: $enablePhotosIntegration.animation(.spring())) {
                     Text("Optimise images copied from Photos.app").regular(13)
                 }
+                .searchAnchor("images.photosintegration.enablePhotosIntegration")
 
                 CountSliderRow(count: $maxCopiedPhotosCount, range: 1 ... 50, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "photo is" : "photos are") copied at once" })
                     .disabled(!enablePhotosIntegration)
+                    .searchAnchor("images.photosintegration.maxCopiedPhotosCount")
 
                 HStack(spacing: 6) {
                     Text("Downscale to").regular(13).lineLimit(1).fixedSize()
+                        .searchAnchor("images.photosintegration.maxPhotosLength")
                     // No .fixedSize() here: it collapses the field to its ideal width, which is ~0
                     // while the value is unset, leaving nothing to click inside the 70pt frame.
                     TextField("", text: maxPhotosLengthBinding)
@@ -1797,6 +1857,7 @@ struct ImagesSettingsView: View {
                         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.gray, lineWidth: 1).scaleEffect(y: TEXT_FIELD_SCALE).offset(x: TEXT_FIELD_OFFSET))
                     Text("px").mono(13).opacity(maxPhotosLength != nil ? 1 : 0.3).lineLimit(1).fixedSize()
                     Text("on").regular(13).lineLimit(1).fixedSize()
+                        .searchAnchor("images.photosintegration.photoCropOrientation")
                     Spacer()
                     cropOrientationPicker
                 }
@@ -1813,6 +1874,7 @@ struct ImagesSettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
                         Text("Compression").regular(13)
+                            .searchAnchor("images.optimisationrules.imageCompression")
                         Slider(
                             value: Binding(
                                 get: { Double(imageCompression.factor) },
@@ -1847,6 +1909,7 @@ struct ImagesSettingsView: View {
                             weight: .regular
                         ).foregroundColor(.secondary)
                 }
+                .searchAnchor("images.optimisationrules.gifFrameDropBehaviour")
                 // Toggle(isOn: $downscaleRetinaImages) {
                 //     Text("Downscale HiDPI images to 72 DPI").regular(13)
                 //         + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular).foregroundColor(.secondary)
@@ -1855,10 +1918,14 @@ struct ImagesSettingsView: View {
             }
             Section(header: SectionHeader(title: "Watched file filters", subtitle: "Only files within these limits are optimised")) {
                 FileSizeRangeRow(minKB: $minImageSizeKB, maxMB: $maxImageSizeMB)
+                    .searchAnchor("images.watchedfilefilters.minImageSizeKB")
                 ResolutionRangeRow(label: "Resolution", minRes: $minImageResolution, maxRes: $maxImageResolution)
+                    .searchAnchor("images.watchedfilefilters.minImageResolution")
                 CountSliderRow(count: $maxImageFileCount, caption: { "Skips optimisation when more than \($0) \($0 == 1 ? "image is" : "images are") copied or moved at once" })
+                    .searchAnchor("images.watchedfilefilters.maxImageFileCount")
                 HStack {
                     Text("Ignore images with extension").regular(13).padding(.trailing, 10)
+                        .searchAnchor("images.watchedfilefilters.imageFormatsToSkip")
                     Spacer()
 
                     ForEach(IMAGE_FORMATS, id: \.identifier) { format in
@@ -1872,6 +1939,7 @@ struct ImagesSettingsView: View {
             Section(header: SectionHeader(title: "Compatibility", subtitle: "Converts less known formats to more compatible ones before optimisation")) {
                 HStack {
                     (Text("Convert to ").regular(13) + Text("jpeg").mono(13)).padding(.trailing, 10)
+                        .searchAnchor("images.compatibility.formatsToConvertToJPEG")
                     Spacer()
 
                     ForEach(FORMATS_CONVERTIBLE_TO_JPEG, id: \.identifier) { format in
@@ -1886,6 +1954,7 @@ struct ImagesSettingsView: View {
                 }
                 HStack {
                     (Text("Convert to ").regular(13) + Text("png").mono(13)).padding(.trailing, 10)
+                        .searchAnchor("images.compatibility.formatsToConvertToPNG")
                     Spacer()
 
                     ForEach(FORMATS_CONVERTIBLE_TO_PNG, id: \.identifier) { format in
@@ -1972,6 +2041,7 @@ struct KeysSettingsView: View {
             Section(header: SectionHeader(title: "Trigger keys")) {
                 DirectionalModifierView(triggerKeys: $keyComboModifiers, showFnCaps: false, allowShiftAlone: false)
             }
+            .searchAnchor("keys.triggerkeys.keyComboModifiers")
             Section(header: SectionHeader(title: "Action keys")) {
                 keyToggle(.minus, actionName: "Downscale", description: "Decrease resolution of the last image or video")
                 keyToggle(.x, actionName: "Speed up video", description: "Make video playback faster by dropping frames")
@@ -1985,6 +2055,7 @@ struct KeysSettingsView: View {
                 keyToggle(.c, actionName: "Optimise current clipboard", description: "Apply optimisations on the copied image, URL or path")
                 keyToggle(.a, actionName: "Optimise aggressively", description: "Apply aggressive optimisations on the copied image, URL or path")
             }.padding(.leading, 20)
+                .searchAnchor("keys.actionkeys.enabledKeys")
             Section(header: SectionHeader(title: "Resize keys")) {
                 HStack(alignment: .bottom, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -1999,6 +2070,7 @@ struct KeysSettingsView: View {
                     resizeKeys
                 }.fixedSize()
             }.padding(.leading, 20)
+                .searchAnchor("keys.resizekeys.quickResizeKeys")
         }
         .scrollContentBackground(.hidden)
         .frame(maxWidth: .infinity)
@@ -2139,16 +2211,19 @@ struct DropZoneSettingsView: View {
                     Text("Enable drop zone").regular(13)
                         + Text("\nAllows dragging files, paths and URLs to a global drop zone for optimisation").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                .searchAnchor("dropzone.dropzone.enableDragAndDrop")
                 Toggle(isOn: $onlyShowDropZoneOnOption) {
                     Text("Require pressing ⌥ Option to show drop zone").regular(13)
                         + Text("\nHide drop zone by default to avoid distractions while dragging files, show it by manually pressing ⌥ Option once").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 .padding(.leading, 20)
                 .disabled(!enableDragAndDrop)
+                .searchAnchor("dropzone.dropzone.onlyShowDropZoneOnOption")
                 Toggle(isOn: $autoCopyToClipboard) {
                     Text("Auto Copy optimised files to clipboard").regular(13)
                         + Text("\nCopy files resulting from drop zone or file watch optimisation\nso they can be pasted right after optimisation ends").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                .searchAnchor("dropzone.dropzone.autoCopyToClipboard")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -2197,6 +2272,7 @@ struct DropZoneSettingsView: View {
                                     weight: .regular
                                 ).foregroundColor(.secondary)
                         }
+                        .searchAnchor("dropzone.batchmode.useBatchModeForFolders")
                         HStack {
                             Text("Switch to batch mode when dropping more than").regular(13)
                             Spacer()
@@ -2204,6 +2280,7 @@ struct DropZoneSettingsView: View {
                                 .multilineTextAlignment(.center)
                                 .font(.mono(12))
                                 .frame(width: 60)
+                                .searchAnchor("dropzone.batchmode.batchModeFileCountThreshold")
                             Text("files").regular(13)
                         }
                         .disabled(!useBatchModeForFolders)
@@ -2267,6 +2344,7 @@ struct PresetZonesSettingsView: View {
                         Text("Tap").tag(true)
                     }
                     .pickerStyle(.segmented)
+                    .searchAnchor("presetZones.showingpresetzones.onlyShowPresetZonesOnControlTapped")
                 }
 
                 Section(header: SectionHeader(title: "Preset zones", subtitle: "Click a zone to assign or create a pipeline. Drag files onto a zone to run its actions.")) {
@@ -2278,6 +2356,7 @@ struct PresetZonesSettingsView: View {
                             .padding(.top, 6)
                     }
                 }
+                .searchAnchor("presetZones.presetzones.presetZones")
             }
             .padding(4)
             .disabled(!enableDragAndDrop)
@@ -2346,6 +2425,7 @@ struct FloatingSettingsView: View {
                     .round(10, weight: .regular)
                     .foregroundColor(.secondary)
             }
+            .searchAnchor("floating.main.enableFloatingResults")
             Section(header: SectionHeader(title: "Layout")) {
                 Picker("Position on screen", selection: $floatingResultsCorner) {
                     Text("Bottom right").tag(ScreenCorner.bottomRight)
@@ -2353,24 +2433,28 @@ struct FloatingSettingsView: View {
                     Text("Top right").tag(ScreenCorner.topRight)
                     Text("Top left").tag(ScreenCorner.topLeft)
                 }
+                .searchAnchor("floating.layout.floatingResultsCorner")
                 Toggle(isOn: $followCursorScreen) {
                     Text("Follow the cursor across screens").regular(13)
                         + Text("\n\nWhen the cursor stays on another screen for a couple of seconds, move the results to that screen")
                         .round(10, weight: .regular)
                         .foregroundColor(.secondary)
                 }
+                .searchAnchor("floating.layout.followCursorScreen")
                 Toggle(isOn: $hideFloatingResultTooltips) {
                     Text("Hide button tooltips").regular(13)
                         + Text("\n\nDon't show the action name labels that pop up while hovering result buttons")
                         .round(10, weight: .regular)
                         .foregroundColor(.secondary)
                 }
+                .searchAnchor("floating.layout.hideFloatingResultTooltips")
                 Toggle(isOn: $alwaysShowCompactResults) {
                     Text("Always use compact layout").regular(13)
                         + Text("\n\nBy default, the layout switches to compact automatically when there are more than 5 results on the screen")
                         .round(10, weight: .regular)
                         .foregroundColor(.secondary)
                 }
+                .searchAnchor("floating.layout.alwaysShowCompactResults")
             }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Full layout")) {
@@ -2383,17 +2467,22 @@ struct FloatingSettingsView: View {
                     } label: {
                         Text("Change format by").regular(13)
                     }
+                    .searchAnchor("floating.fulllayout.formatPickerStyle")
                     Text("The format bar shows all convertible formats as one-click segments at the bottom of the result; the extension chip pops the formats up on hover")
                         .round(10, weight: .regular)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Toggle("Show Copy all / Clear all buttons", isOn: $showCopyClearButtons)
+                    .searchAnchor("floating.fulllayout.showCopyClearButtons")
                 Text("Dismiss result after")
                 Toggle("drag and drop outside", isOn: $dismissFloatingResultOnDrop).padding(.leading, 20)
+                    .searchAnchor("floating.fulllayout.dismissFloatingResultOnDrop")
                 Toggle("upload to Dropshare", isOn: $dismissFloatingResultOnUpload).padding(.leading, 20)
+                    .searchAnchor("floating.fulllayout.dismissFloatingResultOnUpload")
 
                 Toggle("Auto hide", isOn: $autoHideFloatingResults)
+                    .searchAnchor("floating.fulllayout.autoHideFloatingResults")
                 Picker("files after", selection: $autoHideFloatingResultsAfter) {
                     Text("5 seconds").tag(5)
                     Text("10 seconds").tag(10)
@@ -2405,6 +2494,7 @@ struct FloatingSettingsView: View {
                     Text("10 minutes").tag(600)
                     Text("never").tag(0)
                 }.disabled(!autoHideFloatingResults).padding(.leading, 20)
+                    .searchAnchor("floating.fulllayout.autoHideFloatingResultsAfter")
                 Picker("clipboard after", selection: $autoHideClipboardResultAfter) {
                     Text("1 seconds").tag(1)
                     Text("2 seconds").tag(2)
@@ -2416,13 +2506,17 @@ struct FloatingSettingsView: View {
                     Text("same as non-clipboard").tag(-1)
                     Text("never").tag(0)
                 }.disabled(!autoHideFloatingResults).padding(.leading, 20)
+                    .searchAnchor("floating.fulllayout.autoHideClipboardResultAfter")
             }.disabled(!enableFloatingResults)
 
             Section(header: SectionHeader(title: "Compact layout")) {
                 Toggle("Show images", isOn: $showCompactImages)
+                    .searchAnchor("floating.compactlayout.showCompactImages")
                 Text("Dismiss result after")
                 Toggle("drag and drop outside", isOn: $dismissCompactResultOnDrop).padding(.leading, 20)
+                    .searchAnchor("floating.compactlayout.dismissCompactResultOnDrop")
                 Toggle("upload to Dropshare", isOn: $dismissCompactResultOnUpload).padding(.leading, 20)
+                    .searchAnchor("floating.compactlayout.dismissCompactResultOnUpload")
 
                 Picker("Auto clear all after", selection: $autoClearAllCompactResultsAfter) {
                     Text("5 seconds").tag(5)
@@ -2436,6 +2530,7 @@ struct FloatingSettingsView: View {
                     Text("30 minutes").tag(1800)
                     Text("never").tag(0)
                 }
+                .searchAnchor("floating.compactlayout.autoClearAllCompactResultsAfter")
             }.disabled(!enableFloatingResults)
 
         }
@@ -2492,6 +2587,7 @@ struct FloatingSettingsView: View {
 
                 if compact {
                     ActionListPicker(label: "Side actions", vertical: false, actions: $compactResultActions)
+                        .searchAnchor("floating.main.compactResultActions")
                 } else {
                     FloatingActionGridPicker(actions: $floatingResultActions)
                 }
@@ -2605,6 +2701,7 @@ struct ClipboardSettingsView: View {
                     Text("Enable clipboard optimiser").regular(13)
                         + Text("\nWatch for copied data and optimise it automatically").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                .searchAnchor("clipboard.clipboard.enableClipboardOptimiser")
                 Group {
                     Toggle(isOn: .constant(true)) {
                         Text("Image data").regular(13)
@@ -2614,22 +2711,27 @@ struct ClipboardSettingsView: View {
                         Text("TIFF data").regular(13)
                             + Text("\nUsually from graphical design apps, sometimes better left alone").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("clipboard.clipboard.optimiseTIFF")
                     Toggle(isOn: $optimiseImagePathClipboard) {
                         Text("Image files").regular(13)
                             + Text("\nCopying images from Finder results in file paths instead of image data").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("clipboard.clipboard.optimiseImagePathClipboard")
                     Toggle(isOn: $optimiseVideoClipboard) {
                         Text("Video files").regular(13)
                             + Text("\nOptimise copied video file paths").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("clipboard.clipboard.optimiseVideoClipboard")
                     Toggle(isOn: $optimiseAudioClipboard) {
                         Text("Audio files").regular(13)
                             + Text("\nOptimise copied audio file paths").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("clipboard.clipboard.optimiseAudioClipboard")
                     Toggle(isOn: $optimisePDFClipboard) {
                         Text("PDF files").regular(13)
                             + Text("\nOptimise copied PDF file paths").round(11, weight: .regular).foregroundColor(.secondary)
                     }
+                    .searchAnchor("clipboard.clipboard.optimisePDFClipboard")
                 }
                 .disabled(!enableClipboardOptimiser)
                 .padding(.leading, 20)
@@ -2638,6 +2740,7 @@ struct ClipboardSettingsView: View {
                     Text("Keep all clipboard results").regular(13)
                         + Text("\nShow each clipboard optimisation as a separate result instead of replacing the previous one").round(11, weight: .regular).foregroundColor(.secondary)
                 }.disabled(!enableClipboardOptimiser)
+                    .searchAnchor("clipboard.clipboard.appendClipboardResults")
                 if appendClipboardResults {
                     Toggle(isOn: $copyConsecutiveClipboardImages) {
                         Text("Accumulate optimised images in clipboard").regular(13)
@@ -2646,6 +2749,7 @@ struct ClipboardSettingsView: View {
                     }
                     .disabled(!enableClipboardOptimiser)
                     .padding(.leading, 20)
+                    .searchAnchor("clipboard.clipboard.copyConsecutiveClipboardImages")
 
                     HStack {
                         Text("Reset after").regular(13)
@@ -2658,6 +2762,7 @@ struct ClipboardSettingsView: View {
                             Text("Never").tag(0)
                         }
                         .frame(width: 140)
+                        .searchAnchor("clipboard.clipboard.clipboardAccumulationTimeout")
                         Text("of inactivity").regular(13)
                     }
                     .padding(.leading, 20)
@@ -2668,10 +2773,12 @@ struct ClipboardSettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     IgnoredAppsPicker(bundleIds: $clipboardIgnoredAppBundleIds, enabled: enableClipboardOptimiser)
                         .padding(.top, 2)
+                        .searchAnchor("clipboard.ignoredapps.clipboardIgnoredAppBundleIds")
                 }
                 .disabled(!enableClipboardOptimiser)
                 .opacity(enableClipboardOptimiser ? 1 : 0.6)
             }
+            .searchAnchor("clipboard.ignoredapps.clipboardIgnoredAppBundleIds")
 
             Section(header: SectionHeader(title: "Automation", subtitle: "Run actions on every file you copy")) {
                 SourceAutomationsSection(source: .clipboard, disabledTypes: disabledClipboardTypes)
@@ -2741,6 +2848,7 @@ struct GeneralSettingsView: View {
         Form {
             HStack {
                 Text("Menubar icon")
+                    .searchAnchor("general.main.showMenubarIcon")
                 Spacer()
                 menubarIconButton(.new) { SwiftUI.Image(nsImage: Self.menubarIconNew).resizable() }
                 menubarIconButton(.geometric) { SwiftUI.Image(nsImage: Self.menubarIconGeometric).resizable() }
@@ -2749,6 +2857,7 @@ struct GeneralSettingsView: View {
             }
             LaunchAtLogin.Toggle()
             Toggle("Sync settings with other Macs via iCloud", isOn: $syncSettingsCloud)
+                .searchAnchor("general.main.syncSettingsCloud")
             HStack {
                 Text("Secure send links expire after")
                 Spacer()
@@ -2760,18 +2869,24 @@ struct GeneralSettingsView: View {
                     Text("Never").tag(LINK_EXPIRATION_NEVER)
                 }
                 .frame(width: 150)
+                .searchAnchor("general.main.defaultLinkExpiration")
             }
 
             Section(header: SectionHeader(title: "Edit with external app", subtitle: "Hand an optimised file to an editor of your choice with ⌘E or the right-click menu")) {
                 EditorAppRow(label: "Images", systemImage: "photo", key: .editorAppImage)
+                    .searchAnchor("general.editwithexternalapp.editorAppImage")
                 EditorAppRow(label: "Videos", systemImage: "video", key: .editorAppVideo)
+                    .searchAnchor("general.editwithexternalapp.editorAppVideo")
                 EditorAppRow(label: "Audio", systemImage: "waveform", key: .editorAppAudio)
+                    .searchAnchor("general.editwithexternalapp.editorAppAudio")
                 EditorAppRow(label: "PDFs", systemImage: "doc", key: .editorAppPDF)
+                    .searchAnchor("general.editwithexternalapp.editorAppPDF")
             }
 
             Section(header: SectionHeader(title: "Working directory", subtitle: "Where temporary files and backups are stored and where the optimised files are saved")) {
                 HStack {
                     Text("Path").regular(13).padding(.trailing, 10)
+                        .searchAnchor("general.workingdirectory.workdir")
                     TextField("", text: workdirBinding)
                         .multilineTextAlignment(.center)
                         .font(.mono(12))
@@ -2793,6 +2908,7 @@ struct GeneralSettingsView: View {
                     Text("1 month").tag(CleanupInterval.monthly)
                     Text("never clean up").tag(CleanupInterval.never)
                 }
+                .searchAnchor("general.workingdirectory.workdirCleanupInterval")
             }
 
             Section(header: SectionHeader(title: "Optimisation")) {
@@ -2800,17 +2916,20 @@ struct GeneralSettingsView: View {
                     Text("Strip EXIF Metadata").regular(13)
                         + Text("\nDeleted identifiable metadata from files (e.g. camera that took the photo, location, date and time etc.)").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                .searchAnchor("general.optimisation.stripMetadata")
                 Toggle(isOn: $preserveColorMetadata) {
                     Text("Preserve color profile metadata").regular(13)
                         + Text("\nKeep color profile metadata tags untouched when stripping EXIF metadata").round(11, weight: .regular).foregroundColor(.secondary)
                 }
                 .padding(.leading, 20)
                 .disabled(!stripMetadata)
+                .searchAnchor("general.optimisation.preserveColorMetadata")
 
                 Toggle(isOn: $preserveDates) {
                     Text("Preserve file creation and modification dates").regular(13)
                         + Text("\nThe optimised file will have the same creation and modification dates as the original file").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                .searchAnchor("general.optimisation.preserveDates")
 
                 Picker(selection: $optimisedFileProtectionMs) {
                     Text("3 seconds").tag(3000)
@@ -2821,6 +2940,7 @@ struct GeneralSettingsView: View {
                     Text("Re-optimisation loop detection window").regular(13)
                         + Text("\nIncrease if files on iCloud Drive get optimised twice").round(11, weight: .regular).foregroundColor(.secondary)
                 }
+                .searchAnchor("general.optimisation.optimisedFileProtectionMs")
             }
 
             Section(header: SectionHeader(title: "Privacy")) {
@@ -2886,6 +3006,8 @@ struct HighlightedFolderRequest: Equatable {
 class SettingsViewManager: ObservableObject {
     @Published var tab: SettingsView.Tabs = SWIFTUI_PREVIEW ? .floating : .general
     @Published var searchQuery = ""
+    /// The entry id a search result asked to jump to. See `SettingsSearchAnchor`.
+    @Published var highlightedEntry: String? = nil
     @Published var windowOpen = false
     @Published var scrollToFileType: ClopFileType?
     /// Set by the "Configured in Compatibility" link in File Handling to scroll the destination
@@ -3053,10 +3175,7 @@ struct SettingsView: View {
         } else {
             List {
                 ForEach(results) { entry in
-                    Button(action: {
-                        svm.tab = entry.tab
-                        svm.searchQuery = ""
-                    }) {
+                    Button(action: { svm.jump(to: entry) }) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.title).medium(12)
                             if !entry.subtitle.isEmpty {
@@ -3110,7 +3229,7 @@ struct SettingsView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            detailView
+            SettingsPaneScroller { detailView }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 // Keep the window's title as "Settings" so it exists for the Window menu,
                 // accessibility and Mission Control. `.windowStyle(.hiddenTitleBar)` keeps it
