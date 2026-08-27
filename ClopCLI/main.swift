@@ -69,6 +69,29 @@ func ensureAppIsRunning() {
     NSWorkspace.shared.open(CLOP_APP)
 }
 
+/// Refuse a pipeline write that came from the MCP server and is not allowed.
+///
+/// `pipeline add`, `attach` and friends write the defaults suite from this process rather than asking
+/// the app, so the app's own gate never sees them. Without this an agent could save a pipeline with a
+/// script step and attach it to a watched folder, and every file dropped there would run it.
+///
+/// This is a check inside the caller's own binary, so it is not a sandbox: an agent that never sets
+/// CLOP_ORIGIN is simply a person using the CLI, which needs no permission from anyone. What it does
+/// close is the MCP tool surface the user actually granted.
+func refuseUnallowedMCPPipelineWrite(_ dsl: String?) throws {
+    guard ProcessInfo.processInfo.environment["CLOP_ORIGIN"] == "mcp" else { return }
+    let defaults = UserDefaults.app
+
+    guard defaults?.bool(forKey: "mcpEnabled") == true else {
+        throw ValidationError("Clop is not accepting changes from agents. Ask the user to allow it in Clop Settings, MCP.")
+    }
+    guard let dsl, dsl.contains("runScript"), defaults?.bool(forKey: "mcpAllowScriptSteps") != true else { return }
+    throw ValidationError("""
+    Clop is not accepting script steps from agents, and this pipeline has a runScript step. \
+    Use a built-in step if one can do the job, or ask the user to allow script steps in Clop Settings, MCP.
+    """)
+}
+
 /// Send one settings request to the running app and print what comes back.
 ///
 /// The app has to be running: a settings write only means anything if something applies it, and the
@@ -2127,6 +2150,7 @@ struct Clop: ParsableCommand {
             }
 
             mutating func run() throws {
+                try refuseUnallowedMCPPipelineWrite(steps)
                 guard let defaults = UserDefaults.app else {
                     throw ValidationError("Can't access Clop defaults")
                 }
@@ -2173,6 +2197,7 @@ struct Clop: ParsableCommand {
             var name: String
 
             mutating func run() throws {
+                try refuseUnallowedMCPPipelineWrite(nil)
                 guard let defaults = UserDefaults.app else {
                     throw ValidationError("Can't access Clop defaults")
                 }
@@ -2269,6 +2294,7 @@ struct Clop: ParsableCommand {
             }
 
             mutating func run() throws {
+                try refuseUnallowedMCPPipelineWrite(pipeline)
                 guard let defaults = UserDefaults.app else {
                     throw ValidationError("Can't access Clop defaults")
                 }
@@ -2371,6 +2397,7 @@ struct Clop: ParsableCommand {
             }
 
             mutating func run() throws {
+                try refuseUnallowedMCPPipelineWrite(nil)
                 guard let defaults = UserDefaults.app else {
                     throw ValidationError("Can't access Clop defaults")
                 }
