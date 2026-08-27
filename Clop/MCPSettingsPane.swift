@@ -18,19 +18,24 @@ struct MCPSettingsView: View {
                 if !proactive {
                     proRow
                 }
-                Toggle("Enable MCP", isOn: $mcpEnabled)
-                    .disabled(!proactive)
-                    .onChange(of: mcpEnabled) { _ in MCPInstaller.writeServerCard() }
-                    .searchAnchor("mcp.main.mcpEnabled")
+                Toggle(isOn: $mcpEnabled) {
+                    Text("Enable MCP").regular(13)
+                        + Text("\nAllow agents to control Clop, run file optimisations, change settings, write pipelines").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                .disabled(!proactive)
+                .onChange(of: mcpEnabled) { _ in MCPInstaller.writeServerCard() }
+                .searchAnchor("mcp.main.mcpEnabled")
 
-                Toggle("Allow script steps", isOn: $mcpAllowScriptSteps)
-                    .disabled(!proactive || !mcpEnabled)
-                    .onChange(of: mcpAllowScriptSteps) { on in
-                        guard on else { return }
-                        // The alert carries the warning, so the row does not have to.
-                        if !askAboutScripts() { mcpAllowScriptSteps = false }
-                    }
-                    .searchAnchor("mcp.main.mcpAllowScriptSteps")
+                Toggle(isOn: $mcpAllowScriptSteps) {
+                    Text("Allow agents to write arbitrary scripts in pipelines").regular(13)
+                        + Text("\nUsing scripts in pipelines allows for flexible operations but can be dangerous if not properly verified").round(11, weight: .regular).foregroundColor(.secondary)
+                }
+                .disabled(!proactive || !mcpEnabled)
+                .onChange(of: mcpAllowScriptSteps) { on in
+                    guard on else { return }
+                    if !askAboutScripts() { mcpAllowScriptSteps = false }
+                }
+                .searchAnchor("mcp.main.mcpAllowScriptSteps")
             }
 
             Section(header: SectionHeader(title: "Install in")) {
@@ -72,11 +77,16 @@ struct MCPSettingsView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(client.name).medium(13)
-                Text(rowDetail(client))
-                    .round(11)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                // A client with nothing to say after installing shows nothing, rather than an empty
+                // line that makes its row taller than the rest.
+                let detail = rowDetail(client)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .round(11)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
             Spacer()
             switch states[client.id] ?? .notInstalled {

@@ -75,7 +75,7 @@ enum MCPInstaller {
     static let clients: [Client] = [
         Client(
             id: "claude-code", name: "Claude Code",
-            detail: "Restart any running session to pick it up.",
+            detail: "",
             path: "~/.claude.json", style: .mcpServers,
             evidence: ["/opt/homebrew/bin/claude", "~/.claude"]
         ),
