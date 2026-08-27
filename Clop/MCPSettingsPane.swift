@@ -27,6 +27,7 @@ struct MCPSettingsView: View {
                 }
                 .disabled(!proactive)
                 .onChange(of: mcpEnabled) { _ in MCPInstaller.writeServerCard() }
+                .searchAnchor("mcp.main.mcpEnabled")
 
                 Toggle(isOn: $mcpAllowScriptSteps) {
                     Text("Allow agents to write script steps").regular(13)
@@ -39,6 +40,7 @@ struct MCPSettingsView: View {
                     // Asking on the way on only. Turning it off never needs a confirmation.
                     if !askAboutScripts() { mcpAllowScriptSteps = false }
                 }
+                .searchAnchor("mcp.main.mcpAllowScriptSteps")
             }
 
             Section(header: SectionHeader(

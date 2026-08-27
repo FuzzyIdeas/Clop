@@ -142,6 +142,7 @@ struct MenuView: View {
 
         Section("Automation") {
             Toggle("Pause automatic optimisations", isOn: $pauseAutomaticOptimisations)
+                .searchAnchor("general.main.pauseAutomaticOptimisations")
             if !cliInstalled {
                 Button("Install command-line integration") {
                     do {
@@ -227,6 +228,7 @@ struct MenuView: View {
         }
 
         Toggle("Show Clop UI in screenshots", isOn: $allowClopToAppearInScreenshots)
+            .searchAnchor("general.main.allowClopToAppearInScreenshots")
         Divider()
         Button("Quit") {
             NSApp.terminate(nil)

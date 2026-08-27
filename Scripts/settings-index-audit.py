@@ -73,11 +73,24 @@ def main():
     for k in sorted(registered - indexed):
         errors.append(f"key {k!r} is writable through MCP but has no index entry, so it has no title")
 
+    # Anchors: a search result that cannot scroll to its row lands the user on the pane and leaves
+    # them to hunt. An entry without an anchor is a silently worse search result, so it fails here.
+    anchored = set()
+    for name in os.listdir(os.path.join(ROOT, "Clop")):
+        if not name.endswith(".swift"):
+            continue
+        anchored |= set(re.findall(r'\.searchAnchor\("([^"]+)"\)', read(os.path.join("Clop", name))))
+    entry_ids = set(ids)
+    for a in sorted(anchored - entry_ids):
+        errors.append(f"searchAnchor({a!r}) does not match any index entry")
+    for e in sorted(entry_ids - anchored):
+        errors.append(f"index entry {e!r} has no searchAnchor, so search cannot scroll to it")
+
     dupes = {i for i in ids if ids.count(i) > 1}
     for d in sorted(dupes):
         errors.append(f"duplicate entry id {d!r}")
 
-    print(f"{len(defined)} keys defined, {len(indexed)} indexed, {len(registered)} writable through MCP")
+    print(f"{len(defined)} keys defined, {len(indexed)} indexed, {len(registered)} writable through MCP, {len(anchored)} anchored")
 
     if args.coverage:
         missing = sorted(defined - indexed)
