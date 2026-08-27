@@ -45,8 +45,88 @@ var hoveredOptimiserID: String? {
     }
 }
 
-@MainActor var lastDropzoneModifierFlags: NSEvent.ModifierFlags = []
-@MainActor var possibleOptionDropzone = true
+/// How long a modifier may be held down and still count as a tap.
+let MODIFIER_TAP_MAX_DURATION = 0.4
+let TRACKED_MODIFIERS: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
+/// While a modifier is held, any of these means the user is using it as a modifier rather than tapping it.
+let MODIFIER_TAP_CANCELLING_EVENTS: NSEvent.EventTypeMask = [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel]
+
+/// Detects a tap of a single modifier key: pressed on its own, released within
+/// `MODIFIER_TAP_MAX_DURATION`, with no other modifier, keystroke or click in between. Holding the
+/// modifier is how the user reaches its shortcuts and alternate menu items, so a hold must do nothing.
+@MainActor final class ModifierTapDetector {
+    init(_ modifier: NSEvent.ModifierFlags, ignoring: NSEvent.ModifierFlags = []) {
+        self.modifier = modifier
+        tracked = TRACKED_MODIFIERS.subtracting(ignoring)
+    }
+
+    enum Event {
+        case none
+        /// The modifier went down on its own.
+        case pressed
+        /// The modifier came back up. `tap` is false when it was held, or used with something else.
+        case released(tap: Bool)
+    }
+
+    let modifier: NSEvent.ModifierFlags
+    /// The modifiers that cancel a tap when they join it. Anything outside this set is meaningful
+    /// alongside the tap and is filtered out before the comparison.
+    let tracked: NSEvent.ModifierFlags
+
+    /// A keystroke or click, which only cancels a tap that is currently in progress: cancelling on
+    /// events that arrive before the modifier goes down would swallow the next tap instead.
+    func cancel() {
+        guard downAt != nil else { return }
+        possible = false
+    }
+
+    /// True when this flag change completed a tap.
+    func tapped(_ rawFlags: NSEvent.ModifierFlags) -> Bool {
+        guard case let .released(tap) = handle(rawFlags) else { return false }
+        return tap
+    }
+
+    func handle(_ rawFlags: NSEvent.ModifierFlags) -> Event {
+        let flags = rawFlags.intersection(tracked)
+        defer {
+            lastFlags = flags
+            if flags.isEmpty {
+                possible = true
+                downAt = nil
+            }
+        }
+
+        if flags.isNotEmpty, flags != modifier {
+            possible = false
+        }
+        if flags == modifier, lastFlags.isEmpty {
+            downAt = Date()
+            return .pressed
+        }
+
+        guard lastFlags == modifier, flags.isEmpty, let downAt else { return .none }
+        return .released(tap: possible && Date().timeIntervalSince(downAt) <= MODIFIER_TAP_MAX_DURATION)
+    }
+
+    private var lastFlags: NSEvent.ModifierFlags = []
+    private var possible = true
+    private var downAt: Date?
+}
+
+@MainActor let optionTapDetector = ModifierTapDetector(.option)
+/// Option stays meaningful while the preset zones are up: it makes the drop copy the file instead of
+/// moving it (see `optimiseDroppedItems(copy:)`), so holding it must not cancel a Control tap.
+@MainActor let controlTapDetector = ModifierTapDetector(.control, ignoring: .option)
+
+@MainActor var modifierTapCancelGlobalMonitor = GlobalEventMonitor(mask: MODIFIER_TAP_CANCELLING_EVENTS) { _ in
+    optionTapDetector.cancel()
+    controlTapDetector.cancel()
+}
+@MainActor var modifierTapCancelLocalMonitor = LocalEventMonitor(mask: MODIFIER_TAP_CANCELLING_EVENTS) { event in
+    optionTapDetector.cancel()
+    controlTapDetector.cancel()
+    return event
+}
 
 @MainActor func handleOptionToggleDropZone() {
     if DM.dropZoneAtCursor {
@@ -65,80 +145,59 @@ var hoveredOptimiserID: String? {
 }
 
 @MainActor var dropZoneKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-    let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-    defer {
-        lastDropzoneModifierFlags = flags
-        if flags.isEmpty {
-            possibleOptionDropzone = true
-        }
-    }
-
-    if flags.isNotEmpty, flags != [.option] {
-        possibleOptionDropzone = false
-    }
-
-    if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
+    if optionTapDetector.tapped(event.modifierFlags) {
         handleOptionToggleDropZone()
     }
 }
 @MainActor var dropZoneKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
-    let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
-    defer {
-        lastDropzoneModifierFlags = flags
-        if flags.isEmpty {
-            possibleOptionDropzone = true
-        }
-    }
-
-    if flags.isNotEmpty, flags != [.option] {
-        possibleOptionDropzone = false
-    }
-
-    if possibleOptionDropzone, lastDropzoneModifierFlags == [.option], flags == [] {
-        handleOptionToggleDropZone()
-        return nil
-    }
-    return event
+    guard optionTapDetector.tapped(event.modifierFlags) else { return event }
+    handleOptionToggleDropZone()
+    return nil
 }
 
-@MainActor var lastPresetZonesModifierFlags: NSEvent.ModifierFlags = []
-@MainActor var possibleControlPresetZones = true
+/// Whether a Control tap has pinned the preset zones open. Reset when the drag ends, see `DM.dropped`.
+@MainActor var presetZonesPinned = false
+
+/// All of the Control handling for the preset zones, in both modes. This has to live in the monitors
+/// rather than in a `ctrlPressed` observer inside DropZoneView: that view is instantiated four times
+/// over (cursor window, above/below the results, onboarding), so a per-view observer would run once
+/// per instance on a single keypress, and `KM` would keep feeding it Control presses when no drag is
+/// happening at all. The monitors are singletons and only run for the length of a drag.
+///
+/// Returns true when the event was consumed.
+@MainActor func handlePresetZonesModifier(_ rawFlags: NSEvent.ModifierFlags) -> Bool {
+    let tapMode = Defaults[.onlyShowPresetZonesOnControlTapped]
+    // Feed the detector even while there is no drop zone on screen, so its notion of what is currently
+    // held stays true to the keyboard, then drop the result: the preset zones live inside the drop zone,
+    // so Control has nothing to reveal and must not leave state behind for the next time it opens.
+    let event = controlTapDetector.handle(rawFlags)
+    guard DM.showDropZone else { return false }
+
+    switch event {
+    case .none:
+        return false
+    case .pressed:
+        guard !tapMode else { return false }
+        DM.showPresetZones = true
+        return false
+    case let .released(tap):
+        guard !tapMode else {
+            guard tap else { return false }
+            DM.showPresetZones.toggle()
+            return true
+        }
+        // Holding reveals the zones only while Control is down; a tap pins them open until the next tap.
+        presetZonesPinned = tap ? !presetZonesPinned : false
+        DM.showPresetZones = presetZonesPinned
+        return tap
+    }
+}
 
 @MainActor var presetZonesKeyGlobalMonitor = GlobalEventMonitor(mask: [.flagsChanged]) { event in
-    let flags = event.modifierFlags.intersection([.command, .control, .control, .shift])
-    defer {
-        lastPresetZonesModifierFlags = flags
-        if flags.isEmpty {
-            possibleControlPresetZones = true
-        }
-    }
-
-    if flags.isNotEmpty, flags != [.control] {
-        possibleControlPresetZones = false
-    }
-
-    if possibleControlPresetZones, lastPresetZonesModifierFlags == [.control], flags == [] {
-        DM.showPresetZones.toggle()
-    }
+    _ = handlePresetZonesModifier(event.modifierFlags)
 }
 @MainActor var presetZonesKeyLocalMonitor = LocalEventMonitor(mask: [.flagsChanged]) { event in
-    let flags = event.modifierFlags.intersection([.command, .control, .control, .shift])
-    defer {
-        lastPresetZonesModifierFlags = flags
-        if flags.isEmpty {
-            possibleControlPresetZones = true
-        }
-    }
-
-    if flags.isNotEmpty, flags != [.control] {
-        possibleControlPresetZones = false
-    }
-
-    if possibleControlPresetZones, lastPresetZonesModifierFlags == [.control], flags == [] {
-        DM.showPresetZones.toggle()
-        return nil
-    }
-    return event
+    handlePresetZonesModifier(event.modifierFlags) ? nil : event
 }
 
 @MainActor

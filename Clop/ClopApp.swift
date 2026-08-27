@@ -626,6 +626,8 @@ class AppDelegate: AppDelegateParent {
         dropZoneKeyLocalMonitor.start()
         presetZonesKeyGlobalMonitor.start()
         presetZonesKeyLocalMonitor.start()
+        modifierTapCancelGlobalMonitor.start()
+        modifierTapCancelLocalMonitor.start()
 
         guard toOptimise.isNotEmpty else {
             DM.itemsToOptimise = []
