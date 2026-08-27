@@ -568,6 +568,27 @@ class Call:
 CURRENT = Call()
 
 
+def refuse_before_asking():
+    """Raise if a file operation is going to be refused anyway.
+
+    Elicitation costs the USER something: a dialog, or a question in the chat. Asking which way they
+    want a file made smaller and then answering "needs Clop Pro" spends their attention on a decision
+    that was never going to be acted on. This is checked only before a question, not on every call:
+    the ordinary path already surfaces Clop's own refusal, and a status check per tool call would mean
+    spawning a process to say what the next process is about to say.
+    """
+    try:
+        state = (run(["mcp", "status"]).get("mcp") or {})
+    except ClopError:
+        return  # If status cannot be read, let the real call produce the real error.
+    if not state.get("pro"):
+        raise ClopError(_annotate("Clop's MCP server needs Clop Pro."))
+    if not state.get("enabled"):
+        raise ClopError(_annotate(
+            "Clop is not accepting changes from agents. Ask the user to allow it in Clop Settings, MCP."
+        ))
+
+
 def ask(key, message, schema):
     """Answers for `key`, however this client can give them.
 
@@ -658,15 +679,18 @@ FACTOR_OPTIONS_TEXT = (
     "Ask the user how much smaller they want it, then call clop_downscale again with factor."
 )
 
-NOTHING_CHOSEN = (
-    "Nothing was chosen, so the files are untouched. Say compression, resolution or both and "
-    "Clop will run it, or call clop_pipeline_list to find a saved pipeline that already does it."
+# A client can answer a question without answering it: declined, cancelled, or dismissed because it
+# had no way to show it at all. A non-interactive Claude Code session declares the elicitation
+# capability and then cancels every request, so this is the common path and not the rare one.
+#
+# All three end the same way: say what happened in one line, then repeat the full options so the agent
+# can ask in its own chat and call again. Anything shorter leaves it guessing at parameter names.
+CANCELLED_PREFIX = (
+    "The question was not answered. Some clients cannot show one at all, a non-interactive session "
+    "for instance, so ask the user directly instead.\n"
 )
 
-DECLINED_TEXT = (
-    "No change made. Call the tool again naming smallerBy as compression, resolution or both, "
-    "or call clop_pipeline_list to see a saved pipeline that does it."
-)
+DECLINED_PREFIX = "The user declined to answer, so ask them directly instead.\n"
 
 
 # ----- File operations ---------------------------------------------------------
@@ -692,14 +716,15 @@ def clop_optimise(a):
     # The one genuinely ambiguous request. When the caller already said how, or
     # already gave a number, this asks nothing.
     if not smaller_by and quality is None and factor is None and not a.get("crop"):
+        refuse_before_asking()
         try:
             content = ask("smaller_how",
                           "Clop can make %s smaller in two ways. Which should it use?" % _subject(paths),
                           SMALLER_SCHEMA)
         except Declined:
-            return note(DECLINED_TEXT)
+            return note(DECLINED_PREFIX + SMALLER_OPTIONS_TEXT)
         except Cancelled:
-            return note(NOTHING_CHOSEN)
+            return note(CANCELLED_PREFIX + SMALLER_OPTIONS_TEXT)
         except NoElicitation:
             return note(SMALLER_OPTIONS_TEXT)
         smaller_by = content.get("target") or "compression"
@@ -725,16 +750,15 @@ def clop_downscale(a):
     paths = _paths(a)
     factor = a.get("factor")
     if factor is None:
+        refuse_before_asking()
         try:
             content = ask("downscale_factor",
                           "How much smaller should Clop make %s?" % _subject(paths),
                           FACTOR_SCHEMA)
         except Declined:
-            return note("No change made. Call clop_downscale again with factor, a fraction of the "
-                        "current size such as 0.5.")
+            return note(DECLINED_PREFIX + FACTOR_OPTIONS_TEXT)
         except Cancelled:
-            return note("Nothing was chosen, so the files are untouched. Call clop_downscale again "
-                        "with factor once the user names one.")
+            return note(CANCELLED_PREFIX + FACTOR_OPTIONS_TEXT)
         except NoElicitation:
             return note(FACTOR_OPTIONS_TEXT)
         factor = as_float(content, "factor", 0.5)
