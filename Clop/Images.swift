@@ -231,19 +231,31 @@ extension NSImage {
                 return false
             }
 
-            let pixelCount = Int(size.width * size.height)
+            // An image can report a zero or absurd `size` even with a usable representation, and
+            // `CGContext.init` returns nil for those dimensions. Force unwrapping it crashed the app
+            // mid-optimisation (CLOP-1KN). Assume transparency instead: the caller only uses this to
+            // decide whether a PNG may become a JPEG, so the unknown answer has to be the one that
+            // keeps the alpha channel.
+            let width = Int(size.width), height = Int(size.height)
+            guard width > 0, height > 0 else {
+                return true
+            }
+
+            let pixelCount = width * height
             let alphaBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: pixelCount)
             defer { alphaBuffer.deallocate() }
 
-            let context = CGContext(
+            guard let context = CGContext(
                 data: alphaBuffer,
-                width: Int(size.width),
-                height: Int(size.height),
+                width: width,
+                height: height,
                 bitsPerComponent: 8,
-                bytesPerRow: Int(size.width),
+                bytesPerRow: width,
                 space: CGColorSpaceCreateDeviceGray(),
                 bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue
-            )!
+            ) else {
+                return true
+            }
             context.draw(cgImage, in: CGRect(origin: .zero, size: size))
 
             var alphaBufferFloat = [Float](repeating: 0, count: pixelCount)
@@ -1417,7 +1429,9 @@ class Image: CustomStringConvertible {
         pixels.withUnsafeBytes { raw in
             for px in raw.bindMemory(to: UInt32.self) {
                 seen.insert(px)
-                if seen.count > cap { break }
+                if seen.count > cap {
+                    break
+                }
             }
         }
         return seen.count
