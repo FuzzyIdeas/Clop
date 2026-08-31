@@ -104,6 +104,41 @@ func refuseUnallowedMCPPipelineWrite(_ dsl: String?) throws {
     """)
 }
 
+/// Ask the app whether an MCP-originated file operation may run, and refuse with its words if not.
+///
+/// `strip-exif`, `crop-pdf` and `uncrop-pdf` do their work in this process and never build an
+/// `OptimisationRequest`, so nothing carried their origin to the app and the gate never saw them. An
+/// agent could strip the GPS out of a photo with Pro off and MCP off. They ask first now.
+///
+/// Only for calls that claim MCP origin. Somebody running the CLI themselves needs no permission.
+func refuseUnallowedMCPFileOperation() throws {
+    guard CLI_ORIGIN == "mcp" else { return }
+
+    // Launched here rather than left to the caller, so a cold Clop does not turn the first call of a
+    // session into a refusal. The port takes a moment to register after launch, hence the wait.
+    ensureAppIsRunning()
+    let deadline = Date().addingTimeInterval(15)
+    while !settingsServiceIsReady(), Date() < deadline {
+        usleep(50000)
+    }
+    guard settingsServiceIsReady() else {
+        throw ValidationError("Clop is not answering, so it cannot say whether this is allowed. Start Clop and try again.")
+    }
+
+    let settingsPort = LocalMachPort(portLocation: SETTINGS_PORT_ID)
+    guard let data = try settingsPort.sendAndWait(
+        data: SettingsRequest(action: .gate, origin: CLI_ORIGIN).jsonData,
+        recvTimeout: 10
+    ),
+        let response = SettingsResponse.from(data)
+    else {
+        throw ValidationError("Clop did not answer.")
+    }
+    guard response.ok else {
+        throw ValidationError(response.error ?? "Clop refused the request.")
+    }
+}
+
 /// Send one settings request to the running app and print what comes back.
 ///
 /// The app has to be running: a settings write only means anything if something applies it, and the
@@ -162,6 +197,15 @@ func printSettings(_ request: SettingsRequest, json: Bool) throws {
 /// Whether the app's optimisation service port is registered and accepting requests.
 func optimisationServiceIsReady() -> Bool {
     guard let port = CFMessagePortCreateRemote(nil, OPTIMISATION_PORT_ID as CFString) else {
+        return false
+    }
+    CFMessagePortInvalidate(port)
+    return true
+}
+
+/// Whether the app's settings port is registered and accepting requests.
+func settingsServiceIsReady() -> Bool {
+    guard let port = CFMessagePortCreateRemote(nil, SETTINGS_PORT_ID as CFString) else {
         return false
     }
     CFMessagePortInvalidate(port)
@@ -1085,6 +1129,8 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
+            try refuseUnallowedMCPFileOperation()
+
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
                 let pdfPath = pdf.documentURL!.filePath!
                 print("Uncropping \(pdfPath.string)", terminator: "")
@@ -1193,6 +1239,8 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
+            try refuseUnallowedMCPFileOperation()
+
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
                 let pdfPath = pdf.documentURL!.filePath!
                 print("\(extend ? "Extending" : "Cropping") \(pdfPath.string) to aspect ratio \(factorStr(ratio!))", terminator: "")
@@ -1316,6 +1364,8 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
+            try refuseUnallowedMCPFileOperation()
+
             let foundPaths = foundPaths
             let lock = NSLock()
             var successCount = 0
