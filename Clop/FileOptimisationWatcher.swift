@@ -189,14 +189,24 @@ class FileOptimisationWatcher {
         }
     }
 
+    /// The flags and the file name, with no filesystem access, so this is safe on the main thread.
+    ///
+    /// The existence check that used to live here moved to `fileExists(atPath:)`: `FilePath.exists`
+    /// is a blocking `stat`, and a watched folder on a network share or a sleeping disk took the main
+    /// thread down with it for 30 seconds from inside the FSEvents callback (CLOP-264).
     func isAddedFile(event: EonilFSEventsEvent) -> Bool {
-        guard let flag = event.flag, let path = event.path.existingFilePath, let stem = path.stem, !stem.starts(with: ".") else {
+        guard let flag = event.flag, let stem = event.path.filePath?.stem, !stem.starts(with: ".") else {
             return false
         }
 
         return flag.isDisjoint(with: [.historyDone, .itemRemoved]) &&
             flag.contains(.itemIsFile) &&
             flag.hasElements(from: [.itemCreated, .itemRenamed, .itemModified])
+    }
+
+    /// The same existence check, off the main thread. See `isAddedFile`.
+    nonisolated func fileExists(atPath path: String) async -> Bool {
+        await Task.detached(priority: .utility) { FileManager.default.fileExists(atPath: path) }.value
     }
 
     func stopWatching() {
@@ -400,10 +410,13 @@ class FileOptimisationWatcher {
                 // size stat, image-header decode) off the main thread internally, so the main thread is
                 // never blocked on file I/O during a burst of events or on a slow/network volume (ANR).
                 Task { @MainActor [weak self] in
+                    // The in-memory checks come first and the `stat` last, so a burst of events for
+                    // files Clop already knows about costs no filesystem access at all.
                     guard !SWIFTUI_PREVIEW, !BM.decompressingBinaries, let self, enabled, isAddedFile(event: event),
                           !self.alreadyOptimisedFiles.contains(event.path),
                           !OM.optimisers.contains(where: { $0.url?.path == event.path }),
-                          let path = event.path.existingFilePath, await shouldHandle(event)
+                          await fileExists(atPath: event.path), let path = event.path.filePath,
+                          await shouldHandle(event)
                     else { return }
 
                     // The bookkeeping below has no suspension points, so the main actor already
