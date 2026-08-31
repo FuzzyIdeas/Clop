@@ -528,6 +528,9 @@ class AppDelegate: AppDelegateParent {
         // Written every launch whether or not the switch is on, so an agent can find Clop and read how
         // to ask for permission rather than guessing.
         MCPInstaller.writeServerCard()
+        // 3.4.0 moved the server into the CLI, so a config written by an older build points at a
+        // script this update deleted.
+        MCPInstaller.migrateInstalledClients()
         startShortcutWatcher()
         DROPSHARE.fetchAppURL()
         DROPOVER.fetchAppURL()
@@ -1130,7 +1133,9 @@ class AppDelegate: AppDelegateParent {
             case "e":
                 // Prefer the user's configured "Edit with" app for this file type; fall back to the
                 // running shelf app (Yoink/Dropover/…) when none is set.
-                if optimiser.editWithConfiguredApp() { return nil }
+                if optimiser.editWithConfiguredApp() {
+                    return nil
+                }
                 guard let shelfApp = runningShelfApp() else { return event }
                 shelfApp.open(optimiser: optimiser)
                 return nil
@@ -1152,7 +1157,9 @@ class AppDelegate: AppDelegateParent {
         // by other apps' windows), a dock click should bring the frontmost one forward rather than
         // popping Settings on top of it.
         if let window = NSApp.orderedWindows.first(where: { ($0.isVisible || $0.isMiniaturized) && $0.isActivatingAppWindow }) {
-            if window.isMiniaturized { window.deminiaturize(nil) }
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
             focus()
@@ -1594,7 +1601,9 @@ extension NSWindow {
     /// the app a Dock icon + Cmd-Tab entry while open (vs. the floating-result panels and the menu-bar
     /// item, which shouldn't). Matched by stable identifier, not title.
     var isActivatingAppWindow: Bool {
-        if isSettingsWindow { return true }
+        if isSettingsWindow {
+            return true
+        }
         guard let id = identifier else { return false }
         return id == BATCH_WINDOW_IDENTIFIER
             || id == COMPARISON_WINDOW_IDENTIFIER
