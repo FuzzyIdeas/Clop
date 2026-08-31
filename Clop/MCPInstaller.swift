@@ -54,7 +54,7 @@ enum MCPInstaller {
 
         var errorDescription: String? {
             switch self {
-            case .missingServer: "Clop's MCP server file is missing from the app bundle."
+            case .missingServer: "Clop's CLI is missing from the app bundle, so the MCP server cannot run."
             }
         }
     }
@@ -103,57 +103,35 @@ enum MCPInstaller {
         ),
     ]
 
+    /// The arguments that turn the CLI into the server.
+    static let serveArgs = ["mcp", "serve"]
+
     // MARK: - Paths
 
-    /// The bundled MCP server. Falls back to the repo copy in a debug build so the installer works
-    /// before the app is installed to /Applications.
-    static var scriptPath: String {
-        if let url = Bundle.main.url(forResource: "clop_mcp", withExtension: "py") {
-            return url.path
-        }
-        let devPath = ("~/Projects/macOS/Clop/Clop/clop_mcp.py" as NSString).expandingTildeInPath
-        return FileManager.default.fileExists(atPath: devPath) ? devPath : ""
-    }
-
-    /// Whether the server file is actually on disk. Installing without it writes a config entry that
-    /// looks fine and starts nothing, so every caller checks this first.
-    static var scriptExists: Bool {
-        let path = scriptPath
-        return !path.isEmpty && FileManager.default.fileExists(atPath: path)
-    }
-
-    /// The CLI the MCP server shells out to. Bundled beside the app, so the server drives the same
-    /// binary the user's own `clop` command does.
+    /// The CLI, which IS the MCP server. Bundled beside the app, so an agent drives the same binary
+    /// the user's own `clop` command does.
+    ///
+    /// It used to be a bundled script that needed an interpreter found at launch, and on a Mac with
+    /// no Command Line Tools and no Homebrew the server did not run at all. The CLI is already
+    /// signed, notarised and inside the app's seal.
     static var cliPath: String {
         let bundled = Bundle.main.bundleURL
             .appendingPathComponent("Contents/SharedSupport/ClopCLI").path
-        if FileManager.default.isExecutableFile(atPath: bundled) { return bundled }
+        if FileManager.default.isExecutableFile(atPath: bundled) {
+            return bundled
+        }
         return ("~/.local/bin/clop" as NSString).expandingTildeInPath
     }
 
-    /// A python3 that actually runs.
-    ///
-    /// `/usr/bin/python3` exists on every Mac, but on one without the Command Line Tools it is the
-    /// shim that opens the install dialog and exits non-zero. Testing the executable bit picks it
-    /// anyway and every session start then fails with a Homebrew python sitting one line down the
-    /// list, so each candidate is asked to run an empty program instead.
-    ///
-    /// The shim is never the one asked, though: RUNNING it is what opens the dialog, and this is
-    /// resolved at launch, so a Mac with no developer tools would get the "install command line
-    /// developer tools" prompt every time the app started. Without a developer directory on disk the
-    /// shim drops out of the list and only stays as the last resort, unrun.
-    static var pythonPath: String {
-        if let resolved = resolvedPython { return resolved }
-        let brewed = ["/opt/homebrew/bin/python3", "/usr/local/bin/python3"]
-        let candidates = developerToolsInstalled ? ["/usr/bin/python3"] + brewed : brewed
-        let found = candidates.first { runs($0) } ?? "/usr/bin/python3"
-        resolvedPython = found
-        return found
+    /// Whether the server can actually run. Installing without it writes a config entry that looks
+    /// fine and starts nothing, so every caller checks this first.
+    static var scriptExists: Bool {
+        FileManager.default.isExecutableFile(atPath: cliPath)
     }
 
     /// The one-liner for a client that is driven from a terminal.
     static var cliCommand: String {
-        "claude mcp add --scope user clop -- \(pythonPath) \(scriptPath)"
+        "claude mcp add --scope user clop -- \(cliPath) \(serveArgs.joined(separator: " "))"
     }
 
     static var cardURL: URL {
@@ -197,7 +175,9 @@ enum MCPInstaller {
                 showProRequired()
                 return true
             }
-            if askToEnable() { setEnabled(true) }
+            if askToEnable() {
+                setEnabled(true)
+            }
         case "stop": setEnabled(false)
         default: return false
         }
@@ -228,8 +208,8 @@ enum MCPInstaller {
             "pro": proactive,
             "transport": [
                 "type": "stdio",
-                "command": pythonPath,
-                "args": [scriptPath],
+                "command": cliPath,
+                "args": serveArgs,
             ],
             "control": [
                 "start": "open clop://mcp/start",
@@ -286,33 +266,6 @@ enum MCPInstaller {
         NSWorkspace.shared.activateFileViewerSelecting([client.url])
     }
 
-    private nonisolated(unsafe) static var resolvedPython: String?
-
-    /// Is there a developer directory for `/usr/bin/python3` to forward to? Asked of the filesystem
-    /// rather than of `xcode-select`, since every tool that answers this is itself one of the shims.
-    private static var developerToolsInstalled: Bool {
-        [
-            "/Library/Developer/CommandLineTools/usr/bin/python3",
-            "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
-        ].contains { FileManager.default.isExecutableFile(atPath: $0) }
-    }
-
-    private static func runs(_ path: String) -> Bool {
-        guard FileManager.default.isExecutableFile(atPath: path) else { return false }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = ["-c", ""]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return false
-        }
-        return process.terminationStatus == 0
-    }
-
     @MainActor private static func askToEnable() -> Bool {
         let alert = NSAlert()
         alert.messageText = "Let agents control Clop through MCP?"
@@ -351,16 +304,16 @@ enum MCPInstaller {
 
     /// The member, already formatted. The file is edited as text, so this is what lands in it verbatim.
     private static func entry(for style: Style) -> String {
-        let python = json(pythonPath)
-        let script = json(scriptPath)
+        let command = json(cliPath)
+        let args = serveArgs.map(json).joined(separator: ", ")
         return switch style {
         case .zed:
             """
             {
               "source": "custom",
               "command": {
-                "path": \(python),
-                "args": [\(script)]
+                "path": \(command),
+                "args": [\(args)]
               }
             }
             """
@@ -368,15 +321,15 @@ enum MCPInstaller {
             """
             {
               "type": "stdio",
-              "command": \(python),
-              "args": [\(script)]
+              "command": \(command),
+              "args": [\(args)]
             }
             """
         case .mcpServers:
             """
             {
-              "command": \(python),
-              "args": [\(script)]
+              "command": \(command),
+              "args": [\(args)]
             }
             """
         }

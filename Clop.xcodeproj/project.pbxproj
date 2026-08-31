@@ -7,99 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		120FD44232A0F18576020931 /* AudioPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB4AD45ADCEA22A9772EB0C /* AudioPipeline.swift */; };
+		C7AA00062F0000060000MCP1 /* MCPToolTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AA00052F0000050000MCP1 /* MCPToolTable.swift */; };
+		C7AA00042F0000040000MCP1 /* MCPTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AA00032F0000030000MCP1 /* MCPTools.swift */; };
+		C7AA00022F0000020000MCP1 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AA00012F0000010000MCP1 /* MCPServer.swift */; };
 		166FBCA73CFA362B7916B90F /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AB802E8BADA731C142AB892 /* VideoEncoder.swift */; };
-		1B43E688BCE702EE44644458 /* VideoPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85FE7AE8C1EAECF6389B9C4D /* VideoPipeline.swift */; };
 		219FB0B1A5348B73E4D3E4D8 /* PaperSizes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C6C2E53A384A7E3F01E7217 /* PaperSizes.swift */; };
-		25E8B271776F1ED1DA2E3D44 /* PDFPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE08CBF4972CC590D4F1A06 /* PDFPipeline.swift */; };
-		2C5A7A735E2586ECE5A24B90 /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5276E40C1D01E9E4A8E4C786 /* Audio.swift */; };
-		3FBC43029FD13421E16D0AF3 /* ClopFileType.swift in Sources */ = {isa = PBXBuildFile; fileRef = F321BA132DB9A83B6B77FBD6 /* ClopFileType.swift */; };
 		598D571C128E8C77DE66D0AA /* CropSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = E943E2DE1FB4E78007C075A3 /* CropSize.swift */; };
 		6904D8272247275F926E8A13 /* AudioFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB4255A853AB53421EFF432 /* AudioFormat.swift */; };
-		6CCB044F0787F7A973C5A8B7 /* PipelineTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF397C510057E3769EE1608 /* PipelineTextView.swift */; };
-		72A0FA3FDA66D65E83974AB7 /* ImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94FC3C393F29EE4594F2E9D2 /* ImagePipeline.swift */; };
-		A00F9FE1721149C5B28BD45D /* FilePlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89937A211A184105B923C834 /* FilePlacement.swift */; };
-		7F5CC49731AEF4A2E42D39DA /* PipelineStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = D534A2084C0E9F7184617531 /* PipelineStep.swift */; };
-		87808AF1ADEFDCE25C3576D1 /* FileOptimisationWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B061D7D25755416D9D82609F /* FileOptimisationWatcher.swift */; };
 		8C74E5D44978A2CAE4CD4E04 /* FileNameTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFD0A8CE51A51FB1CB6F555 /* FileNameTemplate.swift */; };
 		95F3FF4491671994CD0ABB7D /* FileNameTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFD0A8CE51A51FB1CB6F555 /* FileNameTemplate.swift */; };
 		9E6A07E7CE6C2260FF112AFA /* CropSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = E943E2DE1FB4E78007C075A3 /* CropSize.swift */; };
 		A3083AEF8BBE740299E655FC /* AudioFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB4255A853AB53421EFF432 /* AudioFormat.swift */; };
 		B215B7A7A5DD134D216E876A /* PaperSizes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C6C2E53A384A7E3F01E7217 /* PaperSizes.swift */; };
-		C14DC278F7A1E0CE199C320F /* ClipboardType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAA6050E36178B30CA36F66 /* ClipboardType.swift */; };
 		C70A48EE2B1A06AD00C266DE /* Colorize.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70A48ED2B1A06AD00C266DE /* Colorize.swift */; };
-		C70A48EF2B1DCCED00C266DE /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
 		C70B5F312AC029DA00345739 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
-		C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F332AC1B56C00345739 /* Optimisable.swift */; };
-		C71AAAD92D2D500300CA86D9 /* PresetZones.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71AAAD72D2D500300CA86D9 /* PresetZones.swift */; };
-		C72DECB52F38E34C00523058 /* ErrorReports.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72DECB32F38E34C00523058 /* ErrorReports.swift */; };
-		C7333E472A98C90500B1D5BE /* PDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7333E462A98C90500B1D5BE /* PDF.swift */; };
-		C733B3D22A50789C002A0585 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = C733B3D12A50789C002A0585 /* Video.swift */; };
-		C735DA022B021D6E001DCAA8 /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C735DA012B021D6E001DCAA8 /* Migrations.swift */; };
-		C73802022BD1B804001BEE6C /* bin.tar.lrz.sha256 in Resources */ = {isa = PBXBuildFile; fileRef = C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */; };
-		C73802032BD1B804001BEE6C /* bin.tar.lrz in Resources */ = {isa = PBXBuildFile; fileRef = C73802012BD1B804001BEE6C /* bin.tar.lrz */; };
 		C73802052BD1B81A001BEE6C /* lrzip in Resources */ = {isa = PBXBuildFile; fileRef = C73802042BD1B81A001BEE6C /* lrzip */; };
-		C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73802062BDCD76D001BEE6C /* CompareView.swift */; };
 		C7605FC32F78194D0087B195 /* WarpDrop in Frameworks */ = {isa = PBXBuildFile; productRef = C7605FC22F78194D0087B195 /* WarpDrop */; };
-		C7760AB62A5C4EE500851F8C /* Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB52A5C4EE500851F8C /* Images.swift */; };
-		C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AB72A5C854600851F8C /* SettingsView.swift */; };
-		C7760ABD2A5E026600851F8C /* NSImageExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */; };
-		C7760ABF2A5E92B800851F8C /* ClopUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760ABE2A5E92B800851F8C /* ClopUtils.swift */; };
-		C7760AC12A5E957700851F8C /* OptimisationUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AC02A5E957700851F8C /* OptimisationUtils.swift */; };
-		C7760AC32A5FF89B00851F8C /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7760AC22A5FF89B00851F8C /* Settings.swift */; };
 		C78211022A59E371008DB106 /* Lowtech in Frameworks */ = {isa = PBXBuildFile; productRef = C78211012A59E371008DB106 /* Lowtech */; };
 		C78211042A59E371008DB106 /* LowtechIndie in Frameworks */ = {isa = PBXBuildFile; productRef = C78211032A59E371008DB106 /* LowtechIndie */; };
 		C78211062A59E371008DB106 /* LowtechPro in Frameworks */ = {isa = PBXBuildFile; productRef = C78211052A59E371008DB106 /* LowtechPro */; };
-		C78211092A5B21A4008DB106 /* Xattr.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78211082A5B21A4008DB106 /* Xattr.swift */; };
-		C78B29FF2AD0826F00B6A19B /* InstallCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */; };
-		C78B2A022AD1F02E00B6A19B /* ResolutionField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */; };
-		C78C62612ADEB3E7000519D0 /* Uploads.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78C62602ADEB3E7000519D0 /* Uploads.swift */; };
 		C7956A422AC208DD00C0EDF2 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7956A412AC208DD00C0EDF2 /* main.swift */; };
 		C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70B5F302AC029DA00345739 /* Shared.swift */; };
 		C7956A4A2AC209F200C0EDF2 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = C7956A492AC209F200C0EDF2 /* ArgumentParser */; };
 		C7956A4C2AC317D200C0EDF2 /* ClopCLI in Copy Files */ = {isa = PBXBuildFile; fileRef = C7956A3F2AC208DD00C0EDF2 /* ClopCLI */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		C7976AC82B07B87D00C4246A /* BatchCropButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7976AC72B07B87D00C4246A /* BatchCropButton.swift */; };
 		C7A1B0012FA3D00000JXLCDR /* JxlCoder in Frameworks */ = {isa = PBXBuildFile; productRef = C7A1B0002FA3D00000JXLCDR /* JxlCoder */; };
-		C7A7DD672A739C7400DA12DF /* ClopShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */; };
-		C7AB38CB2AC5B10300F299CE /* RightClickMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */; };
-		C7AB38CE2AC5E00C00F299CE /* CherryPicks.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */; };
-		C7AB38D12AC8320B00F299CE /* FileNameField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38CF2AC8320B00F299CE /* FileNameField.swift */; };
-		C7AB38D22AC8320B00F299CE /* DropZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38D02AC8320B00F299CE /* DropZone.swift */; };
-		C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38DA2ACB059200F299CE /* ActionButtons.swift */; };
-		C7AB38DD2ACB059200F299CE /* CompactResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB38DB2ACB059200F299CE /* CompactResult.swift */; };
-		C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6624288301590041BEC8 /* ClopApp.swift */; };
-		C7AB6627288301590041BEC8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AB6626288301590041BEC8 /* ContentView.swift */; };
-		C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB66282883015A0041BEC8 /* Assets.xcassets */; };
-		C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */; };
 		C7BE4CCF2D32EEA200B59E5C /* SymbolPicker in Frameworks */ = {isa = PBXBuildFile; productRef = C7BE4CCE2D32EEA200B59E5C /* SymbolPicker */; };
-		C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C401AA2E1B00010000A001 /* CropWindow.swift */; };
-		2C48F8C3023C3DFF3E462811 /* SettingsSearchAnchor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FCD95338DC3B3BFE305691D /* SettingsSearchAnchor.swift */; };
-		F66DD8631260A579FB340E97 /* clop_mcp.py in Resources */ = {isa = PBXBuildFile; fileRef = 2008091B6D489B64297F9518 /* clop_mcp.py */; };
-		CFC255D257204AA01D35190D /* MCPSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */; };
-		47AFFCF655530AA9B36633CF /* SettingsSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */; };
-		5D7BD406A1EC0515A4AB9070 /* MCPSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */; };
-		66FE5A755826F82F315BA65A /* MCPInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15B37294AA9D73BE8D4C34C /* MCPInstaller.swift */; };
-		90E7521FF567BEAEF63F0F0F /* JSONCEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699EE6C672814086D6D929FA /* JSONCEditor.swift */; };
-		746889BF3756430A980B6DB6 /* BatchPrepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947ACABBF1E54BA7ACD69B48 /* BatchPrepView.swift */; };
-		C4401CC17C6F4E09AC5608E5 /* BatchWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4693623D61F94747851DCAA8 /* BatchWindow.swift */; };
-		537EB22C23B448CDAFE7F24D /* BatchBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C1984562F8F4FE1B91A39EB /* BatchBackup.swift */; };
-		E2E2C845FF7444FB8237BF30 /* BatchOptimiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A491A5179634D07B4513DA2 /* BatchOptimiser.swift */; };
-		95659A8C84874DF08B1A206C /* FileOps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81D62E5ADB77436086B06CBB /* FileOps.swift */; };
-		C7CC9E242E57299900EAFCA1 /* InternetAccessPolicy.plist in Resources */ = {isa = PBXBuildFile; fileRef = C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */; };
-		C7CC9E282E57299900EAFCA1 /* Pipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CC9E262E57299900EAFCA1 /* Pipeline.swift */; };
 		C7D697172F837AD000FAFD3A /* LowtechProSentry in Frameworks */ = {isa = PBXBuildFile; productRef = C7D697162F837AD000FAFD3A /* LowtechProSentry */; };
-		C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */; };
-		C7DEBD022F20000100000002 /* DebugDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DEBD012F20000100000001 /* DebugDump.swift */; };
-		C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A212AB6F6A200AF8EDC /* required.swift */; };
 		C7DF1A282AB8885600AF8EDC /* Ignore in Frameworks */ = {isa = PBXBuildFile; productRef = C7DF1A272AB8885600AF8EDC /* Ignore */; };
-		C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */; };
-		C7DF1A2C2EAA000000000001 /* IgnoredAppsPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */; };
-		C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EFD28B2B22577100A6D843 /* Onboarding.swift */; };
-		C8813EA945B535E55DF1EC87 /* PipelineEditorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64A079DB235BB295B5D2F9B /* PipelineEditorViews.swift */; };
-		DD17718179BD01F73E35E0F8 /* WarpDropManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */; };
-		DD70FBC7D7878B1B4DD06DCF /* PipelineExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 245576D05EDDA4828203763A /* PipelineExecution.swift */; };
-		EE8EF4897FAE05DAF7722F33 /* ShortcutsCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2CE228AE65A21BE6CF7922 /* ShortcutsCompat.swift */; };
-		F41C6EDB42D0A8B3D43B91B6 /* ItemType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19DD112645B040CF16556359 /* ItemType.swift */; };
 		FCA166365F9B18F911E6A442 /* DeviceSizes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886C0193E35A8257843695A7 /* DeviceSizes.swift */; };
 		FD05B6CFBCB14DDD17894DB1 /* VideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AB802E8BADA731C142AB892 /* VideoEncoder.swift */; };
 		FE2B0742673407EF1DAD9278 /* DeviceSizes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886C0193E35A8257843695A7 /* DeviceSizes.swift */; };
@@ -149,94 +83,764 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C7AA00052F0000050000MCP1 /* MCPToolTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPToolTable.swift; sourceTree = "<group>"; };
+		C7AA00032F0000030000MCP1 /* MCPTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPTools.swift; sourceTree = "<group>"; };
+		C7AA00012F0000010000MCP1 /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		0DFD0A8CE51A51FB1CB6F555 /* FileNameTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNameTemplate.swift; sourceTree = "<group>"; };
-		19DD112645B040CF16556359 /* ItemType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemType.swift; sourceTree = "<group>"; };
 		1C6C2E53A384A7E3F01E7217 /* PaperSizes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperSizes.swift; sourceTree = "<group>"; };
-		245576D05EDDA4828203763A /* PipelineExecution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineExecution.swift; sourceTree = "<group>"; };
 		2AB802E8BADA731C142AB892 /* VideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoder.swift; sourceTree = "<group>"; };
-		3D2CE228AE65A21BE6CF7922 /* ShortcutsCompat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsCompat.swift; sourceTree = "<group>"; };
-		5276E40C1D01E9E4A8E4C786 /* Audio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
-		85FE7AE8C1EAECF6389B9C4D /* VideoPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPipeline.swift; sourceTree = "<group>"; };
 		886C0193E35A8257843695A7 /* DeviceSizes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceSizes.swift; sourceTree = "<group>"; };
-		8DAA6050E36178B30CA36F66 /* ClipboardType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardType.swift; sourceTree = "<group>"; };
-		94FC3C393F29EE4594F2E9D2 /* ImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePipeline.swift; sourceTree = "<group>"; };
-		89937A211A184105B923C834 /* FilePlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePlacement.swift; sourceTree = "<group>"; };
-		9DF397C510057E3769EE1608 /* PipelineTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineTextView.swift; sourceTree = "<group>"; };
-		B061D7D25755416D9D82609F /* FileOptimisationWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOptimisationWatcher.swift; sourceTree = "<group>"; };
 		C70A48ED2B1A06AD00C266DE /* Colorize.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Colorize.swift; sourceTree = "<group>"; };
 		C70B5F192AC014BF00345739 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		C70B5F302AC029DA00345739 /* Shared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared.swift; sourceTree = "<group>"; };
-		C70B5F332AC1B56C00345739 /* Optimisable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Optimisable.swift; sourceTree = "<group>"; };
-		C71AAAD72D2D500300CA86D9 /* PresetZones.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetZones.swift; sourceTree = "<group>"; };
-		C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExceptionCatcher.h; sourceTree = "<group>"; };
-		C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Clop-Bridging-Header.h"; sourceTree = "<group>"; };
-		C72DECB32F38E34C00523058 /* ErrorReports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorReports.swift; sourceTree = "<group>"; };
-		C7333E462A98C90500B1D5BE /* PDF.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PDF.swift; sourceTree = "<group>"; };
-		C733B3D12A50789C002A0585 /* Video.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
-		C735DA012B021D6E001DCAA8 /* Migrations.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
-		C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = bin.tar.lrz.sha256; sourceTree = "<group>"; };
-		C73802012BD1B804001BEE6C /* bin.tar.lrz */ = {isa = PBXFileReference; lastKnownFileType = file; path = bin.tar.lrz; sourceTree = "<group>"; };
 		C73802042BD1B81A001BEE6C /* lrzip */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = lrzip; sourceTree = SOURCE_ROOT; };
-		C73802062BDCD76D001BEE6C /* CompareView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompareView.swift; sourceTree = "<group>"; };
-		C7760AB52A5C4EE500851F8C /* Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Images.swift; sourceTree = "<group>"; };
-		C7760AB72A5C854600851F8C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSImageExtensions.swift; sourceTree = "<group>"; };
-		C7760ABE2A5E92B800851F8C /* ClopUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopUtils.swift; sourceTree = "<group>"; };
-		C7760AC02A5E957700851F8C /* OptimisationUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimisationUtils.swift; sourceTree = "<group>"; };
-		C7760AC22A5FF89B00851F8C /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
-		C78211082A5B21A4008DB106 /* Xattr.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Xattr.swift; sourceTree = "<group>"; };
-		C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InstallCLI.swift; sourceTree = "<group>"; };
-		C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ResolutionField.swift; sourceTree = "<group>"; };
-		C78C62602ADEB3E7000519D0 /* Uploads.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Uploads.swift; sourceTree = "<group>"; };
 		C7956A3F2AC208DD00C0EDF2 /* ClopCLI */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ClopCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 		C7956A412AC208DD00C0EDF2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClopCLI.entitlements; sourceTree = "<group>"; };
-		C7976AC72B07B87D00C4246A /* BatchCropButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchCropButton.swift; sourceTree = "<group>"; };
-		C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopShortcuts.swift; sourceTree = "<group>"; };
-		C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightClickMenu.swift; sourceTree = "<group>"; };
-		C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CherryPicks.swift; sourceTree = "<group>"; };
-		C7AB38CF2AC8320B00F299CE /* FileNameField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileNameField.swift; sourceTree = "<group>"; };
-		C7AB38D02AC8320B00F299CE /* DropZone.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DropZone.swift; sourceTree = "<group>"; };
 		C7AB38D32AC8AA8900F299CE /* CoreBrightness.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBrightness.framework; path = ../../../../../System/Library/PrivateFrameworks/CoreBrightness.framework; sourceTree = "<group>"; };
-		C7AB38DA2ACB059200F299CE /* ActionButtons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ActionButtons.swift; sourceTree = "<group>"; };
-		C7AB38DB2ACB059200F299CE /* CompactResult.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompactResult.swift; sourceTree = "<group>"; };
 		C7AB6621288301590041BEC8 /* Clop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clop.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		C7AB6624288301590041BEC8 /* ClopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopApp.swift; sourceTree = "<group>"; };
-		C7AB6626288301590041BEC8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		C7AB66282883015A0041BEC8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		C7AB662D2883015A0041BEC8 /* Clop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Clop.entitlements; sourceTree = "<group>"; };
-		C7AB663A288460F30041BEC8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		C7C401AA2E1B00010000A001 /* CropWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CropWindow.swift; sourceTree = "<group>"; };
-		2FCD95338DC3B3BFE305691D /* SettingsSearchAnchor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsSearchAnchor.swift; sourceTree = "<group>"; };
-		2008091B6D489B64297F9518 /* clop_mcp.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = clop_mcp.py; sourceTree = "<group>"; };
-		D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPSettings.swift; sourceTree = "<group>"; };
-		24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsSearchIndex.swift; sourceTree = "<group>"; };
-		395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPSettingsPane.swift; sourceTree = "<group>"; };
-		D15B37294AA9D73BE8D4C34C /* MCPInstaller.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MCPInstaller.swift; sourceTree = "<group>"; };
-		699EE6C672814086D6D929FA /* JSONCEditor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JSONCEditor.swift; sourceTree = "<group>"; };
-		947ACABBF1E54BA7ACD69B48 /* BatchPrepView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchPrepView.swift; sourceTree = "<group>"; };
-		4693623D61F94747851DCAA8 /* BatchWindow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchWindow.swift; sourceTree = "<group>"; };
-		6C1984562F8F4FE1B91A39EB /* BatchBackup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchBackup.swift; sourceTree = "<group>"; };
-		9A491A5179634D07B4513DA2 /* BatchOptimiser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BatchOptimiser.swift; sourceTree = "<group>"; };
-		81D62E5ADB77436086B06CBB /* FileOps.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FileOps.swift; sourceTree = "<group>"; };
-		C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = InternetAccessPolicy.plist; sourceTree = "<group>"; };
-		C7CC9E262E57299900EAFCA1 /* Pipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pipeline.swift; sourceTree = "<group>"; };
-		C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingResult.swift; sourceTree = "<group>"; };
-		C7DEBD012F20000100000001 /* DebugDump.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DebugDump.swift; sourceTree = "<group>"; };
-		C7DF1A212AB6F6A200AF8EDC /* required.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = required.swift; sourceTree = "<group>"; };
-		C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Automation.swift; sourceTree = "<group>"; };
-		C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IgnoredAppsPicker.swift; sourceTree = "<group>"; };
-		C7EFD28B2B22577100A6D843 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
-		CFE08CBF4972CC590D4F1A06 /* PDFPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFPipeline.swift; sourceTree = "<group>"; };
-		D534A2084C0E9F7184617531 /* PipelineStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStep.swift; sourceTree = "<group>"; };
-		E64A079DB235BB295B5D2F9B /* PipelineEditorViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineEditorViews.swift; sourceTree = "<group>"; };
 		E943E2DE1FB4E78007C075A3 /* CropSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropSize.swift; sourceTree = "<group>"; };
-		E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarpDropManager.swift; sourceTree = "<group>"; };
 		EDB4255A853AB53421EFF432 /* AudioFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFormat.swift; sourceTree = "<group>"; };
-		F321BA132DB9A83B6B77FBD6 /* ClopFileType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClopFileType.swift; sourceTree = "<group>"; };
-		FAB4AD45ADCEA22A9772EB0C /* AudioPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPipeline.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D2BC82B9EF268A7B7E021CFF /* Exceptions for "Clop" folder in "Clop" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				CherryPicks.swift,
+				Clop-Bridging-Header.h,
+				Clop.entitlements,
+				ExceptionCatcher.h,
+				Info.plist,
+				bin.entitlements,
+				bin/arm64/cwebp,
+				bin/arm64/exiftool,
+				bin/arm64/ffmpeg,
+				bin/arm64/gifsicle,
+				bin/arm64/gifski,
+				bin/arm64/gs,
+				bin/arm64/heif-enc,
+				bin/arm64/jpegoptim,
+				bin/arm64/jpegoptim-old,
+				bin/arm64/lib,
+				bin/arm64/libcgif.0.dylib,
+				bin/arm64/libexif.12.dylib,
+				bin/arm64/libgio-2.0.0.dylib,
+				bin/arm64/libglib-2.0.0.dylib,
+				bin/arm64/libgmodule-2.0.0.dylib,
+				bin/arm64/libgobject-2.0.0.dylib,
+				bin/arm64/libhwy.1.4.0.dylib,
+				bin/arm64/libimagequant.0.4.1.dylib,
+				bin/arm64/libintl.8.dylib,
+				bin/arm64/libjpeg-orig.8.dylib,
+				bin/arm64/libjpeg.62.3.0.dylib,
+				bin/arm64/libjpeg.8.3.2.dylib,
+				bin/arm64/liblcms2.2.dylib,
+				bin/arm64/liblzma.5.dylib,
+				bin/arm64/libpcre2-8.0.dylib,
+				bin/arm64/libpng16.16.dylib,
+				bin/arm64/libsharpyuv.0.1.2.dylib,
+				bin/arm64/libtiff.6.dylib,
+				bin/arm64/libvips.42.dylib,
+				bin/arm64/libwebp.7.2.0.dylib,
+				bin/arm64/libwebpdemux.2.0.17.dylib,
+				bin/arm64/libwebpmux.3.1.2.dylib,
+				bin/arm64/libzstd.1.5.7.dylib,
+				bin/arm64/pngquant,
+				bin/arm64/toGainMapHDR,
+				bin/arm64/vipsthumbnail,
+				bin/lib/File/RandomAccess.pm,
+				bin/lib/File/RandomAccess.pod,
+				bin/lib/Image/ExifTool.pm,
+				bin/lib/Image/ExifTool.pod,
+				bin/lib/Image/ExifTool/7Z.pm,
+				bin/lib/Image/ExifTool/AAC.pm,
+				bin/lib/Image/ExifTool/AES.pm,
+				bin/lib/Image/ExifTool/AFCP.pm,
+				bin/lib/Image/ExifTool/AIFF.pm,
+				bin/lib/Image/ExifTool/APE.pm,
+				bin/lib/Image/ExifTool/APP12.pm,
+				bin/lib/Image/ExifTool/ASF.pm,
+				bin/lib/Image/ExifTool/Apple.pm,
+				bin/lib/Image/ExifTool/Audible.pm,
+				bin/lib/Image/ExifTool/BMP.pm,
+				bin/lib/Image/ExifTool/BPG.pm,
+				bin/lib/Image/ExifTool/BZZ.pm,
+				bin/lib/Image/ExifTool/BigTIFF.pm,
+				bin/lib/Image/ExifTool/BuildTagLookup.pm,
+				bin/lib/Image/ExifTool/CBOR.pm,
+				bin/lib/Image/ExifTool/Canon.pm,
+				bin/lib/Image/ExifTool/CanonCustom.pm,
+				bin/lib/Image/ExifTool/CanonRaw.pm,
+				bin/lib/Image/ExifTool/CanonVRD.pm,
+				bin/lib/Image/ExifTool/CaptureOne.pm,
+				bin/lib/Image/ExifTool/Casio.pm,
+				bin/lib/Image/ExifTool/Charset.pm,
+				bin/lib/Image/ExifTool/Charset/Arabic.pm,
+				bin/lib/Image/ExifTool/Charset/Baltic.pm,
+				bin/lib/Image/ExifTool/Charset/Cyrillic.pm,
+				bin/lib/Image/ExifTool/Charset/DOSCyrillic.pm,
+				bin/lib/Image/ExifTool/Charset/DOSLatin1.pm,
+				bin/lib/Image/ExifTool/Charset/DOSLatinUS.pm,
+				bin/lib/Image/ExifTool/Charset/Greek.pm,
+				bin/lib/Image/ExifTool/Charset/Hebrew.pm,
+				bin/lib/Image/ExifTool/Charset/JIS.pm,
+				bin/lib/Image/ExifTool/Charset/Latin.pm,
+				bin/lib/Image/ExifTool/Charset/Latin2.pm,
+				bin/lib/Image/ExifTool/Charset/MacArabic.pm,
+				bin/lib/Image/ExifTool/Charset/MacChineseCN.pm,
+				bin/lib/Image/ExifTool/Charset/MacChineseTW.pm,
+				bin/lib/Image/ExifTool/Charset/MacCroatian.pm,
+				bin/lib/Image/ExifTool/Charset/MacCyrillic.pm,
+				bin/lib/Image/ExifTool/Charset/MacGreek.pm,
+				bin/lib/Image/ExifTool/Charset/MacHebrew.pm,
+				bin/lib/Image/ExifTool/Charset/MacIceland.pm,
+				bin/lib/Image/ExifTool/Charset/MacJapanese.pm,
+				bin/lib/Image/ExifTool/Charset/MacKorean.pm,
+				bin/lib/Image/ExifTool/Charset/MacLatin2.pm,
+				bin/lib/Image/ExifTool/Charset/MacRSymbol.pm,
+				bin/lib/Image/ExifTool/Charset/MacRoman.pm,
+				bin/lib/Image/ExifTool/Charset/MacRomanian.pm,
+				bin/lib/Image/ExifTool/Charset/MacThai.pm,
+				bin/lib/Image/ExifTool/Charset/MacTurkish.pm,
+				bin/lib/Image/ExifTool/Charset/PDFDoc.pm,
+				bin/lib/Image/ExifTool/Charset/ShiftJIS.pm,
+				bin/lib/Image/ExifTool/Charset/Symbol.pm,
+				bin/lib/Image/ExifTool/Charset/Thai.pm,
+				bin/lib/Image/ExifTool/Charset/Turkish.pm,
+				bin/lib/Image/ExifTool/Charset/Vietnam.pm,
+				bin/lib/Image/ExifTool/DICOM.pm,
+				bin/lib/Image/ExifTool/DJI.pm,
+				bin/lib/Image/ExifTool/DNG.pm,
+				bin/lib/Image/ExifTool/DPX.pm,
+				bin/lib/Image/ExifTool/DSF.pm,
+				bin/lib/Image/ExifTool/DV.pm,
+				bin/lib/Image/ExifTool/DarwinCore.pm,
+				bin/lib/Image/ExifTool/DjVu.pm,
+				bin/lib/Image/ExifTool/EXE.pm,
+				bin/lib/Image/ExifTool/Exif.pm,
+				bin/lib/Image/ExifTool/FITS.pm,
+				bin/lib/Image/ExifTool/FLAC.pm,
+				bin/lib/Image/ExifTool/FLIF.pm,
+				bin/lib/Image/ExifTool/FLIR.pm,
+				bin/lib/Image/ExifTool/Fixup.pm,
+				bin/lib/Image/ExifTool/Flash.pm,
+				bin/lib/Image/ExifTool/FlashPix.pm,
+				bin/lib/Image/ExifTool/Font.pm,
+				bin/lib/Image/ExifTool/FotoStation.pm,
+				bin/lib/Image/ExifTool/FujiFilm.pm,
+				bin/lib/Image/ExifTool/GE.pm,
+				bin/lib/Image/ExifTool/GIF.pm,
+				bin/lib/Image/ExifTool/GIMP.pm,
+				bin/lib/Image/ExifTool/GM.pm,
+				bin/lib/Image/ExifTool/GPS.pm,
+				bin/lib/Image/ExifTool/Garmin.pm,
+				bin/lib/Image/ExifTool/GeoTiff.pm,
+				bin/lib/Image/ExifTool/Geolocation.dat,
+				bin/lib/Image/ExifTool/Geolocation.pm,
+				bin/lib/Image/ExifTool/Geotag.pm,
+				bin/lib/Image/ExifTool/GoPro.pm,
+				bin/lib/Image/ExifTool/Google.pm,
+				bin/lib/Image/ExifTool/H264.pm,
+				bin/lib/Image/ExifTool/HP.pm,
+				bin/lib/Image/ExifTool/HTML.pm,
+				bin/lib/Image/ExifTool/HtmlDump.pm,
+				bin/lib/Image/ExifTool/ICC_Profile.pm,
+				bin/lib/Image/ExifTool/ICO.pm,
+				bin/lib/Image/ExifTool/ID3.pm,
+				bin/lib/Image/ExifTool/IPTC.pm,
+				bin/lib/Image/ExifTool/ISO.pm,
+				bin/lib/Image/ExifTool/ITC.pm,
+				bin/lib/Image/ExifTool/Import.pm,
+				bin/lib/Image/ExifTool/InDesign.pm,
+				bin/lib/Image/ExifTool/InfiRay.pm,
+				bin/lib/Image/ExifTool/JPEG.pm,
+				bin/lib/Image/ExifTool/JPEGDigest.pm,
+				bin/lib/Image/ExifTool/JSON.pm,
+				bin/lib/Image/ExifTool/JVC.pm,
+				bin/lib/Image/ExifTool/Jpeg2000.pm,
+				bin/lib/Image/ExifTool/Kandao.pm,
+				bin/lib/Image/ExifTool/Kodak.pm,
+				bin/lib/Image/ExifTool/KyoceraRaw.pm,
+				bin/lib/Image/ExifTool/LIF.pm,
+				bin/lib/Image/ExifTool/LNK.pm,
+				bin/lib/Image/ExifTool/Lang/cs.pm,
+				bin/lib/Image/ExifTool/Lang/de.pm,
+				bin/lib/Image/ExifTool/Lang/en_ca.pm,
+				bin/lib/Image/ExifTool/Lang/en_gb.pm,
+				bin/lib/Image/ExifTool/Lang/es.pm,
+				bin/lib/Image/ExifTool/Lang/fi.pm,
+				bin/lib/Image/ExifTool/Lang/fr.pm,
+				bin/lib/Image/ExifTool/Lang/it.pm,
+				bin/lib/Image/ExifTool/Lang/ja.pm,
+				bin/lib/Image/ExifTool/Lang/ko.pm,
+				bin/lib/Image/ExifTool/Lang/nl.pm,
+				bin/lib/Image/ExifTool/Lang/pl.pm,
+				bin/lib/Image/ExifTool/Lang/ru.pm,
+				bin/lib/Image/ExifTool/Lang/sk.pm,
+				bin/lib/Image/ExifTool/Lang/sv.pm,
+				bin/lib/Image/ExifTool/Lang/tr.pm,
+				bin/lib/Image/ExifTool/Lang/zh_cn.pm,
+				bin/lib/Image/ExifTool/Lang/zh_tw.pm,
+				bin/lib/Image/ExifTool/Leaf.pm,
+				bin/lib/Image/ExifTool/LigoGPS.pm,
+				bin/lib/Image/ExifTool/Lytro.pm,
+				bin/lib/Image/ExifTool/M2TS.pm,
+				bin/lib/Image/ExifTool/MIE.pm,
+				bin/lib/Image/ExifTool/MIEUnits.pod,
+				bin/lib/Image/ExifTool/MIFF.pm,
+				bin/lib/Image/ExifTool/MISB.pm,
+				bin/lib/Image/ExifTool/MNG.pm,
+				bin/lib/Image/ExifTool/MOI.pm,
+				bin/lib/Image/ExifTool/MPC.pm,
+				bin/lib/Image/ExifTool/MPEG.pm,
+				bin/lib/Image/ExifTool/MPF.pm,
+				bin/lib/Image/ExifTool/MRC.pm,
+				bin/lib/Image/ExifTool/MWG.pm,
+				bin/lib/Image/ExifTool/MXF.pm,
+				bin/lib/Image/ExifTool/MacOS.pm,
+				bin/lib/Image/ExifTool/MakerNotes.pm,
+				bin/lib/Image/ExifTool/Matroska.pm,
+				bin/lib/Image/ExifTool/Microsoft.pm,
+				bin/lib/Image/ExifTool/Minolta.pm,
+				bin/lib/Image/ExifTool/MinoltaRaw.pm,
+				bin/lib/Image/ExifTool/Motorola.pm,
+				bin/lib/Image/ExifTool/Nikon.pm,
+				bin/lib/Image/ExifTool/NikonCapture.pm,
+				bin/lib/Image/ExifTool/NikonCustom.pm,
+				bin/lib/Image/ExifTool/NikonSettings.pm,
+				bin/lib/Image/ExifTool/Nintendo.pm,
+				bin/lib/Image/ExifTool/OOXML.pm,
+				bin/lib/Image/ExifTool/Ogg.pm,
+				bin/lib/Image/ExifTool/Olympus.pm,
+				bin/lib/Image/ExifTool/OpenEXR.pm,
+				bin/lib/Image/ExifTool/Opus.pm,
+				bin/lib/Image/ExifTool/Other.pm,
+				bin/lib/Image/ExifTool/PCAP.pm,
+				bin/lib/Image/ExifTool/PCX.pm,
+				bin/lib/Image/ExifTool/PDF.pm,
+				bin/lib/Image/ExifTool/PGF.pm,
+				bin/lib/Image/ExifTool/PICT.pm,
+				bin/lib/Image/ExifTool/PLIST.pm,
+				bin/lib/Image/ExifTool/PLUS.pm,
+				bin/lib/Image/ExifTool/PNG.pm,
+				bin/lib/Image/ExifTool/PPM.pm,
+				bin/lib/Image/ExifTool/PSP.pm,
+				bin/lib/Image/ExifTool/Palm.pm,
+				bin/lib/Image/ExifTool/Panasonic.pm,
+				bin/lib/Image/ExifTool/PanasonicRaw.pm,
+				bin/lib/Image/ExifTool/Parrot.pm,
+				bin/lib/Image/ExifTool/Pentax.pm,
+				bin/lib/Image/ExifTool/PhaseOne.pm,
+				bin/lib/Image/ExifTool/PhotoCD.pm,
+				bin/lib/Image/ExifTool/PhotoMechanic.pm,
+				bin/lib/Image/ExifTool/Photoshop.pm,
+				bin/lib/Image/ExifTool/Plot.pm,
+				bin/lib/Image/ExifTool/PostScript.pm,
+				bin/lib/Image/ExifTool/PrintIM.pm,
+				bin/lib/Image/ExifTool/Protobuf.pm,
+				bin/lib/Image/ExifTool/Qualcomm.pm,
+				bin/lib/Image/ExifTool/QuickTime.pm,
+				bin/lib/Image/ExifTool/QuickTimeStream.pl,
+				bin/lib/Image/ExifTool/README,
+				bin/lib/Image/ExifTool/RIFF.pm,
+				bin/lib/Image/ExifTool/RSRC.pm,
+				bin/lib/Image/ExifTool/RTF.pm,
+				bin/lib/Image/ExifTool/Radiance.pm,
+				bin/lib/Image/ExifTool/Rawzor.pm,
+				bin/lib/Image/ExifTool/Real.pm,
+				bin/lib/Image/ExifTool/Reconyx.pm,
+				bin/lib/Image/ExifTool/Red.pm,
+				bin/lib/Image/ExifTool/Ricoh.pm,
+				bin/lib/Image/ExifTool/Samsung.pm,
+				bin/lib/Image/ExifTool/Sanyo.pm,
+				bin/lib/Image/ExifTool/Scalado.pm,
+				bin/lib/Image/ExifTool/Shift.pl,
+				bin/lib/Image/ExifTool/Shortcuts.pm,
+				bin/lib/Image/ExifTool/Sigma.pm,
+				bin/lib/Image/ExifTool/SigmaRaw.pm,
+				bin/lib/Image/ExifTool/Sony.pm,
+				bin/lib/Image/ExifTool/SonyIDC.pm,
+				bin/lib/Image/ExifTool/Stim.pm,
+				bin/lib/Image/ExifTool/TNEF.pm,
+				bin/lib/Image/ExifTool/TagInfoXML.pm,
+				bin/lib/Image/ExifTool/TagLookup.pm,
+				bin/lib/Image/ExifTool/TagNames.pod,
+				bin/lib/Image/ExifTool/Text.pm,
+				bin/lib/Image/ExifTool/Theora.pm,
+				bin/lib/Image/ExifTool/Torrent.pm,
+				bin/lib/Image/ExifTool/Trailer.pm,
+				bin/lib/Image/ExifTool/Unknown.pm,
+				bin/lib/Image/ExifTool/VCard.pm,
+				bin/lib/Image/ExifTool/Validate.pm,
+				bin/lib/Image/ExifTool/Vorbis.pm,
+				bin/lib/Image/ExifTool/WPG.pm,
+				bin/lib/Image/ExifTool/WTV.pm,
+				bin/lib/Image/ExifTool/WavPack.pm,
+				bin/lib/Image/ExifTool/WriteCanonRaw.pl,
+				bin/lib/Image/ExifTool/WriteExif.pl,
+				bin/lib/Image/ExifTool/WriteIPTC.pl,
+				bin/lib/Image/ExifTool/WritePDF.pl,
+				bin/lib/Image/ExifTool/WritePNG.pl,
+				bin/lib/Image/ExifTool/WritePhotoshop.pl,
+				bin/lib/Image/ExifTool/WritePostScript.pl,
+				bin/lib/Image/ExifTool/WriteQuickTime.pl,
+				bin/lib/Image/ExifTool/WriteRIFF.pl,
+				bin/lib/Image/ExifTool/WriteXMP.pl,
+				bin/lib/Image/ExifTool/Writer.pl,
+				bin/lib/Image/ExifTool/XISF.pm,
+				bin/lib/Image/ExifTool/XMP.pm,
+				bin/lib/Image/ExifTool/XMP2.pl,
+				bin/lib/Image/ExifTool/XMPStruct.pl,
+				bin/lib/Image/ExifTool/ZIP.pm,
+				bin/lib/Image/ExifTool/ZISRAW.pm,
+				bin/lib/Image/ExifTool/iWork.pm,
+				bin/x86/cwebp,
+				bin/x86/exiftool,
+				bin/x86/ffmpeg,
+				bin/x86/gifsicle,
+				bin/x86/gifski,
+				bin/x86/gs,
+				bin/x86/heif-enc,
+				bin/x86/jpegoptim,
+				bin/x86/jpegoptim-old,
+				bin/x86/lib,
+				bin/x86/libcgif.0.dylib,
+				bin/x86/libexif.12.dylib,
+				bin/x86/libgio-2.0.0.dylib,
+				bin/x86/libglib-2.0.0.dylib,
+				bin/x86/libgmodule-2.0.0.dylib,
+				bin/x86/libgobject-2.0.0.dylib,
+				bin/x86/libhwy.1.dylib,
+				bin/x86/libimagequant.0.4.dylib,
+				bin/x86/libintl.8.dylib,
+				bin/x86/libjpeg-orig.8.dylib,
+				bin/x86/libjpeg.62.3.0.dylib,
+				bin/x86/libjpeg.8.dylib,
+				bin/x86/liblcms2.2.dylib,
+				bin/x86/liblzma.5.dylib,
+				bin/x86/libpcre2-8.0.dylib,
+				bin/x86/libpng16.16.dylib,
+				bin/x86/libsharpyuv.0.dylib,
+				bin/x86/libtiff.6.dylib,
+				bin/x86/libvips.42.dylib,
+				bin/x86/libwebp.7.dylib,
+				bin/x86/libwebpdemux.2.dylib,
+				bin/x86/libwebpmux.3.dylib,
+				bin/x86/libzstd.1.dylib,
+				bin/x86/pngquant,
+				bin/x86/toGainMapHDR,
+				bin/x86/vipsthumbnail,
+			);
+			target = C7AB6620288301590041BEC8 /* Clop */;
+		};
+		EB5A20271C5B9E13A274138D /* Exceptions for "Clop" folder in "ClopCLI" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ActionButtons.swift,
+				Audio.swift,
+				AudioPipeline.swift,
+				Automation.swift,
+				BatchBackup.swift,
+				BatchCropButton.swift,
+				BatchOptimiser.swift,
+				BatchPrepView.swift,
+				BatchWindow.swift,
+				ClipboardType.swift,
+				Clop-Bridging-Header.h,
+				Clop.entitlements,
+				ClopApp.swift,
+				ClopFileType.swift,
+				ClopShortcuts.swift,
+				ClopUtils.swift,
+				CompactResult.swift,
+				CompareView.swift,
+				ContentView.swift,
+				CropWindow.swift,
+				DebugDump.swift,
+				DropZone.swift,
+				ErrorReports.swift,
+				ExceptionCatcher.h,
+				FileNameField.swift,
+				FileOps.swift,
+				FileOptimisationWatcher.swift,
+				FilePlacement.swift,
+				FloatingResult.swift,
+				IgnoredAppsPicker.swift,
+				ImagePipeline.swift,
+				Images.swift,
+				Info.plist,
+				InstallCLI.swift,
+				InternetAccessPolicy.plist,
+				ItemType.swift,
+				JSONCEditor.swift,
+				MCPInstaller.swift,
+				MCPSettings.swift,
+				MCPSettingsPane.swift,
+				Migrations.swift,
+				NSImageExtensions.swift,
+				Onboarding.swift,
+				Optimisable.swift,
+				OptimisationUtils.swift,
+				PDF.swift,
+				PDFPipeline.swift,
+				Pipeline.swift,
+				PipelineEditorViews.swift,
+				PipelineExecution.swift,
+				PipelineStep.swift,
+				PipelineTextView.swift,
+				PresetZones.swift,
+				ResolutionField.swift,
+				RightClickMenu.swift,
+				Settings.swift,
+				SettingsSearchAnchor.swift,
+				SettingsSearchIndex.swift,
+				SettingsView.swift,
+				ShortcutsCompat.swift,
+				Uploads.swift,
+				Video.swift,
+				VideoPipeline.swift,
+				WarpDropManager.swift,
+				bin.entitlements,
+				bin.tar.lrz,
+				bin.tar.lrz.sha256,
+				bin/arm64/cwebp,
+				bin/arm64/exiftool,
+				bin/arm64/ffmpeg,
+				bin/arm64/gifsicle,
+				bin/arm64/gifski,
+				bin/arm64/gs,
+				bin/arm64/heif-enc,
+				bin/arm64/jpegoptim,
+				bin/arm64/jpegoptim-old,
+				bin/arm64/lib,
+				bin/arm64/libcgif.0.dylib,
+				bin/arm64/libexif.12.dylib,
+				bin/arm64/libgio-2.0.0.dylib,
+				bin/arm64/libglib-2.0.0.dylib,
+				bin/arm64/libgmodule-2.0.0.dylib,
+				bin/arm64/libgobject-2.0.0.dylib,
+				bin/arm64/libhwy.1.4.0.dylib,
+				bin/arm64/libimagequant.0.4.1.dylib,
+				bin/arm64/libintl.8.dylib,
+				bin/arm64/libjpeg-orig.8.dylib,
+				bin/arm64/libjpeg.62.3.0.dylib,
+				bin/arm64/libjpeg.8.3.2.dylib,
+				bin/arm64/liblcms2.2.dylib,
+				bin/arm64/liblzma.5.dylib,
+				bin/arm64/libpcre2-8.0.dylib,
+				bin/arm64/libpng16.16.dylib,
+				bin/arm64/libsharpyuv.0.1.2.dylib,
+				bin/arm64/libtiff.6.dylib,
+				bin/arm64/libvips.42.dylib,
+				bin/arm64/libwebp.7.2.0.dylib,
+				bin/arm64/libwebpdemux.2.0.17.dylib,
+				bin/arm64/libwebpmux.3.1.2.dylib,
+				bin/arm64/libzstd.1.5.7.dylib,
+				bin/arm64/pngquant,
+				bin/arm64/toGainMapHDR,
+				bin/arm64/vipsthumbnail,
+				bin/lib/File/RandomAccess.pm,
+				bin/lib/File/RandomAccess.pod,
+				bin/lib/Image/ExifTool.pm,
+				bin/lib/Image/ExifTool.pod,
+				bin/lib/Image/ExifTool/7Z.pm,
+				bin/lib/Image/ExifTool/AAC.pm,
+				bin/lib/Image/ExifTool/AES.pm,
+				bin/lib/Image/ExifTool/AFCP.pm,
+				bin/lib/Image/ExifTool/AIFF.pm,
+				bin/lib/Image/ExifTool/APE.pm,
+				bin/lib/Image/ExifTool/APP12.pm,
+				bin/lib/Image/ExifTool/ASF.pm,
+				bin/lib/Image/ExifTool/Apple.pm,
+				bin/lib/Image/ExifTool/Audible.pm,
+				bin/lib/Image/ExifTool/BMP.pm,
+				bin/lib/Image/ExifTool/BPG.pm,
+				bin/lib/Image/ExifTool/BZZ.pm,
+				bin/lib/Image/ExifTool/BigTIFF.pm,
+				bin/lib/Image/ExifTool/BuildTagLookup.pm,
+				bin/lib/Image/ExifTool/CBOR.pm,
+				bin/lib/Image/ExifTool/Canon.pm,
+				bin/lib/Image/ExifTool/CanonCustom.pm,
+				bin/lib/Image/ExifTool/CanonRaw.pm,
+				bin/lib/Image/ExifTool/CanonVRD.pm,
+				bin/lib/Image/ExifTool/CaptureOne.pm,
+				bin/lib/Image/ExifTool/Casio.pm,
+				bin/lib/Image/ExifTool/Charset.pm,
+				bin/lib/Image/ExifTool/Charset/Arabic.pm,
+				bin/lib/Image/ExifTool/Charset/Baltic.pm,
+				bin/lib/Image/ExifTool/Charset/Cyrillic.pm,
+				bin/lib/Image/ExifTool/Charset/DOSCyrillic.pm,
+				bin/lib/Image/ExifTool/Charset/DOSLatin1.pm,
+				bin/lib/Image/ExifTool/Charset/DOSLatinUS.pm,
+				bin/lib/Image/ExifTool/Charset/Greek.pm,
+				bin/lib/Image/ExifTool/Charset/Hebrew.pm,
+				bin/lib/Image/ExifTool/Charset/JIS.pm,
+				bin/lib/Image/ExifTool/Charset/Latin.pm,
+				bin/lib/Image/ExifTool/Charset/Latin2.pm,
+				bin/lib/Image/ExifTool/Charset/MacArabic.pm,
+				bin/lib/Image/ExifTool/Charset/MacChineseCN.pm,
+				bin/lib/Image/ExifTool/Charset/MacChineseTW.pm,
+				bin/lib/Image/ExifTool/Charset/MacCroatian.pm,
+				bin/lib/Image/ExifTool/Charset/MacCyrillic.pm,
+				bin/lib/Image/ExifTool/Charset/MacGreek.pm,
+				bin/lib/Image/ExifTool/Charset/MacHebrew.pm,
+				bin/lib/Image/ExifTool/Charset/MacIceland.pm,
+				bin/lib/Image/ExifTool/Charset/MacJapanese.pm,
+				bin/lib/Image/ExifTool/Charset/MacKorean.pm,
+				bin/lib/Image/ExifTool/Charset/MacLatin2.pm,
+				bin/lib/Image/ExifTool/Charset/MacRSymbol.pm,
+				bin/lib/Image/ExifTool/Charset/MacRoman.pm,
+				bin/lib/Image/ExifTool/Charset/MacRomanian.pm,
+				bin/lib/Image/ExifTool/Charset/MacThai.pm,
+				bin/lib/Image/ExifTool/Charset/MacTurkish.pm,
+				bin/lib/Image/ExifTool/Charset/PDFDoc.pm,
+				bin/lib/Image/ExifTool/Charset/ShiftJIS.pm,
+				bin/lib/Image/ExifTool/Charset/Symbol.pm,
+				bin/lib/Image/ExifTool/Charset/Thai.pm,
+				bin/lib/Image/ExifTool/Charset/Turkish.pm,
+				bin/lib/Image/ExifTool/Charset/Vietnam.pm,
+				bin/lib/Image/ExifTool/DICOM.pm,
+				bin/lib/Image/ExifTool/DJI.pm,
+				bin/lib/Image/ExifTool/DNG.pm,
+				bin/lib/Image/ExifTool/DPX.pm,
+				bin/lib/Image/ExifTool/DSF.pm,
+				bin/lib/Image/ExifTool/DV.pm,
+				bin/lib/Image/ExifTool/DarwinCore.pm,
+				bin/lib/Image/ExifTool/DjVu.pm,
+				bin/lib/Image/ExifTool/EXE.pm,
+				bin/lib/Image/ExifTool/Exif.pm,
+				bin/lib/Image/ExifTool/FITS.pm,
+				bin/lib/Image/ExifTool/FLAC.pm,
+				bin/lib/Image/ExifTool/FLIF.pm,
+				bin/lib/Image/ExifTool/FLIR.pm,
+				bin/lib/Image/ExifTool/Fixup.pm,
+				bin/lib/Image/ExifTool/Flash.pm,
+				bin/lib/Image/ExifTool/FlashPix.pm,
+				bin/lib/Image/ExifTool/Font.pm,
+				bin/lib/Image/ExifTool/FotoStation.pm,
+				bin/lib/Image/ExifTool/FujiFilm.pm,
+				bin/lib/Image/ExifTool/GE.pm,
+				bin/lib/Image/ExifTool/GIF.pm,
+				bin/lib/Image/ExifTool/GIMP.pm,
+				bin/lib/Image/ExifTool/GM.pm,
+				bin/lib/Image/ExifTool/GPS.pm,
+				bin/lib/Image/ExifTool/Garmin.pm,
+				bin/lib/Image/ExifTool/GeoTiff.pm,
+				bin/lib/Image/ExifTool/Geolocation.dat,
+				bin/lib/Image/ExifTool/Geolocation.pm,
+				bin/lib/Image/ExifTool/Geotag.pm,
+				bin/lib/Image/ExifTool/GoPro.pm,
+				bin/lib/Image/ExifTool/Google.pm,
+				bin/lib/Image/ExifTool/H264.pm,
+				bin/lib/Image/ExifTool/HP.pm,
+				bin/lib/Image/ExifTool/HTML.pm,
+				bin/lib/Image/ExifTool/HtmlDump.pm,
+				bin/lib/Image/ExifTool/ICC_Profile.pm,
+				bin/lib/Image/ExifTool/ICO.pm,
+				bin/lib/Image/ExifTool/ID3.pm,
+				bin/lib/Image/ExifTool/IPTC.pm,
+				bin/lib/Image/ExifTool/ISO.pm,
+				bin/lib/Image/ExifTool/ITC.pm,
+				bin/lib/Image/ExifTool/Import.pm,
+				bin/lib/Image/ExifTool/InDesign.pm,
+				bin/lib/Image/ExifTool/InfiRay.pm,
+				bin/lib/Image/ExifTool/JPEG.pm,
+				bin/lib/Image/ExifTool/JPEGDigest.pm,
+				bin/lib/Image/ExifTool/JSON.pm,
+				bin/lib/Image/ExifTool/JVC.pm,
+				bin/lib/Image/ExifTool/Jpeg2000.pm,
+				bin/lib/Image/ExifTool/Kandao.pm,
+				bin/lib/Image/ExifTool/Kodak.pm,
+				bin/lib/Image/ExifTool/KyoceraRaw.pm,
+				bin/lib/Image/ExifTool/LIF.pm,
+				bin/lib/Image/ExifTool/LNK.pm,
+				bin/lib/Image/ExifTool/Lang/cs.pm,
+				bin/lib/Image/ExifTool/Lang/de.pm,
+				bin/lib/Image/ExifTool/Lang/en_ca.pm,
+				bin/lib/Image/ExifTool/Lang/en_gb.pm,
+				bin/lib/Image/ExifTool/Lang/es.pm,
+				bin/lib/Image/ExifTool/Lang/fi.pm,
+				bin/lib/Image/ExifTool/Lang/fr.pm,
+				bin/lib/Image/ExifTool/Lang/it.pm,
+				bin/lib/Image/ExifTool/Lang/ja.pm,
+				bin/lib/Image/ExifTool/Lang/ko.pm,
+				bin/lib/Image/ExifTool/Lang/nl.pm,
+				bin/lib/Image/ExifTool/Lang/pl.pm,
+				bin/lib/Image/ExifTool/Lang/ru.pm,
+				bin/lib/Image/ExifTool/Lang/sk.pm,
+				bin/lib/Image/ExifTool/Lang/sv.pm,
+				bin/lib/Image/ExifTool/Lang/tr.pm,
+				bin/lib/Image/ExifTool/Lang/zh_cn.pm,
+				bin/lib/Image/ExifTool/Lang/zh_tw.pm,
+				bin/lib/Image/ExifTool/Leaf.pm,
+				bin/lib/Image/ExifTool/LigoGPS.pm,
+				bin/lib/Image/ExifTool/Lytro.pm,
+				bin/lib/Image/ExifTool/M2TS.pm,
+				bin/lib/Image/ExifTool/MIE.pm,
+				bin/lib/Image/ExifTool/MIEUnits.pod,
+				bin/lib/Image/ExifTool/MIFF.pm,
+				bin/lib/Image/ExifTool/MISB.pm,
+				bin/lib/Image/ExifTool/MNG.pm,
+				bin/lib/Image/ExifTool/MOI.pm,
+				bin/lib/Image/ExifTool/MPC.pm,
+				bin/lib/Image/ExifTool/MPEG.pm,
+				bin/lib/Image/ExifTool/MPF.pm,
+				bin/lib/Image/ExifTool/MRC.pm,
+				bin/lib/Image/ExifTool/MWG.pm,
+				bin/lib/Image/ExifTool/MXF.pm,
+				bin/lib/Image/ExifTool/MacOS.pm,
+				bin/lib/Image/ExifTool/MakerNotes.pm,
+				bin/lib/Image/ExifTool/Matroska.pm,
+				bin/lib/Image/ExifTool/Microsoft.pm,
+				bin/lib/Image/ExifTool/Minolta.pm,
+				bin/lib/Image/ExifTool/MinoltaRaw.pm,
+				bin/lib/Image/ExifTool/Motorola.pm,
+				bin/lib/Image/ExifTool/Nikon.pm,
+				bin/lib/Image/ExifTool/NikonCapture.pm,
+				bin/lib/Image/ExifTool/NikonCustom.pm,
+				bin/lib/Image/ExifTool/NikonSettings.pm,
+				bin/lib/Image/ExifTool/Nintendo.pm,
+				bin/lib/Image/ExifTool/OOXML.pm,
+				bin/lib/Image/ExifTool/Ogg.pm,
+				bin/lib/Image/ExifTool/Olympus.pm,
+				bin/lib/Image/ExifTool/OpenEXR.pm,
+				bin/lib/Image/ExifTool/Opus.pm,
+				bin/lib/Image/ExifTool/Other.pm,
+				bin/lib/Image/ExifTool/PCAP.pm,
+				bin/lib/Image/ExifTool/PCX.pm,
+				bin/lib/Image/ExifTool/PDF.pm,
+				bin/lib/Image/ExifTool/PGF.pm,
+				bin/lib/Image/ExifTool/PICT.pm,
+				bin/lib/Image/ExifTool/PLIST.pm,
+				bin/lib/Image/ExifTool/PLUS.pm,
+				bin/lib/Image/ExifTool/PNG.pm,
+				bin/lib/Image/ExifTool/PPM.pm,
+				bin/lib/Image/ExifTool/PSP.pm,
+				bin/lib/Image/ExifTool/Palm.pm,
+				bin/lib/Image/ExifTool/Panasonic.pm,
+				bin/lib/Image/ExifTool/PanasonicRaw.pm,
+				bin/lib/Image/ExifTool/Parrot.pm,
+				bin/lib/Image/ExifTool/Pentax.pm,
+				bin/lib/Image/ExifTool/PhaseOne.pm,
+				bin/lib/Image/ExifTool/PhotoCD.pm,
+				bin/lib/Image/ExifTool/PhotoMechanic.pm,
+				bin/lib/Image/ExifTool/Photoshop.pm,
+				bin/lib/Image/ExifTool/Plot.pm,
+				bin/lib/Image/ExifTool/PostScript.pm,
+				bin/lib/Image/ExifTool/PrintIM.pm,
+				bin/lib/Image/ExifTool/Protobuf.pm,
+				bin/lib/Image/ExifTool/Qualcomm.pm,
+				bin/lib/Image/ExifTool/QuickTime.pm,
+				bin/lib/Image/ExifTool/QuickTimeStream.pl,
+				bin/lib/Image/ExifTool/README,
+				bin/lib/Image/ExifTool/RIFF.pm,
+				bin/lib/Image/ExifTool/RSRC.pm,
+				bin/lib/Image/ExifTool/RTF.pm,
+				bin/lib/Image/ExifTool/Radiance.pm,
+				bin/lib/Image/ExifTool/Rawzor.pm,
+				bin/lib/Image/ExifTool/Real.pm,
+				bin/lib/Image/ExifTool/Reconyx.pm,
+				bin/lib/Image/ExifTool/Red.pm,
+				bin/lib/Image/ExifTool/Ricoh.pm,
+				bin/lib/Image/ExifTool/Samsung.pm,
+				bin/lib/Image/ExifTool/Sanyo.pm,
+				bin/lib/Image/ExifTool/Scalado.pm,
+				bin/lib/Image/ExifTool/Shift.pl,
+				bin/lib/Image/ExifTool/Shortcuts.pm,
+				bin/lib/Image/ExifTool/Sigma.pm,
+				bin/lib/Image/ExifTool/SigmaRaw.pm,
+				bin/lib/Image/ExifTool/Sony.pm,
+				bin/lib/Image/ExifTool/SonyIDC.pm,
+				bin/lib/Image/ExifTool/Stim.pm,
+				bin/lib/Image/ExifTool/TNEF.pm,
+				bin/lib/Image/ExifTool/TagInfoXML.pm,
+				bin/lib/Image/ExifTool/TagLookup.pm,
+				bin/lib/Image/ExifTool/TagNames.pod,
+				bin/lib/Image/ExifTool/Text.pm,
+				bin/lib/Image/ExifTool/Theora.pm,
+				bin/lib/Image/ExifTool/Torrent.pm,
+				bin/lib/Image/ExifTool/Trailer.pm,
+				bin/lib/Image/ExifTool/Unknown.pm,
+				bin/lib/Image/ExifTool/VCard.pm,
+				bin/lib/Image/ExifTool/Validate.pm,
+				bin/lib/Image/ExifTool/Vorbis.pm,
+				bin/lib/Image/ExifTool/WPG.pm,
+				bin/lib/Image/ExifTool/WTV.pm,
+				bin/lib/Image/ExifTool/WavPack.pm,
+				bin/lib/Image/ExifTool/WriteCanonRaw.pl,
+				bin/lib/Image/ExifTool/WriteExif.pl,
+				bin/lib/Image/ExifTool/WriteIPTC.pl,
+				bin/lib/Image/ExifTool/WritePDF.pl,
+				bin/lib/Image/ExifTool/WritePNG.pl,
+				bin/lib/Image/ExifTool/WritePhotoshop.pl,
+				bin/lib/Image/ExifTool/WritePostScript.pl,
+				bin/lib/Image/ExifTool/WriteQuickTime.pl,
+				bin/lib/Image/ExifTool/WriteRIFF.pl,
+				bin/lib/Image/ExifTool/WriteXMP.pl,
+				bin/lib/Image/ExifTool/Writer.pl,
+				bin/lib/Image/ExifTool/XISF.pm,
+				bin/lib/Image/ExifTool/XMP.pm,
+				bin/lib/Image/ExifTool/XMP2.pl,
+				bin/lib/Image/ExifTool/XMPStruct.pl,
+				bin/lib/Image/ExifTool/ZIP.pm,
+				bin/lib/Image/ExifTool/ZISRAW.pm,
+				bin/lib/Image/ExifTool/iWork.pm,
+				bin/x86/cwebp,
+				bin/x86/exiftool,
+				bin/x86/ffmpeg,
+				bin/x86/gifsicle,
+				bin/x86/gifski,
+				bin/x86/gs,
+				bin/x86/heif-enc,
+				bin/x86/jpegoptim,
+				bin/x86/jpegoptim-old,
+				bin/x86/lib,
+				bin/x86/libcgif.0.dylib,
+				bin/x86/libexif.12.dylib,
+				bin/x86/libgio-2.0.0.dylib,
+				bin/x86/libglib-2.0.0.dylib,
+				bin/x86/libgmodule-2.0.0.dylib,
+				bin/x86/libgobject-2.0.0.dylib,
+				bin/x86/libhwy.1.dylib,
+				bin/x86/libimagequant.0.4.dylib,
+				bin/x86/libintl.8.dylib,
+				bin/x86/libjpeg-orig.8.dylib,
+				bin/x86/libjpeg.62.3.0.dylib,
+				bin/x86/libjpeg.8.dylib,
+				bin/x86/liblcms2.2.dylib,
+				bin/x86/liblzma.5.dylib,
+				bin/x86/libpcre2-8.0.dylib,
+				bin/x86/libpng16.16.dylib,
+				bin/x86/libsharpyuv.0.dylib,
+				bin/x86/libtiff.6.dylib,
+				bin/x86/libvips.42.dylib,
+				bin/x86/libwebp.7.dylib,
+				bin/x86/libwebpdemux.2.dylib,
+				bin/x86/libwebpmux.3.dylib,
+				bin/x86/libzstd.1.dylib,
+				bin/x86/pngquant,
+				bin/x86/toGainMapHDR,
+				bin/x86/vipsthumbnail,
+				required.swift,
+			);
+			target = C7956A3E2AC208DD00C0EDF2 /* ClopCLI */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		FA8EB17E9BBCF462FD00C761 /* Clop */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D2BC82B9EF268A7B7E021CFF /* Exceptions for "Clop" folder in "Clop" target */,
+				EB5A20271C5B9E13A274138D /* Exceptions for "Clop" folder in "ClopCLI" target */,
+			);
+			explicitFileTypes = {};
+			explicitFolders = ();
+			path = Clop;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		C7956A3C2AC208DD00C0EDF2 /* Frameworks */ = {
@@ -291,6 +895,9 @@
 			isa = PBXGroup;
 			children = (
 				C70A48ED2B1A06AD00C266DE /* Colorize.swift */,
+				C7AA00052F0000050000MCP1 /* MCPToolTable.swift */,
+				C7AA00032F0000030000MCP1 /* MCPTools.swift */,
+				C7AA00012F0000010000MCP1 /* MCPServer.swift */,
 				C7956A4D2AC3553900C0EDF2 /* ClopCLI.entitlements */,
 				C7956A412AC208DD00C0EDF2 /* main.swift */,
 			);
@@ -300,9 +907,10 @@
 		C7AB6618288301590041BEC8 = {
 			isa = PBXGroup;
 			children = (
+				FA8EB17E9BBCF462FD00C761 /* Clop */,
+				C73802042BD1B81A001BEE6C /* lrzip */,
 				C70B5F302AC029DA00345739 /* Shared.swift */,
 				BCF42C9E79C9DA717625AD2D /* Shared */,
-				C7AB6623288301590041BEC8 /* Clop */,
 				C7956A402AC208DD00C0EDF2 /* ClopCLI */,
 				C70B5F182AC014BF00345739 /* Frameworks */,
 				C7AB6622288301590041BEC8 /* Products */,
@@ -318,94 +926,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		C7AB6623288301590041BEC8 /* Clop */ = {
-			isa = PBXGroup;
-			children = (
-				FAB4AD45ADCEA22A9772EB0C /* AudioPipeline.swift */,
-				89937A211A184105B923C834 /* FilePlacement.swift */,
-				94FC3C393F29EE4594F2E9D2 /* ImagePipeline.swift */,
-				CFE08CBF4972CC590D4F1A06 /* PDFPipeline.swift */,
-				85FE7AE8C1EAECF6389B9C4D /* VideoPipeline.swift */,
-				8DAA6050E36178B30CA36F66 /* ClipboardType.swift */,
-				F321BA132DB9A83B6B77FBD6 /* ClopFileType.swift */,
-				B061D7D25755416D9D82609F /* FileOptimisationWatcher.swift */,
-				19DD112645B040CF16556359 /* ItemType.swift */,
-				E64A079DB235BB295B5D2F9B /* PipelineEditorViews.swift */,
-				D534A2084C0E9F7184617531 /* PipelineStep.swift */,
-				245576D05EDDA4828203763A /* PipelineExecution.swift */,
-				9DF397C510057E3769EE1608 /* PipelineTextView.swift */,
-				3D2CE228AE65A21BE6CF7922 /* ShortcutsCompat.swift */,
-				C72DECB32F38E34C00523058 /* ErrorReports.swift */,
-				C7CC9E232E57299900EAFCA1 /* InternetAccessPolicy.plist */,
-				C71AAAD72D2D500300CA86D9 /* PresetZones.swift */,
-				C73802062BDCD76D001BEE6C /* CompareView.swift */,
-				C7C401AA2E1B00010000A001 /* CropWindow.swift */,
-				2FCD95338DC3B3BFE305691D /* SettingsSearchAnchor.swift */,
-				2008091B6D489B64297F9518 /* clop_mcp.py */,
-				D36AF8F91B7E1E32A62926BD /* MCPSettings.swift */,
-				24A1AB5116ACB1E46A46EA26 /* SettingsSearchIndex.swift */,
-				395BBA0282F478CD09A0F573 /* MCPSettingsPane.swift */,
-				D15B37294AA9D73BE8D4C34C /* MCPInstaller.swift */,
-				699EE6C672814086D6D929FA /* JSONCEditor.swift */,
-				947ACABBF1E54BA7ACD69B48 /* BatchPrepView.swift */,
-				4693623D61F94747851DCAA8 /* BatchWindow.swift */,
-				6C1984562F8F4FE1B91A39EB /* BatchBackup.swift */,
-				9A491A5179634D07B4513DA2 /* BatchOptimiser.swift */,
-				81D62E5ADB77436086B06CBB /* FileOps.swift */,
-				C7976AC72B07B87D00C4246A /* BatchCropButton.swift */,
-				C735DA012B021D6E001DCAA8 /* Migrations.swift */,
-				C7AB38DA2ACB059200F299CE /* ActionButtons.swift */,
-				C7DF1A292ABB0E9A00AF8EDC /* Automation.swift */,
-				C7DEBD012F20000100000001 /* DebugDump.swift */,
-				C7DF1A2B2EAA000000000001 /* IgnoredAppsPicker.swift */,
-				C7AB38CC2AC5E00C00F299CE /* CherryPicks.swift */,
-				C7AB6624288301590041BEC8 /* ClopApp.swift */,
-				C7A7DD662A739C7400DA12DF /* ClopShortcuts.swift */,
-				C7760ABE2A5E92B800851F8C /* ClopUtils.swift */,
-				C7AB38DB2ACB059200F299CE /* CompactResult.swift */,
-				C7AB6626288301590041BEC8 /* ContentView.swift */,
-				C7AB38D02AC8320B00F299CE /* DropZone.swift */,
-				C7AB38CF2AC8320B00F299CE /* FileNameField.swift */,
-				C7D9200B288FE1D200FA0C83 /* FloatingResult.swift */,
-				C7760AB52A5C4EE500851F8C /* Images.swift */,
-				C78B29FE2AD0826F00B6A19B /* InstallCLI.swift */,
-				C7760ABC2A5E026600851F8C /* NSImageExtensions.swift */,
-				C70B5F332AC1B56C00345739 /* Optimisable.swift */,
-				C7760AC02A5E957700851F8C /* OptimisationUtils.swift */,
-				C7333E462A98C90500B1D5BE /* PDF.swift */,
-				C7CC9E262E57299900EAFCA1 /* Pipeline.swift */,
-				C7DF1A212AB6F6A200AF8EDC /* required.swift */,
-				C78B2A012AD1F02E00B6A19B /* ResolutionField.swift */,
-				C7AB38CA2AC5B10300F299CE /* RightClickMenu.swift */,
-				C7760AC22A5FF89B00851F8C /* Settings.swift */,
-				C7760AB72A5C854600851F8C /* SettingsView.swift */,
-				C78C62602ADEB3E7000519D0 /* Uploads.swift */,
-				5276E40C1D01E9E4A8E4C786 /* Audio.swift */,
-				C733B3D12A50789C002A0585 /* Video.swift */,
-				C78211082A5B21A4008DB106 /* Xattr.swift */,
-				C724D4CB2A8FCE9C00C6321F /* ExceptionCatcher.h */,
-				C724D4CC2A8FCEEC00C6321F /* Clop-Bridging-Header.h */,
-				C7AB66282883015A0041BEC8 /* Assets.xcassets */,
-				C7AB663A288460F30041BEC8 /* Info.plist */,
-				C7AB662D2883015A0041BEC8 /* Clop.entitlements */,
-				C7AB662A2883015A0041BEC8 /* Preview Content */,
-				C7EFD28B2B22577100A6D843 /* Onboarding.swift */,
-				C73802042BD1B81A001BEE6C /* lrzip */,
-				C73802012BD1B804001BEE6C /* bin.tar.lrz */,
-				C73802002BD1B804001BEE6C /* bin.tar.lrz.sha256 */,
-				E9E56FF74C2923B99D8870AA /* WarpDropManager.swift */,
-			);
-			path = Clop;
-			sourceTree = "<group>";
-		};
-		C7AB662A2883015A0041BEC8 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				C7AB662B2883015A0041BEC8 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -416,6 +936,9 @@
 				C7956A3B2AC208DD00C0EDF2 /* Sources */,
 				C7956A3C2AC208DD00C0EDF2 /* Frameworks */,
 				C7956A3D2AC208DD00C0EDF2 /* CopyFiles */,
+			);
+			fileSystemSynchronizedGroups = (
+				FA8EB17E9BBCF462FD00C761 /* Clop */,
 			);
 			buildRules = (
 			);
@@ -438,6 +961,9 @@
 				C7AB661F288301590041BEC8 /* Resources */,
 				C70B5F2A2AC014BF00345739 /* Embed Foundation Extensions */,
 				C7956A4B2AC317C100C0EDF2 /* Copy Files */,
+			);
+			fileSystemSynchronizedGroups = (
+				FA8EB17E9BBCF462FD00C761 /* Clop */,
 			);
 			buildRules = (
 			);
@@ -510,12 +1036,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				C73802052BD1B81A001BEE6C /* lrzip in Resources */,
-				C7AB662C2883015A0041BEC8 /* Preview Assets.xcassets in Resources */,
-				C7CC9E242E57299900EAFCA1 /* InternetAccessPolicy.plist in Resources */,
-				C73802032BD1B804001BEE6C /* bin.tar.lrz in Resources */,
-				F66DD8631260A579FB340E97 /* clop_mcp.py in Resources */,
-				C7AB66292883015A0041BEC8 /* Assets.xcassets in Resources */,
-				C73802022BD1B804001BEE6C /* bin.tar.lrz.sha256 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -533,10 +1053,11 @@
 				B215B7A7A5DD134D216E876A /* PaperSizes.swift in Sources */,
 				166FBCA73CFA362B7916B90F /* VideoEncoder.swift in Sources */,
 				C70A48EE2B1A06AD00C266DE /* Colorize.swift in Sources */,
-				C7AB38CE2AC5E00C00F299CE /* CherryPicks.swift in Sources */,
 				C7956A472AC2094500C0EDF2 /* Shared.swift in Sources */,
-				C70A48EF2B1DCCED00C266DE /* Xattr.swift in Sources */,
 				C7956A422AC208DD00C0EDF2 /* main.swift in Sources */,
+				C7AA00062F0000060000MCP1 /* MCPToolTable.swift in Sources */,
+				C7AA00042F0000040000MCP1 /* MCPTools.swift in Sources */,
+				C7AA00022F0000020000MCP1 /* MCPServer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -544,74 +1065,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				120FD44232A0F18576020931 /* AudioPipeline.swift in Sources */,
-				DD70FBC7D7878B1B4DD06DCF /* PipelineExecution.swift in Sources */,
-				A00F9FE1721149C5B28BD45D /* FilePlacement.swift in Sources */,
-				72A0FA3FDA66D65E83974AB7 /* ImagePipeline.swift in Sources */,
-				25E8B271776F1ED1DA2E3D44 /* PDFPipeline.swift in Sources */,
-				1B43E688BCE702EE44644458 /* VideoPipeline.swift in Sources */,
 				6904D8272247275F926E8A13 /* AudioFormat.swift in Sources */,
 				598D571C128E8C77DE66D0AA /* CropSize.swift in Sources */,
 				FCA166365F9B18F911E6A442 /* DeviceSizes.swift in Sources */,
 				8C74E5D44978A2CAE4CD4E04 /* FileNameTemplate.swift in Sources */,
 				219FB0B1A5348B73E4D3E4D8 /* PaperSizes.swift in Sources */,
 				FD05B6CFBCB14DDD17894DB1 /* VideoEncoder.swift in Sources */,
-				C14DC278F7A1E0CE199C320F /* ClipboardType.swift in Sources */,
-				3FBC43029FD13421E16D0AF3 /* ClopFileType.swift in Sources */,
-				87808AF1ADEFDCE25C3576D1 /* FileOptimisationWatcher.swift in Sources */,
-				F41C6EDB42D0A8B3D43B91B6 /* ItemType.swift in Sources */,
-				C8813EA945B535E55DF1EC87 /* PipelineEditorViews.swift in Sources */,
-				7F5CC49731AEF4A2E42D39DA /* PipelineStep.swift in Sources */,
-				6CCB044F0787F7A973C5A8B7 /* PipelineTextView.swift in Sources */,
-				EE8EF4897FAE05DAF7722F33 /* ShortcutsCompat.swift in Sources */,
-				C7976AC82B07B87D00C4246A /* BatchCropButton.swift in Sources */,
-				C7DF1A222AB6F6A200AF8EDC /* required.swift in Sources */,
-				C70B5F342AC1B56C00345739 /* Optimisable.swift in Sources */,
-				C7AB6627288301590041BEC8 /* ContentView.swift in Sources */,
-				C71AAAD92D2D500300CA86D9 /* PresetZones.swift in Sources */,
-				C7AB38CB2AC5B10300F299CE /* RightClickMenu.swift in Sources */,
-				C7AB38DD2ACB059200F299CE /* CompactResult.swift in Sources */,
-				C7760AB62A5C4EE500851F8C /* Images.swift in Sources */,
-				C7DF1A2A2ABB0E9A00AF8EDC /* Automation.swift in Sources */,
-				C7DEBD022F20000100000002 /* DebugDump.swift in Sources */,
-				C7DF1A2C2EAA000000000001 /* IgnoredAppsPicker.swift in Sources */,
 				C70B5F312AC029DA00345739 /* Shared.swift in Sources */,
-				C7AB38D12AC8320B00F299CE /* FileNameField.swift in Sources */,
-				C7EFD28C2B22577100A6D843 /* Onboarding.swift in Sources */,
-				C7333E472A98C90500B1D5BE /* PDF.swift in Sources */,
-				C7CC9E282E57299900EAFCA1 /* Pipeline.swift in Sources */,
-				C78C62612ADEB3E7000519D0 /* Uploads.swift in Sources */,
-				C7D9200C288FE1D200FA0C83 /* FloatingResult.swift in Sources */,
-				C7AB38D22AC8320B00F299CE /* DropZone.swift in Sources */,
-				C7AB6625288301590041BEC8 /* ClopApp.swift in Sources */,
-				C7760AB82A5C854600851F8C /* SettingsView.swift in Sources */,
-				C73802072BDCD76D001BEE6C /* CompareView.swift in Sources */,
-				C7C401AB2E1B00010000A002 /* CropWindow.swift in Sources */,
-				2C48F8C3023C3DFF3E462811 /* SettingsSearchAnchor.swift in Sources */,
-				CFC255D257204AA01D35190D /* MCPSettings.swift in Sources */,
-				47AFFCF655530AA9B36633CF /* SettingsSearchIndex.swift in Sources */,
-				5D7BD406A1EC0515A4AB9070 /* MCPSettingsPane.swift in Sources */,
-				66FE5A755826F82F315BA65A /* MCPInstaller.swift in Sources */,
-				90E7521FF567BEAEF63F0F0F /* JSONCEditor.swift in Sources */,
-				746889BF3756430A980B6DB6 /* BatchPrepView.swift in Sources */,
-				C4401CC17C6F4E09AC5608E5 /* BatchWindow.swift in Sources */,
-				537EB22C23B448CDAFE7F24D /* BatchBackup.swift in Sources */,
-				E2E2C845FF7444FB8237BF30 /* BatchOptimiser.swift in Sources */,
-				95659A8C84874DF08B1A206C /* FileOps.swift in Sources */,
-				C733B3D22A50789C002A0585 /* Video.swift in Sources */,
-				2C5A7A735E2586ECE5A24B90 /* Audio.swift in Sources */,
-				C7AB38DC2ACB059200F299CE /* ActionButtons.swift in Sources */,
-				C78B2A022AD1F02E00B6A19B /* ResolutionField.swift in Sources */,
-				C78B29FF2AD0826F00B6A19B /* InstallCLI.swift in Sources */,
-				C7760AC12A5E957700851F8C /* OptimisationUtils.swift in Sources */,
-				C735DA022B021D6E001DCAA8 /* Migrations.swift in Sources */,
-				C7760ABD2A5E026600851F8C /* NSImageExtensions.swift in Sources */,
-				C7760ABF2A5E92B800851F8C /* ClopUtils.swift in Sources */,
-				C7760AC32A5FF89B00851F8C /* Settings.swift in Sources */,
-				C72DECB52F38E34C00523058 /* ErrorReports.swift in Sources */,
-				C78211092A5B21A4008DB106 /* Xattr.swift in Sources */,
-				C7A7DD672A739C7400DA12DF /* ClopShortcuts.swift in Sources */,
-				DD17718179BD01F73E35E0F8 /* WarpDropManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

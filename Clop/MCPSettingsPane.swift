@@ -33,7 +33,9 @@ struct MCPSettingsView: View {
                 .disabled(!proactive || !mcpEnabled)
                 .onChange(of: mcpAllowScriptSteps) { on in
                     guard on else { return }
-                    if !askAboutScripts() { mcpAllowScriptSteps = false }
+                    if !askAboutScripts() {
+                        mcpAllowScriptSteps = false
+                    }
                 }
                 .searchAnchor("mcp.main.mcpAllowScriptSteps")
             }
@@ -50,7 +52,7 @@ struct MCPSettingsView: View {
             Section(header: SectionHeader(title: "Install by hand")) {
                 VStack(alignment: .leading, spacing: 12) {
                     CopyableValueRow(title: "Command line", value: MCPInstaller.cliCommand)
-                    CopyableValueRow(title: "Server path", value: MCPInstaller.scriptPath)
+                    CopyableValueRow(title: "Server", value: MCPInstaller.cliPath + " " + MCPInstaller.serveArgs.joined(separator: " "))
                 }
                 .padding(.vertical, 4)
             }

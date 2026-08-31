@@ -31,7 +31,7 @@ DSYM_DIR=$(DERIVED_DATA_DIR)/Build/Intermediates.noindex/ArchiveIntermediates/Cl
 DSYM_UUID_FILE=Releases/dsym-uuids.txt
 DSYM_OUT=/tmp/dsyms
 
-.PHONY: build upload release setversion appcast bin changelog sentry record-dsyms download-dsym
+.PHONY: build install upload release setversion appcast bin changelog sentry record-dsyms download-dsym
 
 print-%  : ; @echo $* = $($*)
 
@@ -39,6 +39,18 @@ build: SHELL=fish
 build:
 	make-app --build --devid --dmg -s Clop -t Clop -c Release --version $(FULL_VERSION)
 	xcp /tmp/apps/Clop-$(FULL_VERSION).dmg Releases/
+
+# Never use `xrel Clop --install`. A plain Release build is signed with Apple Development,
+# and anticrack reads that as a crack and deactivates the licence. The app target carries an
+# iCloud KVS entitlement, so Developer ID signing needs a provisioning profile, and only the
+# archive-and-export path gets one. This target is that path.
+install: SHELL=fish
+install:
+	make-app --build --devid -s Clop -t Clop -c Release
+	codesign -dvvv /tmp/apps/Clop.app 2>&1 | rg -q 'Authority=Developer ID Application: THE LOW-TECH GUYS' \
+		|| begin; echo 'refusing to install: /tmp/apps/Clop.app is not signed with the Developer ID cert'; exit 1; end
+	rm -rf /Applications/Clop.app
+	cp -R /tmp/apps/Clop.app /Applications/Clop.app
 
 dmg: SHELL=fish
 dmg:
