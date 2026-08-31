@@ -106,7 +106,7 @@ extension MCPServer {
         // The one genuinely ambiguous request. When the caller already said how, or already gave a
         // number, this asks nothing.
         if (smallerBy ?? "").isEmpty, quality == nil, factor == nil, a["crop"] == nil {
-            try refuseBeforeAsking()
+            try refuseBeforeAsking(files)
             switch try ask("smaller_how", "Clop can make \(subject(files)) smaller in two ways. Which should it use?", smallerSchema) {
             case let .answered(content):
                 smallerBy = (content["target"] as? String) ?? "compression"
@@ -142,7 +142,7 @@ extension MCPServer {
         let files = try paths(a)
         var factor = a["factor"].map { argument($0) }
         if factor == nil {
-            try refuseBeforeAsking()
+            try refuseBeforeAsking(files)
             switch try ask("downscale_factor", "How much smaller should Clop make \(subject(files))?", factorSchema) {
             case let .answered(content):
                 factor = "\(asDouble(content, "factor", 0.5))"
@@ -202,7 +202,33 @@ extension MCPServer {
         guard a["forDevice"] != nil || a["paperSize"] != nil || a["aspectRatio"] != nil else {
             throw ClopMCPError("give one of forDevice, paperSize or aspectRatio")
         }
-        return try text(
+        do {
+            return try cropPDFRun(a)
+        } catch let error as ClopMCPError {
+            // The CLI answers an unknown name by pointing at a flag, which a person can run and an
+            // agent cannot. The agent gets the listing that flag prints, and the pointer is dropped so
+            // nothing sends it after a flag it has no way to use.
+            guard let (pointer, command) = deviceListing(error.message),
+                  case let .text(listing)? = try? text(command, timeout: 10)
+            else { throw error }
+            throw ClopMCPError(error.message.replacingOccurrences(of: pointer, with: ".") + "\n\n" + listing)
+        }
+    }
+
+    /// The flag pointer in a bad `--for-device` or `--paper-size` message, and the command that
+    /// prints what it points at. Nil for every other error.
+    static func deviceListing(_ message: String) -> (pointer: String, command: [String])? {
+        for (flag, pointer) in [
+            ("--list-devices", ", use --list-devices to see possible values"),
+            ("--list-paper-sizes", ", use --list-paper-sizes to see possible values"),
+        ] where message.contains(pointer) {
+            return (pointer, ["crop-pdf", flag])
+        }
+        return nil
+    }
+
+    private static func cropPDFRun(_ a: [String: Any]) throws -> ToolOutput {
+        try text(
             ["crop-pdf"] + paths(a)
                 + opt(a, "--for-device", "forDevice")
                 + opt(a, "--paper-size", "paperSize")

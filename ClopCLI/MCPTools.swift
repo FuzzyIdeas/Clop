@@ -368,7 +368,18 @@ extension MCPServer {
     /// they want a file made smaller and then answering "needs Clop Pro" spends their attention on a
     /// decision that was never going to be acted on. Checked only before a question, since the
     /// ordinary path already surfaces Clop's own refusal.
-    static func refuseBeforeAsking() throws {
+    ///
+    /// A path that is not there is the same waste, and it was the likelier one: an agent that
+    /// mistyped a path got asked how it wanted the file made smaller, and only after the answer came
+    /// back did anything say the file does not exist.
+    static func refuseBeforeAsking(_ files: [String] = []) throws {
+        // Anything with a colon is a URL for Clop to fetch, which is the CLI's own test, so this
+        // never rejects an input the CLI would have accepted.
+        let missing = files.filter { !$0.contains(":") && !FileManager.default.fileExists(atPath: $0) }
+        guard missing.isEmpty else {
+            throw ClopMCPError("not found: \(missing.joined(separator: ", "))")
+        }
+
         guard case let .json(payload)? = try? run(["mcp", "status"], timeout: 10),
               let mcp = (payload as? [String: Any])?["mcp"] as? [String: Any]
         else {
