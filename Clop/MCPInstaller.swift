@@ -241,6 +241,50 @@ enum MCPInstaller {
         state(client) == .installed
     }
 
+    /// The command and arguments a client's config currently points at, or nil when Clop is not in it.
+    static func installedCommand(_ client: Client) -> (command: String, args: [String])? {
+        guard let root = try? JSONCEditor.read(client.url),
+              let member = (root[serversKey(client.style)] as? [String: Any])?[serverName] as? [String: Any]
+        else { return nil }
+
+        // Zed nests the pair under `command`; the others keep them side by side.
+        let source = client.style == .zed ? (member["command"] as? [String: Any] ?? [:]) : member
+        let key = client.style == .zed ? "path" : "command"
+        guard let command = source[key] as? String else { return nil }
+        return (command, source["args"] as? [String] ?? [])
+    }
+
+    /// Whether an entry names something that is no longer on disk.
+    ///
+    /// The test is "does this still work", not "does this match what Clop would write now". An entry
+    /// pointing at another copy of Clop is somebody's deliberate choice, and repointing it because
+    /// this copy launched from somewhere else would hijack a working config. Running a build out of
+    /// a temp folder once did exactly that during testing.
+    static func entryIsBroken(_ command: String, _ args: [String]) -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: command) else { return true }
+        // Only arguments that are absolute paths, so `mcp` and `serve` are never mistaken for files.
+        return args.contains { $0.hasPrefix("/") && !FileManager.default.fileExists(atPath: $0) }
+    }
+
+    /// Repairs entries that no longer start anything.
+    ///
+    /// 3.4.0 moved the server from a bundled Python script into the CLI, so every config written
+    /// before it names an interpreter and a `clop_mcp.py` that the update deleted. Nothing would have
+    /// told those users: the member is still called `clop`, so Settings kept saying Installed while
+    /// the agent's server failed to start.
+    ///
+    /// Only entries that already exist and are already broken are touched. This never installs Clop
+    /// into a client the user did not choose, and never moves one that still works.
+    static func migrateInstalledClients() {
+        guard scriptExists else { return }
+
+        for client in clients {
+            guard let current = installedCommand(client), entryIsBroken(current.command, current.args) else { continue }
+            mcpLog.info("Repairing dead MCP entry in \(client.name, privacy: .public): \(current.command, privacy: .public)")
+            _ = install(client)
+        }
+    }
+
     // MARK: - Install and remove
 
     @discardableResult
