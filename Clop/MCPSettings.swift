@@ -207,7 +207,11 @@ enum MCPSettingsBridge {
     /// would.
     @MainActor static func schema(filter: String? = nil) -> [MCPSettingInfo] {
         let registry = keysByName
-        let entries = if let filter, !filter.isEmpty { matches(filter) } else { SettingsSearchIndex.all }
+        let entries = if let filter, !filter.isEmpty {
+            matches(filter)
+        } else {
+            SettingsSearchIndex.all
+        }
 
         return entries.flatMap { entry -> [MCPSettingInfo] in
             guard entry.keys.isNotEmpty else { return [info(entry: entry, key: nil)] }
@@ -521,6 +525,16 @@ extension MCPSettingsBridge {
     /// write, has allowed agent changes. A request that does not claim MCP origin is somebody using
     /// their own CLI, which needs no permission from anyone.
     @MainActor static func handle(_ req: SettingsRequest) -> SettingsResponse {
+        // `strip-exif`, `crop-pdf` and `uncrop-pdf` do their work inside the CLI and never build an
+        // `OptimisationRequest`, so the app never saw their origin and an agent could run them with
+        // Pro off and MCP off. They ask here first instead.
+        if req.action == .gate {
+            if let refusal = mcpRefusal(origin: req.origin, pipeline: nil) {
+                return SettingsResponse(ok: false, error: refusal)
+            }
+            return SettingsResponse(ok: true)
+        }
+
         if req.origin == "mcp" {
             guard proactive else {
                 return SettingsResponse(ok: false, error: "Clop's MCP server needs Clop Pro.")
@@ -534,6 +548,8 @@ extension MCPSettingsBridge {
         }
 
         switch req.action {
+        case .gate:
+            return SettingsResponse(ok: true)
         case .schema:
             return SettingsResponse(ok: true, settings: schema(filter: req.query))
         case .get:

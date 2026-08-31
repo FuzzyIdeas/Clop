@@ -96,7 +96,9 @@ enum ClopError: Error, CustomStringConvertible, Codable {
         case let .fileNotImage(p):
             return "File is not an image: \(p)"
         case let .noClipboardImage(p):
-            if p.string.isEmpty { return "No image in clipboard" }
+            if p.string.isEmpty {
+                return "No image in clipboard"
+            }
             return "No image in clipboard: \(p.string.count > 100 ? p.string.prefix(50) + "..." + p.string.suffix(50) : p.string)"
         case let .noProcess(string):
             return "Can't start process: \(string)"
@@ -277,6 +279,9 @@ struct SettingsRequest: Codable {
         case schema
         case get
         case set
+        /// "May this run?", for CLI commands that do their own work and never build an
+        /// `OptimisationRequest`, so nothing else would ever carry their origin to the app.
+        case gate
     }
 
     let action: Action
