@@ -62,6 +62,18 @@ let CLOP_APP: URL = {
 }()
 
 var currentRequestIDs: [String] = []
+
+/// Who is calling. The app reads it to decide what an agent may do, and an absent origin is somebody
+/// using their own CLI, which needs permission from nobody.
+///
+/// The environment is only the starting value: `clop mcp serve` pins this to "mcp" for the life of
+/// the process, so the stamp cannot be dropped by a caller that builds its own environment.
+var CLI_ORIGIN: String? = ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
+
+/// When the wait for a file command has to end. Set by the MCP server, which serves one client for
+/// hours and cannot let one stuck file hold the session open. Nil for a person at a terminal, who
+/// can press ctrl-C.
+var CLI_DEADLINE: Date?
 func ensureAppIsRunning() {
     guard !isClopRunning() else {
         return
@@ -76,10 +88,10 @@ func ensureAppIsRunning() {
 /// script step and attach it to a watched folder, and every file dropped there would run it.
 ///
 /// This is a check inside the caller's own binary, so it is not a sandbox: an agent that never sets
-/// CLOP_ORIGIN is simply a person using the CLI, which needs no permission from anyone. What it does
+/// no origin is simply a person using the CLI, which needs no permission from anyone. What it does
 /// close is the MCP tool surface the user actually granted.
 func refuseUnallowedMCPPipelineWrite(_ dsl: String?) throws {
-    guard ProcessInfo.processInfo.environment["CLOP_ORIGIN"] == "mcp" else { return }
+    guard CLI_ORIGIN == "mcp" else { return }
     let defaults = UserDefaults.app
 
     guard defaults?.bool(forKey: "mcpEnabled") == true else {
@@ -98,8 +110,9 @@ func refuseUnallowedMCPPipelineWrite(_ dsl: String?) throws {
 /// schema carries live values. `ensureAppIsRunning` launches it and waits for the port.
 func printSettings(_ request: SettingsRequest, json: Bool) throws {
     var req = request
-    // Set by the bundled MCP server. The app refuses writes carrying this until the user allows them.
-    req.origin = ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
+    // "mcp" while the bundled MCP server is running. The app refuses writes carrying it until the
+    // user allows them.
+    req.origin = CLI_ORIGIN
 
     guard let port = CFMessagePortCreateRemote(nil, SETTINGS_PORT_ID as CFString) else {
         throw ValidationError("Clop is not running. Start Clop and try again.")
@@ -134,7 +147,9 @@ func printSettings(_ request: SettingsRequest, json: Bool) throws {
     for s in settings {
         let where_ = [s.pane, s.section].filter { !$0.isEmpty }.joined(separator: " > ")
         print("\(s.title)\(where_.isEmpty ? "" : "  [\(where_)]")")
-        if !s.subtitle.isEmpty { print("  \(s.subtitle)") }
+        if !s.subtitle.isEmpty {
+            print("  \(s.subtitle)")
+        }
         if s.key.isEmpty {
             print("  (no single setting behind this row)")
         } else {
@@ -325,7 +340,9 @@ func validateItems(_ items: [String], recursive: Bool, skipErrors: Bool, types: 
     waitForOptimisationService()
 
     guard isClopRunning() else {
-        Clop.exit(withError: CLIError.appNotRunning)
+        // Thrown rather than exited: `clop mcp serve` runs these commands in its own process and has
+        // a client waiting for a result.
+        throw CLIError.appNotRunning
     }
     return urls
 }
@@ -372,7 +389,7 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: 
 
     let respData = try OPTIMISATION_PORT.sendAndWait(data: req.jsonData)
     guard respData != nil else {
-        Clop.exit(withError: CLIError.optimisationError)
+        throw CLIError.optimisationError
     }
 
     var allItemsFailed = false
@@ -514,8 +531,12 @@ func parseCompressionArgument(_ value: String?, allowAdaptive: Bool, allowAuto: 
     switch value.lowercased() {
     default:
         var allowed = ["a factor between 5 (best quality) and 100 (smallest file)"]
-        if allowAdaptive { allowed.append("'adaptive'") }
-        if allowAuto { allowed.append("'auto'") }
+        if allowAdaptive {
+            allowed.append("'adaptive'")
+        }
+        if allowAuto {
+            allowed.append("'auto'")
+        }
         guard let factor = Int(value) else {
             throw ValidationError("Invalid \(flag) value '\(value)': expected \(allowed.joined(separator: " or "))")
         }
@@ -653,7 +674,7 @@ func sendOptimisationCommand(
             prepareInBatch: options.review,
             placement: placement.isEmpty ? nil : placement,
 
-            origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
+            origin: CLI_ORIGIN
         )
     }
 }
@@ -1448,7 +1469,7 @@ struct Clop: ParsableCommand {
                     removeAudio: removeAudio,
                     pdfDPI: parsedPdfDpi,
 
-                    origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
+                    origin: CLI_ORIGIN
                 )
             }
         }
@@ -1571,7 +1592,7 @@ struct Clop: ParsableCommand {
                     removeAudio: removeAudio,
                     pdfDPI: parsedPdfDpi,
 
-                    origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
+                    origin: CLI_ORIGIN
                 )
             }
         }
@@ -1941,7 +1962,9 @@ struct Clop: ParsableCommand {
                             guard let p = CLIPipeline.from(json: pJSON) else { continue }
                             let resolved = p.resolve(in: saved)
                             let hidden = List.hiddenReason(source: source, resolved: resolved, raw: p, watchedDirs: watchedDirs)
-                            if hidden != nil, !all { continue }
+                            if hidden != nil, !all {
+                                continue
+                            }
                             let name = resolved.name.map { " -> \($0.green())" } ?? ""
                             let origin = p.provenance == .reference ? " \("reference".dim())" : ""
                             let hiddenTag = hidden.map { " \($0.rawValue.red())" } ?? ""
@@ -2109,7 +2132,7 @@ struct Clop: ParsableCommand {
                         pipeline: pipeline,
                         placement: placement.isEmpty ? nil : placement,
 
-                        origin: ProcessInfo.processInfo.environment["CLOP_ORIGIN"]
+                        origin: CLI_ORIGIN
                     )
                 }
             }
@@ -2408,8 +2431,12 @@ struct Clop: ParsableCommand {
                 // back to the raw source for automations saved before normalization existed.
                 let folder = normalizedFolderSource(source)
                 let storedSource: String = {
-                    if let folder, automationDict[folder] != nil { return folder }
-                    if automationDict[source] != nil { return source }
+                    if let folder, automationDict[folder] != nil {
+                        return folder
+                    }
+                    if automationDict[source] != nil {
+                        return source
+                    }
                     return folder ?? source
                 }()
 
@@ -2609,8 +2636,8 @@ struct Clop: ParsableCommand {
     ///
     /// Everything goes through the running app rather than into the defaults suite: the app applies a
     /// change live instead of on next launch, and the MCP gate can only be enforced somewhere the
-    /// caller does not control. `CLOP_ORIGIN=mcp` in the environment marks a call as coming from the
-    /// bundled MCP server, which is what the app checks.
+    /// caller does not control. `CLI_ORIGIN` marks a call as coming from the bundled MCP server, which
+    /// is what the app checks.
     struct SettingsCommand: ParsableCommand {
         struct Schema: ParsableCommand {
             static let configuration = CommandConfiguration(
@@ -2701,20 +2728,25 @@ struct Clop: ParsableCommand {
                     "requiresPro": true,
                     "cardPath": cardPath,
                 ]
-                if let version = card["version"] as? String { status["version"] = version }
+                if let version = card["version"] as? String {
+                    status["version"] = version
+                }
                 if let app = card["app"] as? [String: Any], let path = app["path"] as? String {
                     status["appPath"] = path
                 }
                 if let transport = card["transport"] as? [String: Any] {
-                    status["scriptPath"] = (transport["args"] as? [String])?.first ?? ""
-                    status["pythonPath"] = transport["command"] as? String ?? ""
+                    let command = transport["command"] as? String ?? ""
+                    let args = (transport["args"] as? [String]) ?? []
+                    status["serverCommand"] = ([command] + args).joined(separator: " ")
                 }
 
                 guard json else {
                     print("MCP changes:     \(enabled ? "allowed" : "not allowed")")
                     print("Script steps:    \(scripts ? "allowed" : "not allowed")")
                     print("Clop Pro:        \(status["pro"] as? Bool == true ? "yes" : "no")")
-                    if let path = status["appPath"] as? String { print("App:             \(path)") }
+                    if let path = status["appPath"] as? String {
+                        print("App:             \(path)")
+                    }
                     if !enabled {
                         print("\nAsk the user to allow it in Clop Settings, MCP, or run: open clop://mcp/start")
                     }
@@ -2725,10 +2757,24 @@ struct Clop: ParsableCommand {
             }
         }
 
+        /// The MCP server itself. Hidden because it is for an agent's config file, not for a person:
+        /// it speaks JSON-RPC on stdin and stdout and does nothing readable at a terminal.
+        struct Serve: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                commandName: "serve",
+                abstract: "Speak MCP over stdin and stdout.",
+                shouldDisplay: false
+            )
+
+            mutating func run() throws {
+                MCPServer.serve()
+            }
+        }
+
         static let configuration = CommandConfiguration(
             commandName: "mcp",
             abstract: "The MCP server that lets agents drive Clop.",
-            subcommands: [Status.self],
+            subcommands: [Status.self, Serve.self],
             defaultSubcommand: Status.self
         )
     }
@@ -2875,7 +2921,9 @@ func compactPipelinePromptContext(task: String?) -> String {
 /// (which aren't in the CLI target). Keep in sync when steps/params change there.
 /// `compact` emits a shorter variant for small-context models (see `compactPipelinePromptContext`).
 func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
-    if compact { return compactPipelinePromptContext(task: task) }
+    if compact {
+        return compactPipelinePromptContext(task: task)
+    }
     var out = #"""
     # Clop pipeline DSL
 
@@ -3291,8 +3339,12 @@ struct CLIPipeline: Codable {
     }
 
     var provenance: Provenance {
-        if libraryID != nil { return .reference }
-        if id.hasPrefix("builtin-") { return .builtin }
+        if libraryID != nil {
+            return .reference
+        }
+        if id.hasPrefix("builtin-") {
+            return .builtin
+        }
         return .user
     }
 
@@ -3300,8 +3352,12 @@ struct CLIPipeline: Codable {
     /// using the canonical wording shared with the app's editor.
     var flagTags: String {
         var tags: [String] = []
-        if skipOptimisation == true { tags.append("Skip optimisation") }
-        if hideResult == true { tags.append("Hide result") }
+        if skipOptimisation == true {
+            tags.append("Skip optimisation")
+        }
+        if hideResult == true {
+            tags.append("Hide result")
+        }
         guard !tags.isEmpty else { return "" }
         return " " + tags.map { "[\($0)]".dim() }.joined(separator: " ")
     }
@@ -3497,6 +3553,10 @@ actor ProgressPrinter {
 
     func waitUntilDone() async {
         while responses.count + errors.count < urlsToProcess.count {
+            if let deadline = CLI_DEADLINE, Date() > deadline {
+                printerr("Gave up waiting after \(urlsToProcess.count - responses.count - errors.count) of \(urlsToProcess.count) files")
+                return
+            }
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
     }
@@ -3573,19 +3633,26 @@ actor ProgressPrinter {
         }
     }
 
+    /// Listen for the app's per-file responses.
+    ///
+    /// The port is registered once per process and the responses go to whichever printer is
+    /// collecting them. `clop mcp serve` runs many file commands in one process, and a second
+    /// listener on the same port name would be a second registration of a name that is already
+    /// taken.
     func startResponsesThread() {
+        guard responsesThread == nil else { return }
         responsesThread = Thread {
             OPTIMISATION_CLI_RESPONSE_PORT.listen { data in
                 log.debug("Received optimisation response: \(data?.count ?? 0) bytes")
 
-                guard let data else {
+                guard let data, let printer = progressPrinter else {
                     return nil
                 }
                 if let resp = OptimisationResponse.from(data) {
-                    Task { await self.markDone(response: resp) }
+                    Task { await printer.markDone(response: resp) }
                 }
                 if let resp = OptimisationResponseError.from(data) {
-                    Task { await self.markError(response: resp) }
+                    Task { await printer.markError(response: resp) }
                 }
                 return nil
             }
@@ -3606,9 +3673,16 @@ let LINE_UP = "\u{1B}[1A"
 let LINE_CLEAR = "\u{1B}[2K"
 var responsesThread: Thread?
 
-enum CLIError: Error {
+enum CLIError: Error, LocalizedError {
     case optimisationError
     case appNotRunning
+
+    var errorDescription: String? {
+        switch self {
+        case .optimisationError: "Clop did not answer the request."
+        case .appNotRunning: "Clop is not running. Start Clop and try again."
+        }
+    }
 }
 
 func stopCurrentRequests(_ signal: Int32) {

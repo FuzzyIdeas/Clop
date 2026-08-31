@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Add Swift source files (and resources) to Clop.xcodeproj/project.pbxproj.
 
-The Clop project uses an explicit file list, not a synchronized folder group, so a new
-Clop/Foo.swift is silently NOT compiled until it appears in four places in the pbxproj. A build
+`Clop/` is a synchronized folder group and picks new files up on its own. `ClopCLI/` is not, so a
+new file there is silently NOT compiled until it appears in four places in the pbxproj. A build
 still succeeds until something references the missing symbols, which makes this easy to miss.
 
     Scripts/add_pbx_file.py Foo.swift Bar.swift          # sources
-    Scripts/add_pbx_file.py --resource clop_mcp.py       # bundled resource
+    Scripts/add_pbx_file.py --resource prompt.md         # bundled resource
 
 Each file gets two fresh 24-hex-uppercase UUIDs and four entries: a PBXBuildFile, a
 PBXFileReference, a child of the Clop group, and a member of the Sources (or Resources) build phase.
