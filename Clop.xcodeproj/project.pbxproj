@@ -1417,7 +1417,7 @@
 			repositoryURL = "https://github.com/alin23/SymbolPicker";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.1;
+				minimumVersion = 2.1.0;
 			};
 		};
 		C78211002A59E371008DB106 /* XCRemoteSwiftPackageReference "Lowtech" */ = {
