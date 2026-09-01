@@ -606,7 +606,11 @@ struct VideoSettingsView: View {
                         ForEach([CompressionTier.adaptive, .lossless, .fast, .smaller], id: \.self) { tier in
                             Toggle(isOn: Binding(
                                 get: { videoResolvedTier == tier },
-                                set: { if $0 { videoCompression = CompressionQuality(tier: tier, factor: videoCompression.factor) } }
+                                set: {
+                                    if $0 {
+                                        videoCompression = CompressionQuality(tier: tier, factor: videoCompression.factor)
+                                    }
+                                }
                             )) {
                                 Text(videoCompressionTitle(tier))
                                 Text(videoCompressionSubtitle(tier))
@@ -1077,7 +1081,11 @@ private struct AutoConvertPills: View {
                 }
                 .buttonStyle(.plain)
                 .onHover { h in
-                    if h { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    if h {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
                 }
                 .font(.round(11))
             }
@@ -1454,7 +1462,9 @@ struct FileHandlingSettingsView: View {
         if formatsToConvertToJPEG.contains(where: { $0.preferredFilenameExtension == "webp" }) || !formatsToConvertToJPEG.isEmpty {
             return "jpeg"
         }
-        if !formatsToConvertToPNG.isEmpty { return "png" }
+        if !formatsToConvertToPNG.isEmpty {
+            return "png"
+        }
         return nil
     }
 
@@ -1473,9 +1483,13 @@ struct FileHandlingSettingsView: View {
     private var autoAudioOutputExt: String? {
         guard let inputExt = autoAudioInputExt else { return nil }
         let aacExts = formatsToConvertToAAC.compactMap(\.preferredFilenameExtension)
-        if aacExts.contains(inputExt) { return "m4a" }
+        if aacExts.contains(inputExt) {
+            return "m4a"
+        }
         let mp3Exts = formatsToConvertToMP3.compactMap(\.preferredFilenameExtension)
-        if mp3Exts.contains(inputExt) { return "mp3" }
+        if mp3Exts.contains(inputExt) {
+            return "mp3"
+        }
         return nil
     }
 
@@ -1567,7 +1581,11 @@ struct FileHandlingSettingsView: View {
         let expanded = expandedVars.contains(type)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: { withAnimation(.easeOut(duration: 0.15)) {
-                if expandedVars.contains(type) { expandedVars.remove(type) } else { expandedVars.insert(type) }
+                if expandedVars.contains(type) {
+                    expandedVars.remove(type)
+                } else {
+                    expandedVars.insert(type)
+                }
             }}) {
                 HStack(spacing: 5) {
                     SwiftUI.Image(systemName: expanded ? "chevron.down" : "chevron.right")
@@ -1688,7 +1706,9 @@ struct AudioSettingsView: View {
                     ForEach(FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO, id: \.identifier) { format in
                         Button(format.preferredFilenameExtension ?? format.identifier) {
                             formatsToConvertToAAC.toggle(format)
-                            if formatsToConvertToAAC.contains(format) { formatsToConvertToMP3.remove(format) }
+                            if formatsToConvertToAAC.contains(format) {
+                                formatsToConvertToMP3.remove(format)
+                            }
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToAAC.contains(format) }))
                             .font(.mono(11))
                     }
@@ -1699,7 +1719,9 @@ struct AudioSettingsView: View {
                     ForEach(FORMATS_CONVERTIBLE_TO_COMPRESSED_AUDIO, id: \.identifier) { format in
                         Button(format.preferredFilenameExtension ?? format.identifier) {
                             formatsToConvertToMP3.toggle(format)
-                            if formatsToConvertToMP3.contains(format) { formatsToConvertToAAC.remove(format) }
+                            if formatsToConvertToMP3.contains(format) {
+                                formatsToConvertToAAC.remove(format)
+                            }
                         }.buttonStyle(ToggleButton(isOn: .oneway { formatsToConvertToMP3.contains(format) }))
                             .font(.mono(11))
                     }
@@ -2187,7 +2209,9 @@ struct IconPickerView: View {
             SwiftUI.Image(systemName: icon)
         }
         .sheet(isPresented: $iconPickerPresented) {
-            SymbolPicker(symbol: $icon)
+            // Keeps the category this picker has always opened on: the default became `all` in
+            // SymbolPicker 2.1.0.
+            SymbolPicker(symbol: $icon, initialCategories: ["cameraandphotos"])
         }
     }
 
@@ -2688,9 +2712,15 @@ struct ClipboardSettingsView: View {
     var disabledClipboardTypes: Set<ClopFileType> {
         guard enableClipboardOptimiser else { return Set(ClopFileType.allCases) }
         var disabled: Set<ClopFileType> = []
-        if !optimiseVideoClipboard { disabled.insert(.video) }
-        if !optimiseAudioClipboard { disabled.insert(.audio) }
-        if !optimisePDFClipboard { disabled.insert(.pdf) }
+        if !optimiseVideoClipboard {
+            disabled.insert(.video)
+        }
+        if !optimiseAudioClipboard {
+            disabled.insert(.audio)
+        }
+        if !optimisePDFClipboard {
+            disabled.insert(.pdf)
+        }
         return disabled
     }
 
@@ -2831,7 +2861,9 @@ struct GeneralSettingsView: View {
         Binding(
             get: {
                 guard showMenubarIcon else { return .hidden }
-                if useGeometricMenubarIcon { return .geometric }
+                if useGeometricMenubarIcon {
+                    return .geometric
+                }
                 return useClassicMenubarIcon ? .classic : .new
             },
             set: { style in
