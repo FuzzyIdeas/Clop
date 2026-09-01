@@ -1,3 +1,32 @@
+# 3.4.0
+
+**[Download Clop 3.4.0 →](https://files.lowtechguys.com/releases/Clop-3.4.0.dmg)**
+## Features
+
+- **MCP server** lets an AI agent drive Clop in plain language: optimise and convert files, write pipelines, and read or change any setting. *Needs Clop Pro*
+    > Install it into common agents from Settings -> MCP. An entry is added to the agent's own config file
+    >
+    > Some interesting things you can tell an agent like Claude or Codex to do with Clop:
+    > - `create a preset where I can drop videos to have them compressed aggressively, sped up, copied to ~/Videos/Demos/ and then copy a link I can send to others that expires in 3 hours`
+    > - `set up a pipeline so that all the PNGs arriving in this folder are optimised and converted to webp and cropped to square aspect ratio`
+    > - `why is my MKV not converted to MP4 automatically?` or `why do PNGs sometimes become JPEG but sometimes don't?`
+
+- **Search the Settings window**: there's now a search bar in settings that can fuzzy search
+
+- **Compression factor per pipeline step**: example `optimise(compression: 75)`
+    > Takes `5` to `100`, or `adaptive`.
+
+## Fixes
+
+- Holding `⌥` or `⌃` while dragging no longer toggles the drop zone or the preset zones, only a tap does
+- Fixed a possible crash while optimising an image that reports an invalid size
+- Fixed a possible freeze when files appear in a watched folder that sits on a network share or a sleeping drive
+
+## Improvements
+
+- Videos converted automatically for compatibility replace the original instead of leaving a copy beside it
+- `clop settings` reads and changes any setting from the command line, with a plain-language search: `clop settings schema "replace the original"`
+
 # 3.3.6
 
 **[Download Clop 3.3.6 →](https://files.lowtechguys.com/releases/Clop-3.3.6.dmg)**
