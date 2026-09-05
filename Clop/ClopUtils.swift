@@ -78,7 +78,9 @@ final class ProcessOutputBuffer {
         lock.lock()
         let alreadyFinished = finished
         lock.unlock()
-        if alreadyFinished { return true }
+        if alreadyFinished {
+            return true
+        }
 
         guard finishedSignal.wait(timeout: .now() + timeout) == .success else { return false }
         lock.lock()
@@ -466,8 +468,12 @@ func mimeTypeFromMagicBytes(_ data: Data) -> String? {
     case (0x66, 0x4C, 0x61, 0x43): return "audio/flac" // fLaC
     case (0x4F, 0x67, 0x67, 0x53): // OggS: the codec ids are in the first pages
         let head = String(decoding: b, as: UTF8.self)
-        if head.contains("theora") { return "video/ogg" }
-        if head.contains("OpusHead") { return "audio/opus" }
+        if head.contains("theora") {
+            return "video/ogg"
+        }
+        if head.contains("OpusHead") {
+            return "audio/opus"
+        }
         return "audio/ogg" // vorbis, speex, flac-in-ogg
     case (0x49, 0x44, 0x33, _): return "audio/mpeg" // ID3
     case (0xFE, 0xFF, _, _), (0xFF, 0xFE, _, _): return "text/plain" // UTF-16 BOM (FF FE also parses as an MP3 framesync)
@@ -522,7 +528,9 @@ extension FilePath {
     func stripExif() {
         let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
         var args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72", "-all=", "-tagsFromFile", "@", "-XResolution", "-YResolution", "-Orientation"]
-        if Defaults[.preserveColorMetadata] { args += ["-ColorSpaceTags", "-icc_profile"] }
+        if Defaults[.preserveColorMetadata] {
+            args += ["-ColorSpaceTags", "-icc_profile"]
+        }
         args += ["-o", tempFile.string, string]
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
 
@@ -584,7 +592,11 @@ extension FilePath {
     func copyExif(from source: FilePath, excludeTags: [String]? = nil, stripMetadata: Bool = true) {
         guard source != self else { return }
 
-        if !stripMetadata, isImage {
+        // `copyExifCGImage` writes a single frame, so an animated file would come back from it as a
+        // still. Those go to exiftool instead, which rewrites the metadata chunks in place and
+        // leaves the frames alone.
+        let animated = isAnimatedGIF || isAnimatedWebPFile
+        if !stripMetadata, isImage, !animated {
             copyExifCGImage(from: source)
             return
         }
@@ -602,8 +614,10 @@ extension FilePath {
         var tagsToKeep: [String] = []
         if stripMetadata {
             tagsToKeep = ["-XResolution", "-YResolution", "-Orientation"]
-            if !hdr, Defaults[.preserveColorMetadata] { tagsToKeep += ["-ColorSpaceTags", "-icc_profile"] }
-        } else if isVideo {
+            if !hdr, Defaults[.preserveColorMetadata] {
+                tagsToKeep += ["-ColorSpaceTags", "-icc_profile"]
+            }
+        } else if isVideo || animated {
             tagsToKeep = ["-All:All"]
         }
         var args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]

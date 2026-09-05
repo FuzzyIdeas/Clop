@@ -745,12 +745,7 @@ class Image: CustomStringConvertible {
             throw ClopProcError.processError(proc)
         }
 
-        // `copyExif` falls back to a CoreGraphics copy when metadata is preserved rather than
-        // stripped, and that writes frame 0 on its own. Animated WebP stays on the exiftool route,
-        // which rewrites the metadata chunks and leaves the frames alone.
-        if Defaults[.stripMetadata] {
-            tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: true)
-        }
+        tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
         if Defaults[.preserveDates] {
             tempFile.copyCreationModificationDates(from: backup ?? path)
         }
@@ -1881,28 +1876,35 @@ extension FilePath {
         return CGImageSourceGetCount(source) > 1
     }
 
-    /// True when the file is a WebP holding more than one frame, and this build can work on it as
-    /// an animation. Only the extended (`VP8X`) WebP layout can be animated and its flags byte
-    /// carries the ANIMATION bit, so a plain `VP8 `/`VP8L` file is always a single frame.
+    /// True when the file is a WebP holding more than one frame. Only the extended (`VP8X`) WebP
+    /// layout can be animated and its flags byte carries the ANIMATION bit, so a plain `VP8 `/`VP8L`
+    /// file is always a single frame.
     ///
-    /// Animated WebP goes through the bundled ffmpeg's `webp_anim` decoder, which only the Apple
-    /// Silicon build ships (the x86 binary is still on ffmpeg 8, where an animated WebP decodes as
-    /// its first frame alone). This stays false on Intel so every caller keeps its old behaviour
-    /// instead of routing to a decoder that would hand back a still.
+    /// This is the plain question about the file, answered the same on every architecture. Callers
+    /// that only need to keep from flattening an animation want this one.
+    var isAnimatedWebPFile: Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+
+        guard let header = try? handle.read(upToCount: 21), header.count == 21 else { return false }
+        let b = [UInt8](header)
+        guard b[0 ..< 4].elementsEqual("RIFF".utf8), b[8 ..< 12].elementsEqual("WEBP".utf8),
+              b[12 ..< 16].elementsEqual("VP8X".utf8)
+        else { return false }
+
+        return b[20] & 0x02 != 0
+    }
+
+    /// `isAnimatedWebPFile`, narrowed to builds that can actually work on the animation: the frames
+    /// go through the bundled ffmpeg's `webp_anim` decoder, which only the Apple Silicon build ships
+    /// (the x86 binary is still on ffmpeg 8, where an animated WebP decodes as its first frame
+    /// alone). False on Intel, so those callers keep their old behaviour instead of routing to a
+    /// decoder that would hand back a still.
     var isAnimatedWebP: Bool {
         #if arch(arm64)
-            guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
-            defer { try? handle.close() }
-
-            guard let header = try? handle.read(upToCount: 21), header.count == 21 else { return false }
-            let b = [UInt8](header)
-            guard b[0 ..< 4].elementsEqual("RIFF".utf8), b[8 ..< 12].elementsEqual("WEBP".utf8),
-                  b[12 ..< 16].elementsEqual("VP8X".utf8)
-            else { return false }
-
-            return b[20] & 0x02 != 0
+            isAnimatedWebPFile
         #else
-            return false
+            false
         #endif
     }
 
