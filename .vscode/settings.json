@@ -1,5 +1,6 @@
 {
     "cmake.configureOnOpen": true,
     "swift.swiftEnvironmentVariables": {},
-    "makefile.configureOnOpen": false
+    "makefile.configureOnOpen": false,
+    "ctagsymbols.regenerateCommand": "/Users/alin/.bin/shared/swiftags --strings \"${workspaceFolder}\""
 }
