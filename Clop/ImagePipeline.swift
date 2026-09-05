@@ -160,9 +160,10 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     let hasDownscale = actions.contains(where: \.isDownscale)
 
     // Auto-detect conversion from settings (unless explicit .convert action exists).
-    // Never auto-convert an animated GIF to a still image format; it would drop every frame but one.
+    // Never auto-convert an animated GIF or WebP to a still image format; it would drop every frame
+    // but one, and WebP is converted to JPEG by default.
     let hasExplicitConvert = actions.contains(where: \.isConvert)
-    let autoConversionFormat: UTType? = if hasExplicitConvert || img.path.isAnimatedGIF {
+    let autoConversionFormat: UTType? = if hasExplicitConvert || img.path.isAnimatedGIF || img.path.isAnimatedWebP {
         nil
     } else {
         Defaults[.formatsToConvertToJPEG].contains(img.type)
@@ -457,7 +458,9 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
             } catch ClopError.imageSizeLarger, ClopError.videoSizeLarger, ClopError.pdfSizeLarger,
                 ClopError.alreadyOptimised, ClopError.alreadyResized
             {
-                if currentImage == nil { currentImage = img }
+                if currentImage == nil {
+                    currentImage = img
+                }
                 mainActor { optimiser.info = "File already fully compressed" }
             } catch let error as ClopError {
                 log.error("Error in image pipeline \(pathString): \(error.description)")
@@ -477,7 +480,9 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                 // the pristine original, so keep reporting the original bytes/size instead of
                 // the working (already optimised/cropped) file's
                 let rectCrop = effectiveActions.contains {
-                    if case let .downscale(_, cropSize) = $0, cropSize?.cropRect != nil { return true }
+                    if case let .downscale(_, cropSize) = $0, cropSize?.cropRect != nil {
+                        return true
+                    }
                     return false
                 }
                 optimiser.finish(

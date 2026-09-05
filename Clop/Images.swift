@@ -711,6 +711,88 @@ class Image: CustomStringConvertible {
         return Image(data: data, path: tempFile, type: .gif, optimised: true, retinaDownscaled: retinaDownscaled)
     }
 
+    /// Re-encodes an animated WebP with ffmpeg's `libwebp_anim`, resizing or cropping in the same
+    /// pass. Every other image path here decodes a single frame, so an animated WebP that went
+    /// through one of them came back as a still.
+    func optimiseAnimatedWebP(optimiser: Optimiser, resizeTo newSize: CGSize? = nil, scaleTo scaleFactor: Double? = nil, cropTo cropSize: CropSize? = nil, fromSize: CGSize? = nil, aggressiveOptimisation: Bool? = nil) throws -> Image {
+        // ffmpeg reads its input while writing its output, so the two must never be the same file:
+        // a second pass over a WebP already sitting in the images cache would truncate its own input.
+        var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.webp")
+        if tempFile == path {
+            tempFile = path.tempFile(ext: "webp")
+        }
+
+        let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
+        mainActor { optimiser.aggressive = cq.imageIsAggressive }
+
+        let filters = animatedWebPFilters(resizeTo: newSize, scaleTo: scaleFactor, cropTo: cropSize, fromSize: fromSize)
+        var args = ["-y", "-nostdin", "-i", path.string]
+        if filters.isNotEmpty {
+            args += ["-vf", filters.joined(separator: ",")]
+        }
+        // Carry the original's loop count over: ffmpeg defaults to 0, which would turn a play-once
+        // animation into one that loops for ever.
+        args += [
+            "-an", "-c:v", "libwebp_anim", "-q:v", "\(cq.conversionQuality)", "-compression_level", "6",
+            "-loop", "\(path.animatedWebPLoopCount ?? 0)", tempFile.string,
+        ]
+
+        let backup = path.backup(path: path.clopBackupPath, operation: .copy)
+        let proc = try tryProc(FFMPEG.string, args: args, tries: 3) { proc in
+            mainActor { optimiser.processes = [proc] }
+        }
+        guard proc.terminationStatus == 0 else {
+            throw ClopProcError.processError(proc)
+        }
+
+        // `copyExif` falls back to a CoreGraphics copy when metadata is preserved rather than
+        // stripped, and that writes frame 0 on its own. Animated WebP stays on the exiftool route,
+        // which rewrites the metadata chunks and leaves the frames alone.
+        if Defaults[.stripMetadata] {
+            tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: true)
+        }
+        if Defaults[.preserveDates] {
+            tempFile.copyCreationModificationDates(from: backup ?? path)
+        }
+
+        // Belt and braces, as in the GIF pass: never hand back a still in place of an animation.
+        guard tempFile.isAnimatedWebP else {
+            throw ClopError.optimisationFailed("animated WebP would have been flattened to a single frame")
+        }
+        guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
+            throw ClopError.fileNotFound(tempFile)
+        }
+
+        try tempFile.setOptimisationStatusXattr("true")
+        return Image(data: data, path: tempFile, type: .webP, optimised: true, retinaDownscaled: retinaDownscaled)
+    }
+
+    /// A multi-frame GIF has to reach WebP through ffmpeg's animated encoder. `convertToWEBP` runs
+    /// cwebp, which is single-image and would quietly write the first frame only.
+    func convertAnimatedGIFToWebP(asTempFile: Bool, cq: CompressionQuality? = nil) throws -> Image {
+        let tempFile = path.tempFile(ext: "webp")
+        let quality = (cq ?? Defaults[.imageCompression]).conversionQuality
+        let proc = try tryProc(FFMPEG.string, args: [
+            "-y", "-nostdin", "-i", path.string, "-an",
+            "-c:v", "libwebp_anim", "-q:v", "\(quality)", "-compression_level", "6",
+            "-loop", "\(path.animatedGIFLoopCount ?? 0)",
+            tempFile.string,
+        ], tries: 2)
+        return try conversionImage(to: "webp", from: proc, asTempFile: asTempFile, outPath: tempFile)
+    }
+
+    /// Animated WebP to GIF. The palette is generated across the whole animation rather than fixed
+    /// from the first frame, so colours that only appear later survive the 256-colour reduction.
+    func convertAnimatedWebPToGIF(asTempFile: Bool) throws -> Image {
+        let tempFile = path.tempFile(ext: "gif")
+        let proc = try tryProc(FFMPEG.string, args: [
+            "-y", "-nostdin", "-i", path.string, "-an",
+            "-vf", "split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer",
+            "-loop", "\(path.animatedWebPLoopCount ?? 0)", tempFile.string,
+        ], tries: 2)
+        return try conversionImage(to: "gif", from: proc, asTempFile: asTempFile, outPath: tempFile)
+    }
+
     func optimiseJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, testPNG: Bool = false) throws -> Image {
         let backupPath = path.clopBackupPath
         var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
@@ -934,6 +1016,9 @@ class Image: CustomStringConvertible {
         if type == .gif, let gif = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
             return try gif.optimiseGIF(optimiser: optimiser, scaleTo: fraction, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
         }
+        if pathForResize.isAnimatedWebP, let webp = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
+            return try webp.optimiseAnimatedWebP(optimiser: optimiser, scaleTo: fraction, fromSize: self.size, aggressiveOptimisation: aggressiveOptimisation)
+        }
 
         return try resize(toSize: size, optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
     }
@@ -953,6 +1038,9 @@ class Image: CustomStringConvertible {
 
         if type == .gif, let gif = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
             return try gif.optimiseGIF(optimiser: optimiser, cropTo: cropSize, fromSize: gif.size, aggressiveOptimisation: aggressiveOptimisation)
+        }
+        if pathForResize.isAnimatedWebP, let webp = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
+            return try webp.optimiseAnimatedWebP(optimiser: optimiser, cropTo: cropSize, fromSize: webp.size, aggressiveOptimisation: aggressiveOptimisation)
         }
 
         let size = cropSize.computedSize(from: size)
@@ -1201,6 +1289,8 @@ class Image: CustomStringConvertible {
             img = try optimiseGIF(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
         case .tiff:
             img = try optimiseTIFF(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation, adaptiveSize: adaptiveSize)
+        case .webP where path.isAnimatedWebP:
+            img = try optimiseAnimatedWebP(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
         case .jxl:
             img = self
         default:
@@ -1303,6 +1393,10 @@ class Image: CustomStringConvertible {
             }
             return try convertToAVIF(asTempFile: asTempFile, cq: cq)
         case .webP:
+            // An animated GIF would lose every frame but the first on the cwebp path below.
+            if path.isAnimatedGIF {
+                return try convertAnimatedGIFToWebP(asTempFile: asTempFile, cq: cq)
+            }
             guard self.type == .png || self.type == .jpeg else {
                 let png = try convert(to: .png, asTempFile: asTempFile)
                 return try png.convertToWEBP(asTempFile: asTempFile, cq: cq)
@@ -1316,6 +1410,8 @@ class Image: CustomStringConvertible {
             return try convertToHEIC(asTempFile: asTempFile, cq: cq)
         case .jxl:
             return try convertToJXL(asTempFile: asTempFile, cq: cq)
+        case .gif where path.isAnimatedWebP:
+            return try convertAnimatedWebPToGIF(asTempFile: asTempFile)
         default:
             if self.type == .heic, type == .jpeg, path.hasExifHDR() {
                 return try convertHDRHEICToJPEG(asTempFile: asTempFile, optimiser: optimiser)
@@ -1354,6 +1450,54 @@ class Image: CustomStringConvertible {
             pb.clearContents()
             pb.writeObjects([item])
         }
+    }
+
+    /// ffmpeg `-vf` chain for an animated WebP pass, mirroring the resize and crop decisions
+    /// `optimiseGIF` hands to gifsicle. ffmpeg's `crop` uses the same top-left origin gifsicle does.
+    private func animatedWebPFilters(resizeTo newSize: CGSize?, scaleTo scaleFactor: Double?, cropTo cropSize: CropSize?, fromSize: CGSize?) -> [String] {
+        func scale(_ width: Int, _ height: Int) -> String {
+            "scale=\(width):\(height):flags=lanczos"
+        }
+        /// trunc() because a fractional factor on an odd dimension yields a fractional size, which ffmpeg rejects.
+        func scale(byFactor factor: Double) -> String {
+            let f = factor.str(decimals: 2)
+            return "scale=trunc(iw*\(f)):trunc(ih*\(f)):flags=lanczos"
+        }
+
+        if let newSize {
+            return [scale(newSize.width.i, newSize.height.i)]
+        }
+        if let cropSize, let fromSize, let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
+            let rect = cropRect.pixelRect(in: fromSize)
+            var filters = ["crop=\(rect.width.i):\(rect.height.i):\(rect.origin.x.i):\(rect.origin.y.i)"]
+
+            let target = cropSize.ns
+            if target.width > 0, target.height > 0, target.width.i < rect.width.i || target.height.i < rect.height.i {
+                filters.append(scale(target.width.i, target.height.i))
+            }
+            return filters
+        }
+        if let cropSize, let fromSize {
+            let s = cropSize.isAspectRatio ? cropSize.computedSize(from: fromSize) : cropSize.ns
+            guard s.width > 0, s.height > 0, !cropSize.longEdge || cropSize.isAspectRatio else {
+                return [scale(byFactor: cropSize.factor(from: fromSize))]
+            }
+
+            // Trim the long axis to the target aspect ratio evenly from both sides, then scale to size.
+            let cropFilter: String
+            if (fromSize.width / s.width) > (fromSize.height / s.height) {
+                let widthDiff = ((fromSize.width - ((s.width / s.height) * fromSize.height)) / 2).i
+                cropFilter = "crop=iw-\(widthDiff * 2):ih:\(widthDiff):0"
+            } else {
+                let heightDiff = ((fromSize.height - ((s.height / s.width) * fromSize.width)) / 2).i
+                cropFilter = "crop=iw:ih-\(heightDiff * 2):0:\(heightDiff)"
+            }
+            return [cropFilter, scale(s.width.i, s.height.i)]
+        }
+        if let scaleFactor {
+            return [scale(byFactor: scaleFactor)]
+        }
+        return []
     }
 
     /// Re-quantize the freshly resized PNG to a small palette so a downscaled flat/low-colour image does
@@ -1470,6 +1614,7 @@ class Image: CustomStringConvertible {
         case "avif": .avif
         case "heic": .heic
         case "webp": .webP
+        case "gif": .gif
         default: nil
         }
     }
@@ -1734,6 +1879,68 @@ extension FilePath {
             return false
         }
         return CGImageSourceGetCount(source) > 1
+    }
+
+    /// True when the file is a WebP holding more than one frame, and this build can work on it as
+    /// an animation. Only the extended (`VP8X`) WebP layout can be animated and its flags byte
+    /// carries the ANIMATION bit, so a plain `VP8 `/`VP8L` file is always a single frame.
+    ///
+    /// Animated WebP goes through the bundled ffmpeg's `webp_anim` decoder, which only the Apple
+    /// Silicon build ships (the x86 binary is still on ffmpeg 8, where an animated WebP decodes as
+    /// its first frame alone). This stays false on Intel so every caller keeps its old behaviour
+    /// instead of routing to a decoder that would hand back a still.
+    var isAnimatedWebP: Bool {
+        #if arch(arm64)
+            guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+            defer { try? handle.close() }
+
+            guard let header = try? handle.read(upToCount: 21), header.count == 21 else { return false }
+            let b = [UInt8](header)
+            guard b[0 ..< 4].elementsEqual("RIFF".utf8), b[8 ..< 12].elementsEqual("WEBP".utf8),
+                  b[12 ..< 16].elementsEqual("VP8X".utf8)
+            else { return false }
+
+            return b[20] & 0x02 != 0
+        #else
+            return false
+        #endif
+    }
+
+    /// Loop count from an animated WebP's `ANIM` chunk, in the same 0-means-forever numbering
+    /// ffmpeg's `-loop` takes. nil when there is no `ANIM` chunk. The chunks are walked instead of
+    /// read at a fixed offset because the format allows `ICCP` to sit between `VP8X` and `ANIM`.
+    var animatedWebPLoopCount: Int? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+
+        // ANIM is required to come early, so give up rather than walk a whole file of frame chunks.
+        var offset: UInt64 = 12
+        for _ in 0 ..< 8 {
+            guard (try? handle.seek(toOffset: offset)) != nil,
+                  let header = try? handle.read(upToCount: 8), header.count == 8
+            else { return nil }
+
+            let b = [UInt8](header)
+            if b[0 ..< 4].elementsEqual("ANIM".utf8) {
+                guard let anim = try? handle.read(upToCount: 6), anim.count == 6 else { return nil }
+                let a = [UInt8](anim)
+                return Int(a[4]) | Int(a[5]) << 8
+            }
+
+            // Chunk payloads are padded to an even length, which the size field does not include.
+            let size = UInt64(b[4]) | UInt64(b[5]) << 8 | UInt64(b[6]) << 16 | UInt64(b[7]) << 24
+            offset += 8 + size + (size % 2)
+        }
+        return nil
+    }
+
+    /// Loop count of an animated GIF, in the same 0-means-forever numbering ffmpeg's `-loop` takes.
+    var animatedGIFLoopCount: Int? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let props = CGImageSourceCopyProperties(source, nil) as? [CFString: Any],
+              let gif = props[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+        else { return nil }
+        return gif[kCGImagePropertyGIFLoopCount] as? Int
     }
 }
 

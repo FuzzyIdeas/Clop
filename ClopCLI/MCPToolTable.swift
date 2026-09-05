@@ -461,9 +461,11 @@ extension MCPServer {
         ),
         MCPTool(
             name: "clop_convert",
-            description: "Convert files to another format. Images take webp, avif, heic, jxl, jpeg or png; "
+            description: "Convert files to another format. Images take webp, avif, heic, jxl, jpeg, png or gif; "
                 + "videos take mp4, gif, webm, hevc or av1 (av1 is the MKV video codec, avif is the "
-                + "image format); audio takes mp3, aac, m4a, opus, ogg, flac, wav or aiff. Where the "
+                + "image format); audio takes mp3, aac, m4a, opus, ogg, flac, wav or aiff. Animated GIF "
+                + "and animated WebP convert into each other with every frame intact; any other image "
+                + "target yields the first frame alone. Where the "
                 + "converted file lands follows Clop's convert placement setting unless "
                 + "convertBehaviour says otherwise. " + gate,
             inputSchema: ["type": "object", "properties": [

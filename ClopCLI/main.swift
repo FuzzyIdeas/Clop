@@ -3056,6 +3056,9 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
       - Converting to the format the file is already in is an idempotent no-op: it does NO work and the
         file is passed through unchanged (jpg/jpeg and tif/tiff count as the same format). So `convert`
         only re-encodes when the input isn't already that format.
+      - Animated GIF and animated WebP keep every frame through `convert`, `optimise` and `crop`
+        (WebP animation needs Apple Silicon). Converting either to a still format (jpeg, png, heic,
+        avif, jxl) still yields the first frame alone.
     - `crop(width, height, longEdge, aspectRatio, smartCrop, location)`: resize to exact pixels, or
       crop to a shape. [image, video]
       - Provide at least one of `width`/`height`/`longEdge`/`aspectRatio`. `width`/`height` in px (the
