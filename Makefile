@@ -152,6 +152,7 @@ NOTARIZE=1
 Clop/bin.tar.lrz: PATH=$(shell echo $$PWD:$$PATH)
 Clop/bin.tar.lrz: $(wildcard Clop/bin/*) $(wildcard Clop/bin/*/*)
 	mkdir -p /tmp/tonotarize; rm /tmp/tonotarize.zip /tmp/tonotarize/* || true
+	Scripts/strip-binaries.sh Clop/bin
 	fd -uu -t file . Clop/bin -x zsh -c 'codesign -v -R="anchor apple generic" "{}" || { codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}" && cp "{}" /tmp/tonotarize/$$(jot -r 1)_{/} ; }'
 ifeq (1, $(NOTARIZE))
 	test $$(ls /tmp/tonotarize | wc -l) -gt 0 && zip -r /tmp/tonotarize.zip /tmp/tonotarize && \
