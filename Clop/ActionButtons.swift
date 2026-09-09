@@ -183,13 +183,21 @@ struct RestoreOptimiseButton: View {
     var body: some View {
         if optimiser.isOriginal {
             Button(
-                action: { if !preview { optimiser.optimise(allowLarger: false); optimiser.collapseHoverOverlay = true } },
+                action: {
+                    if !preview {
+                        optimiser.optimise(allowLarger: false); optimiser.collapseHoverOverlay = true
+                    }
+                },
                 label: { SwiftUI.Image(systemName: "goforward.plus").font(.heavy(9)) }
             )
             .contentShape(Rectangle())
         } else {
             Button(
-                action: { if !preview { optimiser.restoreOriginal(); optimiser.overlayMessage = "Restored original"; optimiser.collapseHoverOverlay = true } },
+                action: {
+                    if !preview {
+                        optimiser.restoreOriginal(); optimiser.overlayMessage = "Restored original"; optimiser.collapseHoverOverlay = true
+                    }
+                },
                 label: { SwiftUI.Image(systemName: "arrow.uturn.left").font(.semibold(9)) }
             )
             .contentShape(Rectangle())
@@ -584,7 +592,9 @@ enum CompressionScale {
         // ramp's 5% (which sits exactly at the start) is never misread as the tier by a hair of float error.
         if type.isVideo {
             let start = factorStart(for: type)
-            if p < videoFast / 2 { return CompressionQuality(tier: .lossless, factor: 5) }
+            if p < videoFast / 2 {
+                return CompressionQuality(tier: .lossless, factor: 5)
+            }
             if hasHardwareAnchor(type), p < (videoFast + videoFactorStart) / 2 {
                 return CompressionQuality(tier: .fast, factor: 50)
             }
@@ -594,7 +604,9 @@ enum CompressionScale {
         if type.isAudio {
             return CompressionQuality(tier: .custom, factor: Int((5 + p * 95).rounded()))
         }
-        if p < imageFactorStart / 2 { return CompressionQuality(tier: .adaptive, factor: 5) }
+        if p < imageFactorStart / 2 {
+            return CompressionQuality(tier: .adaptive, factor: 5)
+        }
         return CompressionQuality(tier: .custom, factor: rampFactor(p, start: imageFactorStart))
     }
 
@@ -607,8 +619,12 @@ enum CompressionScale {
             default: return start + Double(cq.factor - 5) / 95 * (1 - start)
             }
         }
-        if type.isAudio { return Double(cq.factor - 5) / 95 }
-        if cq.tier == .adaptive { return imageAdaptive }
+        if type.isAudio {
+            return Double(cq.factor - 5) / 95
+        }
+        if cq.tier == .adaptive {
+            return imageAdaptive
+        }
         return imageFactorStart + Double(cq.factor - 5) / 95 * (1 - imageFactorStart)
     }
 
@@ -621,7 +637,9 @@ enum CompressionScale {
             default: return cq.videoUsesAutoCRF ? "\(prefix)Auto" : "\(prefix)\(cq.factor)%"
             }
         }
-        if type.isAudio { return "\(cq.factor)%" }
+        if type.isAudio {
+            return "\(cq.factor)%"
+        }
         return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)%"
     }
 
@@ -635,7 +653,9 @@ enum CompressionScale {
             default: return cq.videoUsesAutoCRF ? "\(prefix)Auto" : "\(prefix)\(cq.factor)% compression"
             }
         }
-        if type.isAudio { return "\(cq.factor)% compression" }
+        if type.isAudio {
+            return "\(cq.factor)% compression"
+        }
         return cq.tier == .adaptive ? "Adaptive" : "\(cq.factor)% compression"
     }
 
@@ -646,7 +666,9 @@ enum CompressionScale {
             let named = hasHardwareAnchor(type) ? [videoLossless, videoFast] : [videoLossless]
             return named + [25, 50, 75, 100].map { position(for: CompressionQuality(tier: .smaller, factor: $0), type: type) }
         }
-        if type.isAudio { return [0.0, 0.25, 0.5, 0.75, 1.0] }
+        if type.isAudio {
+            return [0.0, 0.25, 0.5, 0.75, 1.0]
+        }
         return [imageAdaptive] + [25, 50, 75, 100].map { position(for: CompressionQuality(tier: .custom, factor: $0), type: type) }
     }
 
@@ -674,9 +696,15 @@ enum CompressionScale {
 }
 
 @MainActor func currentCompressionQuality(for optimiser: Optimiser) -> CompressionQuality {
-    if let override = optimiser.compressionOverride { return override }
-    if optimiser.type.isVideo { return Defaults[.videoCompression] }
-    if optimiser.type.isAudio { return Defaults[.audioCompression] }
+    if let override = optimiser.compressionOverride {
+        return override
+    }
+    if optimiser.type.isVideo {
+        return Defaults[.videoCompression]
+    }
+    if optimiser.type.isAudio {
+        return Defaults[.audioCompression]
+    }
     return Defaults[.imageCompression]
 }
 
@@ -873,7 +901,9 @@ struct CompressionSlider: View {
                     optimiser.stepIndicator = ""
                     optimiser.showCompressionSlider = false
                     let cq = CompressionScale.quality(forPosition: p, type: optimiser.compressionSliderType)
-                    if cq != startCQ { optimiser.reoptimise(compression: cq) }
+                    if cq != startCQ {
+                        optimiser.reoptimise(compression: cq)
+                    }
                 },
                 onCancel: {
                     dragPosition = nil
@@ -972,7 +1002,9 @@ struct HorizontalCompressionSlider: View {
                     optimiser.stepIndicator = ""
                     optimiser.showCompressionSlider = false
                     let cq = CompressionScale.quality(forPosition: p, type: optimiser.compressionSliderType)
-                    if cq != startCQ { optimiser.reoptimise(compression: cq) }
+                    if cq != startCQ {
+                        optimiser.reoptimise(compression: cq)
+                    }
                 },
                 onCancel: {
                     dragPosition = nil
@@ -1299,7 +1331,9 @@ struct CardDownscaleSlider: View {
     }
     var hint: String {
         let f = downscaleFactorLabel(factor)
-        if let res = downscaleResolutionString(for: optimiser, factor: factor) { return "\(f) · \(res)" }
+        if let res = downscaleResolutionString(for: optimiser, factor: factor) {
+            return "\(f) · \(res)"
+        }
         return "\(f) scale"
     }
 
@@ -1788,8 +1822,11 @@ private struct SliderEventOverlay: NSViewRepresentable {
         }
 
         override func keyDown(with event: NSEvent) {
-            if event.keyCode == 53 { onCancel?() }
-            else { super.keyDown(with: event) }
+            if event.keyCode == 53 {
+                onCancel?()
+            } else {
+                super.keyDown(with: event)
+            }
         }
 
         /// Monitor for drags that started outside (on the button)
@@ -1843,7 +1880,9 @@ private struct SliderEventOverlay: NSViewRepresentable {
         }
 
         override func removeFromSuperview() {
-            if let dragMonitor { NSEvent.removeMonitor(dragMonitor) }
+            if let dragMonitor {
+                NSEvent.removeMonitor(dragMonitor)
+            }
             dragMonitor = nil
             super.removeFromSuperview()
         }
@@ -1931,7 +1970,9 @@ private struct RightClickCatcher: NSViewRepresentable {
         }
 
         override func removeFromSuperview() {
-            if let monitor { NSEvent.removeMonitor(monitor) }
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
             monitor = nil
             super.removeFromSuperview()
         }
@@ -1975,7 +2016,9 @@ private struct MouseDownCatcher: NSViewRepresentable {
         }
 
         override func removeFromSuperview() {
-            if let monitor { NSEvent.removeMonitor(monitor) }
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
             monitor = nil
             super.removeFromSuperview()
         }
@@ -2045,7 +2088,9 @@ final class MultiFileDragView: NSView, NSDraggingSource {
         // clears `mouseDownEvent` in `mouseDragged`, so this won't fire after a drag.)
         let wasClick = mouseDownEvent != nil
         mouseDownEvent = nil
-        if wasClick { onTap?() }
+        if wasClick {
+            onTap?()
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -2154,7 +2199,11 @@ struct QuickLookButton: View {
 
     var body: some View {
         Button(
-            action: { if !preview { optimiser.quicklook() }},
+            action: {
+                if !preview {
+                    optimiser.quicklook()
+                }
+            },
             label: { SwiftUI.Image(systemName: "eye").font(.heavy(9)) }
         )
         .contentShape(Rectangle())
@@ -2167,7 +2216,11 @@ struct ShowInFinderButton: View {
 
     var body: some View {
         Button(
-            action: { if !preview { optimiser.showInFinder() }},
+            action: {
+                if !preview {
+                    optimiser.showInFinder()
+                }
+            },
             label: { SwiftUI.Image(systemName: "folder").font(.heavy(9)) }
         )
         .contentShape(Rectangle())
@@ -2180,7 +2233,11 @@ struct SaveAsButton: View {
 
     var body: some View {
         Button(
-            action: { if !preview { optimiser.save() }},
+            action: {
+                if !preview {
+                    optimiser.save()
+                }
+            },
             label: { SwiftUI.Image(systemName: "square.and.arrow.down").font(.heavy(9)) }
         )
         .contentShape(Rectangle())
@@ -2297,12 +2354,16 @@ struct WarpDropActiveButton: View {
             Menu("Change expiration") {
                 ForEach(LINK_EXPIRATION_PRESETS, id: \.self) { preset in
                     Button(expirationDurationLabel(preset)) {
-                        if !preview { WDM.rescheduleExpiry(liveSession, to: preset) }
+                        if !preview {
+                            WDM.rescheduleExpiry(liveSession, to: preset)
+                        }
                     }
                 }
                 Divider()
                 Button("Never expire") {
-                    if !preview { WDM.rescheduleExpiry(liveSession, to: LINK_EXPIRATION_NEVER) }
+                    if !preview {
+                        WDM.rescheduleExpiry(liveSession, to: LINK_EXPIRATION_NEVER)
+                    }
                 }
             }
             Divider()
@@ -2525,7 +2586,9 @@ struct TargetSizeMenuItems: View {
         let currentBytes = optimiser.newBytes > 0 ? optimiser.newBytes : optimiser.oldBytes
         ForEach(TARGET_SIZE_PRESETS, id: \.bytes) { preset in
             Button(preset.label) {
-                if !preview { fitUnderSize(preset.bytes, label: preset.label, optimiser: optimiser) }
+                if !preview {
+                    fitUnderSize(preset.bytes, label: preset.label, optimiser: optimiser)
+                }
             }
             .disabled(currentBytes > 0 && currentBytes <= preset.bytes)
         }
@@ -2639,7 +2702,11 @@ struct ActionButton: View {
         case .compression:
             CompressionButton(optimiser: optimiser)
         case .crop:
-            Button(action: { if !preview { optimiser.showCropWindow() } }) {
+            Button(action: {
+                if !preview {
+                    optimiser.showCropWindow()
+                }
+            }) {
                 SwiftUI.Image(systemName: "crop").font(.heavy(9))
             }
             .contentShape(Rectangle())
@@ -2655,7 +2722,11 @@ struct ActionButton: View {
                 AggressiveOptimisationButton(optimiser: optimiser)
             }
         case .copyToClipboard:
-            Button(action: { if !preview { optimiser.copyToClipboard(); optimiser.overlayMessage = "Copied" } }) {
+            Button(action: {
+                if !preview {
+                    optimiser.copyToClipboard(); optimiser.overlayMessage = "Copied"
+                }
+            }) {
                 SwiftUI.Image(systemName: "doc.on.doc").font(.heavy(9))
             }
             .contentShape(Rectangle())
@@ -2664,12 +2735,20 @@ struct ActionButton: View {
         case .quickLook:
             QuickLookButton(optimiser: optimiser)
         case .saveAs:
-            Button(action: { if !preview { optimiser.save() } }) {
+            Button(action: {
+                if !preview {
+                    optimiser.save()
+                }
+            }) {
                 SwiftUI.Image(systemName: "square.and.arrow.down").font(.heavy(9))
             }
             .contentShape(Rectangle())
         case .addToShelf:
-            Button(action: { if !preview, let app = runningShelfApp() { app.open(optimiser: optimiser) } }) {
+            Button(action: {
+                if !preview, let app = runningShelfApp() {
+                    app.open(optimiser: optimiser)
+                }
+            }) {
                 SwiftUI.Image(systemName: "tray.and.arrow.down").font(.heavy(9))
             }
             .contentShape(Rectangle())
@@ -2730,7 +2809,11 @@ struct SideButtons: View {
                         .helpTag(
                             isPresented: .init(
                                 get: { hoveringAction == action && !hideFloatingResultTooltips && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider && !optimiser.showTargetSizeSlider },
-                                set: { if !$0 { hoveringAction = nil } }
+                                set: {
+                                    if !$0 {
+                                        hoveringAction = nil
+                                    }
+                                }
                             ),
                             alignment: isTrailing ? .trailing : .leading,
                             offset: CGSize(width: isTrailing ? -30 : 30, height: 0),
@@ -2764,7 +2847,11 @@ struct SideButtons: View {
             }
         }
         .animation(.fastSpring, value: optimiser.aggressive)
-        .onHover { if !$0 { hoveringAction = nil } }
+        .onHover {
+            if !$0 {
+                hoveringAction = nil
+            }
+        }
     }
 }
 
@@ -2848,7 +2935,14 @@ struct FloatingAddActionSlot: View {
         // NSMenuItem.target is weak and popUp tracks synchronously, so the target only needs
         // to stay alive for the duration of this call.
         withExtendedLifetime(target) {
-            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
+            if view.window != nil {
+                menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
+            } else {
+                // The floating result window can close between the click and this call, leaving the
+                // anchor view detached; popUp(in:) then asserts "View is not in any window" (CLOP-2B2).
+                // Fall back to the cursor location in screen coordinates.
+                menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+            }
         }
     }
 }
@@ -3101,7 +3195,11 @@ struct ActionButtons: View {
                         .hfill()
                         .onHover { h in hoveringAction = h ? action : nil }
                         .topHelpTag(
-                            isPresented: .init(get: { hoveringAction == action && !hideFloatingResultTooltips && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: { if !$0 { hoveringAction = nil } }),
+                            isPresented: .init(get: { hoveringAction == action && !hideFloatingResultTooltips && !optimiser.showDownscaleSlider && !optimiser.showCompressionSlider }, set: {
+                                if !$0 {
+                                    hoveringAction = nil
+                                }
+                            }),
                             action.label(for: optimiser.type)
                         )
                 }
@@ -3148,6 +3246,10 @@ struct ActionButtons: View {
         }
         .hfill()
         .animation(.fastSpring, value: optimiser.aggressive)
-        .onHover { if !$0 { hoveringAction = nil } }
+        .onHover {
+            if !$0 {
+                hoveringAction = nil
+            }
+        }
     }
 }
