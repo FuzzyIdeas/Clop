@@ -155,8 +155,10 @@ Clop/bin.tar.lrz: $(wildcard Clop/bin/*) $(wildcard Clop/bin/*/*)
 	Scripts/strip-binaries.sh Clop/bin
 	fd -uu -t file . Clop/bin -x zsh -c 'codesign -v -R="anchor apple generic" "{}" || { codesign -fs "$$CODESIGN_CERT" --options runtime --entitlements Clop/bin.entitlements --timestamp "{}" && cp "{}" /tmp/tonotarize/$$(jot -r 1)_{/} ; }'
 ifeq (1, $(NOTARIZE))
-	test $$(ls /tmp/tonotarize | wc -l) -gt 0 && zip -r /tmp/tonotarize.zip /tmp/tonotarize && \
-		xcrun notarytool submit --progress --wait --keychain-profile Alin /tmp/tonotarize.zip
+	if [ $$(ls /tmp/tonotarize | wc -l) -gt 0 ]; then \
+		zip -r /tmp/tonotarize.zip /tmp/tonotarize && \
+		xcrun notarytool submit --progress --wait --keychain-profile Alin /tmp/tonotarize.zip; \
+	else echo "nothing to notarize"; fi
 endif
 	rm Clop/bin.tar.lrz; cd Clop/bin/; tar --lrzip -cf ../bin.tar.lrz *
 	sha256sum Clop/bin.tar.lrz | cut -d' ' -f1 > Clop/bin.tar.lrz.sha256
