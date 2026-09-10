@@ -1,3 +1,21 @@
+# 3.4.1
+
+**[Download Clop 3.4.1 →](https://files.lowtechguys.com/releases/Clop-3.4.1.dmg)**
+## Features
+
+- **Animated WebP** support on Apple Silicon
+
+## Fixes
+
+- Optimising an animated GIF no longer flattens it to a single frame when metadata is preserved rather than stripped
+- Fixed a possible crash when the add action menu opened just as the floating result was closing
+
+## Improvements
+
+- Bundled `ffmpeg` updated to 9.0 on Apple Silicon
+- Bundled image and PDF tools updated: Ghostscript 10.09, libvips 8.18.6, libheif 1.23.4, libwebp 1.6, toGainMapHDR 3.3.1
+- Smaller download, the bundled tools ship with their debug symbols stripped
+
 # 3.4.0
 
 **[Download Clop 3.4.0 →](https://files.lowtechguys.com/releases/Clop-3.4.0.dmg)**
