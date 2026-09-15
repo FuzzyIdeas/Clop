@@ -1,3 +1,14 @@
+# 3.4.2
+
+**[Download Clop 3.4.2 →](https://files.lowtechguys.com/releases/Clop-3.4.2.dmg)**
+## Features
+
+- **Pipeline buttons** on floating and compact results: pick a saved pipeline from the *Pipelines* submenu of the add button, then click its icon to run it on that file
+    > Assign them in Settings or straight from the `+` slot on a floating result
+    >
+    > A single button can hold multiple pipelines, one for each file type, so the same button can adapt based on the file in the result.
+
+
 # 3.4.1
 
 **[Download Clop 3.4.1 →](https://files.lowtechguys.com/releases/Clop-3.4.1.dmg)**
