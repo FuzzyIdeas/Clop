@@ -432,8 +432,10 @@ enum MCPSettingsBridge {
         }
     }
 
-    /// Result action buttons: the built-in actions plus `pipeline:<id>` for any saved pipeline, which
-    /// runs that pipeline on the result's file. Ids come from `clop_pipeline_list`.
+    /// Result action buttons: the built-in actions plus pipeline buttons. A pipeline button holds one saved
+    /// pipeline per file type, `pipeline:image=<id>;video=<id>;audio=<id>;pdf=<id>;any=<id>` (any subset;
+    /// `any` runs on types without their own). The allowed list shows single-pipeline buttons. Ids come
+    /// from `clop_pipeline_list`.
     private static func actionList(_ name: String, _ key: Defaults.Key<[FloatingAction]>) -> MCPSettingKey {
         let allowed = { (FloatingAction.allCases + FloatingAction.pipelineActions()).map(\.rawValue) }
         return MCPSettingKey(name: name, type: "list", allowed: allowed()) {
@@ -445,7 +447,11 @@ enum MCPSettingsBridge {
             for want in wanted {
                 if let match = FloatingAction.allCases.first(where: { $0.rawValue.lowercased() == want.lowercased() }) {
                     chosen.append(match)
-                } else if let match = FloatingAction(rawValue: want), match.isPipeline, match.resolves {
+                } else if let match = FloatingAction(rawValue: want), let set = match.pipelineSet,
+                          set.pipelines.count == set.ids.count,
+                          set.pipelines.allSatisfy({ $0.key == PipelineSet.key($0.pipeline.fileType) })
+                {
+                    // Every id must exist and sit under its own pipeline's file type.
                     chosen.append(match)
                 } else {
                     unknown.append(want)

@@ -327,18 +327,10 @@ struct DropZonePresetsView: View {
         }
     }
 
-    /// Menu row for a library pipeline: icon + name + description subtitle. Every row uses the same
-    /// layout: a default icon ("wand.and.sparkles") and a "No description" subtitle stand in for
-    /// pipelines that lack them, so the menu never looks ragged. Because a subtitle is always present,
-    /// we always use the title+subtitle form: SwiftUI's Menu strips a `Label`'s icon slot inside a
-    /// nested submenu ("Replace with") but DOES render an SF Symbol interpolated into the title Text,
-    /// and the subtitle Text must be a SIBLING of the title (stacks get flattened/ignored).
-    @ViewBuilder
+    /// Menu row for a library pipeline: icon column + name + description subtitle, the same row as the
+    /// result action button menus (see pipelineMenuLabel).
     func libMenuLabel(_ lib: Pipeline) -> some View {
-        let symbol = lib.icon.flatMap { $0.isEmpty ? nil : $0 } ?? "wand.and.sparkles"
-        let subtitle = lib.details.flatMap { $0.isEmpty ? nil : $0 } ?? "No description"
-        Text("\(SwiftUI.Image(systemName: symbol))  \(lib.name ?? lib.id)")
-        Text(subtitle)
+        pipelineMenuLabel(lib)
     }
 
     @ViewBuilder
@@ -419,7 +411,9 @@ struct DropZonePresetsView: View {
         settingsViewManager.tab = .presetZones
         WM.open("settings")
         focus()
-        if let zone { settingsViewManager.editingPresetZoneID = zone.id }
+        if let zone {
+            settingsViewManager.editingPresetZoneID = zone.id
+        }
     }
 
     func typeLabel(_ t: ClopFileType?) -> String {
@@ -721,7 +715,9 @@ private func skipOptimiseAndRunPipelineIfEncoding(
         if shownVisible {
             // Steps rendered into this card (it morphed through the pipeline). The last
             // renderable step already finished it; settle it if anything left it running.
-            if optimiser.running { optimiser.finish(notice: "Pipeline completed") }
+            if optimiser.running {
+                optimiser.finish(notice: "Pipeline completed")
+            }
         } else if didWork, isRenderableResult(resultFile, from: path) {
             // No step surfaced a result and the pipeline produced a renderable file: turn
             // the parent into the result.

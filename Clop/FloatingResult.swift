@@ -1142,7 +1142,7 @@ struct FloatingResult: View {
     }
 
     var addablePipelineActions: [FloatingAction] {
-        FloatingAction.pipelineActions(for: optimiser.fileType).filter { !gridConfigured.contains($0) }
+        FloatingAction.pipelineActions(for: optimiser.fileType, excluding: floatingResultActions)
     }
 
     /// Bottom-anchored content: hidden while a slider is up; progress / error / notice while busy;

@@ -93,7 +93,9 @@ struct PipelineEditorRow: View {
     }
 
     var isDirSource: Bool {
-        if case .dir = source { return true }
+        if case .dir = source {
+            return true
+        }
         return false
     }
 
@@ -224,7 +226,9 @@ struct PipelineEditorRow: View {
                         guard index < list.count else { return }
                         list.remove(at: index)
                         pipelines[sourceStr] = list.isEmpty ? nil : list
-                        if editingKey == key { editingKey = nil }
+                        if editingKey == key {
+                            editingKey = nil
+                        }
                     }
                 )
             }
@@ -263,7 +267,9 @@ struct PipelineFlagSegmentedToggle: View {
                     let isSelected = selection == idx
                     let isHovered = hoveredIdx == idx
                     Button {
-                        if !isSelected { onSelect(idx) }
+                        if !isSelected {
+                            onSelect(idx)
+                        }
                     } label: {
                         Text(label)
                             .font(.system(size: 9, weight: isSelected ? .bold : .medium))
@@ -282,8 +288,11 @@ struct PipelineFlagSegmentedToggle: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { hovering in
-                        if hovering { hoveredIdx = idx }
-                        else if hoveredIdx == idx { hoveredIdx = nil }
+                        if hovering {
+                            hoveredIdx = idx
+                        } else if hoveredIdx == idx {
+                            hoveredIdx = nil
+                        }
                     }
                 }
             }
@@ -539,8 +548,12 @@ struct PipelineTypeSectionView: View {
         case .audio: false
         case .pdf: false
         }
-        if hasClipboard { sources.append(.clipboard) }
-        if enableDragAndDrop { sources.append(.dropZone) }
+        if hasClipboard {
+            sources.append(.clipboard)
+        }
+        if enableDragAndDrop {
+            sources.append(.dropZone)
+        }
 
         // Add folders that already have pipelines configured
         let configuredFolders = Set(pipelines.keys.filter { $0 != "clipboard" && $0 != "dropZone" })
@@ -606,7 +619,9 @@ struct PipelineTypeSectionView: View {
                         guard case let .dir(folder) = source else { return }
                         pipelines[folder] = nil
                         addedFolders.remove(folder)
-                        if highlightedFolder == folder { highlightedFolder = nil }
+                        if highlightedFolder == folder {
+                            highlightedFolder = nil
+                        }
                     }
                 )
                 .overlay(
@@ -721,7 +736,9 @@ struct SingleLineNameField: NSViewRepresentable {
 
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
-        if field.stringValue != text { field.stringValue = text }
+        if field.stringValue != text {
+            field.stringValue = text
+        }
         field.font = nsFont
         field.placeholderString = placeholder
         // Focus once, when the editor first appears.
@@ -1129,7 +1146,9 @@ struct SavedPipelineRow: View {
                     Button("Preset zone") { addToPresetZone(fileType: nil) }
                     let allFolders = ClopFileType.allCases.flatMap { existingFolderSources(for: $0) }
                     let uniqueFolders = allFolders.reduce(into: [OptimisationSource]()) { acc, s in
-                        if !acc.contains(s) { acc.append(s) }
+                        if !acc.contains(s) {
+                            acc.append(s)
+                        }
                     }
                     if !uniqueFolders.isEmpty {
                         Divider()
@@ -1294,10 +1313,18 @@ struct SavedPipelineRow: View {
         }
 
         var result: [PipelineAssignment] = []
-        if let t = sourceTypes[.clipboard] { result.append(PipelineAssignment(target: .clipboard, fileTypes: t)) }
-        if let t = sourceTypes[.dropZone] { result.append(PipelineAssignment(target: .dropZone, fileTypes: t)) }
+        if let t = sourceTypes[.clipboard] {
+            result.append(PipelineAssignment(target: .clipboard, fileTypes: t))
+        }
+        if let t = sourceTypes[.dropZone] {
+            result.append(PipelineAssignment(target: .dropZone, fileTypes: t))
+        }
         let folderPaths = sourceTypes.keys.compactMap { key -> String? in
-            if case let .folder(path) = key { return path } else { return nil }
+            if case let .folder(path) = key {
+                path
+            } else {
+                nil
+            }
         }.sorted()
         for path in folderPaths {
             result.append(PipelineAssignment(target: .folder(path), fileTypes: sourceTypes[.folder(path)] ?? []))
@@ -1412,7 +1439,9 @@ struct SavedPipelineRow: View {
         for ft in fileTypes {
             var d = Defaults[ft.pipelineKey]
             d[key]?.removeAll { $0.libraryID == pid }
-            if d[key]?.isEmpty ?? false { d[key] = nil }
+            if d[key]?.isEmpty ?? false {
+                d[key] = nil
+            }
             Defaults[ft.pipelineKey] = d
         }
     }
@@ -1422,6 +1451,14 @@ struct SavedPipelineRow: View {
 // MARK: - Automation Settings View
 
 struct PipelinesSettingsView: View {
+    static let sections: [(String, ClopFileType?)] = [
+        ("Image", .image),
+        ("Video", .video),
+        ("Audio", .audio),
+        ("PDF", .pdf),
+        ("Any type", nil),
+    ]
+
     @Default(.savedPipelines) var savedPipelines
 
     @ObservedObject var svm = settingsViewManager
@@ -1513,18 +1550,14 @@ struct PipelinesSettingsView: View {
             withAnimation { proxy.scrollTo(id, anchor: .center) }
             highlightedPipelineID = id
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                withAnimation { if highlightedPipelineID == id { highlightedPipelineID = nil } }
+                withAnimation {
+                    if highlightedPipelineID == id {
+                        highlightedPipelineID = nil
+                    }
+                }
             }
         }
     }
-
-    private static let sections: [(String, ClopFileType?)] = [
-        ("Image", .image),
-        ("Video", .video),
-        ("Audio", .audio),
-        ("PDF", .pdf),
-        ("Any type", nil),
-    ]
 
     @State private var newlyCreatedID: String?
     @State private var highlightedPipelineID: String?

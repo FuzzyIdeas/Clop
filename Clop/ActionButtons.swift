@@ -17,15 +17,15 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
     case addToShelf
     case sendSecurely
     case targetSize
-    /// Runs the saved pipeline with this id on the result's file. Stored as `pipeline:<id>` so the
-    /// action lists stay plain string arrays in Defaults.
-    case pipeline(String)
+    /// Runs a saved pipeline on the result's file, one pipeline per file type so a single button can
+    /// do the right thing for images, videos, audio and PDFs. Stored as `pipeline:image=<id>;video=<id>`
+    /// so the action lists stay plain string arrays in Defaults.
+    case pipeline(PipelineSet)
 
     init?(rawValue: String) {
         if rawValue.hasPrefix(Self.pipelinePrefix) {
-            let id = String(rawValue.dropFirst(Self.pipelinePrefix.count))
-            guard !id.isEmpty else { return nil }
-            self = .pipeline(id)
+            guard let set = PipelineSet(raw: String(rawValue.dropFirst(Self.pipelinePrefix.count))) else { return nil }
+            self = .pipeline(set)
             return
         }
         guard let action = Self.allCases.first(where: { $0.rawValue == rawValue }) else { return nil }
@@ -41,6 +41,7 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
     }
 
     static let pipelinePrefix = "pipeline:"
+    static let pipelinesMenuIcon = "flowchart"
     static let maxFloatingButtons = 5
     static let maxCompactButtons = 9
     static let defaultFloating: [FloatingAction] = [.downscale, .restoreOptimise, .compression, .aggressiveOptimisation, .share, .sendSecurely]
@@ -67,7 +68,7 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
         case .addToShelf: "addToShelf"
         case .sendSecurely: "sendSecurely"
         case .targetSize: "targetSize"
-        case let .pipeline(id): Self.pipelinePrefix + id
+        case let .pipeline(set): Self.pipelinePrefix + set.raw
         }
     }
 
@@ -75,10 +76,15 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
         rawValue
     }
 
-    /// The saved pipeline behind a pipeline action, nil for built-in actions or a deleted pipeline.
+    var pipelineSet: PipelineSet? {
+        guard case let .pipeline(set) = self else { return nil }
+        return set
+    }
+
+    /// The first assigned pipeline that still exists, in file type order. Represents the button where no
+    /// file is in context (Settings, menus listing single-pipeline actions).
     var savedPipeline: Pipeline? {
-        guard case let .pipeline(id) = self else { return nil }
-        return Defaults[.savedPipelines].first { $0.id == id }
+        pipelineSet?.pipelines.first?.pipeline
     }
 
     var isPipeline: Bool {
@@ -88,7 +94,7 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
         return false
     }
 
-    /// False for a pipeline action whose pipeline was deleted from the library. Those stay in the
+    /// False for a pipeline action whose pipelines were all deleted from the library. Those stay in the
     /// stored list but are never shown, so they don't turn into unlabelled buttons.
     var resolves: Bool {
         !isPipeline || savedPipeline != nil
@@ -96,7 +102,7 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
 
     var label: String {
         switch self {
-        case let .pipeline(id): savedPipeline?.name ?? id
+        case let .pipeline(set): set.pipelines.map { $0.pipeline.name ?? $0.pipeline.id }.joined(separator: " · ")
         case .downscale: "Downscale"
         case .compression: "Compression"
         case .crop: "Crop and resize"
@@ -132,14 +138,21 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
         }
     }
 
-    /// Named saved pipelines that can be assigned to a button, optionally limited to one file type.
-    static func pipelineActions(for fileType: ClopFileType? = nil) -> [FloatingAction] {
-        Defaults[.savedPipelines]
+    /// Named saved pipelines that can be assigned to a new button, optionally limited to one file type,
+    /// each as a button holding just that pipeline. Pipelines already on one of `existing` are left out.
+    static func pipelineActions(for fileType: ClopFileType? = nil, excluding existing: [FloatingAction] = []) -> [FloatingAction] {
+        let used = Set(existing.compactMap(\.pipelineSet).flatMap(\.ids.values))
+        return Defaults[.savedPipelines]
             .filter { p in
-                guard let name = p.name, !name.isEmpty else { return false }
+                guard let name = p.name, !name.isEmpty, !used.contains(p.id) else { return false }
                 return fileType == nil || p.fileType == nil || p.fileType == fileType
             }
-            .map { .pipeline($0.id) }
+            .map { .pipeline(PipelineSet(pipeline: $0)) }
+    }
+
+    /// The pipeline this button runs on a file of this type: the type's own pipeline, else the Any type one.
+    func pipeline(for fileType: ClopFileType?) -> Pipeline? {
+        pipelineSet?.pipeline(for: fileType)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -147,19 +160,112 @@ enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults
     }
 
     func applies(to fileType: ClopFileType?) -> Bool {
-        guard isPipeline else { return true }
-        guard let pipeline = savedPipeline else { return false }
-        return pipeline.fileType == nil || pipeline.fileType == fileType
+        !isPipeline || pipeline(for: fileType) != nil
+    }
+
+    func icon(for fileType: ClopFileType?) -> String {
+        guard isPipeline else { return icon }
+        return pipeline(for: fileType)?.icon ?? icon
     }
 
     func label(for type: ItemType) -> String {
         switch self {
         case .downscale where type.isAudio: "Downscale cover art"
         case .downscale where type.isPDF: "Compression"
+        case .pipeline: pipeline(for: type.clopFileType).map { $0.name ?? $0.id } ?? label
         default: label
         }
     }
 
+}
+
+/// The pipelines on one result action button, at most one per file type. Keys are `ClopFileType` raw
+/// values, or `any` for a pipeline that runs on every type.
+struct PipelineSet: Hashable {
+    init(ids: [String: String]) {
+        self.ids = ids
+    }
+
+    init(pipeline: Pipeline) {
+        ids = [Self.key(pipeline.fileType): pipeline.id]
+    }
+
+    /// `image=<id>;video=<id>` (`;` because the settings list itself is comma separated over MCP), or a bare `<id>` from 3.4.2b1, which held one pipeline per button and is
+    /// filed under that pipeline's own type.
+    init?(raw: String) {
+        guard !raw.isEmpty else { return nil }
+        guard raw.contains("=") else {
+            let type = Defaults[.savedPipelines].first { $0.id == raw }?.fileType
+            ids = [Self.key(type): raw]
+            return
+        }
+        var ids: [String: String] = [:]
+        for pair in raw.split(separator: ";") {
+            let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2, Self.keys.contains(parts[0]), !parts[1].isEmpty else { return nil }
+            ids[parts[0]] = parts[1]
+        }
+        guard !ids.isEmpty else { return nil }
+        self.ids = ids
+    }
+
+    static let keys = ["image", "video", "audio", "pdf", "any"]
+
+    var ids: [String: String]
+
+    var raw: String {
+        Self.keys.compactMap { key in ids[key].map { "\(key)=\($0)" } }.joined(separator: ";")
+    }
+
+    /// Assigned pipelines that still exist, in file type order.
+    var pipelines: [(key: String, pipeline: Pipeline)] {
+        let saved = Defaults[.savedPipelines]
+        return Self.keys.compactMap { key in
+            guard let id = ids[key], let p = saved.first(where: { $0.id == id }) else { return nil }
+            return (key, p)
+        }
+    }
+
+    static func key(_ fileType: ClopFileType?) -> String {
+        fileType?.rawValue ?? "any"
+    }
+
+    func pipeline(for fileType: ClopFileType?) -> Pipeline? {
+        let saved = Defaults[.savedPipelines]
+        for key in [fileType.map { Self.key($0) }, "any"].compactMap({ $0 }) {
+            if let id = ids[key], let p = saved.first(where: { $0.id == id }) {
+                return p
+            }
+        }
+        return nil
+    }
+
+    /// This set with `pipeline` assigned to its file type, or cleared from it when it is already the
+    /// assigned one. Nil when that leaves nothing assigned.
+    func toggling(_ pipeline: Pipeline) -> PipelineSet? {
+        var ids = ids
+        let key = Self.key(pipeline.fileType)
+        ids[key] = ids[key] == pipeline.id ? nil : pipeline.id
+        return ids.isEmpty ? nil : PipelineSet(ids: ids)
+    }
+}
+
+extension ItemType {
+    var clopFileType: ClopFileType? {
+        if isImage {
+            return .image
+        }
+        if isVideo {
+            return .video
+        }
+        if isAudio {
+            return .audio
+        }
+        if isPDF {
+            return .pdf
+        }
+        return nil
+    }
 }
 
 // MARK: - Overlay card button styles
@@ -2855,12 +2961,12 @@ struct ActionButton: View {
             TargetSizeButton(optimiser: optimiser, inFloatingCard: inFloatingCard)
         case .pipeline:
             Button(action: {
-                if !preview, let pipeline = action.savedPipeline {
+                if !preview, let pipeline = action.pipeline(for: optimiser.fileType) {
                     optimiser.runPipeline(pipeline)
                     optimiser.collapseHoverOverlay = true
                 }
             }) {
-                SwiftUI.Image(systemName: action.icon).font(.heavy(9))
+                SwiftUI.Image(systemName: action.icon(for: optimiser.fileType)).font(.heavy(9))
             }
             .contentShape(Rectangle())
             .disabled(optimiser.url == nil || optimiser.running)
@@ -2972,7 +3078,7 @@ struct FloatingGridActionButton: View {
             .disabled(!button.isAvailable())
             .opacity(button.isAvailable() ? 1 : 0.4)
             .onHover { hovering = $0 }
-            .topHelpTag(isPresented: .init(get: { hovering && !hideFloatingResultTooltips }, set: { hovering = $0 }), action.label)
+            .topHelpTag(isPresented: .init(get: { hovering && !hideFloatingResultTooltips }, set: { hovering = $0 }), action.label(for: optimiser.type))
             .contextMenu {
                 Button("Remove from buttons", action: onRemove)
                 Divider()
@@ -3031,19 +3137,16 @@ struct FloatingAddActionSlot: View {
             let item = NSMenuItem(title: action.label, action: #selector(MenuItemTarget.fire(_:)), keyEquivalent: "")
             item.target = target
             item.representedObject = action
+            item.image = NSImage(systemSymbolName: action.icon, accessibilityDescription: nil)
             menu.addItem(item)
         }
         if !pipelines.isEmpty {
+            menu.addItem(.separator())
             let submenu = NSMenu()
             submenu.autoenablesItems = false
-            for action in pipelines {
-                let item = NSMenuItem(title: action.label, action: #selector(MenuItemTarget.fire(_:)), keyEquivalent: "")
-                item.target = target
-                item.representedObject = action
-                item.image = NSImage(systemSymbolName: action.icon, accessibilityDescription: nil)
-                submenu.addItem(item)
-            }
+            addPipelineSections(to: submenu, pipelines.compactMap { action in action.savedPipeline.map { ($0, action) } }, target: target)
             let parent = NSMenuItem(title: "Pipelines", action: nil, keyEquivalent: "")
+            parent.image = NSImage(systemSymbolName: FloatingAction.pipelinesMenuIcon, accessibilityDescription: nil)
             parent.submenu = submenu
             menu.addItem(parent)
         }
@@ -3059,6 +3162,72 @@ struct FloatingAddActionSlot: View {
                 // Fall back to the cursor location in screen coordinates.
                 menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
             }
+        }
+    }
+}
+
+/// Appends pipeline rows under the Pipelines settings tab's file type headers: icon, name and
+/// description, each carrying `represented` for the target. Rows in `checked` get a checkmark.
+@MainActor
+private func addPipelineSections(to menu: NSMenu, _ rows: [(pipeline: Pipeline, represented: Any)], target: MenuItemTarget, checked: Set<String> = []) {
+    for (title, fileType) in PipelinesSettingsView.sections {
+        let group = rows.filter { $0.pipeline.fileType == fileType }
+        guard !group.isEmpty else { continue }
+        if #available(macOS 14.0, *) {
+            menu.addItem(.sectionHeader(title: title))
+        } else {
+            let header = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            header.isEnabled = false
+            menu.addItem(header)
+        }
+        for row in group {
+            let pipeline = row.pipeline
+            let item = NSMenuItem(title: pipeline.name ?? pipeline.id, action: #selector(MenuItemTarget.fire(_:)), keyEquivalent: "")
+            item.target = target
+            item.representedObject = row.represented
+            item.image = NSImage(systemSymbolName: pipeline.icon.flatMap { $0.isEmpty ? nil : $0 } ?? "wand.and.sparkles", accessibilityDescription: nil)
+            item.state = checked.contains(pipeline.id) ? .on : .off
+            if #available(macOS 14.4, *) {
+                item.subtitle = pipeline.details.flatMap { $0.isEmpty ? nil : $0 } ?? "No description"
+            }
+            menu.addItem(item)
+        }
+    }
+}
+
+/// Menu for a pipeline button in Settings: every saved pipeline under its file type, the ones on this
+/// button checked. Picking a pipeline assigns it to its type (replacing that type's current one), picking
+/// a checked one clears it. `onChange` gets the edited button, or nil when it should be removed.
+@MainActor
+private func popUpPipelineButtonMenu(for action: FloatingAction, in view: NSView?, onChange: @escaping (FloatingAction?) -> Void) {
+    guard let set = action.pipelineSet else { return }
+
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+    let target = MenuItemTarget { item in
+        if let pipeline = item.representedObject as? Pipeline {
+            onChange(set.toggling(pipeline).map { .pipeline($0) })
+        } else {
+            onChange(nil)
+        }
+    }
+    let hint = NSMenuItem(title: "You can choose multiple pipelines, one per type, so the button adapts per file", action: nil, keyEquivalent: "")
+    hint.isEnabled = false
+    menu.addItem(hint)
+    menu.addItem(.separator())
+
+    let saved = Defaults[.savedPipelines].filter { !($0.name ?? "").isEmpty }
+    addPipelineSections(to: menu, saved.map { ($0, $0 as Any) }, target: target, checked: Set(set.ids.values))
+    menu.addItem(.separator())
+    let remove = NSMenuItem(title: "Remove from buttons", action: #selector(MenuItemTarget.fire(_:)), keyEquivalent: "")
+    remove.target = target
+    menu.addItem(remove)
+
+    withExtendedLifetime(target) {
+        if let view, view.window != nil {
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.isFlipped ? view.bounds.maxY + 4 : -4), in: view)
+        } else {
+            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
         }
     }
 }
@@ -3099,19 +3268,30 @@ private final class MenuItemTarget: NSObject {
 struct ActionPickerButton: View {
     let action: FloatingAction
     let size: CGFloat
-    let onRemove: () -> Void
+    /// Called with the edited action, or nil to remove it. Built-in actions only ever remove; pipeline
+    /// buttons open their per file type menu instead.
+    let onChange: (FloatingAction?) -> Void
 
     @State var hovering = false
 
     var body: some View {
-        Button(action: onRemove) {
+        Button(action: {
+            if action.isPipeline {
+                popUpPipelineButtonMenu(for: action, in: anchor.view, onChange: onChange)
+            } else {
+                onChange(nil)
+            }
+        }) {
             SwiftUI.Image(systemName: action.icon)
                 .font(.heavy(9))
         }
         .buttonStyle(FlatButton(color: .clear, textColor: .black.opacity(0.7), width: size, height: size, circle: true))
+        .background(MenuAnchor(holder: anchor))
         .onHover { hovering = $0 }
         .topHelpTag(isPresented: $hovering, action.label)
     }
+
+    @State private var anchor = MenuAnchorHolder()
 }
 
 /// Settings editor for the full floating result's action grid: the same 2×3 squircle layout and
@@ -3133,9 +3313,7 @@ struct FloatingActionGridPicker: View {
             LazyVGrid(columns: cols, spacing: 8) {
                 ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
                     if let action = slot {
-                        GridPickerButton(action: action, side: side) {
-                            actions.removeAll { $0 == action }
-                        }
+                        GridPickerButton(action: action, side: side) { replace(action, with: $0) }
                     } else {
                         addPlaceholder
                     }
@@ -3173,7 +3351,7 @@ struct FloatingActionGridPicker: View {
         FloatingAction.allCases.filter { $0 != .crop && !configured.contains($0) }
     }
     private var addablePipelines: [FloatingAction] {
-        FloatingAction.pipelineActions().filter { !configured.contains($0) }
+        FloatingAction.pipelineActions(excluding: configured)
     }
 
     private var addPlaceholder: some View {
@@ -3182,11 +3360,11 @@ struct FloatingActionGridPicker: View {
             Section("Assign to a button") {
                 ForEach(addable) { a in
                     Button(action: { actions.append(a) }) {
-                        Label(a.label, systemImage: a.icon)
+                        Label(a.label, systemImage: a.icon).labelStyle(.titleAndIcon)
                     }
                 }
-                PipelineActionsMenu(pipelines: addablePipelines) { actions.append($0) }
             }
+            pipelineActionsMenu(addablePipelines) { actions.append($0) }
         } label: {
             SwiftUI.Image(systemName: "plus").font(.heavy(10)).foregroundStyle(.primary.opacity(0.45))
                 .frame(width: side, height: side)
@@ -3194,46 +3372,128 @@ struct FloatingActionGridPicker: View {
                 .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
                 .contentShape(shape)
         }
-        .menuStyle(.borderlessButton)
+        // .button, not .borderlessButton: the legacy borderless style drops menu item subtitles, which the
+        // Pipelines submenu needs (same style as the preset zone menus in DropZone).
+        .menuStyle(.button)
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .fixedSize()
         .disabled(addable.isEmpty && addablePipelines.isEmpty)
     }
+
+    private func replace(_ action: FloatingAction, with new: FloatingAction?) {
+        guard let i = actions.firstIndex(of: action) else { return }
+        if let new {
+            actions[i] = new
+        } else {
+            actions.remove(at: i)
+        }
+    }
+
 }
 
-/// "Pipelines" submenu of the add-button menus in Settings: one item per saved pipeline, with its icon.
-struct PipelineActionsMenu: View {
-    let pipelines: [FloatingAction]
-    let add: (FloatingAction) -> Void
-
-    var body: some View {
-        if !pipelines.isEmpty {
-            Menu("Pipelines") {
-                ForEach(pipelines) { action in
-                    Button(action: { add(action) }) {
-                        Label(action.label, systemImage: action.icon)
+/// "Pipelines" submenu of the add-button menus in Settings, sectioned by file type like the preset zone
+/// menus. Kept a @ViewBuilder function with one literal Section per type, the same shape as
+/// DropZone.zoneMenuContent: SwiftUI reads menu items from the view tree heuristically, and a Section
+/// generated by ForEach or content behind a custom View struct loses the item subtitle.
+@ViewBuilder
+func pipelineActionsMenu(_ pipelines: [FloatingAction], add: @escaping (FloatingAction) -> Void) -> some View {
+    if !pipelines.isEmpty {
+        let image = pipelines.filter { $0.savedPipeline?.fileType == .image }
+        let video = pipelines.filter { $0.savedPipeline?.fileType == .video }
+        let audio = pipelines.filter { $0.savedPipeline?.fileType == .audio }
+        let pdf = pipelines.filter { $0.savedPipeline?.fileType == .pdf }
+        let any = pipelines.filter { $0.savedPipeline != nil && $0.savedPipeline?.fileType == nil }
+        // Its own Section so a separator sets the submenu apart from the built-in actions.
+        Section {
+            Menu {
+                if !image.isEmpty {
+                    Section("Image") {
+                        ForEach(image) { action in
+                            Button { add(action) } label: { pipelineActionMenuLabel(action) }
+                        }
                     }
                 }
+                if !video.isEmpty {
+                    Section("Video") {
+                        ForEach(video) { action in
+                            Button { add(action) } label: { pipelineActionMenuLabel(action) }
+                        }
+                    }
+                }
+                if !audio.isEmpty {
+                    Section("Audio") {
+                        ForEach(audio) { action in
+                            Button { add(action) } label: { pipelineActionMenuLabel(action) }
+                        }
+                    }
+                }
+                if !pdf.isEmpty {
+                    Section("PDF") {
+                        ForEach(pdf) { action in
+                            Button { add(action) } label: { pipelineActionMenuLabel(action) }
+                        }
+                    }
+                }
+                if !any.isEmpty {
+                    Section("Any type") {
+                        ForEach(any) { action in
+                            Button { add(action) } label: { pipelineActionMenuLabel(action) }
+                        }
+                    }
+                }
+            } label: {
+                Label("Pipelines", systemImage: FloatingAction.pipelinesMenuIcon).labelStyle(.titleAndIcon)
             }
         }
+    }
+}
+
+/// A Label (icon column + title) with the subtitle as a SIBLING Text, so the icon spans both lines.
+/// A Text inside the Label's title, or any stack, is not read as a subtitle. Menus hide Label icons
+/// unless the style asks for them.
+/// Shared by every menu that lists saved pipelines (result action buttons, preset zones).
+@ViewBuilder
+func pipelineMenuLabel(_ pipeline: Pipeline) -> some View {
+    let symbol = pipeline.icon.flatMap { $0.isEmpty ? nil : $0 } ?? "wand.and.sparkles"
+    Label {
+        Text(pipeline.name ?? pipeline.id)
+    } icon: {
+        SwiftUI.Image(systemName: symbol)
+    }
+    .labelStyle(.titleAndIcon)
+    Text(pipeline.details.flatMap { $0.isEmpty ? nil : $0 } ?? "No description")
+}
+
+@ViewBuilder
+func pipelineActionMenuLabel(_ action: FloatingAction) -> some View {
+    if let pipeline = action.savedPipeline {
+        pipelineMenuLabel(pipeline)
     }
 }
 
 /// One filled slot in the settings action grid: same squircle/metrics as the hover overlay, with our
 /// custom HelpTag showing the action name on hover. It's a plain Button (a borderless Menu label
 /// wouldn't render the chip background). The opaque settings window can't blur, so the chip uses a
-/// solid `Color.bg.warm` fill plus a contrasting outline for separation. Tap removes the action.
+/// solid `Color.bg.warm` fill plus a contrasting outline for separation. Tap removes a built-in action,
+/// or opens the per file type menu of a pipeline button.
 private struct GridPickerButton: View {
     let action: FloatingAction
     let side: CGFloat
-    let onRemove: () -> Void
+    /// Called with the edited action, or nil to remove it.
+    let onChange: (FloatingAction?) -> Void
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
         // A plain Button renders the label's background; a borderless Menu label did not, which is
         // why earlier fill changes were invisible. Tap removes the action (re-add via the + slot).
-        return Button(action: onRemove) {
+        return Button(action: {
+            if action.isPipeline {
+                popUpPipelineButtonMenu(for: action, in: anchor.view, onChange: onChange)
+            } else {
+                onChange(nil)
+            }
+        }) {
             SwiftUI.Image(systemName: action.icon)
                 .font(.heavy(11))
                 .foregroundStyle(Color.fg.primary)
@@ -3245,12 +3505,14 @@ private struct GridPickerButton: View {
                 .contentShape(shape)
         }
         .buttonStyle(.plain)
+        .background(MenuAnchor(holder: anchor))
         .fixedSize()
         .onHover { hovering = $0 }
         .topHelpTag(isPresented: $hovering, action.label)
     }
 
     @State private var hovering = false
+    @State private var anchor = MenuAnchorHolder()
 
 }
 
@@ -3264,7 +3526,7 @@ struct ActionListPicker: View {
         FloatingAction.allCases.filter { !actions.contains($0) }
     }
     var availablePipelines: [FloatingAction] {
-        FloatingAction.pipelineActions().filter { !actions.contains($0) }
+        FloatingAction.pipelineActions(excluding: actions)
     }
     var shownActions: [FloatingAction] {
         actions.filter(\.resolves)
@@ -3278,16 +3540,19 @@ struct ActionListPicker: View {
         Menu {
             ForEach(available) { action in
                 Button(action: { actions.append(action) }) {
-                    Label(action.label, systemImage: action.icon)
+                    Label(action.label, systemImage: action.icon).labelStyle(.titleAndIcon)
                 }
             }
-            PipelineActionsMenu(pipelines: availablePipelines) { actions.append($0) }
+            pipelineActionsMenu(availablePipelines) { actions.append($0) }
         } label: {
             SwiftUI.Image(systemName: "plus.circle.fill")
                 .font(.regular(14))
                 .foregroundColor(.secondary.opacity(0.5))
         }
-        .menuStyle(.borderlessButton)
+        // See FloatingActionGridPicker: .borderlessButton drops the Pipelines item subtitles.
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .fixedSize()
     }
 
@@ -3304,8 +3569,14 @@ struct ActionListPicker: View {
                 let layout = vertical ? AnyLayout(VStackLayout(spacing: 2)) : AnyLayout(HStackLayout(spacing: 2))
                 layout {
                     ForEach(shownActions) { action in
-                        ActionPickerButton(action: action, size: buttonSize) {
-                            actions.removeAll { $0 == action }
+                        ActionPickerButton(action: action, size: buttonSize) { new in
+                            if let i = actions.firstIndex(of: action) {
+                                if let new {
+                                    actions[i] = new
+                                } else {
+                                    actions.remove(at: i)
+                                }
+                            }
                         }
                     }
                 }
