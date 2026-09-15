@@ -188,8 +188,8 @@ enum MCPSettingsBridge {
         bool("useGeometricMenubarIcon", .useGeometricMenubarIcon),
         bool("allowClopToAppearInScreenshots", .allowClopToAppearInScreenshots),
         bool("pauseAutomaticOptimisations", .pauseAutomaticOptimisations),
-        rawValueList("floatingResultActions", .floatingResultActions),
-        rawValueList("compactResultActions", .compactResultActions),
+        actionList("floatingResultActions", .floatingResultActions),
+        actionList("compactResultActions", .compactResultActions),
 
         // MCP. Readable so an agent can see why it was refused; `mcpEnabled` is deliberately NOT
         // writable here, or the switch would be one the thing it gates could turn on for itself.
@@ -426,6 +426,33 @@ enum MCPSettingsBridge {
             }
             guard unknown.isEmpty else {
                 return "\(name) does not know \(unknown.joined(separator: ", ")). It takes any of: \(T.allCases.map(\.rawValue).joined(separator: ", "))"
+            }
+            Defaults[key] = chosen
+            return nil
+        }
+    }
+
+    /// Result action buttons: the built-in actions plus `pipeline:<id>` for any saved pipeline, which
+    /// runs that pipeline on the result's file. Ids come from `clop_pipeline_list`.
+    private static func actionList(_ name: String, _ key: Defaults.Key<[FloatingAction]>) -> MCPSettingKey {
+        let allowed = { (FloatingAction.allCases + FloatingAction.pipelineActions()).map(\.rawValue) }
+        return MCPSettingKey(name: name, type: "list", allowed: allowed()) {
+            Defaults[key].map(\.rawValue).joined(separator: ", ")
+        } write: { raw in
+            let wanted = raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            var chosen: [FloatingAction] = []
+            var unknown: [String] = []
+            for want in wanted {
+                if let match = FloatingAction.allCases.first(where: { $0.rawValue.lowercased() == want.lowercased() }) {
+                    chosen.append(match)
+                } else if let match = FloatingAction(rawValue: want), match.isPipeline, match.resolves {
+                    chosen.append(match)
+                } else {
+                    unknown.append(want)
+                }
+            }
+            guard unknown.isEmpty else {
+                return "\(name) does not know \(unknown.joined(separator: ", ")). It takes any of: \(allowed().joined(separator: ", "))"
             }
             Defaults[key] = chosen
             return nil

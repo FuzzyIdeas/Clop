@@ -178,7 +178,11 @@ struct RightClickMenuView: View {
                     if let url = optimiser.url ?? optimiser.originalURL {
                         // Name and icon the default app so it's obvious what opens (e.g. "Open with Preview").
                         let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: url)
-                        Button(action: { if optimiser.existingFileOrNotify() != nil { NSWorkspace.shared.open(url) } }) {
+                        Button(action: {
+                            if optimiser.existingFileOrNotify() != nil {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }) {
                             if let defaultApp {
                                 SwiftUI.Image(nsImage: appMenuIcon(defaultApp))
                                 Text("Open with \(appDisplayName(defaultApp))")
@@ -395,8 +399,12 @@ struct RightClickMenuView: View {
             // The saved-library id to jump to, if this pipeline is (or references) a saved one.
             let savedID: String? = {
                 guard let pipeline else { return nil }
-                if let lib = pipeline.libraryID, Defaults[.savedPipelines].contains(where: { $0.id == lib }) { return lib }
-                if Defaults[.savedPipelines].contains(where: { $0.id == pipeline.id }) { return pipeline.id }
+                if let lib = pipeline.libraryID, Defaults[.savedPipelines].contains(where: { $0.id == lib }) {
+                    return lib
+                }
+                if Defaults[.savedPipelines].contains(where: { $0.id == pipeline.id }) {
+                    return pipeline.id
+                }
                 return nil
             }()
             let name = (pipeline?.resolved.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -575,33 +583,44 @@ struct RunPipelineMenu: View {
         } else {
             ForEach(applicablePipelines) { pipeline in
                 Button(pipeline.name ?? pipeline.id) {
-                    runPipeline(pipeline)
+                    optimiser.runPipeline(pipeline)
                 }
             }
         }
     }
+}
 
-    func runPipeline(_ pipeline: Pipeline) {
-        guard let url = optimiser.url, let path = url.existingFilePath, let fileType else { return }
+extension Optimiser {
+    /// Passes this result's current file through a saved pipeline, from the right-click menu or a
+    /// pipeline action button.
+    @MainActor func runPipeline(_ pipeline: Pipeline) {
+        let fileType: ClopFileType? = switch type {
+        case .image: .image
+        case .video: .video
+        case .audio: .audio
+        case .pdf: .pdf
+        default: nil
+        }
+        guard let url, let path = url.existingFilePath, let fileType else { return }
 
         // Replace the temp pipeline with this pipeline's steps
-        optimiser.tempPipeline = pipeline.resolved.steps.filter { !$0.isFilter }
-        optimiser.automationPipeline = pipeline
+        tempPipeline = pipeline.resolved.steps.filter { !$0.isFilter }
+        automationPipeline = pipeline
 
         Task { @MainActor in
-            optimiser.running = true
-            optimiser.operation = "Pipeline: \(pipeline.name ?? "unnamed")"
+            running = true
+            operation = "Pipeline: \(pipeline.name ?? "unnamed")"
             do {
                 let (resultFile, _, _) = try await executePipeline(
                     pipeline, file: path,
-                    source: optimiser.source ?? .cli,
-                    optimiser: optimiser,
+                    source: source ?? .cli,
+                    optimiser: self,
                     fileType: fileType
                 )
-                optimiser.url = resultFile.url
-                optimiser.finish(oldBytes: optimiser.oldBytes, newBytes: resultFile.fileSize() ?? optimiser.newBytes, oldSize: optimiser.oldSize)
+                self.url = resultFile.url
+                finish(oldBytes: oldBytes, newBytes: resultFile.fileSize() ?? newBytes, oldSize: oldSize)
             } catch {
-                optimiser.finish(error: "Pipeline failed: \(error.localizedDescription)")
+                finish(error: "Pipeline failed: \(error.localizedDescription)")
             }
         }
     }

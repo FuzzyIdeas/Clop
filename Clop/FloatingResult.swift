@@ -244,7 +244,9 @@ struct FloatingResultList: View {
             }
         )
         .onPreferenceChange(FloatingListHeightKey.self) { h in
-            if heldHeight == nil, h > 0 { naturalHeight = h }
+            if heldHeight == nil, h > 0 {
+                naturalHeight = h
+            }
         }
         .onChange(of: optimisers.count) { newCount in
             if newCount < lastCount, newCount > 0, naturalHeight > 0 {
@@ -676,7 +678,12 @@ struct NameFormatPill: View {
             }
         }
         .fixedSize(horizontal: !fullWidth, vertical: true)
-        .onChange(of: optimiser.running) { running in if running { optimiser.editingFilename = false; optimiser.showingFormats = false } }
+        .onChange(of: optimiser.running) { running in
+            if running {
+                optimiser.editingFilename = false
+                optimiser.showingFormats = false
+            }
+        }
         .onDisappear { optimiser.showingFormats = false }
     }
 
@@ -696,7 +703,11 @@ struct NameFormatPill: View {
                 .cardChip(hovering: optimiser.hoveringFilename)
                 .onHover { inside in
                     optimiser.hoveringFilename = inside
-                    if inside { NSCursor.iBeam.push() } else { NSCursor.pop() }
+                    if inside {
+                        NSCursor.iBeam.push()
+                    } else {
+                        NSCursor.pop()
+                    }
                 }
                 .onTapGesture { startEditing() }
             if !ext.isEmpty {
@@ -982,8 +993,12 @@ struct FormatPickerBar: View {
     /// Bottom-anchored pop that grows inward at the row's ends, keeping the end chips at their
     /// resting distance from the card edges.
     private func popAnchor(for idx: Int, count: Int) -> UnitPoint {
-        if idx == 0 { return .bottomLeading }
-        if idx == count - 1 { return .bottomTrailing }
+        if idx == 0 {
+            return .bottomLeading
+        }
+        if idx == count - 1 {
+            return .bottomTrailing
+        }
         return .bottom
     }
 
@@ -1106,7 +1121,7 @@ struct FloatingResult: View {
     /// Finder button so the grid keeps a useful action instead of an empty slot.
     var gridConfigured: [FloatingAction] {
         let shown = floatingResultActions.filter(gridApplies)
-        let configuredCount = floatingResultActions.filter { $0 != .crop }.count
+        let configuredCount = floatingResultActions.filter { $0 != .crop && $0.resolves }.count
         if shown.count < configuredCount, !shown.contains(.showInFinder) {
             return shown + [.showInFinder]
         }
@@ -1124,6 +1139,10 @@ struct FloatingResult: View {
 
     var addableActions: [FloatingAction] {
         FloatingAction.allCases.filter { gridApplies($0) && !gridConfigured.contains($0) }
+    }
+
+    var addablePipelineActions: [FloatingAction] {
+        FloatingAction.pipelineActions(for: optimiser.fileType).filter { !gridConfigured.contains($0) }
     }
 
     /// Bottom-anchored content: hidden while a slider is up; progress / error / notice while busy;
@@ -1440,7 +1459,7 @@ struct FloatingResult: View {
     /// Faint dashed slot; clicking pops a menu of actions to add to the grid. The menu opens on
     /// mouse-up (see FloatingAddActionSlot), so the wrapping fileDraggable gets the press-drag.
     var addPlaceholderSlot: some View {
-        FloatingAddActionSlot(actions: addableActions) { action in
+        FloatingAddActionSlot(actions: addableActions, pipelines: addablePipelineActions) { action in
             floatingResultActions = floatingResultActions + [action]
         }
     }
@@ -1502,7 +1521,11 @@ struct FloatingResult: View {
             VStack(spacing: 2) { fileSizeDiff; sizeDiff; bitrateDiff; coverArtDiff; dpiDiff }
                 .frame(maxWidth: .infinity)
                 .foregroundColor(.white)
-                .onAppear { if optimiser.type.isAudio { loadAudioCoverArtSize(optimiser: optimiser) } }
+                .onAppear {
+                    if optimiser.type.isAudio {
+                        loadAudioCoverArtSize(optimiser: optimiser)
+                    }
+                }
         }
     }
 
@@ -1528,7 +1551,11 @@ struct FloatingResult: View {
             // is hovered (so a long filename can use the full width). A fitting name keeps the button.
             if optimiser.canCrop(), !optimiser.hoveringFilename || filenameFits {
                 fileDraggable(
-                    Button(action: { if !preview { optimiser.showCropWindow() } }, label: { SwiftUI.Image(systemName: "crop") })
+                    Button(action: {
+                        if !preview {
+                            optimiser.showCropWindow()
+                        }
+                    }, label: { SwiftUI.Image(systemName: "crop") })
                         .buttonStyle(FloatingCornerButtonStyle())
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -1702,9 +1729,13 @@ struct FloatingResult: View {
         .fixedSize()
         .onHover { hovering in
             // A fresh hover (mouse re-entering) brings the overlay back after it was collapsed by an action.
-            if hovering { optimiser.collapseHoverOverlay = false }
+            if hovering {
+                optimiser.collapseHoverOverlay = false
+            }
             // Leaving the card abandons an in-progress send-expiration overlay.
-            if !hovering { optimiser.showSendExpiration = false }
+            if !hovering {
+                optimiser.showSendExpiration = false
+            }
             withAnimation(.easeOut(duration: 0.15)) {
                 self.hovering = hovering
             }
@@ -1822,6 +1853,8 @@ struct FloatingResult: View {
         // separate, always-disabled compression button is just a confusing duplicate; hide it like
         // PDF does.
         case .compression: !optimiser.type.isPDF
+        // A pipeline saved for another file type would only ever fail on this file.
+        case .pipeline: action.applies(to: optimiser.fileType)
         default: true
         }
     }
