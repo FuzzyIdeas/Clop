@@ -3,7 +3,7 @@ import Foundation
 import Lowtech
 import SwiftUI
 
-enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Identifiable {
+enum FloatingAction: RawRepresentable, CaseIterable, Codable, Hashable, Defaults.Serializable, Identifiable {
     case downscale
     case compression
     case crop
@@ -17,18 +17,86 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
     case addToShelf
     case sendSecurely
     case targetSize
+    /// Runs the saved pipeline with this id on the result's file. Stored as `pipeline:<id>` so the
+    /// action lists stay plain string arrays in Defaults.
+    case pipeline(String)
 
+    init?(rawValue: String) {
+        if rawValue.hasPrefix(Self.pipelinePrefix) {
+            let id = String(rawValue.dropFirst(Self.pipelinePrefix.count))
+            guard !id.isEmpty else { return nil }
+            self = .pipeline(id)
+            return
+        }
+        guard let action = Self.allCases.first(where: { $0.rawValue == rawValue }) else { return nil }
+        self = action
+    }
+
+    init(from decoder: Decoder) throws {
+        let raw = try String(from: decoder)
+        guard let action = Self(rawValue: raw) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown floating action \(raw)"))
+        }
+        self = action
+    }
+
+    static let pipelinePrefix = "pipeline:"
     static let maxFloatingButtons = 5
     static let maxCompactButtons = 9
     static let defaultFloating: [FloatingAction] = [.downscale, .restoreOptimise, .compression, .aggressiveOptimisation, .share, .sendSecurely]
     static let defaultCompact: [FloatingAction] = [.downscale, .compression, .crop, .quickLook, .restoreOptimise, .showInFinder, .saveAs, .copyToClipboard, .share]
 
+    /// Built-in actions only; pipeline actions come from the saved pipelines library.
+    static let allCases: [FloatingAction] = [
+        .downscale, .compression, .crop, .share, .restoreOptimise, .aggressiveOptimisation, .copyToClipboard,
+        .showInFinder, .quickLook, .saveAs, .addToShelf, .sendSecurely, .targetSize,
+    ]
+
+    var rawValue: String {
+        switch self {
+        case .downscale: "downscale"
+        case .compression: "compression"
+        case .crop: "crop"
+        case .share: "share"
+        case .restoreOptimise: "restoreOptimise"
+        case .aggressiveOptimisation: "aggressiveOptimisation"
+        case .copyToClipboard: "copyToClipboard"
+        case .showInFinder: "showInFinder"
+        case .quickLook: "quickLook"
+        case .saveAs: "saveAs"
+        case .addToShelf: "addToShelf"
+        case .sendSecurely: "sendSecurely"
+        case .targetSize: "targetSize"
+        case let .pipeline(id): Self.pipelinePrefix + id
+        }
+    }
+
     var id: String {
         rawValue
     }
 
+    /// The saved pipeline behind a pipeline action, nil for built-in actions or a deleted pipeline.
+    var savedPipeline: Pipeline? {
+        guard case let .pipeline(id) = self else { return nil }
+        return Defaults[.savedPipelines].first { $0.id == id }
+    }
+
+    var isPipeline: Bool {
+        if case .pipeline = self {
+            return true
+        }
+        return false
+    }
+
+    /// False for a pipeline action whose pipeline was deleted from the library. Those stay in the
+    /// stored list but are never shown, so they don't turn into unlabelled buttons.
+    var resolves: Bool {
+        !isPipeline || savedPipeline != nil
+    }
+
     var label: String {
         switch self {
+        case let .pipeline(id): savedPipeline?.name ?? id
         case .downscale: "Downscale"
         case .compression: "Compression"
         case .crop: "Crop and resize"
@@ -60,7 +128,28 @@ enum FloatingAction: String, CaseIterable, Codable, Defaults.Serializable, Ident
         case .addToShelf: "tray.and.arrow.down"
         case .sendSecurely: "paperplane.fill"
         case .targetSize: "target"
+        case .pipeline: savedPipeline?.icon ?? "wand.and.sparkles"
         }
+    }
+
+    /// Named saved pipelines that can be assigned to a button, optionally limited to one file type.
+    static func pipelineActions(for fileType: ClopFileType? = nil) -> [FloatingAction] {
+        Defaults[.savedPipelines]
+            .filter { p in
+                guard let name = p.name, !name.isEmpty else { return false }
+                return fileType == nil || p.fileType == nil || p.fileType == fileType
+            }
+            .map { .pipeline($0.id) }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try rawValue.encode(to: encoder)
+    }
+
+    func applies(to fileType: ClopFileType?) -> Bool {
+        guard isPipeline else { return true }
+        guard let pipeline = savedPipeline else { return false }
+        return pipeline.fileType == nil || pipeline.fileType == fileType
     }
 
     func label(for type: ItemType) -> String {
@@ -2764,6 +2853,17 @@ struct ActionButton: View {
             }
         case .targetSize:
             TargetSizeButton(optimiser: optimiser, inFloatingCard: inFloatingCard)
+        case .pipeline:
+            Button(action: {
+                if !preview, let pipeline = action.savedPipeline {
+                    optimiser.runPipeline(pipeline)
+                    optimiser.collapseHoverOverlay = true
+                }
+            }) {
+                SwiftUI.Image(systemName: action.icon).font(.heavy(9))
+            }
+            .contentShape(Rectangle())
+            .disabled(optimiser.url == nil || optimiser.running)
         }
     }
 
@@ -2777,6 +2877,7 @@ struct ActionButton: View {
         case .aggressiveOptimisation: optimiser.canReoptimise()
         case .addToShelf: runningShelfApp() != nil
         case .targetSize: optimiser.url != nil
+        case .pipeline: action.applies(to: optimiser.fileType)
         default: true
         }
     }
@@ -2889,6 +2990,7 @@ struct FloatingGridActionButton: View {
 /// out of the floating result like the other grid buttons.
 struct FloatingAddActionSlot: View {
     let actions: [FloatingAction]
+    var pipelines: [FloatingAction] = []
     let add: (FloatingAction) -> Void
 
     var body: some View {
@@ -2903,7 +3005,7 @@ struct FloatingAddActionSlot: View {
         .buttonStyle(.plain)
         .background(MenuAnchor(holder: anchor))
         .fixedSize()
-        .disabled(actions.isEmpty)
+        .disabled(actions.isEmpty && pipelines.isEmpty)
     }
 
     @State private var anchor = MenuAnchorHolder()
@@ -2930,6 +3032,20 @@ struct FloatingAddActionSlot: View {
             item.target = target
             item.representedObject = action
             menu.addItem(item)
+        }
+        if !pipelines.isEmpty {
+            let submenu = NSMenu()
+            submenu.autoenablesItems = false
+            for action in pipelines {
+                let item = NSMenuItem(title: action.label, action: #selector(MenuItemTarget.fire(_:)), keyEquivalent: "")
+                item.target = target
+                item.representedObject = action
+                item.image = NSImage(systemSymbolName: action.icon, accessibilityDescription: nil)
+                submenu.addItem(item)
+            }
+            let parent = NSMenuItem(title: "Pipelines", action: nil, keyEquivalent: "")
+            parent.submenu = submenu
+            menu.addItem(parent)
         }
 
         // NSMenuItem.target is weak and popUp tracks synchronously, so the target only needs
@@ -3037,11 +3153,14 @@ struct FloatingActionGridPicker: View {
         }
     }
 
+    /// Observed so the Pipelines submenu follows library edits while Settings is open.
+    @Default(.savedPipelines) private var savedPipelines
+
     /// Same metrics as the overlay grid (FloatingGridButtonStyle: 34pt cells, 8pt gaps).
     private let side: CGFloat = 34
 
     private var configured: [FloatingAction] {
-        actions.filter { $0 != .crop }
+        actions.filter { $0 != .crop && $0.resolves }
     }
     private var slots: [FloatingAction?] {
         var s: [FloatingAction?] = Array(configured.prefix(6)).map { Optional($0) }
@@ -3053,6 +3172,9 @@ struct FloatingActionGridPicker: View {
     private var addable: [FloatingAction] {
         FloatingAction.allCases.filter { $0 != .crop && !configured.contains($0) }
     }
+    private var addablePipelines: [FloatingAction] {
+        FloatingAction.pipelineActions().filter { !configured.contains($0) }
+    }
 
     private var addPlaceholder: some View {
         let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
@@ -3063,6 +3185,7 @@ struct FloatingActionGridPicker: View {
                         Label(a.label, systemImage: a.icon)
                     }
                 }
+                PipelineActionsMenu(pipelines: addablePipelines) { actions.append($0) }
             }
         } label: {
             SwiftUI.Image(systemName: "plus").font(.heavy(10)).foregroundStyle(.primary.opacity(0.45))
@@ -3075,7 +3198,25 @@ struct FloatingActionGridPicker: View {
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .fixedSize()
-        .disabled(addable.isEmpty)
+        .disabled(addable.isEmpty && addablePipelines.isEmpty)
+    }
+}
+
+/// "Pipelines" submenu of the add-button menus in Settings: one item per saved pipeline, with its icon.
+struct PipelineActionsMenu: View {
+    let pipelines: [FloatingAction]
+    let add: (FloatingAction) -> Void
+
+    var body: some View {
+        if !pipelines.isEmpty {
+            Menu("Pipelines") {
+                ForEach(pipelines) { action in
+                    Button(action: { add(action) }) {
+                        Label(action.label, systemImage: action.icon)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -3122,6 +3263,12 @@ struct ActionListPicker: View {
     var available: [FloatingAction] {
         FloatingAction.allCases.filter { !actions.contains($0) }
     }
+    var availablePipelines: [FloatingAction] {
+        FloatingAction.pipelineActions().filter { !actions.contains($0) }
+    }
+    var shownActions: [FloatingAction] {
+        actions.filter(\.resolves)
+    }
 
     var buttonSize: CGFloat {
         vertical ? 22 : 18
@@ -3134,6 +3281,7 @@ struct ActionListPicker: View {
                     Label(action.label, systemImage: action.icon)
                 }
             }
+            PipelineActionsMenu(pipelines: availablePipelines) { actions.append($0) }
         } label: {
             SwiftUI.Image(systemName: "plus.circle.fill")
                 .font(.regular(14))
@@ -3155,7 +3303,7 @@ struct ActionListPicker: View {
             HStack(spacing: 6) {
                 let layout = vertical ? AnyLayout(VStackLayout(spacing: 2)) : AnyLayout(HStackLayout(spacing: 2))
                 layout {
-                    ForEach(actions) { action in
+                    ForEach(shownActions) { action in
                         ActionPickerButton(action: action, size: buttonSize) {
                             actions.removeAll { $0 == action }
                         }
@@ -3164,12 +3312,16 @@ struct ActionListPicker: View {
                 .sideButtonBackground(preview: true)
 
                 let maxButtons = vertical ? FloatingAction.maxFloatingButtons : FloatingAction.maxCompactButtons
-                if actions.count < maxButtons, !available.isEmpty {
+                if shownActions.count < maxButtons, !available.isEmpty || !availablePipelines.isEmpty {
                     addMenu
                 }
             }
         }
     }
+
+    /// Observed so the Pipelines submenu follows library edits while Settings is open.
+    @Default(.savedPipelines) private var savedPipelines
+
 }
 
 struct ActionButtons: View {
