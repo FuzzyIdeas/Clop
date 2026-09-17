@@ -1692,8 +1692,11 @@ class Image: CustomStringConvertible {
                 optimisedImages.append(optimisedImage)
             }
 
-            // Copy all optimised images to clipboard at once
-            if optimisedImages.count == identifiers.count {
+            // Copy all optimised images to clipboard at once. A single photo follows copyImageFilePath,
+            // several only paste together as file URLs.
+            if optimisedImages.count == identifiers.count, optimisedImages.count == 1 {
+                optimisedImages[0].copyToClipboard()
+            } else if optimisedImages.count == identifiers.count {
                 let pbItems: [NSPasteboardItem] = optimisedImages.compactMap { img in
                     guard let data = img.path.url.absoluteString.data(using: .utf8) else { return nil }
                     let item = NSPasteboardItem()
@@ -1761,7 +1764,6 @@ class Image: CustomStringConvertible {
     let clipboardID = appendResults
         ? "\(Optimiser.IDs.clipboardImage) \(Int(Date().timeIntervalSince1970))"
         : Optimiser.IDs.clipboardImage
-    let copyToClipboard = !appendResults || Defaults[.copyConsecutiveClipboardImages]
     let type: ItemType = .image(img.type)
     let imgPath = img.path
     Task {
@@ -1782,7 +1784,7 @@ class Image: CustomStringConvertible {
             handledByPipelines = anyRan
         }
         if !handledByPipelines {
-            if let result = try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: copyToClipboard, source: .clipboard) {
+            if let result = try? await runImagePipeline(img, actions: [.optimise], id: clipboardID, copyToClipboard: true, source: .clipboard) {
                 if let optimiser = opt(clipboardID) {
                     await runPipelinesAfterOptimisation(file: result.path, type: type, source: .clipboard, optimiser: optimiser)
                 }
