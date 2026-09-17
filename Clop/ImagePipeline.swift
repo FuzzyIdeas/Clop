@@ -505,7 +505,9 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
                 }
 
                 if copyToClipboard {
-                    if Defaults[.appendClipboardResults], Defaults[.copyConsecutiveClipboardImages] {
+                    // Several accumulated results only paste together as file URLs, so copyImageFilePath
+                    // is honoured while there is a single result and ignored once a second one arrives
+                    if Defaults[.appendClipboardResults], Defaults[.copyConsecutiveClipboardImages], OM.clipboardImageOptimisers.count > 1 {
                         OM.copyAllClipboardImagesToClipboard()
                     } else {
                         (result ?? optimisedImage).copyToClipboard()
