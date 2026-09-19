@@ -26,6 +26,49 @@ import UniformTypeIdentifiers
 
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ClopApp")
 
+/// The Apple processes a person opens an app from. A reopen sent by any other Apple process is
+/// the system reaching into Clop: Siri (`com.apple.Siri`, and `com.apple.campo` for Siri AI)
+/// resolving App Intents, the Shortcuts runners running a Clop action, intent extensions. None of
+/// those should put the Settings window in front of the user.
+private let USER_LAUNCHER_BUNDLE_IDS: Set = [
+    "com.apple.dock",
+    "com.apple.finder",
+    "com.apple.Spotlight",
+    "com.apple.apps.launcher",
+    "com.apple.Terminal",
+]
+
+/// The process that sent the AppleEvent currently being handled (reopen/open/activate).
+/// `bundleID` is nil for daemons and command line tools, which `path` still identifies.
+private func currentAppleEventSender() -> (pid: pid_t, bundleID: String?, path: String?)? {
+    guard let event = NSAppleEventManager.shared().currentAppleEvent else { return nil }
+
+    for keyword in [AEKeyword(keySenderPIDAttr), AEKeyword(keyAddressAttr)] {
+        guard let data = event.attributeDescriptor(forKeyword: keyword)?.coerce(toDescriptorType: typeKernelProcessID)?.data,
+              data.count == MemoryLayout<pid_t>.size
+        else { continue }
+        let pid = data.withUnsafeBytes { $0.load(as: pid_t.self) }
+        guard pid > 0 else { continue }
+
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        let path = proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 ? String(cString: buffer) : nil
+        return (pid, NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, path)
+    }
+    return nil
+}
+
+/// Whether the AppleEvent being handled came from the system rather than from someone opening
+/// Clop. An unknown sender counts as a person, so a launcher Clop has never heard of still
+/// opens Settings.
+private func appleEventSentBySystem() -> Bool {
+    guard let sender = currentAppleEventSender() else { return false }
+    if let bundleID = sender.bundleID {
+        return bundleID.hasPrefix("com.apple.") && !USER_LAUNCHER_BUNDLE_IDS.contains(bundleID)
+    }
+    guard let path = sender.path, path != "/usr/bin/open" else { return false }
+    return ["/System/", "/usr/libexec/", "/usr/sbin/"].contains { path.hasPrefix($0) }
+}
+
 func clopDebugLog(_ message: String, includeCallStack: Bool = false) {
     guard let bid = Bundle.main.bundleIdentifier, bid.hasPrefix("com.lowtechguys.Clop") else { return }
 
@@ -1148,10 +1191,26 @@ class AppDelegate: AppDelegateParent {
         }
     }
 
+    /// True when the AppleEvent currently being handled (a reopen) was sent by the system rather
+    /// than by someone opening Clop (see `appleEventSentBySystem`). Logs the sender either way, so
+    /// a new system agent that reopens Clop shows up by name.
+    func reopenTriggeredBySystem() -> Bool {
+        let sender = currentAppleEventSender()
+        let bySystem = appleEventSentBySystem()
+        log.info("Reopen from \(sender?.bundleID ?? sender?.path ?? "unknown sender", privacy: .public) (pid \(sender?.pid ?? 0)): \(bySystem ? "system, Settings stays closed" : "user")")
+        return bySystem
+    }
+
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
         // Fires when the app is launched again while already running (Finder double-click, dock
         // click, `open`), but NOT on plain re-activation like QuickLook making the app key, so
         // surfacing settings here means it won't pop up when you QuickLook a floating result.
+
+        // Siri resolving App Intents and the Shortcuts runners running a Clop action both re-open
+        // the app. Don't pop Settings for those, and don't let AppKit open a window either.
+        if reopenTriggeredBySystem() {
+            return false
+        }
 
         // If one of Clop's real windows is already open (e.g. the batch/crop/comparison window covered
         // by other apps' windows), a dock click should bring the frontmost one forward rather than
