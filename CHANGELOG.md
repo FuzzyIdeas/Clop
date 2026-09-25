@@ -1,3 +1,12 @@
+# 3.4.3
+
+**[Download Clop 3.4.3 →](https://files.lowtechguys.com/releases/Clop-3.4.3.dmg)**
+## Fixes
+
+- The clipboard no longer keeps the original unoptimised image when *Keep all clipboard results* is on and *Accumulate optimised images in clipboard* is off
+- *Copy image paths* applies to a single photo copied from Photos, and to the first image while accumulating clipboard images
+- Siri no longer opens the Settings window when it looks at what's on screen
+
 # 3.4.2
 
 **[Download Clop 3.4.2 →](https://files.lowtechguys.com/releases/Clop-3.4.2.dmg)**
