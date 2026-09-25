@@ -421,6 +421,26 @@ extension FilePath {
         return !data.isEmpty
     }
 
+    /// The Spotlight attributes that mark a file as a screenshot or screen recording. They live in
+    /// xattrs rather than in the file, so every rewrite drops them unless they're copied over.
+    var screenCaptureXattrs: [String: Data] {
+        guard let names = try? Xattr.names(atPath: string) else { return [:] }
+        return names.filter { SCREEN_CAPTURE_XATTRS.contains($0) }.reduce(into: [:]) { attrs, name in
+            attrs[name] = try? Xattr.dataFor(named: name, atPath: string)
+        }
+    }
+
+    func setXattrs(_ attrs: [String: Data]) {
+        for (name, data) in attrs {
+            try? Xattr.set(named: name, data: data, atPath: string)
+        }
+    }
+
+    func copyScreenCaptureXattrs(from source: FilePath) {
+        guard source != self else { return }
+        setXattrs(source.screenCaptureXattrs)
+    }
+
     func removeOptimisationStatusXattr() throws {
         try Xattr.remove(named: "clop.optimisation.status", atPath: string)
     }
@@ -524,10 +544,20 @@ func mimeTypeFromMagicBytes(_ data: Data) -> String? {
     return nil
 }
 
+let SCREEN_CAPTURE_XATTRS: Set = [
+    "com.apple.metadata:kMDItemIsScreenCapture",
+    "com.apple.metadata:kMDItemScreenCaptureType",
+    "com.apple.metadata:kMDItemScreenCaptureGlobalRect",
+]
+
+/// PNG keeps its DPI in the pHYs chunk, which `-all=` deletes along with the EXIF resolution.
+let PNG_PHYS_TAGS = ["PixelsPerUnitX", "PixelsPerUnitY", "PixelUnits"]
+let RESOLUTION_TAGS = ["-XResolution", "-YResolution", "-ResolutionUnit"] + PNG_PHYS_TAGS.map { "-\($0)" }
+
 extension FilePath {
     func stripExif() {
         let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
-        var args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72", "-all=", "-tagsFromFile", "@", "-XResolution", "-YResolution", "-Orientation"]
+        var args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72", "-all=", "-tagsFromFile", "@"] + RESOLUTION_TAGS + ["-Orientation"]
         if Defaults[.preserveColorMetadata] {
             args += ["-ColorSpaceTags", "-icc_profile"]
         }
@@ -542,6 +572,7 @@ extension FilePath {
         if hasOptimisationStatusXattr() {
             try? tempFile.setOptimisationStatusXattr("true")
         }
+        tempFile.copyScreenCaptureXattrs(from: self)
         _ = try? tempFile.move(to: self, force: true)
 
         #if DEBUG
@@ -591,6 +622,7 @@ extension FilePath {
 
     func copyExif(from source: FilePath, excludeTags: [String]? = nil, stripMetadata: Bool = true) {
         guard source != self else { return }
+        copyScreenCaptureXattrs(from: source)
 
         // `copyExifCGImage` writes a single frame, so an animated file would come back from it as a
         // still. Those go to exiftool instead, which rewrites the metadata chunks in place and
@@ -607,13 +639,16 @@ extension FilePath {
         let hdr = isImage && source.hasExifHDR()
 
         var additionalArgs: [String] = []
+        // A PNG carries its DPI twice, in EXIF and in the pHYs chunk, so dropping one without the other
+        // leaves the file claiming its old density.
+        let excludeTags = excludeTags.map { $0.contains("XResolution") ? $0 + PNG_PHYS_TAGS : $0 }
         if let excludeTags, excludeTags.isNotEmpty {
             additionalArgs += ["-x"] + excludeTags.map { [$0] }.joined(separator: ["-x"]).map { $0 }
         }
 
         var tagsToKeep: [String] = []
         if stripMetadata {
-            tagsToKeep = ["-XResolution", "-YResolution", "-Orientation"]
+            tagsToKeep = RESOLUTION_TAGS + ["-Orientation"]
             if !hdr, Defaults[.preserveColorMetadata] {
                 tagsToKeep += ["-ColorSpaceTags", "-icc_profile"]
             }

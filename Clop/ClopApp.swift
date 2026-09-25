@@ -821,6 +821,8 @@ class AppDelegate: AppDelegateParent {
         case .o:
             guard let url = opt.url ?? opt.originalURL else { return }
             NSWorkspace.shared.open(url)
+        case .e:
+            _ = opt.editWithConfiguredApp()
         case .a where !opt.aggressive:
             if opt.downscaleFactor < 1 {
                 opt.downscale(toFactor: opt.downscaleFactor, aggressiveOptimisation: true)
