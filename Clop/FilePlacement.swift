@@ -16,8 +16,12 @@ struct PlacedOutput {
 /// Optimise always has a behaviour; conversions fall back to the optimise behaviour for PDF
 /// (which has no conversion keys) so callers never crash on a nil key.
 func effectiveBehaviour(type: ClopFileType, kind: OutputKind, overrides: PlacementOverride?) -> FileBehaviour {
-    if let o = overrides?.behaviour(for: kind) { return o }
-    if let key = type.behaviourKey(for: kind) { return Defaults[key] }
+    if let o = overrides?.behaviour(for: kind) {
+        return o
+    }
+    if let key = type.behaviourKey(for: kind) {
+        return Defaults[key]
+    }
     return Defaults[type.optimisedBehaviourKey]
 }
 
@@ -117,6 +121,9 @@ func executePlacement(_ plan: PlacementPlan, produced: FilePath, original: FileP
     // sits at the destination, e.g. an in-place optimise where produced == original == dest.
     let finalPath = produced == dest ? produced : try produced.copy(to: dest, force: true)
     try? finalPath.setOptimisationStatusXattr("true")
+    // Conversions write a fresh file that never saw the original's xattrs. `backup` is the original
+    // when it was moved away above.
+    finalPath.copyScreenCaptureXattrs(from: backup ?? original)
     return PlacedOutput(path: finalPath, backup: backup, originalRemoved: originalRemoved)
 }
 
