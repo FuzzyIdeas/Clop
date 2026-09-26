@@ -143,9 +143,15 @@ struct PresetZoneRow: View {
             let types: [(String, ClopFileType?)] = [("Image", .image), ("Video", .video), ("Audio", .audio), ("PDF", .pdf)]
             ForEach(types, id: \.0) { label, t in
                 Button {
-                    if t != zone.type { replaceMeta(name: editName, icon: icon, type: t) }
+                    if t != zone.type {
+                        replaceMeta(name: editName, icon: icon, type: t)
+                    }
                 } label: {
-                    HStack { Text(label); if zone.type == t { SwiftUI.Image(systemName: "checkmark") } }
+                    HStack {
+                        Text(label); if zone.type == t {
+                            SwiftUI.Image(systemName: "checkmark")
+                        }
+                    }
                 }
             }
         } label: {
@@ -162,6 +168,7 @@ struct PresetZoneRow: View {
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
         .help("Move to another file type")
+        .accessibilityLabel("Move to another file type")
     }
 
     var confirmCancel: some View {
@@ -169,11 +176,11 @@ struct PresetZoneRow: View {
             Button(action: commit) {
                 SwiftUI.Image(systemName: "checkmark").font(.regular(11)).foregroundColor(.green.opacity(0.8))
                     .padding(.horizontal, 7).padding(.vertical, 3)
-            }.buttonStyle(.plain).help("Done")
+            }.buttonStyle(.plain).help("Done").accessibilityLabel("Done")
             Button(action: cancel) {
                 SwiftUI.Image(systemName: "xmark").font(.regular(11)).foregroundColor(.red.opacity(0.8))
                     .padding(.horizontal, 7).padding(.vertical, 3)
-            }.buttonStyle(.plain).help("Cancel")
+            }.buttonStyle(.plain).help("Cancel").accessibilityLabel("Cancel")
         }
         .background(Capsule().fill(Color.primary.opacity(0.05)))
     }
@@ -185,12 +192,16 @@ struct PresetZoneRow: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 13))
                     .onChange(of: icon) { newIcon in
-                        if newIcon != zone.icon { replaceMeta(name: editName, icon: newIcon, type: zone.type) }
+                        if newIcon != zone.icon {
+                            replaceMeta(name: editName, icon: newIcon, type: zone.type)
+                        }
                     }
 
                 InlineNameField(name: $editName, size: 11, weight: .regular) {
                     let trimmed = editName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty, trimmed != zone.name { replaceMeta(name: trimmed, icon: icon, type: zone.type) }
+                    if !trimmed.isEmpty, trimmed != zone.name {
+                        replaceMeta(name: trimmed, icon: icon, type: zone.type)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -298,12 +309,20 @@ struct PresetZoneRow: View {
         if zone.pipeline.isLibraryReference, let libID = zone.pipeline.libraryID,
            let i = savedPipelines.firstIndex(where: { $0.id == libID })
         {
-            if let skip { savedPipelines[i].skipOptimisation = skip }
-            if let hide { savedPipelines[i].hideResult = hide }
+            if let skip {
+                savedPipelines[i].skipOptimisation = skip
+            }
+            if let hide {
+                savedPipelines[i].hideResult = hide
+            }
         } else {
             var p = zone.pipeline
-            if let skip { p.skipOptimisation = skip }
-            if let hide { p.hideResult = hide }
+            if let skip {
+                p.skipOptimisation = skip
+            }
+            if let hide {
+                p.hideResult = hide
+            }
             replaceZone(PresetZone(id: zone.id, name: zone.name, icon: zone.icon, type: zone.type, pipeline: p))
         }
     }

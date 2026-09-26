@@ -224,7 +224,7 @@ struct DirListView: View {
                 Table(dirs.sorted(), selection: $selectedDirs) {
                     TableColumn("Path") { dir in Text(dir.replacingOccurrences(of: HOME.string, with: "~")).mono(12) }
                     TableColumn("Show floating results") { dir in
-                        Toggle("", isOn: showFloatingBinding(for: dir))
+                        Toggle("Show floating results", isOn: showFloatingBinding(for: dir))
                             .toggleStyle(.checkbox)
                             .controlSize(.mini)
                             .labelsHidden()
@@ -1824,7 +1824,7 @@ struct ImagesSettingsView: View {
     }
 
     var cropOrientationPicker: some View {
-        Picker("", selection: $photoCropOrientation) {
+        Picker("Orientation", selection: $photoCropOrientation) {
             Label("height", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
                 .help("Resize images until the height is equal or lower than the specified size.")
             Label("longest edge", systemImage: "sparkles.rectangle.stack").tag(CropOrientation.adaptive)
@@ -1832,6 +1832,7 @@ struct ImagesSettingsView: View {
             Label("width", systemImage: "rectangle").tag(CropOrientation.landscape)
                 .help("Resize images until the width is equal or lower than the specified size.")
         }
+        .labelsHidden()
         .fixedSize()
         .pickerStyle(.segmented)
         .labelStyle(.titleAndIcon)
@@ -2208,6 +2209,7 @@ struct IconPickerView: View {
         } label: {
             SwiftUI.Image(systemName: icon)
         }
+        .accessibilityLabel("Icon")
         .sheet(isPresented: $iconPickerPresented) {
             // Keeps the category this picker has always opened on: the default became `all` in
             // SymbolPicker 2.1.0.
@@ -2599,10 +2601,11 @@ struct FloatingSettingsView: View {
                         }
                     }
                 }
-                Picker("", selection: $compact) {
+                Picker("Layout", selection: $compact) {
                     Text("Compact").tag(true)
                     Text("Full").tag(false)
                 }.pickerStyle(.segmented).frame(width: 200)
+                    .labelsHidden()
                 Text("only for preview")
                     .round(10)
                     .foregroundColor(.secondary)
@@ -2656,6 +2659,7 @@ struct EditorAppRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Remove")
+                .accessibilityLabel("Remove")
             } else {
                 Button("Choose app…", action: pick)
             }
@@ -2783,7 +2787,7 @@ struct ClipboardSettingsView: View {
 
                     HStack {
                         Text("Reset after").regular(13)
-                        Picker("", selection: $clipboardAccumulationTimeout) {
+                        Picker("Reset after", selection: $clipboardAccumulationTimeout) {
                             Text("10 seconds").tag(10)
                             Text("30 seconds").tag(30)
                             Text("1 minute").tag(60)
@@ -2791,6 +2795,7 @@ struct ClipboardSettingsView: View {
                             Text("5 minutes").tag(300)
                             Text("Never").tag(0)
                         }
+                        .labelsHidden()
                         .frame(width: 140)
                         .searchAnchor("clipboard.clipboard.clipboardAccumulationTimeout")
                         Text("of inactivity").regular(13)
@@ -2893,13 +2898,14 @@ struct GeneralSettingsView: View {
             HStack {
                 Text("Secure send links expire after")
                 Spacer()
-                Picker("", selection: $defaultLinkExpiration) {
+                Picker("Secure send links expire after", selection: $defaultLinkExpiration) {
                     ForEach(LINK_EXPIRATION_PRESETS, id: \.self) { preset in
                         Text(expirationDurationLabel(preset)).tag(preset)
                     }
                     Divider()
                     Text("Never").tag(LINK_EXPIRATION_NEVER)
                 }
+                .labelsHidden()
                 .frame(width: 150)
                 .searchAnchor("general.main.defaultLinkExpiration")
             }
@@ -3080,6 +3086,7 @@ struct SettingsSidebarRow: View {
                 SidebarIcon(symbol: tab.symbol, hue: tab.hue)
             }
         }
+        .accessibilityIdentifier("settings.sidebar.\(tab)")
     }
 }
 
@@ -3204,9 +3211,12 @@ struct SettingsView: View {
             SwiftUI.Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             TextField("Search settings", text: $svm.searchQuery)
                 .textFieldStyle(.plain)
                 .focused($searchFocused)
+                // The placeholder is not a name: without this the field is announced as nothing.
+                .accessibilityLabel("Search settings")
             if !svm.searchQuery.isEmpty {
                 Button { svm.searchQuery = "" } label: {
                     SwiftUI.Image(systemName: "xmark.circle.fill")
@@ -3214,6 +3224,7 @@ struct SettingsView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 8)
@@ -3450,6 +3461,9 @@ struct DualKnobSlider: View {
     @Binding var low: Double
     @Binding var high: Double
 
+    /// Name for the two stand-in accessibility sliders ("File size minimum", "File size maximum").
+    var label = ""
+
     var onChanged: () -> Void = {}
 
     var body: some View {
@@ -3465,8 +3479,16 @@ struct DualKnobSlider: View {
                     .position(x: (lowX + highX) / 2, y: thumb / 2)
                 SkipSliderKnob().frame(width: thumb, height: thumb).position(x: lowX, y: thumb / 2)
                     .gesture(knobDrag(usable: usable, lower: true))
+                    .accessibilitySlider("\(label) minimum", position: Binding(
+                        get: { low },
+                        set: { low = Swift.min(high, Swift.max(0, $0)); onChanged() }
+                    ))
                 SkipSliderKnob().frame(width: thumb, height: thumb).position(x: highX, y: thumb / 2)
                     .gesture(knobDrag(usable: usable, lower: false))
+                    .accessibilitySlider("\(label) maximum", position: Binding(
+                        get: { high },
+                        set: { high = Swift.max(low, Swift.min(1, $0)); onChanged() }
+                    ))
             }
             .frame(width: w, height: thumb)
             .coordinateSpace(name: space)
@@ -3496,6 +3518,9 @@ struct DualKnobSlider: View {
 struct SingleKnobSlider: View {
     @Binding var value: Double
 
+    /// Name of the stand-in accessibility slider: the track is a drag gesture, invisible to it.
+    var label = ""
+
     var onChanged: () -> Void = {}
 
     var body: some View {
@@ -3522,6 +3547,10 @@ struct SingleKnobSlider: View {
             )
         }
         .frame(height: thumb)
+        .accessibilitySlider(label, position: Binding(
+            get: { value },
+            set: { value = Swift.min(1, Swift.max(0, $0)); onChanged() }
+        ))
     }
 
     private let thumb: CGFloat = 16
@@ -3547,7 +3576,8 @@ struct FileSizeRangeRow: View {
             }
             DualKnobSlider(
                 low: Binding(get: { minKB == 0 ? 0 : frac(Double(minKB) * 1000) }, set: setLow),
-                high: Binding(get: { maxMB == 0 ? 1 : frac(Double(maxMB) * 1_000_000) }, set: setHigh)
+                high: Binding(get: { maxMB == 0 ? 1 : frac(Double(maxMB) * 1_000_000) }, set: setHigh),
+                label: label
             )
             Text(caption).round(10, weight: .regular).foregroundColor(.secondary)
         }
@@ -3600,7 +3630,8 @@ struct ResolutionRangeRow: View {
             }
             DualKnobSlider(
                 low: Binding(get: { minRes == 0 ? 0 : frac(Double(minRes)) }, set: setLow),
-                high: Binding(get: { maxRes == 0 ? 1 : frac(Double(maxRes)) }, set: setHigh)
+                high: Binding(get: { maxRes == 0 ? 1 : frac(Double(maxRes)) }, set: setHigh),
+                label: label
             )
             Text(caption).round(10, weight: .regular).foregroundColor(.secondary)
         }
@@ -3659,7 +3690,7 @@ struct CountSliderRow: View {
             SingleKnobSlider(value: Binding(
                 get: { Double(count - range.lowerBound) / Double(range.upperBound - range.lowerBound) },
                 set: { count = range.lowerBound + Int(($0 * Double(range.upperBound - range.lowerBound)).rounded()) }
-            ))
+            ), label: label)
             if !caption(count).isEmpty {
                 Text(caption(count)).round(10, weight: .regular).foregroundColor(.secondary)
             }

@@ -710,6 +710,7 @@ struct NameFormatPill: View {
                     }
                 }
                 .onTapGesture { startEditing() }
+                .accessibleTap { startEditing() }
             if !ext.isEmpty {
                 formatSegment
             }
@@ -1541,6 +1542,7 @@ struct FloatingResult: View {
             } label: {
                 SwiftUI.Image(systemName: "ellipsis")
             }
+            .accessibilityLabel("Actions")
             .menuButtonStyle(BorderlessButtonMenuButtonStyle())
             .menuIndicator(.hidden)
             .buttonStyle(FloatingCornerButtonStyle())

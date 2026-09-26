@@ -38,7 +38,9 @@ import System
 @MainActor private var iconCache: [String: NSImage] = [:]
 
 @MainActor private func icon(for bundleId: String, path: FilePath?) -> NSImage {
-    if let cached = iconCache[bundleId] { return cached }
+    if let cached = iconCache[bundleId] {
+        return cached
+    }
     let image: NSImage = if let path, path.exists {
         NSWorkspace.shared.icon(forFile: path.string)
     } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
@@ -182,6 +184,7 @@ struct IgnoredAppsPicker: View {
             }
             .buttonStyle(.plain)
             .help("Remove from ignore list")
+            .accessibilityLabel("Remove from ignore list")
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -194,7 +197,9 @@ struct IgnoredAppsPicker: View {
                 let filtered = apps
                     .filter { isAppPathRelevant($0.path.string) }
                     .reduce(into: [String: InstalledApp]()) { acc, app in
-                        if acc[app.bundleIdentifier] == nil { acc[app.bundleIdentifier] = app }
+                        if acc[app.bundleIdentifier] == nil {
+                            acc[app.bundleIdentifier] = app
+                        }
                     }
                 installedApps = Array(filtered.values)
                 for app in installedApps where pathByBundleId[app.bundleIdentifier] == nil {

@@ -501,6 +501,9 @@ struct DownscaleSlider: View {
         .overlay(
             SliderEventOverlay(
                 buttonSize: size,
+                accessibilityName: "Downscale",
+                value: displayFactor,
+                valueDescription: "\((displayFactor * 100).intround)%",
                 onDrag: { factor in
                     dragFactor = factor
                     optimiser.stepIndicator = "\((factor * 100).intround)%"
@@ -600,6 +603,9 @@ struct HorizontalDownscaleSlider: View {
             SliderEventOverlay(
                 buttonSize: size,
                 isHorizontal: true,
+                accessibilityName: "Downscale",
+                value: displayFactor,
+                valueDescription: "\((displayFactor * 100).intround)%",
                 onDrag: { factor in
                     dragFactor = factor
                     optimiser.stepIndicator = downscaleResolutionString(for: optimiser, factor: factor).map { "\(downscaleFactorLabel(factor)) · \($0)" } ?? downscaleFactorLabel(factor)
@@ -698,6 +704,9 @@ struct HorizontalCoverArtSlider: View {
             SliderEventOverlay(
                 buttonSize: size,
                 isHorizontal: true,
+                accessibilityName: "Cover art size",
+                value: displayFactor,
+                valueDescription: "\((displayFactor * 100).intround)%",
                 onDrag: { factor in
                     dragFactor = factor
                     optimiser.stepIndicator = resolutionLabel(factor)
@@ -1084,6 +1093,9 @@ struct CompressionSlider: View {
             SliderEventOverlay(
                 buttonSize: size,
                 snapPoints: CompressionScale.magneticValues(for: optimiser.compressionSliderType),
+                accessibilityName: "Compression",
+                value: displayPosition,
+                valueDescription: displayLabel,
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
@@ -1185,6 +1197,9 @@ struct HorizontalCompressionSlider: View {
                 buttonSize: size,
                 isHorizontal: true,
                 snapPoints: CompressionScale.magneticValues(for: optimiser.compressionSliderType),
+                accessibilityName: "Compression",
+                value: displayPosition,
+                valueDescription: displayLabel,
                 onDrag: { value in
                     let p = (1.0 - value) / 0.9
                     dragPosition = p
@@ -1290,6 +1305,10 @@ struct BitrateSlider: View {
         .overlay(
             SliderEventOverlay(
                 buttonSize: size,
+                accessibilityName: "Bitrate",
+                value: bitrates.count > 1 ? 0.1 + Double(bitrates.firstIndex(of: currentBitrate) ?? 0) / Double(bitrates.count - 1) * 0.9 : 1.0,
+                valueDescription: "\(currentBitrate) kbps",
+                accessibilitySteps: bitrates.indices.map { 0.1 + Double($0) / Double(max(bitrates.count - 1, 1)) * 0.9 },
                 onDrag: { factor in
                     let idx = bitrateIndex(for: factor)
                     dragBitrate = bitrates[idx]
@@ -1401,6 +1420,10 @@ struct HorizontalBitrateSlider: View {
             SliderEventOverlay(
                 buttonSize: size,
                 isHorizontal: true,
+                accessibilityName: "Bitrate",
+                value: bitrates.count > 1 ? 0.1 + Double(bitrates.firstIndex(of: currentBitrate) ?? 0) / Double(bitrates.count - 1) * 0.9 : 1.0,
+                valueDescription: "\(currentBitrate) kbps",
+                accessibilitySteps: bitrates.indices.map { 0.1 + Double($0) / Double(max(bitrates.count - 1, 1)) * 0.9 },
                 onDrag: { factor in
                     let idx = bitrateIndex(for: factor)
                     dragBitrate = bitrates[idx]
@@ -1451,6 +1474,8 @@ struct HorizontalBitrateSlider: View {
 /// shared downscale-style factor (0.1…1.0) which each wrapper maps to its own domain.
 struct CardSlider: View {
     let hint: String
+    /// What the slider sets, for VoiceOver and computer-use agents; `hint` is its current value.
+    var accessibilityName = ""
     var formatChangeOptimiser: Optimiser?
     var formatChangeQuality: CompressionQuality?
     var snapPoints: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
@@ -1499,7 +1524,12 @@ struct CardSlider: View {
             }
             .frame(height: 12)
         }
-        .overlay(SliderEventOverlay(buttonSize: 11, isHorizontal: true, snapPoints: snapPoints, onDrag: onDrag, onRelease: onRelease, onCancel: onCancel))
+        .overlay(SliderEventOverlay(
+            buttonSize: 11, isHorizontal: true, snapPoints: snapPoints,
+            // The knob runs 0...1 left to right; the overlay's space is 1...0.1 over the same track.
+            accessibilityName: accessibilityName, value: 1.0 - min(max(position, 0), 1) * 0.9, valueDescription: hint,
+            onDrag: onDrag, onRelease: onRelease, onCancel: onCancel
+        ))
         // Escape bails out without committing. The floating panel is non-activating, so it has to
         // be made key first for the keyboard shortcut (and the overlay's keyDown monitor) to fire.
         .background {
@@ -1535,6 +1565,7 @@ struct CardDownscaleSlider: View {
     var body: some View {
         CardSlider(
             hint: hint,
+            accessibilityName: "Downscale",
             position: (1.0 - factor) / 0.9,
             anchors: [1.0, 0.75, 0.5, 0.25, 0.1].map { (1.0 - $0) / 0.9 },
             onDrag: { f in dragFactor = f },
@@ -1573,6 +1604,7 @@ struct CardCoverArtSlider: View {
     var body: some View {
         CardSlider(
             hint: hint,
+            accessibilityName: "Cover art size",
             position: (1.0 - factor) / 0.9,
             anchors: [1.0, 0.75, 0.5, 0.25, 0.1].map { (1.0 - $0) / 0.9 },
             onDrag: { f in dragFactor = f },
@@ -1610,6 +1642,7 @@ struct CardCompressionSlider: View {
     var body: some View {
         CardSlider(
             hint: hint,
+            accessibilityName: "Compression",
             formatChangeOptimiser: optimiser,
             formatChangeQuality: displayQuality,
             snapPoints: CompressionScale.magneticValues(for: optimiser.compressionSliderType),
@@ -1653,6 +1686,7 @@ struct CardBitrateSlider: View {
     var body: some View {
         CardSlider(
             hint: "\(current) kbps",
+            accessibilityName: "Bitrate",
             position: bitrates.firstIndex(of: current).map { position(forIndex: $0) } ?? 0,
             anchors: bitrates.indices.map { position(forIndex: $0) },
             onDrag: { f in dragBitrate = bitrates[index(forFactor: f)] },
@@ -1696,6 +1730,7 @@ struct CardPDFDPISlider: View {
     var body: some View {
         CardSlider(
             hint: "\(current) DPI",
+            accessibilityName: "DPI",
             position: nearestIndex(for: current).map { position(forIndex: $0) } ?? 0,
             anchors: stops.indices.map { position(forIndex: $0) },
             onDrag: { f in dragDPI = stops[index(forFactor: f)] },
@@ -1798,6 +1833,10 @@ struct PDFDPISlider: View {
         .overlay(
             SliderEventOverlay(
                 buttonSize: size,
+                accessibilityName: "DPI",
+                value: stops.count > 1 ? 1.0 - Double(stops.firstIndex(of: currentDPI) ?? 0) / Double(stops.count - 1) * 0.9 : 1.0,
+                valueDescription: "\(currentDPI) DPI",
+                accessibilitySteps: stops.indices.map { 1.0 - Double($0) / Double(max(stops.count - 1, 1)) * 0.9 },
                 onDrag: { factor in
                     let dpi = stops[dpiIndex(for: factor)]
                     dragDPI = dpi
@@ -1911,6 +1950,10 @@ struct HorizontalPDFDPISlider: View {
             SliderEventOverlay(
                 buttonSize: size,
                 isHorizontal: true,
+                accessibilityName: "DPI",
+                value: stops.count > 1 ? 1.0 - Double(stops.firstIndex(of: currentDPI) ?? 0) / Double(stops.count - 1) * 0.9 : 1.0,
+                valueDescription: "\(currentDPI) DPI",
+                accessibilitySteps: stops.indices.map { 1.0 - Double($0) / Double(max(stops.count - 1, 1)) * 0.9 },
                 onDrag: { factor in
                     let dpi = stops[dpiIndex(for: factor)]
                     dragDPI = dpi
@@ -1985,6 +2028,18 @@ private struct SliderEventOverlay: NSViewRepresentable {
         var directTracking = false
         var didDrag = false
         var dragMonitor: Any?
+
+        // MARK: Accessibility
+
+        // The slider is drawn in SwiftUI and driven by the mouse through this view, so neither half
+        // was visible to VoiceOver or a computer-use agent. This view stands in as the slider: it
+        // reports the knob's value in the same 0.1...1 space the drag uses, steps between the snap
+        // points, and commits through `onRelease` exactly like letting go of a drag.
+
+        var accessibilityName = ""
+        var currentValue = 1.0
+        var valueDescription: String?
+        var accessibilitySteps: [Double]?
 
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
             true
@@ -2082,6 +2137,46 @@ private struct SliderEventOverlay: NSViewRepresentable {
             super.removeFromSuperview()
         }
 
+        override func isAccessibilityElement() -> Bool {
+            true
+        }
+        override func accessibilityRole() -> NSAccessibility.Role? {
+            .slider
+        }
+        override func accessibilityLabel() -> String? {
+            accessibilityName
+        }
+        override func accessibilityValue() -> Any? {
+            currentValue
+        }
+        override func accessibilityValueDescription() -> String? {
+            valueDescription
+        }
+        override func accessibilityMinValue() -> Any? {
+            0.1
+        }
+        override func accessibilityMaxValue() -> Any? {
+            1.0
+        }
+        override func setAccessibilityValue(_ accessibilityValue: Any?) {
+            guard let v = (accessibilityValue as? NSNumber)?.doubleValue else { return }
+            onRelease?(max(0.1, min(1.0, v)))
+        }
+        override func accessibilityPerformIncrement() -> Bool {
+            let next = (accessibilitySteps ?? snapPoints).filter { $0 > currentValue + 0.001 }.min() ?? min(1.0, currentValue + 0.05)
+            onRelease?(next)
+            return true
+        }
+        override func accessibilityPerformDecrement() -> Bool {
+            let next = (accessibilitySteps ?? snapPoints).filter { $0 < currentValue - 0.001 }.max() ?? max(0.1, currentValue - 0.05)
+            onRelease?(next)
+            return true
+        }
+        override func accessibilityPerformCancel() -> Bool {
+            onCancel?()
+            return true
+        }
+
         func factorForLocation(_ loc: CGPoint) -> Double {
             isHorizontal ? factor(forX: loc.x) : factor(forY: loc.y)
         }
@@ -2117,6 +2212,12 @@ private struct SliderEventOverlay: NSViewRepresentable {
     var buttonSize: CGFloat
     var isHorizontal = false
     var snapPoints: [Double] = [1.0, 0.75, 0.5, 0.25, 0.1]
+    var accessibilityName = ""
+    var value = 1.0
+    var valueDescription: String?
+    /// Values an accessibility increment or decrement moves between, when they are not the
+    /// drag's snap points (the bitrate and DPI sliders step one stop at a time).
+    var accessibilitySteps: [Double]?
     var onDrag: (Double) -> Void
     var onRelease: (Double) -> Void
     var onCancel: () -> Void
@@ -2126,6 +2227,10 @@ private struct SliderEventOverlay: NSViewRepresentable {
         view.buttonSize = buttonSize
         view.isHorizontal = isHorizontal
         view.snapPoints = snapPoints
+        view.accessibilityName = accessibilityName
+        view.currentValue = value
+        view.valueDescription = valueDescription
+        view.accessibilitySteps = accessibilitySteps
         view.onDrag = onDrag
         view.onRelease = onRelease
         view.onCancel = onCancel
@@ -2136,6 +2241,10 @@ private struct SliderEventOverlay: NSViewRepresentable {
         nsView.buttonSize = buttonSize
         nsView.isHorizontal = isHorizontal
         nsView.snapPoints = snapPoints
+        nsView.accessibilityName = accessibilityName
+        nsView.currentValue = value
+        nsView.valueDescription = valueDescription
+        nsView.accessibilitySteps = accessibilitySteps
         nsView.onDrag = onDrag
         nsView.onRelease = onRelease
         nsView.onCancel = onCancel
@@ -2604,6 +2713,7 @@ struct WarpDropActiveButton: View {
                 .foregroundColor(glowing ? Color.red : Color.primary)
                 .shadow(color: .red.opacity(glowing ? 0.5 : 0), radius: glowing ? 4 : 0)
         }
+        .accessibilityLabel("Secure send link")
         .menuButtonStyle(BorderlessButtonMenuButtonStyle())
         .onAppear { withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) { glowing = true } }
         .onDisappear { glowing = false }
@@ -2665,6 +2775,8 @@ struct SendExpirationPopover: View {
             Text("Link expires in \(expirationDurationLabel(optimiser.sendExpiration))")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
             Slider(value: sendExpirationIndexBinding(optimiser), in: 0 ... Double(LINK_EXPIRATION_PRESETS.count - 1), step: 1)
+                .accessibilityLabel("Link expiration")
+                .accessibilityValue(expirationDurationLabel(optimiser.sendExpiration))
             Button(action: {
                 guard !preview else { return }
                 warpDropSend(optimiser: optimiser, expiration: optimiser.sendExpiration)
@@ -2695,6 +2807,8 @@ struct CardSendExpirationSlider: View {
                 .minimumScaleFactor(0.75)
             Slider(value: sendExpirationIndexBinding(optimiser), in: 0 ... Double(LINK_EXPIRATION_PRESETS.count - 1), step: 1)
                 .controlSize(.mini)
+                .accessibilityLabel("Link expiration")
+                .accessibilityValue(expirationDurationLabel(optimiser.sendExpiration))
                 .tint(.white)
         }
     }
@@ -2816,6 +2930,7 @@ struct TargetSizeButton: View {
             } label: {
                 SwiftUI.Image(systemName: "target").font(.heavy(9))
             }
+            .accessibilityLabel("Target size")
             .menuButtonStyle(BorderlessButtonMenuButtonStyle())
             .disabled(optimiser.running)
         }
@@ -2847,6 +2962,7 @@ struct CardTargetSizeSlider: View {
     var body: some View {
         CardSlider(
             hint: hint,
+            accessibilityName: "Target size",
             snapPoints: presetPositions.map { 1.0 - 0.9 * $0 },
             position: position(forBytes: bytes),
             anchors: presetPositions,
@@ -3108,6 +3224,7 @@ struct FloatingAddActionSlot: View {
                 .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
                 .contentShape(shape)
         }
+        .accessibilityLabel("Add action")
         .buttonStyle(.plain)
         .background(MenuAnchor(holder: anchor))
         .fixedSize()
@@ -3372,6 +3489,7 @@ struct FloatingActionGridPicker: View {
                 .overlay { shape.stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
                 .contentShape(shape)
         }
+        .accessibilityLabel("Add action")
         // .button, not .borderlessButton: the legacy borderless style drops menu item subtitles, which the
         // Pipelines submenu needs (same style as the preset zone menus in DropZone).
         .menuStyle(.button)
@@ -3549,6 +3667,7 @@ struct ActionListPicker: View {
                 .font(.regular(14))
                 .foregroundColor(.secondary.opacity(0.5))
         }
+        .accessibilityLabel("Add action")
         // See FloatingActionGridPicker: .borderlessButton drops the Pipelines item subtitles.
         .menuStyle(.button)
         .menuIndicator(.hidden)
