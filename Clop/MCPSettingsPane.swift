@@ -24,7 +24,7 @@ struct MCPSettingsView: View {
                 }
                 .disabled(!proactive)
                 .onChange(of: mcpEnabled) { _ in MCPInstaller.writeServerCard() }
-                .searchAnchor("mcp.main.mcpEnabled")
+                .searchAnchor("mcp.main.mcpEnabled", namesControl: true)
 
                 Toggle(isOn: $mcpAllowScriptSteps) {
                     Text("Allow agents to write arbitrary scripts in pipelines").regular(13)
@@ -37,7 +37,7 @@ struct MCPSettingsView: View {
                         mcpAllowScriptSteps = false
                     }
                 }
-                .searchAnchor("mcp.main.mcpAllowScriptSteps")
+                .searchAnchor("mcp.main.mcpAllowScriptSteps", namesControl: true)
             }
 
             Section(header: SectionHeader(title: "Install in")) {

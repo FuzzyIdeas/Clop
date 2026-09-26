@@ -849,6 +849,12 @@ enum SettingsSearchIndex {
         "you", "your",
     ]
 
+    /// The title an anchored control is named by, for rows that write exactly one key and whose id
+    /// no other row shares.
+    static func accessibilityTitle(for id: String) -> String? {
+        accessibilityTitles[id]
+    }
+
     /// Split into lowercase words. Shared by the index and the query so both are cut the same way.
     static func words(_ text: String) -> [String] {
         text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
@@ -863,8 +869,12 @@ enum SettingsSearchIndex {
     /// purpose. An earlier version needed four characters before it would look at a prefix at all,
     /// which meant "sen" found nothing and the field looked broken until the fourth keystroke.
     static func wordScore(_ query: String, _ indexed: String) -> Double {
-        if query == indexed { return 1 }
-        if indexed.hasPrefix(query) { return 0.9 }
+        if query == indexed {
+            return 1
+        }
+        if indexed.hasPrefix(query) {
+            return 0.9
+        }
         // Neither is a prefix of the other, and they can still be the same word: "replacing" and
         // "replace" part ways at the seventh letter. A strict prefix test scores that pair zero, which
         // is exactly how a question about Clop "replacing" the original missed the row whose keyword is
@@ -872,8 +882,12 @@ enum SettingsSearchIndex {
         // lands near a prefix hit and "compression" against "compatibility" lands nowhere.
         let stem = sharedPrefixLength(query, indexed)
         let ratio = Double(stem) / Double(max(query.count, indexed.count))
-        if stem >= 4, ratio >= 0.5 { return 0.85 * ratio }
-        if query.count >= 4, indexed.contains(query) { return 0.5 }
+        if stem >= 4, ratio >= 0.5 {
+            return 0.85 * ratio
+        }
+        if query.count >= 4, indexed.contains(query) {
+            return 0.5
+        }
         return 0
     }
 
@@ -943,7 +957,9 @@ enum SettingsSearchIndex {
     static func rank(_ query: String, requireAll: Bool, limit: Int = 25) -> [SettingEntry] {
         var tokens = Array(Set(words(query).filter { $0.count > 1 && !stopWords.contains($0) }))
         // Unless the query is nothing but function words, in which case they are all there is to go on.
-        if tokens.isEmpty { tokens = Array(Set(words(query).filter { $0.count > 1 })) }
+        if tokens.isEmpty {
+            tokens = Array(Set(words(query).filter { $0.count > 1 }))
+        }
         guard !tokens.isEmpty else { return [] }
 
         // Scored once per row and word, then reused for the weighting below. The weighting needs to
@@ -965,7 +981,9 @@ enum SettingsSearchIndex {
                 total += score * weights[t]
             }
             guard matched > 0 else { return nil }
-            if requireAll, matched < tokens.count { return nil }
+            if requireAll, matched < tokens.count {
+                return nil
+            }
             return (entry, total)
         }
         .sorted { $0.1 == $1.1 ? $0.0.title < $1.0.title : $0.1 > $1.1 }
@@ -982,6 +1000,11 @@ enum SettingsSearchIndex {
         let strict = rank(query, requireAll: true)
         return strict.isEmpty ? rank(query, requireAll: false) : strict
     }
+
+    private static let accessibilityTitles: [String: String] = {
+        let counts = Dictionary(grouping: all, by: \.id).mapValues(\.count)
+        return Dictionary(all.filter { $0.keys.count == 1 && counts[$0.id] == 1 }.map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
+    }()
 
     private static func sharedPrefixLength(_ a: String, _ b: String) -> Int {
         zip(a, b).prefix { $0 == $1 }.count
