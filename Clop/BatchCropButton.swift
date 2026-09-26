@@ -29,7 +29,7 @@ struct BatchCropButton: View {
     }
 
     var aspectRatioPicker: some View {
-        Picker("", selection: $cropOrientation) {
+        Picker("Orientation", selection: $cropOrientation) {
             Label("Portrait", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
                 .help("Crop all images to a portrait orientation.")
             Label("Adaptive", systemImage: "sparkles.rectangle.stack").tag(CropOrientation.adaptive)
@@ -37,6 +37,7 @@ struct BatchCropButton: View {
             Label("Landscape", systemImage: "rectangle").tag(CropOrientation.landscape)
                 .help("Crop all images to a landscape orientation.")
         }
+        .labelsHidden()
         .pickerStyle(.segmented)
         .labelStyle(IconOnlyLabelStyle())
         .font(.heavy(10))

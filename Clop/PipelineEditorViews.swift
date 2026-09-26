@@ -179,6 +179,7 @@ struct PipelineEditorRow: View {
                     .disabled(!isDirSource || onRemoveSource == nil)
                     .allowsHitTesting(isDirSource)
                     .help(isDirSource ? "Remove this folder from automation" : "")
+                    .accessibilityLabel(isDirSource ? "Remove this folder from automation" : "")
                 }
             }
             .contentShape(Rectangle())
@@ -463,6 +464,7 @@ struct PipelineFieldRow: View {
         }
         .buttonStyle(.plain)
         .help("Remove this pipeline")
+        .accessibilityLabel("Remove this pipeline")
     }
 
     /// When the name field is submitted: if name is non-empty, save/update in library.
@@ -789,6 +791,7 @@ struct InlineNameField: View {
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { isEditing = true }
+                .accessibleTap { isEditing = true }
                 .onHover { hovering in
                     isHovered = hovering
                     if hovering {
@@ -986,6 +989,7 @@ struct SavedPipelineRow: View {
                                                 .padding(.horizontal, 6)
                                                 .padding(.vertical, 3)
                                         }
+                                        .accessibilityLabel("Cancel")
                                         .buttonStyle(.plain)
                                     }
                                     .background(Capsule().fill(Color.primary.opacity(0.05)))
@@ -999,6 +1003,7 @@ struct SavedPipelineRow: View {
                                     .font(.regular(9))
                                     .foregroundColor(.red.opacity(0.6))
                             }
+                            .accessibilityLabel("Delete pipeline")
                             .buttonStyle(.plain)
                         }
                     }
@@ -1064,6 +1069,13 @@ struct SavedPipelineRow: View {
                     .background(PipelineTheme.editorBackground)
                     .contentShape(Rectangle())
                     .onTapGesture {
+                        editText = readOnlyText
+                        editName = pipeline.name ?? ""
+                        editIcon = pipeline.icon ?? "wand.and.sparkles"
+                        editDetails = pipeline.details ?? ""
+                        isEditingLib = true
+                    }
+                    .accessibleTap {
                         editText = readOnlyText
                         editName = pipeline.name ?? ""
                         editIcon = pipeline.icon ?? "wand.and.sparkles"

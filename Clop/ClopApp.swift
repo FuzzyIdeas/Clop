@@ -727,7 +727,7 @@ class AppDelegate: AppDelegateParent {
     func handleURLs(_ application: NSApplication, _ urls: [URL]) async {
         // `clop://` control URLs are commands, not files. They have to come out before the loop below,
         // which turns every URL into something to optimise and would try to fetch this one.
-        let urls = await MainActor.run { urls.filter { !MCPInstaller.handle(url: $0) } }
+        let urls = await MainActor.run { urls.filter { !MCPInstaller.handle(url: $0) && !SettingsURL.handle(url: $0) } }
         guard urls.isNotEmpty else {
             application.reply(toOpenOrPrint: .success)
             return
@@ -1841,6 +1841,8 @@ struct ClopApp: App {
                     ? (useGeometricMenubarIcon ? .menubarIconBadgeGeometric : useClassicMenubarIcon ? .menubarIconBadgeClassic : .menubarIconBadge)
                     : (useGeometricMenubarIcon ? .menubarIconGeometric : useClassicMenubarIcon ? .menubarIconClassic : .menubarIcon)
             ))
+            // Otherwise the menu bar item is announced by its asset name, "MenubarIcon".
+            .accessibilityLabel("Clop")
         })
         .menuBarExtraStyle(.menu)
         .onChange(of: showMenubarIcon) { show in

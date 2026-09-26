@@ -26,6 +26,11 @@ struct FileNameField: View {
                     withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
                     focus()
                 }
+                .accessibleTap {
+                    guard !SM.selecting else { return }
+                    withAnimation(.easeOut(duration: 0.1)) { optimiser.editingFilename = true }
+                    focus()
+                }
                 .onHover { inside in
                     if inside {
                         NSCursor.iBeam.push()

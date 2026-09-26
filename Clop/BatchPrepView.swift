@@ -240,7 +240,9 @@ enum LoudnessChoice: String, CaseIterable, Identifiable {
     }
 
     var audioBitrateRange: ClosedRange<Int> {
-        if let r = audioFormat.format?.bitrateRange { return r.lo ... r.hi }
+        if let r = audioFormat.format?.bitrateRange {
+            return r.lo ... r.hi
+        }
         return 32 ... 320
     }
 
@@ -518,7 +520,11 @@ private struct BatchPrepFilesTable: View {
             Button("Remove from batch") { manager.remove(ids: Array(ids)); selection.subtract(ids) }
                 .disabled(ids.isEmpty)
         }
-        .onDeleteCommand { if !selection.isEmpty { manager.remove(ids: Array(selection)); selection = [] } }
+        .onDeleteCommand {
+            if !selection.isEmpty {
+                manager.remove(ids: Array(selection)); selection = []
+            }
+        }
     }
 
     @State private var selection = Set<BatchItem.ID>()
@@ -531,10 +537,18 @@ private struct BatchPrepFilesTable: View {
 struct PresentTypes {
     init(_ items: [BatchItem]) {
         for it in items {
-            if it.type.isImage { image = true }
-            if it.type.isVideo { video = true }
-            if it.type.isPDF { pdf = true }
-            if it.type.isAudio { audio = true }
+            if it.type.isImage {
+                image = true
+            }
+            if it.type.isVideo {
+                video = true
+            }
+            if it.type.isPDF {
+                pdf = true
+            }
+            if it.type.isAudio {
+                audio = true
+            }
         }
     }
 
@@ -564,7 +578,7 @@ struct BatchParamColumns: View {
         ParamCard("Images", icon: "photo", dimmed: !present.image) {
             ParamRow("Compression") { compressionSlider($form.imageCompression) }
             Divider()
-            ParamRow("Convert to") { choicePicker($form.imageConvert, ImageConvertChoice.allCases) { $0.title } }
+            ParamRow("Convert to") { choicePicker("Convert to", $form.imageConvert, ImageConvertChoice.allCases) { $0.title } }
             Divider()
             ParamRow("Downscale", disabled: form.imageDownscaleDisabled) { downscaleSlider($form.imageDownscale) }
             Divider()
@@ -579,7 +593,7 @@ struct BatchParamColumns: View {
 
     private var pdfCard: some View {
         ParamCard("PDF", icon: "doc.text", dimmed: !present.pdf) {
-            ParamRow("Resolution") { choicePicker($form.pdfDPI, PDFDPIChoice.allCases) { $0.title } }
+            ParamRow("Resolution") { choicePicker("Resolution", $form.pdfDPI, PDFDPIChoice.allCases) { $0.title } }
         }
         .frame(width: 330)
     }
@@ -588,19 +602,19 @@ struct BatchParamColumns: View {
         ParamCard("Video", icon: "film", dimmed: !present.video) {
             ParamRow("Compression", disabled: form.videoCompressionDisabled) { compressionSlider($form.videoCompression) }
             Divider()
-            ParamRow("Convert to") { choicePicker($form.videoConvert, VideoConvertChoice.allCases) { $0.title } }
+            ParamRow("Convert to") { choicePicker("Convert to", $form.videoConvert, VideoConvertChoice.allCases) { $0.title } }
             Divider()
             ParamRow("Downscale", disabled: form.videoDownscaleDisabled) { downscaleSlider($form.videoDownscale) }
             Divider()
             ParamRow("Max long edge", disabled: form.videoLongEdgeDisabled) { numberSuffix($form.videoLongEdge, "px") }
             Divider()
-            ParamRow("Encoder") { choicePicker($form.videoEncoder, VideoEncoderChoice.allCases) { $0.title } }
+            ParamRow("Encoder") { choicePicker("Encoder", $form.videoEncoder, VideoEncoderChoice.allCases) { $0.title } }
             Divider()
             ParamRow("Frame rate") {
                 HStack(spacing: 6) {
                     numberField($form.videoFPS).disabled(!form.videoFPSCap)
                     Text("fps").foregroundStyle(.tertiary)
-                    Toggle("", isOn: $form.videoFPSCap).labelsHidden().toggleStyle(.switch).controlSize(.mini)
+                    Toggle("Frame rate", isOn: $form.videoFPSCap).labelsHidden().toggleStyle(.switch).controlSize(.mini)
                 }
             }
             Divider()
@@ -615,20 +629,20 @@ struct BatchParamColumns: View {
         ParamCard("Audio", icon: "music.note", dimmed: !present.audio) {
             ParamRow("Compression", disabled: form.audioCompressionDisabled) { compressionSlider($form.audioCompression) }
             Divider()
-            ParamRow("Format") { choicePicker($form.audioFormat, AudioFormatChoice.allCases) { $0.title } }
+            ParamRow("Format") { choicePicker("Format", $form.audioFormat, AudioFormatChoice.allCases) { $0.title } }
             Divider()
             ParamRow("Bitrate", disabled: form.audioBitrateDisabled) { bitrateSlider($form.audioBitrate, range: form.audioBitrateRange) }
             Divider()
-            ParamRow("Loudness") { choicePicker($form.audioLoudness, LoudnessChoice.allCases) { $0.title } }
+            ParamRow("Loudness") { choicePicker("Loudness", $form.audioLoudness, LoudnessChoice.allCases) { $0.title } }
             Divider()
             ParamRow("Cover art", disabled: form.audioCoverDisabled) {
-                Picker("", selection: $form.audioCover) { ForEach(AudioCoverArtBehaviour.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) } }.labelsHidden().fixedSize()
+                Picker("Cover art", selection: $form.audioCover) { ForEach(AudioCoverArtBehaviour.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) } }.labelsHidden().fixedSize()
             }
             Divider()
             ParamRow("Cover size", disabled: form.audioCoverSizeDisabled) {
                 HStack(spacing: 6) {
                     numberSuffix($form.audioCoverSize, "px")
-                    Picker("", selection: $form.audioCoverSquaring) {
+                    Picker("Cover size", selection: $form.audioCoverSquaring) {
                         Text("Square if landscape").tag(CoverArtSquaring.landscapeOnly)
                         Text("Square").tag(CoverArtSquaring.always)
                         Text("Long edge").tag(CoverArtSquaring.never)
@@ -651,9 +665,15 @@ private struct OutputRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Text("Save to").foregroundStyle(.secondary)
-            Picker("", selection: Binding(
+            Picker("Save to", selection: Binding(
                 get: { form.outputFolder == nil ? 0 : 1 },
-                set: { if $0 == 0 { form.outputFolder = nil } else { pickingFolder = true } }
+                set: {
+                    if $0 == 0 {
+                        form.outputFolder = nil
+                    } else {
+                        pickingFolder = true
+                    }
+                }
             )) {
                 Text("In place").tag(0)
                 Text("To folder…").tag(1)
@@ -665,7 +685,9 @@ private struct OutputRow: View {
             }
         }
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
-            if case let .success(url) = result { form.outputFolder = url.path }
+            if case let .success(url) = result {
+                form.outputFolder = url.path
+            }
         }
     }
 
@@ -729,6 +751,10 @@ struct ParamRow<Control: View>: View {
         .padding(.horizontal, 12)
         .disabled(disabled)
         .opacity(disabled ? 0.45 : 1)
+        // A group named after the row: the label sits beside the control but is never linked to
+        // it, so a slider or field in here was otherwise announced with no name.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
     }
 }
 
@@ -748,6 +774,7 @@ struct ToggleRow: View {
         Toggle(isOn: $isOn) {
             Text(label).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
         }
+        .accessibilityLabel(label)
         .toggleStyle(.switch)
         .controlSize(.small)
         .frame(maxWidth: .infinity, minHeight: 36)
@@ -758,9 +785,9 @@ struct ToggleRow: View {
 }
 
 private func choicePicker<C: CaseIterable & Identifiable & Hashable>(
-    _ selection: Binding<C>, _ cases: C.AllCases, _ title: @escaping (C) -> String
+    _ label: String, _ selection: Binding<C>, _ cases: C.AllCases, _ title: @escaping (C) -> String
 ) -> some View where C.AllCases: RandomAccessCollection {
-    Picker("", selection: selection) {
+    Picker(label, selection: selection) {
         ForEach(cases) { Text(title($0)).tag($0) }
     }
     .labelsHidden()
@@ -788,7 +815,11 @@ private struct CommitCompressionSlider: View {
             Slider(
                 value: Binding(get: { drag ?? value }, set: { drag = $0 }),
                 in: 0 ... 100,
-                onEditingChanged: { editing in if !editing, let d = drag { value = d; drag = nil } }
+                onEditingChanged: {
+                    editing in if !editing, let d = drag {
+                        value = d; drag = nil
+                    }
+                }
             )
             .frame(width: 120)
             Text("\(Int(shown))").monospacedDigit().foregroundStyle(.secondary).frame(width: 26, alignment: .trailing)
@@ -807,7 +838,11 @@ private struct CommitDownscaleSlider: View {
             Slider(
                 value: Binding(get: { drag ?? value }, set: { drag = $0 }),
                 in: 0 ... 1,
-                onEditingChanged: { editing in if !editing, let d = drag { value = d; drag = nil } }
+                onEditingChanged: {
+                    editing in if !editing, let d = drag {
+                        value = d; drag = nil
+                    }
+                }
             )
             .frame(width: 120)
             Text(String(format: "%.2f×", 1.0 - shown * 0.95)).monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
@@ -841,7 +876,11 @@ private struct CommitBitrateSlider: View {
             Slider(
                 value: Binding(get: { drag ?? Double(value) }, set: { drag = $0 }),
                 in: 0 ... Double(range.upperBound), step: 2,
-                onEditingChanged: { editing in if !editing, let d = drag { value = snapBitrate(Int(d.rounded()), range: range); drag = nil } }
+                onEditingChanged: {
+                    editing in if !editing, let d = drag {
+                        value = snapBitrate(Int(d.rounded()), range: range); drag = nil
+                    }
+                }
             ).frame(width: 120)
             Text(shown == 0 ? "Auto" : "\(shown)").monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
         }
@@ -851,10 +890,14 @@ private struct CommitBitrateSlider: View {
 }
 
 private func snapBitrate(_ v: Int, range: ClosedRange<Int>) -> Int {
-    if v <= 0 { return 0 }
+    if v <= 0 {
+        return 0
+    }
     let common = [32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320].filter { range.contains($0) }
     let clamped = max(range.lowerBound, min(range.upperBound, v))
-    if let near = common.min(by: { abs($0 - clamped) < abs($1 - clamped) }), abs(near - clamped) <= 3 { return near }
+    if let near = common.min(by: { abs($0 - clamped) < abs($1 - clamped) }), abs(near - clamped) <= 3 {
+        return near
+    }
     return clamped
 }
 
@@ -886,10 +929,14 @@ struct BatchResultsContent: View {
         }
         .background {
             // cmd-D compares the single selected row (matches the row context menu).
-            Button("") { if selection.count == 1, let id = selection.first { manager.compareItem(id: id) } }
-                .keyboardShortcut("d", modifiers: .command)
-                .hidden()
-                .disabled(selection.count != 1 || !manager.canReapply)
+            Button("") {
+                if selection.count == 1, let id = selection.first {
+                    manager.compareItem(id: id)
+                }
+            }
+            .keyboardShortcut("d", modifiers: .command)
+            .hidden()
+            .disabled(selection.count != 1 || !manager.canReapply)
         }
         .onChange(of: showAdjust) { expanded in setWindowMinHeight(expanded ? 750 : 500) }
         .onAppear { installSpaceMonitor() }
@@ -915,12 +962,22 @@ struct BatchResultsContent: View {
     private var changedTypes: Set<BatchTypeKey> {
         let cur = manager.params
         let new = adjustForm.toBatchParams()
-        if new.output != cur.output { return Set(BatchTypeKey.allCases) }
+        if new.output != cur.output {
+            return Set(BatchTypeKey.allCases)
+        }
         var s = Set<BatchTypeKey>()
-        if new.images != cur.images { s.insert(.image) }
-        if new.video != cur.video { s.insert(.video) }
-        if new.pdf != cur.pdf { s.insert(.pdf) }
-        if new.audio != cur.audio { s.insert(.audio) }
+        if new.images != cur.images {
+            s.insert(.image)
+        }
+        if new.video != cur.video {
+            s.insert(.video)
+        }
+        if new.pdf != cur.pdf {
+            s.insert(.pdf)
+        }
+        if new.audio != cur.audio {
+            s.insert(.audio)
+        }
         return s
     }
 
@@ -936,8 +993,12 @@ struct BatchResultsContent: View {
             }
         }
         var parts: [String] = []
-        if media > 0 { parts.append("\(media) audio/video file\(media == 1 ? "" : "s")") }
-        if docs > 0 { parts.append("\(docs) image\(docs == 1 ? "" : "s")/PDF\(docs == 1 ? "" : "s")") }
+        if media > 0 {
+            parts.append("\(media) audio/video file\(media == 1 ? "" : "s")")
+        }
+        if docs > 0 {
+            parts.append("\(docs) image\(docs == 1 ? "" : "s")/PDF\(docs == 1 ? "" : "s")")
+        }
         return "Will re-optimise " + parts.joined(separator: ", ")
     }
 
@@ -966,8 +1027,12 @@ struct BatchResultsContent: View {
     private var controlsBar: some View {
         HStack(spacing: 12) {
             batchProgress
-            if manager.aggregate.savedBytes > 0 { savingsPills }
-            if !manager.canReapply { Text("Backups deleted, re-running unavailable").font(.caption).foregroundStyle(.secondary) }
+            if manager.aggregate.savedBytes > 0 {
+                savingsPills
+            }
+            if !manager.canReapply {
+                Text("Backups deleted, re-running unavailable").font(.caption).foregroundStyle(.secondary)
+            }
             Spacer()
             Button {
                 toggleAdjust()
@@ -1021,8 +1086,12 @@ struct BatchResultsContent: View {
             Spacer()
             Button("Restore originals") { manager.restoreFromBackup(toSelection: selection.isEmpty ? nil : Array(selection)) }
                 .disabled(!canTune)
-            Button("Show backups in Finder") { if let url = manager.backupDirURL { NSWorkspace.shared.activateFileViewerSelecting([url]) } }
-                .disabled(manager.backupDirURL == nil)
+            Button("Show backups in Finder") {
+                if let url = manager.backupDirURL {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+            }
+            .disabled(manager.backupDirURL == nil)
             Button("Delete backups", role: .destructive) { confirmDeleteBackups = true }
                 .disabled(!manager.canDeleteBackups)
                 .confirmationDialog("Delete the backups for this batch?", isPresented: $confirmDeleteBackups, titleVisibility: .visible) {
@@ -1065,7 +1134,9 @@ struct BatchResultsContent: View {
     private func installSpaceMonitor() {
         spaceMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.keyCode == 49, event.window === manager.windowController?.window else { return event }
-            if let responder = event.window?.firstResponder, responder is NSText || responder is NSTextView { return event }
+            if let responder = event.window?.firstResponder, responder is NSText || responder is NSTextView {
+                return event
+            }
             let urls = batchResultURLs(selectedItems)
             guard !urls.isEmpty else { return event }
             BatchQuickLooker.quicklook(urls)
@@ -1074,7 +1145,9 @@ struct BatchResultsContent: View {
     }
 
     private func removeSpaceMonitor() {
-        if let m = spaceMonitor { NSEvent.removeMonitor(m); spaceMonitor = nil }
+        if let m = spaceMonitor {
+            NSEvent.removeMonitor(m); spaceMonitor = nil
+        }
     }
 
     private func applyAdjust(_ ids: [String]?) {
@@ -1089,7 +1162,9 @@ struct BatchResultsContent: View {
     }
 
     private func toggleAdjust() {
-        if !showAdjust { adjustForm.seed(from: manager.params) }
+        if !showAdjust {
+            adjustForm.seed(from: manager.params)
+        }
         showAdjust.toggle()
     }
 
@@ -1173,7 +1248,9 @@ private func batchResultURLs(_ items: [BatchItem]) -> [URL] {
 
 private func batchReveal(_ items: [BatchItem]) {
     let urls = batchResultURLs(items)
-    if !urls.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(urls) }
+    if !urls.isEmpty {
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
 }
 
 private func batchCopyFiles(_ items: [BatchItem]) {
@@ -1212,29 +1289,45 @@ struct BatchStatusCell: View {
 
 private func formatText(_ item: BatchItem) -> String {
     let old = item.oldFormat ?? ""
-    if let new = item.newFormat, !new.isEmpty, new != old { return "\(old) → \(new)" }
+    if let new = item.newFormat, !new.isEmpty, new != old {
+        return "\(old) → \(new)"
+    }
     return old
 }
 
 private func sizeText(_ item: BatchItem) -> String {
-    if item.status == .done, item.newBytes > 0 { return "\(humanBytes(item.oldBytes)) → \(humanBytes(item.newBytes))" }
+    if item.status == .done, item.newBytes > 0 {
+        return "\(humanBytes(item.oldBytes)) → \(humanBytes(item.newBytes))"
+    }
     return humanBytes(item.oldBytes)
 }
 
 private func detailText(_ item: BatchItem) -> String {
-    if item.status == .failed { return item.error ?? "Failed" }
+    if item.status == .failed {
+        return item.error ?? "Failed"
+    }
     switch item.type {
     case .pdf:
-        if let o = item.oldDPI, let n = item.newDPI, o != n { return "\(o) → \(n) DPI" }
-        if let dpi = item.newDPI ?? item.oldDPI { return "\(dpi) DPI" }
+        if let o = item.oldDPI, let n = item.newDPI, o != n {
+            return "\(o) → \(n) DPI"
+        }
+        if let dpi = item.newDPI ?? item.oldDPI {
+            return "\(dpi) DPI"
+        }
         return ""
     case .audio:
-        if let o = item.oldBitrate, let n = item.newBitrate, o != n { return "\(o) → \(n) kbps" }
-        if let br = item.newBitrate ?? item.oldBitrate { return "\(br) kbps" }
+        if let o = item.oldBitrate, let n = item.newBitrate, o != n {
+            return "\(o) → \(n) kbps"
+        }
+        if let br = item.newBitrate ?? item.oldBitrate {
+            return "\(br) kbps"
+        }
         return ""
     default:
         let o = dimensions(item.oldSize), n = dimensions(item.newSize)
-        if let o, let n, o != n { return "\(o) → \(n)" }
+        if let o, let n, o != n {
+            return "\(o) → \(n)"
+        }
         return n ?? o ?? ""
     }
 }
@@ -1294,7 +1387,9 @@ struct BatchFailuresSheet: View {
     private func copyFailures() {
         let text = failures.map { item in
             var entry = "## \(item.source.string)\n\(item.error ?? "Unknown error")"
-            if let log = item.errorLog { entry += "\n\n\(log)" }
+            if let log = item.errorLog {
+                entry += "\n\n\(log)"
+            }
             return entry
         }.joined(separator: "\n\n———\n\n")
         withGeneralPasteboard { pb in

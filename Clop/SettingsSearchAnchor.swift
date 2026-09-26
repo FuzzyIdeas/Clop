@@ -25,6 +25,9 @@ struct SettingsSearchAnchor: ViewModifier {
     func body(content: Content) -> some View {
         content
             .id(id)
+            // The same id is the row's accessibility identifier: stable across copy edits, so UI tests
+            // and computer-use agents can address a row without matching on its title.
+            .accessibilityIdentifier(id)
             // The highlight is drawn OUTSIDE the row's own bounds with negative padding on the shape,
             // never with padding on the content. Padding the content moves it, so an anchored row sat
             // indented next to an unanchored one and the pane looked ragged for no visible reason.

@@ -35,10 +35,18 @@ struct CompactResult: View {
 
     /// Per-file-type accent hue for the thumbnail ring.
     var typeColor: Color {
-        if optimiser.type.isImage { return .blue }
-        if optimiser.type.isVideo { return .purple }
-        if optimiser.type.isPDF { return .orange }
-        if optimiser.type.isAudio { return .pink }
+        if optimiser.type.isImage {
+            return .blue
+        }
+        if optimiser.type.isVideo {
+            return .purple
+        }
+        if optimiser.type.isPDF {
+            return .orange
+        }
+        if optimiser.type.isAudio {
+            return .pink
+        }
         return .gray
     }
 
@@ -265,7 +273,9 @@ struct CompactResult: View {
                     .strokeBorder(typeColor.opacity(0.3), lineWidth: 1.5)
             )
             .overlay(alignment: .topLeading) {
-                if !selecting { closeButton.offset(x: -5, y: -5) }
+                if !selecting {
+                    closeButton.offset(x: -5, y: -5)
+                }
             }
             // In a SwiftUI List, a press on STATIC content (the bare image) is claimed by the list's own
             // selection/scroll gesture, so neither the row's body-root .onDrag NOR an .onDrag attached
@@ -275,13 +285,21 @@ struct CompactResult: View {
             // make it such a responder: a tap toggles selection while selecting (and is a no-op
             // otherwise), and crucially a press-drag now bubbles to the body-root .onDrag and drags.
             .contentShape(Rectangle())
-            .onTapGesture { if SM.selecting { onToggleSelection() } }
+            .onTapGesture {
+                if SM.selecting {
+                    onToggleSelection()
+                }
+            }
             // Signal draggability: a subtle scale-up and a pointer cursor on hover (render-only, no layout shift).
             .scaleEffect(hoveringThumb ? 1.08 : 1)
             .animation(.easeOut(duration: 0.12), value: hoveringThumb)
             .onHover { h in
                 hoveringThumb = h
-                if h { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                if h {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
             }
         }
     }
@@ -315,6 +333,7 @@ struct CompactResult: View {
                 ))
                 .overlay(Circle().strokeBorder(Color.red, lineWidth: 1))
         }
+        .accessibilityLabel(optimiser.running ? "Stop" : "Remove")
         .buttonStyle(.plain)
         .focusable(false)
         // Only hit-testable while shown (on row hover); otherwise the invisible button would block drags
@@ -346,6 +365,8 @@ struct CompactResult: View {
                 .font(.system(size: 17, weight: .medium))
                 .shadow(color: .black.opacity(0.15), radius: 1, y: 0.5)
             }
+            .accessibilityLabel("Select")
+            .accessibilityToggle(isOn: selected)
             .buttonStyle(.plain)
             .focusable(false)
             .opacity(selected || selecting || hovering ? 1 : 0.35)
@@ -439,7 +460,11 @@ struct CompactResult: View {
         .onHover(perform: updateHover(_:))
         // Resolve cover-art size for audio so the cover-art downscale button only appears when there's
         // actually cover art to resize.
-        .onAppear { if optimiser.type.isAudio { loadAudioCoverArtSize(optimiser: optimiser) } }
+        .onAppear {
+            if optimiser.type.isAudio {
+                loadAudioCoverArtSize(optimiser: optimiser)
+            }
+        }
         // File drag attached at the body ROOT (see fileDragProvider) so it bridges to the List row's
         // table drag session. Gated by both slider flags so a press-drag on the compression/downscale
         // slider stays with the slider instead of starting a row drag.
@@ -514,7 +539,11 @@ struct CompactNameField: View {
         .frame(height: 18)
         .onAppear { tempName = stem }
         .onChange(of: optimiser.url) { _ in tempName = stem }
-        .onChange(of: optimiser.running) { running in if running { optimiser.editingFilename = false } }
+        .onChange(of: optimiser.running) {
+            running in if running {
+                optimiser.editingFilename = false
+            }
+        }
     }
 
     var segments: some View {
@@ -530,10 +559,15 @@ struct CompactNameField: View {
                 .onHover { inside in
                     guard !SM.selecting else { return }
                     hoveringName = inside
-                    if inside { NSCursor.iBeam.push() } else { NSCursor.pop() }
+                    if inside {
+                        NSCursor.iBeam.push()
+                    } else {
+                        NSCursor.pop()
+                    }
                 }
                 .onTapGesture { startEditing() }
                 .help("Click to rename")
+                .accessibleTap { startEditing() }
             if !ext.isEmpty {
                 formatSegment
             }
@@ -851,6 +885,7 @@ struct CompactSelectionBar: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Actions for the selection")
+            .accessibilityLabel("Actions for the selection")
 
             BatchCropButton()
 
@@ -865,6 +900,7 @@ struct CompactSelectionBar: View {
             .buttonStyle(.plain)
             .foregroundColor(.secondary)
             .help("Clear selection")
+            .accessibilityLabel("Clear selection")
         }
         .font(.round(10))
         .buttonStyle(FlatButton(color: .primary.opacity(0.08), textColor: .primary.opacity(0.8), shadowSize: 0))
@@ -1135,7 +1171,9 @@ struct CompactResultList: View {
         // mode can't get stuck on after the rows it referred to are gone.
         let live = Set(opts.map(\.id))
         let pruned = sm.selection.intersection(live)
-        if pruned != sm.selection { sm.selection = pruned }
+        if pruned != sm.selection {
+            sm.selection = pruned
+        }
     }
 
     func setSize(showList: Bool? = nil, count: Int? = nil, compactImages: Bool? = nil) {

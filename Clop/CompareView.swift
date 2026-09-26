@@ -581,7 +581,7 @@ struct CompareView: View {
 
     var controls: some View {
         HStack(spacing: 12) {
-            Picker("", selection: $compareMode) {
+            Picker("Comparison", selection: $compareMode) {
                 SwiftUI.Image(systemName: "rectangle.split.2x1")
                     .help("Side by side comparison")
                     .tag(CompareMode.sideBySide)
@@ -603,6 +603,7 @@ struct CompareView: View {
                 .buttonStyle(FlatButton())
                 .keyboardShortcut(.space, modifiers: [])
                 .help(videoPlaying ? "Pause both videos" : "Play both videos")
+                .accessibilityLabel(videoPlaying ? "Pause both videos" : "Play both videos")
             }
 
             if optimiser.type.isImage {
@@ -617,6 +618,7 @@ struct CompareView: View {
                 .buttonStyle(FlatButton())
                 .keyboardShortcut(.space, modifiers: [])
                 .help(fitOrFill == .fit ? "Fill the preview area" : "Fit the whole image")
+                .accessibilityLabel(fitOrFill == .fit ? "Fill the preview area" : "Fit the whole image")
             }
         }
         .padding(.top, 10)
@@ -651,6 +653,7 @@ struct CompareView: View {
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
                 }
+                .accessibilityLabel(audioController.isPlaying(side) ? "Pause" : "Play")
                 .buttonStyle(.plain)
                 .disabled(audioController.duration(side) <= 0)
             }
@@ -768,6 +771,7 @@ struct CompareView: View {
                         SwiftUI.Image(systemName: "chevron.left")
                             .font(.system(size: 14))
                     }
+                    .accessibilityLabel("Previous page")
                     .buttonStyle(FlatButton())
                     .disabled(pdfPage == 1)
                     .keyboardShortcut(.leftArrow, modifiers: [])
@@ -783,6 +787,7 @@ struct CompareView: View {
                         SwiftUI.Image(systemName: "chevron.right")
                             .font(.system(size: 14))
                     }
+                    .accessibilityLabel("Next page")
                     .buttonStyle(FlatButton())
                     .disabled(Int(pdfPage) == pdf.pageCount)
                     .keyboardShortcut(.rightArrow, modifiers: [])
@@ -791,6 +796,7 @@ struct CompareView: View {
 
             if pdf.pageCount > 1 {
                 Slider(value: $pdfPage, in: 1 ... pdf.pageCount.d, step: 1.0)
+                    .accessibilityLabel("Page")
                     .frame(width: 400)
             }
         }

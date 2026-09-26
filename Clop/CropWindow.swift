@@ -395,9 +395,15 @@ struct CropSelectionOverlay: View {
             }
             w = max(w, Self.minSide)
             h = w / aspect
-            if h < Self.minSide { h = Self.minSide; w = h * aspect }
-            if w > availW { w = availW; h = w / aspect }
-            if h > availH { h = availH; w = h * aspect }
+            if h < Self.minSide {
+                h = Self.minSide; w = h * aspect
+            }
+            if w > availW {
+                w = availW; h = w / aspect
+            }
+            if h > availH {
+                h = availH; w = h * aspect
+            }
         } else {
             w = min(max(w, Self.minSide), availW)
             h = min(max(h, Self.minSide), availH)
@@ -463,6 +469,7 @@ struct SizePresetRow: View {
                     .opacity(hovering ? 1 : 0)
                     .onHover { hoveringTrash = $0 }
                     .help("Delete preset")
+                    .accessibilityLabel("Delete preset")
                 }
             }
             .padding(.horizontal, 8)
@@ -681,7 +688,9 @@ struct CropView: View {
         )
         .onAppear { setup() }
         .onChange(of: optimiser.running) { running in
-            if running { optimiser.cropWindowController?.close() }
+            if running {
+                optimiser.cropWindowController?.close()
+            }
         }
         .task {
             // video preview is loaded by the time slider's task
@@ -750,6 +759,7 @@ struct CropView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                 Slider(value: $videoTime, in: 0 ... 1)
+                    .accessibilityLabel("Frame")
                     .frame(maxWidth: 300)
                     .controlSize(.small)
                     .help("Choose the video frame used for the crop preview")
@@ -808,7 +818,7 @@ struct CropView: View {
     }
 
     var orientationPicker: some View {
-        Picker("", selection: $cropOrientation) {
+        Picker("Orientation", selection: $cropOrientation) {
             Label("Portrait", systemImage: "rectangle.portrait").tag(CropOrientation.portrait)
                 .help("Crop the \(optimiser.type.str) to a portrait orientation.")
             if optimiser.type.isPDF {
@@ -818,6 +828,7 @@ struct CropView: View {
             Label("Landscape", systemImage: "rectangle").tag(CropOrientation.landscape)
                 .help("Crop the \(optimiser.type.str) to a landscape orientation.")
         }
+        .labelsHidden()
         .pickerStyle(.segmented)
         .labelStyle(IconOnlyLabelStyle())
         .font(.heavy(10))
@@ -895,13 +906,14 @@ struct CropView: View {
             sectionHeader("Device size")
             CropSizeGroupPicker(selection: $deviceSize, categories: DEVICE_SIZE_GROUPS)
             sectionHeader("Aspect ratio")
-            Picker("", selection: $ratioSize) {
+            Picker("Aspect ratio", selection: $ratioSize) {
                 Text("No selection").tag(nil as CropSize?)
                 Divider()
                 ForEach(DEFAULT_CROP_ASPECT_RATIOS.filter { $0.name != "A4" && $0.name != "B5" }, id: \.name) { size in
                     Text(size.name).tag(size as CropSize?)
                 }
             }.font(.medium(10))
+                .labelsHidden()
 
             orientationPicker
                 .fixedSize()
