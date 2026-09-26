@@ -180,6 +180,8 @@ struct PipelineEditorRow: View {
                     .allowsHitTesting(isDirSource)
                     .help(isDirSource ? "Remove this folder from automation" : "")
                     .accessibilityLabel(isDirSource ? "Remove this folder from automation" : "")
+                    // Clipboard and drop zone keep the button only as a spacer.
+                    .accessibilityHidden(!isDirSource)
                 }
             }
             .contentShape(Rectangle())

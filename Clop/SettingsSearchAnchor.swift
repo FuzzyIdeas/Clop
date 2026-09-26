@@ -15,6 +15,7 @@ import SwiftUI
 /// `Scripts/settings-anchor-audit.py` noticing.
 struct SettingsSearchAnchor: ViewModifier {
     let id: String
+    var namesControl = false
 
     @ObservedObject var svm = settingsViewManager
 
@@ -28,6 +29,10 @@ struct SettingsSearchAnchor: ViewModifier {
             // The same id is the row's accessibility identifier: stable across copy edits, so UI tests
             // and computer-use agents can address a row without matching on its title.
             .accessibilityIdentifier(id)
+            // A control whose visible label is a two-line Text or sits beside it reaches AX unnamed,
+            // so `namesControl` names it with the index title. Opt-in because on a row that wraps
+            // several controls the label lands on every one of them and hides their own names.
+            .modifier(AnchorLabel(title: namesControl ? SettingsSearchIndex.accessibilityTitle(for: id) : nil))
             // The highlight is drawn OUTSIDE the row's own bounds with negative padding on the shape,
             // never with padding on the content. Padding the content moves it, so an anchored row sat
             // indented next to an unanchored one and the pane looked ragged for no visible reason.
@@ -43,8 +48,8 @@ struct SettingsSearchAnchor: ViewModifier {
 
 extension View {
     /// See `SettingsSearchAnchor`. Put this on the control itself, not on the Section.
-    func searchAnchor(_ id: String) -> some View {
-        modifier(SettingsSearchAnchor(id: id))
+    func searchAnchor(_ id: String, namesControl: Bool = false) -> some View {
+        modifier(SettingsSearchAnchor(id: id, namesControl: namesControl))
     }
 }
 
@@ -101,6 +106,18 @@ struct SettingsPaneScroller<Content: View>: View {
         mainAsyncAfter(ms: 2600) {
             guard settingsViewManager.highlightedEntry == id else { return }
             settingsViewManager.highlightedEntry = nil
+        }
+    }
+}
+
+private struct AnchorLabel: ViewModifier {
+    let title: String?
+
+    func body(content: Content) -> some View {
+        if let title {
+            content.accessibilityLabel(title)
+        } else {
+            content
         }
     }
 }

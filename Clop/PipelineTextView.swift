@@ -288,7 +288,9 @@ struct PipelineTextView: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            if isEditing { updateCompletionPrefix() }
+            if isEditing {
+                updateCompletionPrefix()
+            }
         }
 
         // MARK: - Line breaking
@@ -299,7 +301,9 @@ struct PipelineTextView: NSViewRepresentable {
             // Allow break only right before " -> " (so the arrow starts the next line)
             if charIndex + 3 <= nsText.length {
                 let ahead = nsText.substring(with: NSRange(location: charIndex, length: 3))
-                if ahead == "-> " || ahead == " ->" { return true }
+                if ahead == "-> " || ahead == " ->" {
+                    return true
+                }
             }
             return false
         }
@@ -576,7 +580,9 @@ struct PipelineTextView: NSViewRepresentable {
             inside = inside.replacingOccurrences(of: #"[,\s\)]*$"#, with: "", options: .regularExpression)
             // Ensure balanced quotes
             let quoteCount = inside.filter { $0 == "\"" }.count
-            if quoteCount % 2 != 0 { inside += "\"" }
+            if quoteCount % 2 != 0 {
+                inside += "\""
+            }
 
             // Rebuild: everything before open paren + (inside) + -> + rest after segment end
             let before = String(text.prefix(openPos + 1))
@@ -626,6 +632,7 @@ struct PipelineTextView: NSViewRepresentable {
         let scrollView = NSTextView.scrollableTextView()
         let textView = scrollView.documentView as! NSTextView
         textView.delegate = context.coordinator
+        textView.setAccessibilityLabel("Pipeline")
         textView.font = PIPELINE_FONT
         textView.isRichText = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
