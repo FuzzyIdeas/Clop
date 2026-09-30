@@ -205,8 +205,22 @@ class FileOptimisationWatcher {
     }
 
     /// The same existence check, off the main thread. See `isAddedFile`.
-    nonisolated func fileExists(atPath path: String) async -> Bool {
-        await Task.detached(priority: .utility) { FileManager.default.fileExists(atPath: path) }.value
+    ///
+    /// A dataless file counts as missing. When iCloud evicts a file to free space, the eviction
+    /// arrives as `.itemModified`, and any read in `shouldHandle` (the image header decode for the
+    /// resolution limits) makes iCloud download it again. The download makes it evictable again,
+    /// so a file in a watched iCloud folder went through its automation every minute or two while
+    /// macOS was reclaiming space. `stat` reads the flags without downloading.
+    nonisolated func isLocalFile(atPath path: String) async -> Bool {
+        await Task.detached(priority: .utility) {
+            var st = stat()
+            guard stat(path, &st) == 0 else { return false }
+            guard st.st_flags & UInt32(SF_DATALESS) == 0 else {
+                log.debug("Skipping \(path): content evicted to iCloud")
+                return false
+            }
+            return true
+        }.value
     }
 
     func stopWatching() {
@@ -415,7 +429,7 @@ class FileOptimisationWatcher {
                     guard !SWIFTUI_PREVIEW, !BM.decompressingBinaries, let self, enabled, isAddedFile(event: event),
                           !self.alreadyOptimisedFiles.contains(event.path),
                           !OM.optimisers.contains(where: { $0.url?.path == event.path }),
-                          await fileExists(atPath: event.path), let path = event.path.filePath,
+                          await isLocalFile(atPath: event.path), let path = event.path.filePath,
                           await shouldHandle(event)
                     else { return }
 
