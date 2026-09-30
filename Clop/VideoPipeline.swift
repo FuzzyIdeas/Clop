@@ -44,7 +44,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     // usually not finished by the time it gets here, so `video.size` is nil and the downscale
     // compiles to a plain re-encode at the original resolution. ffmpeg then refuses it outright,
     // because with no resize the output path is the input path.
-    if hasDownscale, video.metadata == nil {
+    // A speed change needs `video.fps` the same way: without it, dropping frames back to the
+    // source rate is skipped and the file keeps every frame whatever was asked.
+    if hasDownscale || hasSpeedChange, video.metadata == nil {
         video.metadata = try? await getVideoMetadata(path: path)
     }
 
@@ -52,6 +54,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     var resizeTo: CGSize?
     var cropTo: CropSize?
     var speedFactor: Double?
+    var speedFrames: PlaybackSpeedFrameBehaviour?
     var removeAudio: Bool?
     var shortcutAction: Shortcut?
 
@@ -78,8 +81,9 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
             } else {
                 cropTo = cropSize
             }
-        case let .changePlaybackSpeed(factor):
+        case let .changePlaybackSpeed(factor, frames):
             speedFactor = computeSpeedFactor(id: id ?? pathString, factor: factor)
+            speedFrames = frames
         case .removeAudio:
             removeAudio = true
         case let .runShortcut(shortcut):
@@ -108,7 +112,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     if hasSpeedChange, let speedFactor {
         labelActions = labelActions.map { action in
             if case .changePlaybackSpeed = action {
-                return .changePlaybackSpeed(factor: speedFactor)
+                return .changePlaybackSpeed(factor: speedFactor, frames: speedFrames)
             }
             return action
         }
@@ -165,6 +169,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     }
     if hasSpeedChange {
         optimiser.changePlaybackSpeedFactor = speedFactor ?? 1.0
+        optimiser.changePlaybackSpeedFrames = speedFrames
         optimiser.remover = nil
         optimiser.inRemoval = false
         optimiser.stop(remove: false)
@@ -175,6 +180,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
     // If this is a re-downscale or speed-change, inherit the other setting
     if hasDownscale, !hasSpeedChange {
         speedFactor = optimiser.changePlaybackSpeedFactor != 1.0 ? optimiser.changePlaybackSpeedFactor : nil
+        speedFrames = optimiser.changePlaybackSpeedFrames
     }
     if hasSpeedChange, !hasDownscale {
         if let existingSize = optimiser.newSize {
@@ -229,6 +235,7 @@ private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "VideoPipeline")
                     resizeTo: resizeTo,
                     cropTo: cropTo,
                     changePlaybackSpeedBy: speedFactor,
+                    playbackSpeedFrames: speedFrames,
                     originalPath: effectiveOriginalPath,
                     aggressiveOptimisation: aggressive,
                     removeAudio: removeAudio,

@@ -2,13 +2,14 @@
 //  MCPTools.swift
 //  ClopCLI
 //
-//  What `clop mcp serve` can actually do: how a tool reaches Clop, the two elicitation questions,
+//  What `clop mcp serve` can actually do: how a tool reaches Clop, the elicitation questions,
 //  and the switch. Split from MCPServer.swift, which is the protocol and the loop.
 //
 
 import ArgumentParser
 import CryptoKit
 import Foundation
+import UniformTypeIdentifiers
 
 // MARK: - Running a command
 
@@ -549,6 +550,161 @@ extension MCPServer {
             return number.doubleValue
         }
         return Double(argument(value).trimmingCharacters(in: .whitespaces)) ?? fallback
+    }
+
+    // MARK: Speed-up frames
+
+    /// One `changeSpeed(...)` step in pipeline DSL text.
+    struct SpeedStep {
+        /// Offset of the closing parenthesis in the DSL's characters, where `frames:` goes.
+        let close: Int
+        let args: String
+
+        var factor: Double? {
+            guard let match = args.range(of: #"\bfactor\s*:\s*"?[0-9]*\.?[0-9]+"#, options: .regularExpression) else { return nil }
+            return args[match].split(separator: ":", maxSplits: 1).last
+                .flatMap { Double($0.trimmingCharacters(in: CharacterSet(charactersIn: " \""))) }
+        }
+
+        var hasFrames: Bool {
+            args.range(of: #"\bframes\s*:"#, options: .regularExpression) != nil
+        }
+
+        /// A slow-down has no extra frames to drop, so only a speed-up is asked about. A factor that
+        /// can't be read might be one.
+        var needsFrames: Bool {
+            !hasFrames && (factor ?? 2) > 1
+        }
+    }
+
+    /// Every `changeSpeed(...)` step in `dsl`. Quoted text is skipped, so a script step whose code
+    /// mentions changeSpeed is never rewritten.
+    static func speedSteps(in dsl: String) -> [SpeedStep] {
+        let chars = Array(dsl)
+        let name = Array("changeSpeed")
+        var steps: [SpeedStep] = []
+        var i = 0
+        var quoted = false
+        while i < chars.count {
+            let c = chars[i]
+            if quoted {
+                if c == "\\" {
+                    i += 2
+                    continue
+                }
+                if c == "\"" {
+                    quoted = false
+                }
+                i += 1
+                continue
+            }
+            if c == "\"" {
+                quoted = true
+                i += 1
+                continue
+            }
+            let startsWord = i == 0 || !(chars[i - 1].isLetter || chars[i - 1].isNumber || chars[i - 1] == "_")
+            guard startsWord, chars[i...].starts(with: name) else {
+                i += 1
+                continue
+            }
+            var open = i + name.count
+            while open < chars.count, chars[open] == " " {
+                open += 1
+            }
+            guard open < chars.count, chars[open] == "(" else {
+                i = open
+                continue
+            }
+            var close = open + 1
+            var inner = false
+            while close < chars.count, inner || chars[close] != ")" {
+                if inner, chars[close] == "\\" {
+                    close += 2
+                    continue
+                }
+                if chars[close] == "\"" {
+                    inner.toggle()
+                }
+                close += 1
+            }
+            guard close < chars.count else { break }
+            steps.append(SpeedStep(close: close, args: String(chars[(open + 1) ..< close])))
+            i = close + 1
+        }
+        return steps
+    }
+
+    /// `dsl` with `frames: <value>` written into every speed-up that has none.
+    static func withFrames(_ dsl: String, _ value: String) -> String {
+        var chars = Array(dsl)
+        for step in speedSteps(in: dsl).reversed() where step.needsFrames {
+            let blank = step.args.trimmingCharacters(in: .whitespaces).isEmpty
+            // Before any trailing spaces, so `changeSpeed( factor: 2 )` keeps its closing space.
+            var at = step.close
+            while !blank, chars[at - 1] == " " {
+                at -= 1
+            }
+            chars.insert(contentsOf: blank ? "frames: \(value)" : ", frames: \(value)", at: at)
+        }
+        return String(chars)
+    }
+
+    /// Whether a run over `paths` can reach a video. A folder or a URL can, so only a list of files
+    /// that are all something else skips the question.
+    static func mayContainVideo(_ paths: [String]) -> Bool {
+        paths.contains { path in
+            var isDirectory: ObjCBool = false
+            guard !path.contains(":"), FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue, let type = UTType(filenameExtension: (path as NSString).pathExtension)
+            else { return true }
+            return type.conforms(to: .movie)
+        }
+    }
+
+    /// The playbackSpeedFrameBehaviour setting in the DSL's words. `keep` when it can't be read, since
+    /// that is the setting's own default.
+    static func currentFrames() -> String {
+        guard case let .json(payload)? = try? run(["settings", "get", "playbackSpeedFrameBehaviour"], timeout: 10),
+              let settings = (payload as? [String: Any])?["settings"] as? [[String: Any]],
+              settings.first?["value"] as? String == "dropFrames"
+        else { return "keep" }
+        return "drop"
+    }
+
+    enum Settled {
+        /// The pipeline with the answer written in, or the bare answer from `askFrames`.
+        case settled(String)
+        /// Nobody answered, so the agent gets the options to ask in its own chat.
+        case askInChat(ToolOutput)
+    }
+
+    /// Asks what a video speed-up in `dsl` should do with its frames when a step doesn't say, and
+    /// writes the answer into every such step. A pipeline with nothing to ask comes back unchanged.
+    static func settleSpeedFrames(_ dsl: String, message: String, tool: String, files: [String] = []) throws -> Settled {
+        guard speedSteps(in: dsl).contains(where: \.needsFrames) else { return .settled(dsl) }
+        switch try askFrames(message: message, tool: tool, pipeline: true, files: files) {
+        case let .settled(value): return .settled(withFrames(dsl, value))
+        case let .askInChat(output): return .askInChat(output)
+        }
+    }
+
+    /// Asks whether a video speed-up keeps or drops frames. `.settled` carries the answer, `keep` or
+    /// `drop`, and a malformed answer falls back to the current setting.
+    static func askFrames(message: String, tool: String, pipeline: Bool, files: [String] = []) throws -> Settled {
+        try refuseBeforeAsking(files)
+        let current = currentFrames()
+        switch try ask("speed_frames", message, framesSchema(current: current)) {
+        case let .answered(content):
+            let answer = content["frames"] as? String
+            return .settled(answer == "keep" || answer == "drop" ? answer! : current)
+        case .declined:
+            return .askInChat(.text(declinedPrefix + framesOptionsText(tool: tool, current: current, pipeline: pipeline)))
+        case .unanswered:
+            return .askInChat(.text(cancelledPrefix + framesOptionsText(tool: tool, current: current, pipeline: pipeline)))
+        case .unsupported:
+            return .askInChat(.text(framesOptionsText(tool: tool, current: current, pipeline: pipeline)))
+        }
     }
 
     // MARK: MRTR state, for the day a stdio client negotiates 2026-07-28

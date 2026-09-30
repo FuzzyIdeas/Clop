@@ -91,7 +91,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
         return "Scaling to \(scaleString)" + (aggressive ? " (aggressive)" : "")
     }
 
-    if let speed = actions.first(where: \.isChangePlaybackSpeed), case let .changePlaybackSpeed(factor) = speed {
+    if let speed = actions.first(where: \.isChangePlaybackSpeed), case let .changePlaybackSpeed(factor, _) = speed {
         let label = if factor > 1 {
             "Speeding up by \(factor < 2 ? factor.str(decimals: 2) : factor.i.s)x"
         } else if factor == 1 {

@@ -1021,11 +1021,11 @@ final class PipelineExecution {
         }
     }
 
-    func handleChangeSpeed(factor: Double) async throws {
+    func handleChangeSpeed(factor: Double, frames: PlaybackSpeedFrameBehaviour?) async throws {
         switch fileType {
         case .video:
             let vid = Video(currentFile)
-            if let result = try? await runVideoPipeline(vid, actions: [.changePlaybackSpeed(factor: factor)], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
+            if let result = try? await runVideoPipeline(vid, actions: [.changePlaybackSpeed(factor: factor, frames: frames)], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
                 currentFile = result.path
                 if !hide {
                     shownVisibleResult = true

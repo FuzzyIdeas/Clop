@@ -10,7 +10,8 @@ enum PipelineAction: CustomStringConvertible {
     case convert(format: UTType)
     case optimise
     case downscale(factor: Double?, cropSize: CropSize?)
-    case changePlaybackSpeed(factor: Double)
+    /// `frames` overrides the playbackSpeedFrameBehaviour setting for this one pass.
+    case changePlaybackSpeed(factor: Double, frames: PlaybackSpeedFrameBehaviour? = nil)
     case removeAudio
     case runShortcut(Shortcut)
 
@@ -28,8 +29,8 @@ enum PipelineAction: CustomStringConvertible {
             } else {
                 "downscale"
             }
-        case let .changePlaybackSpeed(factor):
-            "changePlaybackSpeed(\(factor)x)"
+        case let .changePlaybackSpeed(factor, frames):
+            "changePlaybackSpeed(\(factor)x\(frames.map { ", \($0.dslValue) frames" } ?? ""))"
         case .removeAudio:
             "removeAudio"
         case let .runShortcut(shortcut):
@@ -284,9 +285,10 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     case filterIf(FilterCondition)
     case filterIfNot(FilterCondition)
 
-    // Media-specific
+    /// Media-specific
     case removeAudio
-    case changeSpeed(factor: Double)
+    /// `frames` nil follows the playbackSpeedFrameBehaviour setting.
+    case changeSpeed(factor: Double, frames: PlaybackSpeedFrameBehaviour? = nil)
     case capFps(fps: Int)
     case normalize(lufs: Double = -16)
 
@@ -324,7 +326,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case .filterIf: "filterIf"
         case .filterIfNot: "filterIfNot"
         case .removeAudio: "removeAudio"
-        case let .changeSpeed(factor): "changeSpeed-\(factor)"
+        case let .changeSpeed(factor, frames): "changeSpeed-\(factor)-\(frames?.dslValue ?? "")"
         case let .runScript(path, code): "runScript-\(code ?? path ?? "")"
         case let .runShortcut(shortcut): "runShortcut-\(shortcut.name)"
         case let .copyToClipboard(format, relativeTo): "copyToClipboard-\(format.rawValue)-\(relativeTo ?? "")"
@@ -467,7 +469,7 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case let .filterIf(condition): return "if(\(condition.displayString))"
         case let .filterIfNot(condition): return "ifNot(\(condition.displayString))"
         case .removeAudio: return "removeAudio"
-        case let .changeSpeed(factor): return "changeSpeed(factor: \(factor))"
+        case let .changeSpeed(factor, frames): return "changeSpeed(factor: \(factor)\(frames.map { ", frames: \($0.dslValue)" } ?? ""))"
         case let .runScript(path, code):
             if let code, !code.isEmpty {
                 return "runScript(code: \(code))"
@@ -705,7 +707,10 @@ extension PipelineStep: Decodable {
             self = .removeAudio
         } else if container.contains(DynKey("changeSpeed")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("changeSpeed"))
-            self = try .changeSpeed(factor: c.decode(Double.self, forKey: DynKey("factor")))
+            self = try .changeSpeed(
+                factor: c.decode(Double.self, forKey: DynKey("factor")),
+                frames: c.decodeIfPresent(PlaybackSpeedFrameBehaviour.self, forKey: DynKey("frames"))
+            )
         } else if container.contains(DynKey("runScript")) {
             let c = try container.nestedContainer(keyedBy: DynKey.self, forKey: DynKey("runScript"))
             self = try .runScript(

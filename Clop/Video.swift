@@ -245,6 +245,7 @@ class Video: Optimisable {
         resizeTo newSize: CGSize? = nil,
         cropTo cropSize: CropSize? = nil,
         changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
+        playbackSpeedFrames: PlaybackSpeedFrameBehaviour? = nil,
         originalPath: FilePath? = nil,
         aggressiveOptimisation: Bool? = nil,
         removeAudio: Bool? = nil,
@@ -309,7 +310,7 @@ class Video: Optimisable {
             filters.append("setpts=PTS/\(String(format: "%.2f", changePlaybackSpeedFactor))")
             // setpts alone keeps every frame, so the frame rate scales with the speed factor.
             // Resampling back to the source rate drops (or duplicates) frames instead.
-            if Defaults[.playbackSpeedFrameBehaviour] == .dropFrames, let fps, fps > 0 {
+            if (playbackSpeedFrames ?? Defaults[.playbackSpeedFrameBehaviour]) == .dropFrames, let fps, fps > 0 {
                 filters.append("fps=\(String(format: "%.3f", fps))")
                 newFPS = fps
             } else if let fps, fps > 0 {

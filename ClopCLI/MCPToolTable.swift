@@ -9,12 +9,44 @@
 
 import Foundation
 
+// MARK: - Server instructions
+
+extension MCPServer {
+    /// Sent once at `initialize`, for the agent's context. The server can only ask about a gap in its
+    /// arguments, and by then the agent has already turned "2x" into a number, so an ambiguity in the
+    /// user's words has to be caught by the agent, before the call.
+    static let instructions = """
+    Clop does exactly what a tool's arguments say, so settle ambiguous wording with the user before \
+    calling a tool, as choices in your own question UI when you have one. Ask every open question in \
+    one go, and skip any the user already answered.
+
+    - "Smaller" is compression (same pixel size, lower quality: compression 5 to 100 on the file \
+    tools, optimise(compression: N) in a pipeline), resolution (fewer pixels: a downscale factor, \
+    0.5 is half the width and height), or both. Ask which, and how much.
+    - "2x", "3x" or "N times" on a video or audio file is playback speed. Clop has no upscaling \
+    step, so it never means a larger frame and there is nothing to ask there.
+    - A video speed-up either keeps every frame (smoother, the frame rate rises with the speed) or \
+    drops frames back to the source rate (smaller file). In a pipeline the answer goes into the \
+    step: changeSpeed(factor: 2.0, frames: keep) or frames: drop. On clop_optimise it is \
+    playbackSpeedFrames: keep or drop. Left out, it follows the playbackSpeedFrameBehaviour \
+    setting, which applies to every video.
+    - "Silent" or "mute" is removeAudio, and needs no question.
+    - Attaching a pipeline to a folder makes Clop process every matching file that lands there from \
+    then on. Say so before attaching one.
+
+    Some tools ask the user themselves, through an elicitation form, when their arguments leave a \
+    gap. When that question goes unanswered, the tool returns the options as text: ask in your own \
+    chat, then call again with the answer.
+    """
+}
+
 // MARK: - Elicitation copy
 
 extension MCPServer {
-    /// Clop asks the user only for real ambiguity, and there are exactly two cases: "make it smaller"
-    /// is compression or resolution or both, and a size or quality with no number in it. A tool that
-    /// already knows what to do never stops to ask.
+    /// Clop asks the user only for real ambiguity, and there are exactly three cases: "make it smaller"
+    /// is compression or resolution or both, a size or quality with no number in it, and a video
+    /// speed-up that doesn't say what happens to the frames. A tool that already knows what to do
+    /// never stops to ask.
     static let smallerSchema: [String: Any] = [
         "type": "object",
         "properties": [
@@ -75,6 +107,42 @@ extension MCPServer {
     Ask the user how much smaller they want it, then call clop_downscale again with factor.
     """
 
+    /// The option labels are the Settings picker's own, so the form and the setting it overrides read
+    /// the same. `current` is that setting, so taking the default changes nothing.
+    static func framesSchema(current: String) -> [String: Any] {
+        [
+            "type": "object",
+            "properties": [
+                "frames": [
+                    "type": "string",
+                    "title": "Frames",
+                    "oneOf": [
+                        ["const": "keep", "title": "Keep frames (smoother, higher fps)"],
+                        ["const": "drop", "title": "Drop frames (smaller file)"],
+                    ],
+                    "default": current,
+                ],
+            ],
+            "required": ["frames"],
+        ]
+    }
+
+    /// `pipeline` says where the answer goes: into the DSL step, or into clop_optimise's argument.
+    static func framesOptionsText(tool: String, current: String, pipeline: Bool) -> String {
+        let (keep, drop) = pipeline
+            ? ("Write frames: keep into the changeSpeed step.", "Write frames: drop.")
+            : ("Pass playbackSpeedFrames: keep.", "Pass playbackSpeedFrames: drop.")
+        return """
+        This speeds up video and does not say what happens to the frames. A speed-up leaves more \
+        frames per second than the source had, and the request did not say which way to go.
+          keep: every frame stays, so motion is smoother and the frame rate rises with the speed \
+        (2x of a 30 fps video plays at 60 fps). \(keep)
+          drop: frames are dropped back to the source frame rate, so the file is smaller. \(drop)
+        Leaving it out follows Clop's playbackSpeedFrameBehaviour setting, which is \(current) now.
+        Ask the user which they want, then call \(tool) again with the answer.
+        """
+    }
+
     /// A client can answer a question without answering it: declined, cancelled, or dismissed because
     /// it had no way to show it at all. A non-interactive Claude Code session declares the elicitation
     /// capability and then cancels every request, so this is the common path and not the rare one.
@@ -104,8 +172,11 @@ extension MCPServer {
         let factor = a["downscaleFactor"]
 
         // The one genuinely ambiguous request. When the caller already said how, or already gave a
-        // number, this asks nothing.
-        if (smallerBy ?? "").isEmpty, quality == nil, factor == nil, a["crop"] == nil {
+        // number, this asks nothing. A speed change or audio removal says what the call is for, so
+        // "speed this up" or "mute this" isn't asked how to make the file smaller.
+        if (smallerBy ?? "").isEmpty, quality == nil, a["compression"] == nil, factor == nil, a["crop"] == nil,
+           a["playbackSpeedFactor"] == nil, a["removeAudio"] as? Bool != true
+        {
             try refuseBeforeAsking(files)
             switch try ask("smaller_how", "Clop can make \(subject(files)) smaller in two ways. Which should it use?", smallerSchema) {
             case let .answered(content):
@@ -117,6 +188,19 @@ extension MCPServer {
                 return .text(cancelledPrefix + smallerOptionsText)
             case .unsupported:
                 return .text(smallerOptionsText)
+            }
+        }
+
+        var frames = a["playbackSpeedFrames"].map { argument($0) }
+        if frames == nil, asDouble(a, "playbackSpeedFactor", 1) > 1, mayContainVideo(files) {
+            switch try askFrames(
+                message: "When Clop speeds up \(subject(files)), should it keep every frame and make the video smoother or drop frames for smaller size?",
+                tool: "clop_optimise",
+                pipeline: false,
+                files: files
+            ) {
+            case let .settled(value): frames = value
+            case let .askInChat(output): return output
             }
         }
 
@@ -134,6 +218,7 @@ extension MCPServer {
         argv += opt(a, "--crop", "crop")
             + opt(a, "--pdf-dpi", "pdfDPI")
             + opt(a, "--playback-speed-factor", "playbackSpeedFactor")
+            + (frames.map { ["--playback-speed-frames", $0] } ?? [])
             + flag(a, "removeAudio", "--remove-audio")
         return try run(argv, timeout: fileTimeout)
     }
@@ -260,9 +345,36 @@ extension MCPServer {
 // that enforces mcpEnabled and mcpAllowScriptSteps.
 
 extension MCPServer {
+    /// Whether a pipeline for `type` can reach a video. No type means every type.
+    static func takesVideo(_ type: Any?) -> Bool {
+        ["", "video"].contains(argument(type ?? "").lowercased())
+    }
+
+    /// How the questions name where an attached pipeline runs.
+    static func sourceLabel(_ source: String) -> String {
+        switch source {
+        case "clipboard": "the clipboard"
+        case "dropZone": "the drop zone"
+        default: "“\((source as NSString).lastPathComponent)”"
+        }
+    }
+
     static func pipelineRun(_ a: [String: Any]) throws -> ToolOutput {
-        try run(
-            ["pipeline", "run", argument(a["pipeline"] ?? "")] + paths(a)
+        let files = try paths(a)
+        var pipeline = argument(a["pipeline"] ?? "")
+        if mayContainVideo(files) {
+            switch try settleSpeedFrames(
+                pipeline,
+                message: "When Clop speeds up \(subject(files)), should it keep every frame and make the video smoother or drop frames for smaller size?",
+                tool: "clop_pipeline_run",
+                files: files
+            ) {
+            case let .settled(settled): pipeline = settled
+            case let .askInChat(output): return output
+            }
+        }
+        return try run(
+            ["pipeline", "run", pipeline] + files
                 + flag(a, "recursive", "--recursive")
                 + flag(a, "skipErrors", "--skip-errors")
                 + flag(a, "hideResult", "--hide-result")
@@ -275,8 +387,20 @@ extension MCPServer {
     }
 
     static func pipelineWrite(_ a: [String: Any]) throws -> ToolOutput {
-        try text(
-            ["pipeline", "add", argument(a["name"] ?? ""), argument(a["steps"] ?? "")]
+        let name = argument(a["name"] ?? "")
+        var steps = argument(a["steps"] ?? "")
+        if takesVideo(a["fileType"]) {
+            switch try settleSpeedFrames(
+                steps,
+                message: "When “\(name)” speeds up a video, should Clop keep every frame and make the video smoother or drop frames for smaller size?",
+                tool: "clop_pipeline_write"
+            ) {
+            case let .settled(settled): steps = settled
+            case let .askInChat(output): return output
+            }
+        }
+        return try text(
+            ["pipeline", "add", name, steps]
                 + opt(a, "--file-type", "fileType")
                 + flag(a, "skipOptimisation", "--skip-optimisation")
                 + flag(a, "hideResult", "--hide-result")
@@ -286,13 +410,25 @@ extension MCPServer {
     }
 
     static func pipelineAttach(_ a: [String: Any]) throws -> ToolOutput {
-        try text(
+        var pipeline = argument(a["pipeline"] ?? "")
+        let source = argument(a["source"] ?? "")
+        if takesVideo(a["type"]) {
+            switch try settleSpeedFrames(
+                pipeline,
+                message: "When the pipeline for \(sourceLabel(source)) speeds up a video, should Clop keep every frame and make the video smoother or drop frames for smaller size?",
+                tool: "clop_pipeline_attach"
+            ) {
+            case let .settled(settled): pipeline = settled
+            case let .askInChat(output): return output
+            }
+        }
+        return try text(
             [
                 "pipeline",
                 "attach",
-                argument(a["pipeline"] ?? ""),
+                pipeline,
                 "--source",
-                argument(a["source"] ?? ""),
+                source,
                 "--type",
                 argument(a["type"] ?? ""),
             ]
@@ -330,11 +466,23 @@ extension MCPServer {
                 timeout: 60
             )
         }
-        guard let pipeline = a["pipeline"], !argument(pipeline).isEmpty else {
+        var pipeline = argument(a["pipeline"] ?? "")
+        guard !pipeline.isEmpty else {
             throw ClopMCPError("adding a preset zone needs a pipeline: a saved name or inline steps")
         }
+        let name = argument(a["name"] ?? "")
+        if takesVideo(a["type"]) {
+            switch try settleSpeedFrames(
+                pipeline,
+                message: "When the “\(name)” zone speeds up a video, should Clop keep every frame and make the video smoother or drop frames for smaller size?",
+                tool: "clop_pipeline_preset"
+            ) {
+            case let .settled(settled): pipeline = settled
+            case let .askInChat(output): return output
+            }
+        }
         return try text(
-            ["pipeline", "preset", "add", argument(a["name"] ?? ""), argument(pipeline)]
+            ["pipeline", "preset", "add", name, pipeline]
                 + opt(a, "--type", "type")
                 + opt(a, "--icon", "icon")
                 + flag(a, "skipOptimisation", "--skip-optimisation")
@@ -418,8 +566,9 @@ extension MCPServer {
             description: "Optimise images, videos, PDFs and audio in place, or into a copy. Smaller files, same "
                 + "pixels, unless a downscale is asked for. When the request is only 'make this smaller' "
                 + "and carries no compression, factor or crop, Clop asks the user whether to compress, "
-                + "downscale or do both, since those give very different files. Pass smallerBy, quality "
-                + "or downscaleFactor to skip that question. Placement follows Clop's own setting, which "
+                + "downscale or do both, since those give very different files. Pass smallerBy, quality, "
+                + "compression or downscaleFactor to skip that question; a call with playbackSpeedFactor "
+                + "or removeAudio is never asked it. Placement follows Clop's own setting, which "
                 + "usually rewrites the original, so pass copy when the original must survive. " + gate,
             inputSchema: ["type": "object", "properties": [
                 "paths": ["type": "array", "items": ["type": "string"], "description": "files, folders or URLs"],
@@ -429,7 +578,14 @@ extension MCPServer {
                 "downscaleFactor": ["type": "number", "description": "0 to 1, 0.5 is half the width and height"],
                 "crop": ["type": "string", "description": "WxH, e.g. 1920x1080"],
                 "pdfDPI": ["type": "string", "description": "adaptive, 300, 250, 200, 150, 100, 72 or 48"],
-                "playbackSpeedFactor": ["type": "number", "description": "video only, 2 is twice as fast"],
+                "playbackSpeedFactor": [
+                    "type": "number",
+                    "description": "video only, 2 is twice as fast. A speed-up asks the user whether to keep or drop frames unless playbackSpeedFrames says",
+                ],
+                "playbackSpeedFrames": [
+                    "type": "string",
+                    "description": "keep or drop: what a speed-up does with the frames, for this call alone. keep is smoother, the frame rate rising with the speed; drop goes back to the source frame rate for a smaller file. Omitted on a video speed-up, Clop asks the user",
+                ],
                 "removeAudio": ["type": "boolean", "description": "video only"],
                 "aggressive": ["type": "boolean"],
                 "copy": ["type": "boolean", "description": "keep the original and write a copy"],
@@ -584,7 +740,8 @@ extension MCPServer {
             description: "Run a pipeline over files: a saved pipeline by name, or inline DSL steps as one "
                 + "string. Inline pipelines run exactly the steps written, with no implicit optimise "
                 + "pass, so include an optimise step when one is wanted. Read clop_pipeline_prompt "
-                + "before writing inline steps, and try a draft on one file before a folder. " + gate,
+                + "before writing inline steps, and try a draft on one file before a folder."
+                + " A video speed-up whose changeSpeed step has no frames: keep or drop gets a question to the user first. " + gate,
             inputSchema: ["type": "object", "properties": [
                 "pipeline": ["type": "string", "description": "a saved pipeline name, or inline DSL steps"],
                 "paths": ["type": "array", "items": ["type": "string"]],
@@ -604,7 +761,8 @@ extension MCPServer {
                 + "first, and use a built-in step whenever one can do the job, saying which one was "
                 + "tried before reaching for a script. A script step is arbitrary code Clop runs and "
                 + "sits behind its own switch, separate from the MCP switch, so a pipeline carrying one "
-                + "is refused until the user allows script steps and Clop says which step it refused. " + gate,
+                + "is refused until the user allows script steps and Clop says which step it refused."
+                + " A video speed-up whose changeSpeed step has no frames: keep or drop gets a question to the user first. " + gate,
             inputSchema: ["type": "object", "properties": [
                 "name": ["type": "string"],
                 "steps": ["type": "string", "description": "the pipeline DSL, one string"],
@@ -626,7 +784,8 @@ extension MCPServer {
             description: "Bind a pipeline to a source for one file type: the clipboard, the drop zone, or a "
                 + "folder path. A folder source also starts watching that folder and switches automatic "
                 + "processing on for that type, so every matching file dropped there is processed from "
-                + "then on. Say that to the user before attaching one. " + gate,
+                + "then on. Say that to the user before attaching one."
+                + " A video speed-up whose changeSpeed step has no frames: keep or drop gets a question to the user first. " + gate,
             inputSchema: ["type": "object", "properties": [
                 "pipeline": ["type": "string", "description": "a saved pipeline name or id, or inline DSL steps"],
                 "source": ["type": "string", "description": "clipboard, dropZone, or an absolute folder path"],
@@ -651,7 +810,8 @@ extension MCPServer {
         MCPTool(
             name: "clop_pipeline_preset",
             description: "Add or remove a preset zone on the drop zone: a named target the user drops files on "
-                + "to run one pipeline. Omit type for a zone that takes every file type. " + gate,
+                + "to run one pipeline. Omit type for a zone that takes every file type."
+                + " A video speed-up whose changeSpeed step has no frames: keep or drop gets a question to the user first. " + gate,
             inputSchema: ["type": "object", "properties": [
                 "action": ["type": "string", "description": "add or remove. Default add"],
                 "name": ["type": "string", "description": "the zone's label"],
