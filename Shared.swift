@@ -732,6 +732,9 @@ struct OptimisationRequest: Codable, Identifiable {
     /// An agent proved it could run `runScript(code: touch /tmp/...)` with every switch off, because
     /// only the settings path carried this and the optimisation path did not.
     var origin: String? = nil
+    /// The port the CLI that sent this listens on for its per-file results. nil from an older CLI,
+    /// which listens on `OPTIMISATION_CLI_RESPONSE_PORT_ID` itself.
+    var replyPort: String? = nil
 }
 
 func runningClopApp() -> NSRunningApplication? {

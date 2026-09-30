@@ -3833,7 +3833,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                 responses.append(resp)
                 copiedFiles.append(URL(fileURLWithPath: resp.path))
                 if req.source == "cli" {
-                    try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: resp.jsonData)
+                    sendCLIReply(resp.jsonData, for: req)
                 } else {
                     try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: resp.jsonData)
                 }
@@ -3843,7 +3843,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
             } catch let BatchOptimisationError.wrappedClopError(error, url) {
                 copiedFiles.append(req.originalUrls[url] ?? url)
                 if req.source == "cli" {
-                    try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.description, forURL: url).jsonData)
+                    sendCLIReply(OptimisationResponseError(error: error.description, forURL: url).jsonData, for: req)
                 } else {
                     try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.description, forURL: url).jsonData)
                 }
@@ -3851,7 +3851,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
             } catch let BatchOptimisationError.wrappedError(error, url) {
                 copiedFiles.append(req.originalUrls[url] ?? url)
                 if req.source == "cli" {
-                    try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
+                    sendCLIReply(OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData, for: req)
                 } else {
                     try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: error.localizedDescription, forURL: url).jsonData)
                 }
@@ -3882,6 +3882,27 @@ let SETTINGS_PORT = LocalMachPort(portLocation: SETTINGS_PORT_ID)
 let OPTIMISATION_STOP_PORT = LocalMachPort(portLocation: OPTIMISATION_STOP_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
 let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
+
+/// Sends one per-file result to the CLI that made `req`.
+///
+/// Each CLI names its own reply port, since a Mach port name has one owner: on the one shared name,
+/// the first long-lived `clop mcp serve` received every other CLI's results, and those waited out
+/// their deadline on finished work. An older CLI names none and still listens on the shared name.
+/// Only names under the CLI prefix are taken, so a request can't aim results at some other port.
+func sendCLIReply(_ data: Data?, for req: OptimisationRequest) {
+    guard let name = req.replyPort, name.hasPrefix(OPTIMISATION_CLI_RESPONSE_PORT_ID + ".") else {
+        try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: data)
+        return
+    }
+    guard let port = CFMessagePortCreateRemote(nil, name as CFString) else {
+        log.warning("No CLI is listening on \(name)")
+        return
+    }
+    let err = CFMessagePortSendRequest(port, 0, data as CFData?, 5, 0, nil, nil)
+    if err != kCFMessagePortSuccess {
+        log.error("Could not send a result to \(name) (error: \(err))")
+    }
+}
 
 extension FilePath {
     func isValid() async throws -> Bool {
