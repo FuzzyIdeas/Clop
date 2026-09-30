@@ -126,7 +126,11 @@ final class PipelineExecution {
         // non-default location overrides it, honour the manual-conversion behaviour
         // setting (which the user may have set to inPlace via --convert-behaviour).
         var location: String = batch.compactMap(\.location).last(where: { $0 != "inPlace" }) ?? "inPlace"
-        let batchHasConvert = batch.contains { if case .convert = $0 { return true }; return false }
+        let batchHasConvert = batch.contains {
+            if case .convert = $0 {
+                return true
+            }; return false
+        }
         if batchHasConvert, location == "sameFolder" {
             let behaviour = optimiser.placementOverride?.manualConvert ?? fileType.behaviour(for: .manualConvert)
             if let behaviour {
@@ -147,9 +151,21 @@ final class PipelineExecution {
         let inputFile = tempCopyIfNeeded(currentFile, location: location)
         let usedTempCopy = inputFile != currentFile
 
-        let aggressive = batch.contains { if case let .optimise(enc, _, _, _, _, _) = $0 { return enc == .aggressive }; return false }
-        let explicitDPI: Int? = batch.compactMap { if case let .optimise(_, _, _, d, _, _) = $0 { return d }; return nil }.last
-        let lastEncoder: EncoderQuality? = batch.compactMap { if case let .optimise(enc, _, _, _, _, _) = $0 { return enc }; return nil }.last
+        let aggressive = batch.contains {
+            if case let .optimise(enc, _, _, _, _, _) = $0 {
+                return enc == .aggressive
+            }; return false
+        }
+        let explicitDPI: Int? = batch.compactMap {
+            if case let .optimise(_, _, _, d, _, _) = $0 {
+                return d
+            }; return nil
+        }.last
+        let lastEncoder: EncoderQuality? = batch.compactMap {
+            if case let .optimise(enc, _, _, _, _, _) = $0 {
+                return enc
+            }; return nil
+        }.last
         let dpi: Int? = explicitDPI ?? pdfDPIForEncoder(lastEncoder)
 
         var success = false
@@ -166,8 +182,12 @@ final class PipelineExecution {
         }
 
         if success {
-            if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-            if !hide { shownVisibleResult = true }
+            if usedTempCopy, currentFile != inputFile {
+                cleanupTempFile(inputFile, original: originalFile)
+            }
+            if !hide {
+                shownVisibleResult = true
+            }
         } else {
             log.warning("Pipeline: steps[\(startIndex)...\(endIndex)] compiled batch failed for \(self.fileType.rawValue) \(self.currentFile.string)")
         }
@@ -201,8 +221,12 @@ final class PipelineExecution {
                     compression: compression
                 ) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                    if !hide { shownVisibleResult = true }
+                    if usedTempCopy, currentFile != inputFile {
+                        cleanupTempFile(inputFile, original: originalFile)
+                    }
+                    if !hide {
+                        shownVisibleResult = true
+                    }
                     retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
                 } else {
                     log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for image \(inputFile.string)")
@@ -224,8 +248,12 @@ final class PipelineExecution {
                 compression: compression
             ) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                if !hide { shownVisibleResult = true }
+                if usedTempCopy, currentFile != inputFile {
+                    cleanupTempFile(inputFile, original: originalFile)
+                }
+                if !hide {
+                    shownVisibleResult = true
+                }
                 retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(inputFile.string)")
@@ -245,8 +273,12 @@ final class PipelineExecution {
                 source: source
             ) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                if !hide { shownVisibleResult = true }
+                if usedTempCopy, currentFile != inputFile {
+                    cleanupTempFile(inputFile, original: originalFile)
+                }
+                if !hide {
+                    shownVisibleResult = true
+                }
                 retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for PDF \(inputFile.string)")
@@ -264,8 +296,12 @@ final class PipelineExecution {
                 compression: compression
             ) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                if !hide { shownVisibleResult = true }
+                if usedTempCopy, currentFile != inputFile {
+                    cleanupTempFile(inputFile, original: originalFile)
+                }
+                if !hide {
+                    shownVisibleResult = true
+                }
                 retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio \(inputFile.string)")
@@ -404,7 +440,9 @@ final class PipelineExecution {
             if location != "inPlace" {
                 currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
             }
-            if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
+            if usedTempCopy, currentFile != inputFile {
+                cleanupTempFile(inputFile, original: originalFile)
+            }
             return
         }
 
@@ -423,8 +461,12 @@ final class PipelineExecution {
             log.warning("Pipeline: targetSize got \(inputFile.string) down to \(finalSize) bytes, above the \(bytes) target")
         }
         currentFile = applyLocation(location, to: result, original: currentFile, context: context)
-        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-        if !hide { shownVisibleResult = true }
+        if usedTempCopy, currentFile != inputFile {
+            cleanupTempFile(inputFile, original: originalFile)
+        }
+        if !hide {
+            shownVisibleResult = true
+        }
         retargetChildOptimiser(originalID: renderTargetID, to: currentFile)
     }
 
@@ -529,7 +571,9 @@ final class PipelineExecution {
             // Name the result like the input so applyLocation(inPlace) replaces the original
             let named = (try? resultPath.move(to: resultPath.dir.appending(input.lastComponent?.string ?? resultPath.name.string), force: true)) ?? resultPath
             currentFile = applyLocation(location, to: named, original: currentFile, context: context)
-            if !hide { shownVisibleResult = true }
+            if !hide {
+                shownVisibleResult = true
+            }
             return
         }
 
@@ -554,7 +598,9 @@ final class PipelineExecution {
             source: source, fpsOverride: fps
         ) {
             currentFile = result.path
-            if !hide { shownVisibleResult = true }
+            if !hide {
+                shownVisibleResult = true
+            }
         } else {
             log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(self.currentFile.string)")
         }
@@ -572,7 +618,9 @@ final class PipelineExecution {
             source: source, loudnormTarget: lufs
         ) {
             currentFile = applyLocation("inPlace", to: result.path, original: currentFile, context: context)
-            if !hide { shownVisibleResult = true }
+            if !hide {
+                shownVisibleResult = true
+            }
         } else {
             log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio \(self.currentFile.string)")
         }
@@ -598,8 +646,12 @@ final class PipelineExecution {
                     source: source
                 ) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                    if !hide { shownVisibleResult = true }
+                    if usedTempCopy, currentFile != inputFile {
+                        cleanupTempFile(inputFile, original: originalFile)
+                    }
+                    if !hide {
+                        shownVisibleResult = true
+                    }
                 } else {
                     log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for image \(inputFile.string)")
                 }
@@ -608,8 +660,12 @@ final class PipelineExecution {
             let vid = Video(inputFile)
             if let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                if !hide { shownVisibleResult = true }
+                if usedTempCopy, currentFile != inputFile {
+                    cleanupTempFile(inputFile, original: originalFile)
+                }
+                if !hide {
+                    shownVisibleResult = true
+                }
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(inputFile.string)")
             }
@@ -679,8 +735,12 @@ final class PipelineExecution {
             }
             if let gif {
                 currentFile = applyLocation(effectiveLocation, to: gif.path, original: currentFile, context: context)
-                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                if !hide { shownVisibleResult = true }
+                if usedTempCopy, currentFile != inputFile {
+                    cleanupTempFile(inputFile, original: originalFile)
+                }
+                if !hide {
+                    shownVisibleResult = true
+                }
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video GIF conversion \(inputFile.string)")
             }
@@ -725,8 +785,12 @@ final class PipelineExecution {
                 }
                 optimiser.detectedVideoCodec = nil
                 currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
-                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                if !hide { shownVisibleResult = true }
+                if usedTempCopy, currentFile != inputFile {
+                    cleanupTempFile(inputFile, original: originalFile)
+                }
+                if !hide {
+                    shownVisibleResult = true
+                }
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video codec conversion \(inputFile.string)")
             }
@@ -749,8 +813,12 @@ final class PipelineExecution {
                         optimiseFollows: optimiseFollows
                     ) {
                         currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
-                        if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                        if !hide { shownVisibleResult = true }
+                        if usedTempCopy, currentFile != inputFile {
+                            cleanupTempFile(inputFile, original: originalFile)
+                        }
+                        if !hide {
+                            shownVisibleResult = true
+                        }
                     } else {
                         log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for image conversion \(inputFile.string)")
                     }
@@ -759,8 +827,12 @@ final class PipelineExecution {
                 let vid = Video(inputFile)
                 if let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source, compression: optimiser.compressionOverride) {
                     currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                    if !hide { shownVisibleResult = true }
+                    if usedTempCopy, currentFile != inputFile {
+                        cleanupTempFile(inputFile, original: originalFile)
+                    }
+                    if !hide {
+                        shownVisibleResult = true
+                    }
                 } else {
                     log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video conversion \(inputFile.string)")
                 }
@@ -777,8 +849,12 @@ final class PipelineExecution {
                     formatOverride: format, compression: optimiser.compressionOverride
                 ) {
                     currentFile = applyLocation(effectiveLocation, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                    if !hide { shownVisibleResult = true }
+                    if usedTempCopy, currentFile != inputFile {
+                        cleanupTempFile(inputFile, original: originalFile)
+                    }
+                    if !hide {
+                        shownVisibleResult = true
+                    }
                 } else {
                     log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio conversion \(inputFile.string)")
                 }
@@ -813,8 +889,12 @@ final class PipelineExecution {
                     source: source
                 ) {
                     currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                    if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                    if !hide { shownVisibleResult = true }
+                    if usedTempCopy, currentFile != inputFile {
+                        cleanupTempFile(inputFile, original: originalFile)
+                    }
+                    if !hide {
+                        shownVisibleResult = true
+                    }
                 } else {
                     if location != "inPlace" {
                         currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
@@ -829,8 +909,12 @@ final class PipelineExecution {
             let needsCrop = cropChangesSize(cs, source: vidSize)
             if needsCrop, let result = try? await runVideoPipeline(vid, actions: [action], id: renderTargetID, allowLarger: false, hideFloatingResult: hide, source: source) {
                 currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-                if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-                if !hide { shownVisibleResult = true }
+                if usedTempCopy, currentFile != inputFile {
+                    cleanupTempFile(inputFile, original: originalFile)
+                }
+                if !hide {
+                    shownVisibleResult = true
+                }
             } else {
                 if location != "inPlace" {
                     currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
@@ -908,7 +992,9 @@ final class PipelineExecution {
             shouldStop = true
             return
         }
-        if !captures.isEmpty { context.regexCaptures = captures }
+        if !captures.isEmpty {
+            context.regexCaptures = captures
+        }
     }
 
     func handleFilterIfNot(condition: FilterCondition) {
@@ -926,7 +1012,9 @@ final class PipelineExecution {
             let vid = Video(currentFile)
             if let result = try? await runVideoPipeline(vid, actions: [.removeAudio], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
                 currentFile = result.path
-                if !hide { shownVisibleResult = true }
+                if !hide {
+                    shownVisibleResult = true
+                }
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(self.currentFile.string)")
             }
@@ -939,7 +1027,9 @@ final class PipelineExecution {
             let vid = Video(currentFile)
             if let result = try? await runVideoPipeline(vid, actions: [.changePlaybackSpeed(factor: factor)], id: renderTargetID, allowLarger: true, hideFloatingResult: hide, source: source) {
                 currentFile = result.path
-                if !hide { shownVisibleResult = true }
+                if !hide {
+                    shownVisibleResult = true
+                }
             } else {
                 log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for video \(self.currentFile.string)")
             }
@@ -1318,9 +1408,13 @@ final class PipelineExecution {
                 return true
             case .optimise, .downscale, .lowerBitrate, .crop, .targetSize, .stripExif, .watermark,
                  .capFps, .normalize, .removeAudio, .changeSpeed:
-                if (step.location ?? "inPlace") == "inPlace" { return true }
+                if (step.location ?? "inPlace") == "inPlace" {
+                    return true
+                }
             case .convert:
-                if (step.location ?? "sameFolder") == "inPlace" { return true }
+                if (step.location ?? "sameFolder") == "inPlace" {
+                    return true
+                }
             default:
                 break
             }
@@ -1336,7 +1430,9 @@ final class PipelineExecution {
         cardA.url = file.url
         // Override whatever url.didSet refetched with the parent's current snapshot so both cards
         // match at the fork point.
-        if let thumb = optimiser.thumbnail { cardA.thumbnail = thumb }
+        if let thumb = optimiser.thumbnail {
+            cardA.thumbnail = thumb
+        }
         cardA.oldDPI = optimiser.oldDPI
         cardA.newDPI = optimiser.newDPI
         let newBytes = optimiser.newBytes > 0 ? optimiser.newBytes : (file.fileSize() ?? optimiser.oldBytes)
@@ -1560,7 +1656,9 @@ final class PipelineExecution {
         // Name the result like the input so applyLocation(inPlace) replaces the original
         let named = (try? output.move(to: output.dir.appending(input.lastComponent?.string ?? output.name.string), force: true)) ?? output
         currentFile = applyLocation(location, to: named, original: currentFile, context: context)
-        if !hide { shownVisibleResult = true }
+        if !hide {
+            shownVisibleResult = true
+        }
     }
 
     // MARK: - File Operation Steps
@@ -1609,7 +1707,9 @@ final class PipelineExecution {
             if location != "inPlace" {
                 currentFile = applyLocation(location, to: currentFile, original: currentFile, context: context)
             }
-            if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
+            if usedTempCopy, currentFile != inputFile {
+                cleanupTempFile(inputFile, original: originalFile)
+            }
             return
         }
 
@@ -1619,8 +1719,12 @@ final class PipelineExecution {
             source: source, bitrateOverride: targetBitrate
         ) {
             currentFile = applyLocation(location, to: result.path, original: currentFile, context: context)
-            if usedTempCopy, currentFile != inputFile { cleanupTempFile(inputFile, original: originalFile) }
-            if !hide { shownVisibleResult = true }
+            if usedTempCopy, currentFile != inputFile {
+                cleanupTempFile(inputFile, original: originalFile)
+            }
+            if !hide {
+                shownVisibleResult = true
+            }
         } else {
             log.warning("Pipeline: step[\(self.stepIndex)] \(self.stepDesc) failed for audio \(inputFile.string)")
         }
@@ -1628,7 +1732,9 @@ final class PipelineExecution {
 
     private func runCompiledVideoBatch(batch: [PipelineStep], actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool) async -> Bool {
         let videoEncoderOvr: VideoEncoder? = batch.compactMap { s in
-            if case let .optimise(_, _, ve, _, _, _) = s { return ve }; return nil
+            if case let .optimise(_, _, ve, _, _, _) = s {
+                return ve
+            }; return nil
         }.last
         var ffmpegEncoder: [String]?
         var outExt: String?
@@ -1670,7 +1776,9 @@ final class PipelineExecution {
     private func runCompiledImageBatch(batch: [PipelineStep], actions: [PipelineAction], inputFile: FilePath, location: String, aggressive: Bool) async -> Bool {
         var outExt: String?
         for s in batch {
-            if case .convert = s { outExt = "" } // presence means allowLarger
+            if case .convert = s {
+                outExt = ""
+            } // presence means allowLarger
         }
 
         guard let data = try? Data(contentsOf: inputFile.url) else { return false }

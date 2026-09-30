@@ -230,7 +230,9 @@ private func shortDecimalString(_ value: Double) -> String {
     while s.hasSuffix("0") {
         s.removeLast()
     }
-    if s.hasSuffix(".") { s.removeLast() }
+    if s.hasSuffix(".") {
+        s.removeLast()
+    }
     return s
 }
 
@@ -323,8 +325,12 @@ func seedBuiltinPipelines() {
         if let idx = saved.firstIndex(where: { $0.id == def.id }) {
             // Backfill metadata added in a later version onto an already-seeded builtin, without clobbering
             // user edits (only fill what's still empty).
-            if saved[idx].icon == nil { saved[idx].icon = def.icon }
-            if saved[idx].details == nil { saved[idx].details = def.details }
+            if saved[idx].icon == nil {
+                saved[idx].icon = def.icon
+            }
+            if saved[idx].details == nil {
+                saved[idx].details = def.details
+            }
         } else if def.version > seeded {
             // A builtin not present is either brand-new or user-deleted; only (re)add genuinely new ids.
             saved.append(Pipeline(
@@ -560,9 +566,15 @@ extension Optimiser {
         url = file.url // triggers refetch() → loads the media wrapper + thumbnail
         type = .from(filePath: file)
         var size: CGSize? = image?.size
-        if size == nil, let videoSize = video?.size { size = videoSize }
+        if size == nil, let videoSize = video?.size {
+            size = videoSize
+        }
         if thumbnail == nil {
-            if let img = image?.image { thumbnail = img } else { ensurePlaceholderThumbnail() }
+            if let img = image?.image {
+                thumbnail = img
+            } else {
+                ensurePlaceholderThumbnail()
+            }
         }
         newSize = nil
         info = notice
@@ -700,11 +712,15 @@ extension Optimiser {
             try await exec.handleOpenWith(app: app)
         }
 
-        if exec.shouldStop { break }
+        if exec.shouldStop {
+            break
+        }
 
         // Keep the single result card pointed at this step's final renderable file.
         exec.syncRenderTarget()
-        if !step.isFilter { exec.didWork = true }
+        if !step.isFilter {
+            exec.didWork = true
+        }
         log.debug("Pipeline: step[\(stepIndex)] \(stepDesc) completed, file: \(exec.currentFile.string)")
         stepIndex += 1
     }
@@ -775,8 +791,12 @@ extension Optimiser {
         log.debug("Pipeline: running '\(name)': \(stepsDesc)")
         do {
             let (resultFile, shownVisible, didWork) = try await executePipeline(pipeline, file: file, source: source, optimiser: optimiser, fileType: fileType, forceHide: forceHide)
-            if shownVisible { anyVisibleResult = true }
-            if didWork { anyRan = true }
+            if shownVisible {
+                anyVisibleResult = true
+            }
+            if didWork {
+                anyRan = true
+            }
             finalFile = resultFile
             log.debug("Pipeline: '\(name)' completed, result file: \(resultFile.string), visible: \(shownVisible), didWork: \(didWork)")
 

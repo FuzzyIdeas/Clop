@@ -293,7 +293,11 @@ class Video: Optimisable {
             fpsCap = target
         }
         // A cap at or above the source rate has nothing to drop, so it shouldn't reach ffmpeg at all.
-        let capsBelowSource = if let fpsCap, let fps { fpsCap < fps } else { fpsCap != nil }
+        let capsBelowSource = if let fpsCap, let fps {
+            fpsCap < fps
+        } else {
+            fpsCap != nil
+        }
         if let fpsCap, capsBelowSource {
             newFPS = fpsCap
             additionalArgs += ["-fpsmax", "\(fpsCap)"]
@@ -372,9 +376,13 @@ class Video: Optimisable {
         }
         let useEncoder = encoderOverride != nil || ["mp4", "mov", "hevc"].contains(outExt)
         var args = ["-y", "-i", inputPath.string]
-        if useEncoder { args += encoderArgs }
+        if useEncoder {
+            args += encoderArgs
+        }
         args += audioArgs + additionalArgs
-        if !isWebm { args += ["-movflags", "+faststart"] }
+        if !isWebm {
+            args += ["-movflags", "+faststart"]
+        }
         args += ["-progress", "pipe:2", "-nostats", "-hide_banner", "-stats_period", "0.1", outputPath.string]
 
         var realDuration: Int64?

@@ -21,9 +21,13 @@ enum PipelineAction: CustomStringConvertible {
         case .optimise:
             "optimise"
         case let .downscale(factor, cropSize):
-            if cropSize != nil { "downscale(crop)" }
-            else if let factor { "downscale(\((factor * 100).intround)%)" }
-            else { "downscale" }
+            if cropSize != nil {
+                "downscale(crop)"
+            } else if let factor {
+                "downscale(\((factor * 100).intround)%)"
+            } else {
+                "downscale"
+            }
         case let .changePlaybackSpeed(factor):
             "changePlaybackSpeed(\(factor)x)"
         case .removeAudio:
@@ -34,27 +38,37 @@ enum PipelineAction: CustomStringConvertible {
     }
 
     var isDownscale: Bool {
-        if case .downscale = self { return true }
+        if case .downscale = self {
+            return true
+        }
         return false
     }
 
     var isOptimise: Bool {
-        if case .optimise = self { return true }
+        if case .optimise = self {
+            return true
+        }
         return false
     }
 
     var isConvert: Bool {
-        if case .convert = self { return true }
+        if case .convert = self {
+            return true
+        }
         return false
     }
 
     var isChangePlaybackSpeed: Bool {
-        if case .changePlaybackSpeed = self { return true }
+        if case .changePlaybackSpeed = self {
+            return true
+        }
         return false
     }
 
     var isRemoveAudio: Bool {
-        if case .removeAudio = self { return true }
+        if case .removeAudio = self {
+            return true
+        }
         return false
     }
 }
@@ -123,7 +137,9 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
                 guard let uttype = UTType(typeStr) ?? UTType(filenameExtension: typeStr) else { return false }
                 return fileUTType?.conforms(to: uttype) ?? false
             }
-            if !matchesType { return (false, []) }
+            if !matchesType {
+                return (false, [])
+            }
         }
 
         if let regex, !regex.isEmpty {
@@ -142,11 +158,15 @@ struct FilterCondition: Codable, Hashable, Defaults.Serializable {
         }
 
         if let nameContains, !nameContains.isEmpty {
-            if !name.localizedCaseInsensitiveContains(nameContains) { return (false, []) }
+            if !name.localizedCaseInsensitiveContains(nameContains) {
+                return (false, [])
+            }
         }
 
         if let nameIs, !nameIs.isEmpty {
-            if name != nameIs { return (false, []) }
+            if name != nameIs {
+                return (false, [])
+            }
         }
 
         if let fileSizeGreaterThan {
@@ -221,8 +241,12 @@ private func imageDPI(_ file: FilePath) -> Int? {
     guard let source = CGImageSourceCreateWithURL(file.url as CFURL, nil),
           let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
     else { return nil }
-    if let dpi = (props[kCGImagePropertyDPIWidth] as? NSNumber)?.intValue, dpi > 0 { return dpi }
-    if let dpi = (props[kCGImagePropertyDPIHeight] as? NSNumber)?.intValue, dpi > 0 { return dpi }
+    if let dpi = (props[kCGImagePropertyDPIWidth] as? NSNumber)?.intValue, dpi > 0 {
+        return dpi
+    }
+    if let dpi = (props[kCGImagePropertyDPIHeight] as? NSNumber)?.intValue, dpi > 0 {
+        return dpi
+    }
     return nil
 }
 
@@ -348,49 +372,91 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         switch self {
         case let .optimise(encoder, adaptive, videoEncoder, dpi, location, compression):
             var params = ["encoder: \(videoEncoder?.rawValue ?? encoder.rawValue)"]
-            if adaptive { params.append("adaptive: true") }
-            if let compression { params.append("compression: \(compression.factor)") }
-            if let dpi { params.append("dpi: \(dpi)") }
-            if location != "inPlace" { params.append("location: \(location)") }
+            if adaptive {
+                params.append("adaptive: true")
+            }
+            if let compression {
+                params.append("compression: \(compression.factor)")
+            }
+            if let dpi {
+                params.append("dpi: \(dpi)")
+            }
+            if location != "inPlace" {
+                params.append("location: \(location)")
+            }
             return "optimise(\(params.joined(separator: ", ")))"
         case let .downscale(factor, location):
             var params = ["factor: \(factor)"]
-            if location != "inPlace" { params.append("location: \(location)") }
+            if location != "inPlace" {
+                params.append("location: \(location)")
+            }
             return "downscale(\(params.joined(separator: ", ")))"
         case let .lowerBitrate(kbps, location):
             var params = ["kbps: \(kbps)"]
-            if location != "inPlace" { params.append("location: \(location)") }
+            if location != "inPlace" {
+                params.append("location: \(location)")
+            }
             return "lowerBitrate(\(params.joined(separator: ", ")))"
         case let .convert(to, location):
             var params = ["to: \(to)"]
-            if location != "sameFolder" { params.append("location: \(location)") }
+            if location != "sameFolder" {
+                params.append("location: \(location)")
+            }
             return "convert(\(params.joined(separator: ", ")))"
         case let .crop(width, height, longEdge, aspectRatio, smartCrop, location):
             var params: [String] = []
-            if let aspectRatio { params.append("aspectRatio: \(aspectRatio)") }
-            if let longEdge { params.append("longEdge: \(longEdge)") }
-            if let width { params.append("width: \(width)") }
-            if let height { params.append("height: \(height)") }
-            if smartCrop { params.append("smartCrop: true") }
-            if location != "inPlace" { params.append("location: \(location)") }
+            if let aspectRatio {
+                params.append("aspectRatio: \(aspectRatio)")
+            }
+            if let longEdge {
+                params.append("longEdge: \(longEdge)")
+            }
+            if let width {
+                params.append("width: \(width)")
+            }
+            if let height {
+                params.append("height: \(height)")
+            }
+            if smartCrop {
+                params.append("smartCrop: true")
+            }
+            if location != "inPlace" {
+                params.append("location: \(location)")
+            }
             return "crop(\(params.joined(separator: ", ")))"
         case let .extractPagesAsImages(format, quality, location):
             var params: [String] = []
-            if format != "jpeg" { params.append("format: \(format)") }
-            if quality != "medium" { params.append("quality: \(quality)") }
-            if location != "sameFolder" { params.append("location: \(location)") }
+            if format != "jpeg" {
+                params.append("format: \(format)")
+            }
+            if quality != "medium" {
+                params.append("quality: \(quality)")
+            }
+            if location != "sameFolder" {
+                params.append("location: \(location)")
+            }
             return params.isEmpty ? "extractPagesAsImages" : "extractPagesAsImages(\(params.joined(separator: ", ")))"
         case let .targetSize(bytes, location):
             var params = ["size: \(bytes.humanSize)"]
-            if location != "inPlace" { params.append("location: \(location)") }
+            if location != "inPlace" {
+                params.append("location: \(location)")
+            }
             return "targetSize(\(params.joined(separator: ", ")))"
         case .stripExif: return "stripExif"
         case let .watermark(image, position, opacity, scale, location):
             var params = ["image: \"\(image)\""]
-            if position != "bottomRight" { params.append("position: \(position)") }
-            if opacity != 1.0 { params.append("opacity: \(opacity)") }
-            if scale != 0.15 { params.append("scale: \(scale)") }
-            if location != "inPlace" { params.append("location: \(location)") }
+            if position != "bottomRight" {
+                params.append("position: \(position)")
+            }
+            if opacity != 1.0 {
+                params.append("opacity: \(opacity)")
+            }
+            if scale != 0.15 {
+                params.append("scale: \(scale)")
+            }
+            if location != "inPlace" {
+                params.append("location: \(location)")
+            }
             return "watermark(\(params.joined(separator: ", ")))"
         case let .capFps(fps): return "capFps(fps: \(fps))"
         case let .normalize(lufs): return "normalize(lufs: \(lufs))"
@@ -403,12 +469,16 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
         case .removeAudio: return "removeAudio"
         case let .changeSpeed(factor): return "changeSpeed(factor: \(factor))"
         case let .runScript(path, code):
-            if let code, !code.isEmpty { return "runScript(code: \(code))" }
+            if let code, !code.isEmpty {
+                return "runScript(code: \(code))"
+            }
             return "runScript(path: \(path ?? ""))"
         case let .runShortcut(shortcut): return "runShortcut(name: \(shortcut.name))"
         case let .copyToClipboard(format, relativeTo):
             var params = ["format: \(format.rawValue)"]
-            if let relativeTo { params.append("relativeTo: \(relativeTo)") }
+            if let relativeTo {
+                params.append("relativeTo: \(relativeTo)")
+            }
             return "copyToClipboard(\(params.joined(separator: ", ")))"
         case let .copyLinkForSending(expiration):
             guard let expiration else { return "copyLinkForSending" }
@@ -465,7 +535,9 @@ enum PipelineStep: Encodable, Hashable, Identifiable, Defaults.Serializable {
     }
 
     var isOptimise: Bool {
-        if case .optimise = self { return true }
+        if case .optimise = self {
+            return true
+        }
         return false
     }
 
@@ -676,20 +748,48 @@ extension FilterCondition {
         if let types, !types.isEmpty {
             parts.append("types: \(types.joined(separator: ", "))")
         }
-        if let regex { parts.append("regex: \(regex)") }
-        if let nameContains { parts.append("nameContains: \(nameContains)") }
-        if let nameIs { parts.append("nameIs: \(nameIs)") }
-        if let fileSizeGreaterThan { parts.append("size > \(fileSizeGreaterThan)") }
-        if let fileSizeLowerThan { parts.append("size < \(fileSizeLowerThan)") }
-        if let widthGreaterThan { parts.append("width > \(widthGreaterThan)") }
-        if let widthLowerThan { parts.append("width < \(widthLowerThan)") }
-        if let heightGreaterThan { parts.append("height > \(heightGreaterThan)") }
-        if let heightLowerThan { parts.append("height < \(heightLowerThan)") }
-        if let dpiGreaterThan { parts.append("dpi > \(dpiGreaterThan)") }
-        if let dpiLowerThan { parts.append("dpi < \(dpiLowerThan)") }
-        if let minFileSize { parts.append("size >= \(minFileSize)") }
-        if let minResolution { parts.append("resolution >= \(minResolution)") }
-        if let copiedBy { parts.append("copiedBy: \(copiedBy)") }
+        if let regex {
+            parts.append("regex: \(regex)")
+        }
+        if let nameContains {
+            parts.append("nameContains: \(nameContains)")
+        }
+        if let nameIs {
+            parts.append("nameIs: \(nameIs)")
+        }
+        if let fileSizeGreaterThan {
+            parts.append("size > \(fileSizeGreaterThan)")
+        }
+        if let fileSizeLowerThan {
+            parts.append("size < \(fileSizeLowerThan)")
+        }
+        if let widthGreaterThan {
+            parts.append("width > \(widthGreaterThan)")
+        }
+        if let widthLowerThan {
+            parts.append("width < \(widthLowerThan)")
+        }
+        if let heightGreaterThan {
+            parts.append("height > \(heightGreaterThan)")
+        }
+        if let heightLowerThan {
+            parts.append("height < \(heightLowerThan)")
+        }
+        if let dpiGreaterThan {
+            parts.append("dpi > \(dpiGreaterThan)")
+        }
+        if let dpiLowerThan {
+            parts.append("dpi < \(dpiLowerThan)")
+        }
+        if let minFileSize {
+            parts.append("size >= \(minFileSize)")
+        }
+        if let minResolution {
+            parts.append("resolution >= \(minResolution)")
+        }
+        if let copiedBy {
+            parts.append("copiedBy: \(copiedBy)")
+        }
         return parts.isEmpty ? "" : parts.joined(separator: ", ")
     }
 }
