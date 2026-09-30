@@ -148,7 +148,13 @@ extension FilePath {
 let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
 let OPTIMISATION_STOP_PORT = LocalMachPort(portLocation: OPTIMISATION_STOP_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
-let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_CLI_RESPONSE_PORT_ID)
+/// The port this process hears the app's per-file results on, named for its pid.
+///
+/// A Mach port name has one owner. With one name shared by every CLI, the first `clop mcp serve` to
+/// claim it kept it for as long as its agent session lived, and each other CLI (another session's
+/// server, a `clop optimise` in a terminal) waited out its deadline on work the app had finished.
+let CLI_REPLY_PORT_ID = "\(OPTIMISATION_CLI_RESPONSE_PORT_ID).\(ProcessInfo.processInfo.processIdentifier)"
+let OPTIMISATION_CLI_RESPONSE_PORT = LocalMachPort(portLocation: CLI_REPLY_PORT_ID)
 
 extension NSSize {
     var s: String {

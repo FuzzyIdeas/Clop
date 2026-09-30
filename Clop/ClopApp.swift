@@ -618,7 +618,7 @@ class AppDelegate: AppDelegateParent {
             // a refusal has to travel the same way a per-file error does. One per URL, or the CLI waits
             // for a count that never arrives.
             for url in req.urls {
-                try? OPTIMISATION_CLI_RESPONSE_PORT.sendAndForget(data: OptimisationResponseError(error: refusal, forURL: url).jsonData)
+                sendCLIReply(OptimisationResponseError(error: refusal, forURL: url).jsonData, for: req)
             }
             return nil
         }

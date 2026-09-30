@@ -395,7 +395,8 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: 
     // --review opens the batch window for the user to tweak knobs and press Optimise; the CLI fires
     // the request and returns without waiting (nothing runs until the user confirms in the window).
     if review {
-        let req = requestCreator()
+        var req = requestCreator()
+        req.replyPort = CLI_REPLY_PORT_ID
         try OPTIMISATION_PORT.sendAndForget(data: req.jsonData)
         printerr("Opened the batch window for \(urls.count) items. Press Optimise there to start.")
         Clop.exit()
@@ -403,16 +404,16 @@ func sendRequest(urls: [URL], showProgress: Bool, async: Bool, gui: Bool, json: 
 
     if !async {
         progressPrinter = ProgressPrinter(urls: urls)
-        Task {
-            await progressPrinter!.startResponsesThread()
-
-            guard showProgress else { return }
-            await progressPrinter!.printProgress()
+        // Before the request goes out, so the reply port exists when the first result arrives.
+        awaitSync { await progressPrinter!.startResponsesThread() }
+        if showProgress {
+            Task { await progressPrinter!.printProgress() }
         }
     }
 
     currentRequestIDs = urls.map(\.absoluteString)
-    let req = requestCreator()
+    var req = requestCreator()
+    req.replyPort = CLI_REPLY_PORT_ID
     signal(SIGINT, stopCurrentRequests(_:))
     signal(SIGTERM, stopCurrentRequests(_:))
 
@@ -3692,8 +3693,12 @@ actor ProgressPrinter {
     /// collecting them. `clop mcp serve` runs many file commands in one process, and a second
     /// listener on the same port name would be a second registration of a name that is already
     /// taken.
+    ///
+    /// Returns once the port exists. The port is named for this process, so a reply the app sends
+    /// before it is registered, a refusal for instance, has nowhere to go and the CLI would wait for it.
     func startResponsesThread() {
         guard responsesThread == nil else { return }
+        let listening = DispatchSemaphore(value: 0)
         responsesThread = Thread {
             OPTIMISATION_CLI_RESPONSE_PORT.listen { data in
                 log.debug("Received optimisation response: \(data?.count ?? 0) bytes")
@@ -3709,9 +3714,11 @@ actor ProgressPrinter {
                 }
                 return nil
             }
+            listening.signal()
             RunLoop.current.run()
         }
         responsesThread?.start()
+        listening.wait()
     }
 }
 

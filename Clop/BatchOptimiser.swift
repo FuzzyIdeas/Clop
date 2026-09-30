@@ -1330,8 +1330,9 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
     }
     BAT.onFinished = nil
 
-    let cliSource = req.source == "cli"
-    let port = cliSource ? OPTIMISATION_CLI_RESPONSE_PORT : OPTIMISATION_RESPONSE_PORT
+    let send: (Data?) -> Void = req.source == "cli"
+        ? { sendCLIReply($0, for: req) }
+        : { try? OPTIMISATION_RESPONSE_PORT.sendAndForget(data: $0) }
     let itemByID = Dictionary(BAT.items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
 
     var responses: [OptimisationResponse] = []
@@ -1346,10 +1347,10 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
                 oldDPI: item.oldDPI, newDPI: item.newDPI
             )
             responses.append(resp)
-            try? port.sendAndForget(data: resp.jsonData)
+            send(resp.jsonData)
         } else {
             let message = itemByID[id]?.error ?? "Skipped"
-            try? port.sendAndForget(data: OptimisationResponseError(error: message, forURL: url).jsonData)
+            send(OptimisationResponseError(error: message, forURL: url).jsonData)
         }
     }
     return responses
