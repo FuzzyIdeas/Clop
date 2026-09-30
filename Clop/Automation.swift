@@ -47,19 +47,25 @@ func migrateShortcutsToPipelines() {
     for (source, shortcut) in Defaults[.shortcutToRunOnImage] {
         imagePipelines[source, default: []].append(Pipeline(steps: [.runShortcut(shortcut)]))
     }
-    if !imagePipelines.isEmpty { Defaults[.pipelinesToRunOnImage] = imagePipelines }
+    if !imagePipelines.isEmpty {
+        Defaults[.pipelinesToRunOnImage] = imagePipelines
+    }
 
     var videoPipelines = Defaults[.pipelinesToRunOnVideo]
     for (source, shortcut) in Defaults[.shortcutToRunOnVideo] {
         videoPipelines[source, default: []].append(Pipeline(steps: [.runShortcut(shortcut)]))
     }
-    if !videoPipelines.isEmpty { Defaults[.pipelinesToRunOnVideo] = videoPipelines }
+    if !videoPipelines.isEmpty {
+        Defaults[.pipelinesToRunOnVideo] = videoPipelines
+    }
 
     var pdfPipelines = Defaults[.pipelinesToRunOnPdf]
     for (source, shortcut) in Defaults[.shortcutToRunOnPdf] {
         pdfPipelines[source, default: []].append(Pipeline(steps: [.runShortcut(shortcut)]))
     }
-    if !pdfPipelines.isEmpty { Defaults[.pipelinesToRunOnPdf] = pdfPipelines }
+    if !pdfPipelines.isEmpty {
+        Defaults[.pipelinesToRunOnPdf] = pdfPipelines
+    }
 
     Defaults[.pipelinesMigrated] = true
     log.debug("Migrated shortcuts to pipelines: images=\(imagePipelines.count), videos=\(videoPipelines.count), pdfs=\(pdfPipelines.count)")
@@ -114,7 +120,9 @@ struct InstalledAppsInfo {
 private var _installedAppsCache: InstalledAppsInfo?
 
 private func installedApps() -> InstalledAppsInfo {
-    if let cache = _installedAppsCache { return cache }
+    if let cache = _installedAppsCache {
+        return cache
+    }
 
     var descriptions = [String: String]()
     let fm = FileManager.default
@@ -708,12 +716,24 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
     let trimmed = text.trimmingCharacters(in: .whitespaces)
 
     // Handle no-param steps
-    if trimmed == "removeAudio" { return .removeAudio }
-    if trimmed == "copyLinkForSending" { return .copyLinkForSending() }
-    if trimmed == "fork" { return .fork() }
-    if trimmed == "copyToClipboard" { return .copyToClipboard() }
-    if trimmed == "stripExif" { return .stripExif }
-    if trimmed == "normalize" { return .normalize() }
+    if trimmed == "removeAudio" {
+        return .removeAudio
+    }
+    if trimmed == "copyLinkForSending" {
+        return .copyLinkForSending()
+    }
+    if trimmed == "fork" {
+        return .fork()
+    }
+    if trimmed == "copyToClipboard" {
+        return .copyToClipboard()
+    }
+    if trimmed == "stripExif" {
+        return .stripExif
+    }
+    if trimmed == "normalize" {
+        return .normalize()
+    }
 
     // Parse name(params) format
     guard let nameRegex = try? NSRegularExpression(pattern: #"^(\w+)(?:\((.*)\))?$"#),
@@ -934,7 +954,9 @@ private func parseFilterCondition(_ params: [String: String]) -> FilterCondition
 /// Parse a human-friendly byte size like "100kb", "2mb", "1.5MiB" or a raw byte count.
 private func parseByteSize(_ str: String) -> Int? {
     let s = str.trimmingCharacters(in: .whitespaces).lowercased()
-    if let n = Int(s) { return n }
+    if let n = Int(s) {
+        return n
+    }
     // Longer suffixes first so "kib"/"mib" win over "kb"/"mb".
     let multipliers: [(String, Double)] = [
         ("gib", 1_073_741_824), ("gb", 1_000_000_000),
@@ -1065,7 +1087,9 @@ func pipelineSuggestions(prefix: String, fileType: ClopFileType?) -> [Completion
                     )
                 }
 
-            if suggestions.isEmpty, paramSuggestions.isEmpty { return [] }
+            if suggestions.isEmpty, paramSuggestions.isEmpty {
+                return []
+            }
             return suggestions
         } else {
             // Show available param names, filtered by what user is typing

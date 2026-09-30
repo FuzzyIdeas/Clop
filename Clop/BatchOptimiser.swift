@@ -246,7 +246,17 @@ struct BatchAggregate {
 enum BatchTypeKey: CaseIterable { case image, video, pdf, audio }
 
 func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
-    if type.isImage { .image } else if type.isVideo { .video } else if type.isPDF { .pdf } else if type.isAudio { .audio } else { nil }
+    if type.isImage {
+        .image
+    } else if type.isVideo {
+        .video
+    } else if type.isPDF {
+        .pdf
+    } else if type.isAudio {
+        .audio
+    } else {
+        nil
+    }
 }
 
 // MARK: - BatchManager
@@ -370,7 +380,9 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
     /// non-optimisable files and duplicates are dropped. Ignored while a run/restore is in progress.
     func add(paths: [FilePath], source: OptimisationSource? = nil) {
         guard !isRunning, !isRestoring else { return }
-        if self.source == nil { self.source = source }
+        if self.source == nil {
+            self.source = source
+        }
         // No `phase` spinner here (unlike `prepare`): keep the already-added files visible while the
         // new drop's folders are expanded, so subsequent drops don't flash the table away.
         isPreparing = true
@@ -635,7 +647,9 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
         let rerunning = Set(ids)
         claimedOutputPaths = Set(backing.filter { !rerunning.contains($0.id) }.compactMap { $0.resultPath?.string })
         isRunning = true
-        if freshBackup { phase = "Backing up originals…" }
+        if freshBackup {
+            phase = "Backing up originals…"
+        }
         publishNow()
 
         let sources = backing.map(\.source)
@@ -800,7 +814,9 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
             recordFailure(id: id, message: error.localizedDescription, log: optimiser.errorLog)
         }
 
-        if needsWorkingCopy { try? working.delete() }
+        if needsWorkingCopy {
+            try? working.delete()
+        }
         liveOptimisers[id] = nil
     }
 
@@ -909,7 +925,9 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
         var it = backing[idx]
         let resultPath = optimiser.url?.filePath ?? it.source
         it.resultPath = resultPath
-        if optimiser.oldBytes > 0 { it.oldBytes = optimiser.oldBytes }
+        if optimiser.oldBytes > 0 {
+            it.oldBytes = optimiser.oldBytes
+        }
         it.newBytes = optimiser.newBytes > 0
             ? optimiser.newBytes
             : (resultPath.fileSize() ?? it.oldBytes)
@@ -975,7 +993,9 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
         } else {
             var rows = IndexSet()
             for backingIdx in dirty where backing.indices.contains(backingIdx) {
-                if let row = displayRowByID[backing[backingIdx].id] { rows.insert(row) }
+                if let row = displayRowByID[backing[backingIdx].id] {
+                    rows.insert(row)
+                }
             }
             onFlush?(false, rows)
         }
@@ -1045,11 +1065,17 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
     /// Composite default: active rows first, then grouped by file type, then depth-aware alphabetical.
     private func compositeLess(_ a: BatchItem, _ b: BatchItem) -> Bool {
         let ra = statusRank(a.status), rb = statusRank(b.status)
-        if ra != rb { return ra < rb }
+        if ra != rb {
+            return ra < rb
+        }
         let ta = typeRank(a.type), tb = typeRank(b.type)
-        if ta != tb { return ta < tb }
+        if ta != tb {
+            return ta < tb
+        }
         let da = a.source.components.count, db = b.source.components.count
-        if da != db { return da < db }
+        if da != db {
+            return da < db
+        }
         return a.source.string.localizedStandardCompare(b.source.string) == .orderedAscending
     }
 
@@ -1064,7 +1090,17 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
     }
 
     private func typeRank(_ type: ItemType) -> Int {
-        if type.isImage { 0 } else if type.isVideo { 1 } else if type.isPDF { 2 } else if type.isAudio { 3 } else { 4 }
+        if type.isImage {
+            0
+        } else if type.isVideo {
+            1
+        } else if type.isPDF {
+            2
+        } else if type.isAudio {
+            3
+        } else {
+            4
+        }
     }
 
     private func columnLess(_ a: BatchItem, _ b: BatchItem, _ key: String) -> Bool {
@@ -1093,7 +1129,11 @@ func batchTypeKey(_ type: ItemType) -> BatchTypeKey? {
         case .pdf: Double(item.newDPI ?? item.oldDPI ?? 0)
         case .audio: Double(item.newBitrate ?? item.oldBitrate ?? 0)
         default:
-            if let s = item.newSize ?? item.oldSize { Double(s.width * s.height) } else { 0 }
+            if let s = item.newSize ?? item.oldSize {
+                Double(s.width * s.height)
+            } else {
+                0
+            }
         }
     }
 }
@@ -1144,10 +1184,18 @@ func buildBatchItems(_ paths: [FilePath], params: BatchParams) -> [BatchItem] {
 /// critical for batch — the category picks the pipeline.
 private func batchItemType(_ path: FilePath) -> ItemType {
     let utType = path.extension.flatMap { UTType(filenameExtension: $0) }
-    if path.isImage { return .image(utType ?? .image) }
-    if path.isVideo { return .video(utType ?? .mpeg4Movie) }
-    if path.isPDF { return .pdf }
-    if path.isAudio { return .audio(utType ?? .mp3) }
+    if path.isImage {
+        return .image(utType ?? .image)
+    }
+    if path.isVideo {
+        return .video(utType ?? .mpeg4Movie)
+    }
+    if path.isPDF {
+        return .pdf
+    }
+    if path.isAudio {
+        return .audio(utType ?? .mp3)
+    }
     return .unknown
 }
 
@@ -1249,17 +1297,27 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
         params.audio.compression = compression
     }
     params.audio.bitrate = req.audioBitrate
-    if let dpi = req.pdfDPI { params.pdf.dpiMode = .fixed(dpi) }
-    if let factor = req.downscaleFactor, factor < 1 { params.setUniformDownscale(factor) }
-    if req.removeAudio == true { params.video.removeAudio = true }
+    if let dpi = req.pdfDPI {
+        params.pdf.dpiMode = .fixed(dpi)
+    }
+    if let factor = req.downscaleFactor, factor < 1 {
+        params.setUniformDownscale(factor)
+    }
+    if req.removeAudio == true {
+        params.video.removeAudio = true
+    }
     if let size = req.size {
         params.images.cropSize = size
         params.video.cropSize = size
         params.pdf.cropSize = size
     }
-    if let speed = req.changePlaybackSpeedFactor, speed != 1 { params.video.playbackSpeedFactor = speed }
+    if let speed = req.changePlaybackSpeedFactor, speed != 1 {
+        params.video.playbackSpeedFactor = speed
+    }
     // shouldRouteToBatch only lets folder outputs through; templates stay on the per-file path.
-    if let output = req.output, output.existingFilePath?.isDir == true { params.output = output }
+    if let output = req.output, output.existingFilePath?.isDir == true {
+        params.output = output
+    }
 
     await BAT.start(paths: paths, params: params, source: req.source.optSource)
     await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in

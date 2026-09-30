@@ -287,9 +287,15 @@ enum TempPipelineSegment {
         self.running = running
         self.oldBytes = oldBytes
         self.newBytes = newBytes
-        if let progress { self.progress = progress }
-        if let oldSize { self.oldSize = oldSize }
-        if let newSize { self.newSize = newSize }
+        if let progress {
+            self.progress = progress
+        }
+        if let oldSize {
+            self.oldSize = oldSize
+        }
+        if let newSize {
+            self.newSize = newSize
+        }
         self.operation = operation
     }
 
@@ -393,7 +399,9 @@ enum TempPipelineSegment {
     var automationPipeline: Pipeline?
 
     lazy var path: FilePath? = {
-        if let url { return FilePath(url) }
+        if let url {
+            return FilePath(url)
+        }
         return id == IDs.clipboardImage ? nil : FilePath(stringLiteral: id)
     }()
     lazy var filename: String =
@@ -480,10 +488,18 @@ enum TempPipelineSegment {
         }
     }
     var comparisonOriginalURL: URL? {
-        if let startingURL, startingURL != url, fm.fileExists(atPath: startingURL.path) { return startingURL }
-        if let originalURL, originalURL != url, fm.fileExists(atPath: originalURL.path) { return originalURL }
-        if let convertedFromURL, convertedFromURL != url, fm.fileExists(atPath: convertedFromURL.path) { return convertedFromURL }
-        if let backupPath = path?.clopBackupPath?.url, backupPath != url, fm.fileExists(atPath: backupPath.path) { return backupPath }
+        if let startingURL, startingURL != url, fm.fileExists(atPath: startingURL.path) {
+            return startingURL
+        }
+        if let originalURL, originalURL != url, fm.fileExists(atPath: originalURL.path) {
+            return originalURL
+        }
+        if let convertedFromURL, convertedFromURL != url, fm.fileExists(atPath: convertedFromURL.path) {
+            return convertedFromURL
+        }
+        if let backupPath = path?.clopBackupPath?.url, backupPath != url, fm.fileExists(atPath: backupPath.path) {
+            return backupPath
+        }
         return nil
     }
 
@@ -497,7 +513,11 @@ enum TempPipelineSegment {
     /// single global Defaults[.audioFormat] for per-result bitrate UI.
     var audioFormat: AudioFormat {
         let ext = (url ?? originalURL)?.filePath?.extension?.lowercased()
-            ?? { if case let .audio(ut) = type { return ut.preferredFilenameExtension?.lowercased() }; return nil }()
+            ?? {
+                if case let .audio(ut) = type {
+                    return ut.preferredFilenameExtension?.lowercased()
+                }; return nil
+            }()
         return AudioFormat.allCases.first { $0 != .sameAsInput && ($0.fileExtension == ext || ($0 == .opus && ext == "opus")) } ?? .aac
     }
 
@@ -588,7 +608,9 @@ enum TempPipelineSegment {
                 startingURL = url
             }
             path = {
-                if let url { return FilePath(url) }
+                if let url {
+                    return FilePath(url)
+                }
                 return id == IDs.clipboardImage ? nil : FilePath(stringLiteral: id)
             }()
             filename =
@@ -650,7 +672,9 @@ enum TempPipelineSegment {
     /// on every SwiftUI render; the cache is cleared in url.didSet.
     var isAnimatedGIF: Bool {
         guard type == .image(.gif), let url, let path else { return false }
-        if let cache = animatedGIFCache, cache.url == url { return cache.value }
+        if let cache = animatedGIFCache, cache.url == url {
+            return cache.value
+        }
         let value = path.isAnimatedGIF
         animatedGIFCache = (url, value)
         return value
@@ -933,7 +957,9 @@ enum TempPipelineSegment {
 
         // Extract video encoder override from the pipeline
         let videoEncoderOverride: VideoEncoder? = tempPipeline.compactMap { step in
-            if case let .optimise(_, _, ve, _, _, _) = step { return ve }
+            if case let .optimise(_, _, ve, _, _, _) = step {
+                return ve
+            }
             return nil
         }.last
 
@@ -941,7 +967,9 @@ enum TempPipelineSegment {
             var currentFile = originalFilePath
 
             for segment in segments {
-                if inRemoval { break }
+                if inRemoval {
+                    break
+                }
 
                 switch segment {
                 case let .encodingGroup(steps):
@@ -992,7 +1020,11 @@ enum TempPipelineSegment {
                         }
                     } else if type.isPDF, let pdf = self.pdf {
                         // Honour DPI from a temp-pipeline `optimise(dpi:)` step, otherwise fall back to the slider override.
-                        let stepDPI: Int? = steps.compactMap { if case let .optimise(_, _, _, d, _, _) = $0 { return d }; return nil }.last
+                        let stepDPI: Int? = steps.compactMap {
+                            if case let .optimise(_, _, _, d, _, _) = $0 {
+                                return d
+                            }; return nil
+                        }.last
                         if let result = try? await runPDFPipeline(
                             pdf, actions: actions,
                             id: self.id,
@@ -1009,7 +1041,9 @@ enum TempPipelineSegment {
                         // (e.g. after wav→m4a) would resolve the output format from the original's
                         // extension and silently revert the conversion back to the original format.
                         let convertFormat: AudioFormat? = actions.compactMap { action in
-                            if case let .convert(format) = action { return AudioFormat.allCases.first { $0.utType == format } }
+                            if case let .convert(format) = action {
+                                return AudioFormat.allCases.first { $0.utType == format }
+                            }
                             return nil
                         }.first
                         let targetFormat = convertFormat ?? audioConversionFormat(originalExtension: originalFilePath.extension)
@@ -1019,9 +1053,13 @@ enum TempPipelineSegment {
                         for step in steps {
                             switch step {
                             case let .lowerBitrate(kbps, _):
-                                if let clamped = audio.loweredBitrate(kbps: kbps) { stepBitrate = clamped }
+                                if let clamped = audio.loweredBitrate(kbps: kbps) {
+                                    stepBitrate = clamped
+                                }
                             case let .downscale(factor, _):
-                                if stepBitrate == nil, let clamped = audio.loweredBitrate(factor: factor) { stepBitrate = clamped }
+                                if stepBitrate == nil, let clamped = audio.loweredBitrate(factor: factor) {
+                                    stepBitrate = clamped
+                                }
                             default: break
                             }
                         }
@@ -1182,7 +1220,9 @@ enum TempPipelineSegment {
                         return
                     }
                     mainActor {
-                        if self.convertedFromURL == nil { self.convertedFromURL = self.url }
+                        if self.convertedFromURL == nil {
+                            self.convertedFromURL = self.url
+                        }
                         self.type = .image(.gif)
                         // The GIF replaced the video, so a codec detected on the source must not
                         // linger (it would grey out that codec's convert target for the GIF).
@@ -1392,7 +1432,9 @@ enum TempPipelineSegment {
     /// Compression applies to any image/video (a re-encode), and to audio only when the output
     /// format has a bitrate axis (lossless WAV/FLAC/AIFF have none, so it would be a no-op).
     func canCompress() -> Bool {
-        if type.isImage || type.isVideo { return true }
+        if type.isImage || type.isVideo {
+            return true
+        }
         guard type.isAudio else { return false }
         let ext = (url ?? originalURL)?.filePath?.extension ?? ""
         return audioFormat.bitrateRange != nil
@@ -1458,7 +1500,9 @@ enum TempPipelineSegment {
         changePlaybackSpeedFactor = effectiveFactor
 
         if !tempPipeline.isEmpty {
-            if let aggressiveOptimisation { aggressive = aggressiveOptimisation }
+            if let aggressiveOptimisation {
+                aggressive = aggressiveOptimisation
+            }
             if effectiveFactor == 1.0 {
                 removeTempPipelineStep(named: "changeSpeed")
             } else {
@@ -1705,10 +1749,14 @@ enum TempPipelineSegment {
         guard !inRemoval, !isPreview else { return }
 
         let effectiveFactor = factor ?? downscaleFactor
-        if let factor { downscaleFactor = factor }
+        if let factor {
+            downscaleFactor = factor
+        }
 
         if !tempPipeline.isEmpty {
-            if let aggressiveOptimisation { aggressive = aggressiveOptimisation }
+            if let aggressiveOptimisation {
+                aggressive = aggressiveOptimisation
+            }
             if effectiveFactor >= 1.0 {
                 removeTempPipelineStep(named: "downscale")
             } else {
@@ -2025,7 +2073,9 @@ enum TempPipelineSegment {
     /// doing nothing (a result can outlive its file, e.g. a cached image whose working copy was moved away).
     @discardableResult
     func existingFileOrNotify() -> FilePath? {
-        if let p = (url ?? originalURL)?.existingFilePath { return p }
+        if let p = (url ?? originalURL)?.existingFilePath {
+            return p
+        }
         overlayMessage = "File not found"
         return nil
     }
@@ -2088,7 +2138,9 @@ enum TempPipelineSegment {
         self.running = false
         // Batch runs read results straight off the optimiser and own its lifetime; they never touch
         // the floating-result removal machinery (which would reassign OM.optimisers and churn the UI).
-        if batchSilent { return }
+        if batchSilent {
+            return
+        }
         removeDebouncer()
 
         guard !OM.compactResults else { return }
@@ -2118,10 +2170,18 @@ enum TempPipelineSegment {
         if batchSilent {
             self.oldBytes = oldBytes
             self.newBytes = newBytes
-            if let oldSize { self.oldSize = oldSize }
-            if let newSize { self.newSize = newSize }
-            if let oldBitrate { self.oldBitrate = oldBitrate }
-            if let newBitrate { self.newBitrate = newBitrate }
+            if let oldSize {
+                self.oldSize = oldSize
+            }
+            if let newSize {
+                self.newSize = newSize
+            }
+            if let oldBitrate {
+                self.oldBitrate = oldBitrate
+            }
+            if let newBitrate {
+                self.newBitrate = newBitrate
+            }
             running = false
             return
         }
@@ -2130,10 +2190,18 @@ enum TempPipelineSegment {
         withAnimation(.easeOut(duration: 0.5)) {
             self.oldBytes = oldBytes
             self.newBytes = newBytes
-            if let oldSize { self.oldSize = oldSize }
-            if let newSize { self.newSize = newSize }
-            if let oldBitrate { self.oldBitrate = oldBitrate }
-            if let newBitrate { self.newBitrate = newBitrate }
+            if let oldSize {
+                self.oldSize = oldSize
+            }
+            if let newSize {
+                self.newSize = newSize
+            }
+            if let oldBitrate {
+                self.oldBitrate = oldBitrate
+            }
+            if let newBitrate {
+                self.newBitrate = newBitrate
+            }
             self.running = false
         }
         removeDebouncer()
@@ -2305,10 +2373,15 @@ enum TempPipelineSegment {
         let sources = [originalURL, startingURL, convertedFromURL].compactMap { $0 }
         guard !sources.contains(current) else { return nil }
         let behaviour: FileBehaviour
-        if type.isImage { behaviour = Defaults[.manualConvertedImageBehaviour] }
-        else if type.isVideo { behaviour = Defaults[.manualConvertedVideoBehaviour] }
-        else if type.isAudio { behaviour = Defaults[.manualConvertedAudioBehaviour] }
-        else { return nil }
+        if type.isImage {
+            behaviour = Defaults[.manualConvertedImageBehaviour]
+        } else if type.isVideo {
+            behaviour = Defaults[.manualConvertedVideoBehaviour]
+        } else if type.isAudio {
+            behaviour = Defaults[.manualConvertedAudioBehaviour]
+        } else {
+            return nil
+        }
         guard behaviour == .sameFolder || behaviour == .specificFolder else { return nil }
         return current
     }
@@ -2352,7 +2425,9 @@ enum TempPipelineSegment {
                 return
             }
             mainActor {
-                if self.convertedFromURL == nil { self.convertedFromURL = self.url }
+                if self.convertedFromURL == nil {
+                    self.convertedFromURL = self.url
+                }
                 self.type = isCodecConversion ? .video(type) : .video(UTType(filenameExtension: result.path.extension ?? "mp4") ?? .mpeg4Movie)
                 // Detection describes the CURRENT file and this encode replaced it: codec targets are
                 // shadowed by `type` above, container targets (MP4/MOV) are default-args H.264.
@@ -2390,7 +2465,9 @@ enum TempPipelineSegment {
 
         for (i, step) in tempPipeline.enumerated() {
             if isEncodingGroupStep(step) {
-                if groupStart == nil { groupStart = i }
+                if groupStart == nil {
+                    groupStart = i
+                }
             } else {
                 if let start = groupStart {
                     groups.append(start ..< i)
@@ -2897,7 +2974,9 @@ func optimiseURL(
             clipResult = .file(downloadPath)
 
             var pdfActions: [PipelineAction] = [.optimise]
-            if let cropSize { pdfActions.append(.downscale(factor: nil, cropSize: cropSize)) }
+            if let cropSize {
+                pdfActions.append(.downscale(factor: nil, cropSize: cropSize))
+            }
             let result: PDF? = try await runPDFPipeline(
                 PDF(downloadPath, thumb: !hideFloatingResult, id: optimiser.id),
                 actions: pdfActions,
@@ -3236,7 +3315,9 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     optimiser.image = img
                     let fileSize = path.fileSize() ?? 0
                     optimiser.finish(oldBytes: fileSize, newBytes: fileSize, oldSize: img.size)
-                    if skipPipelineLookup { return .file(path) }
+                    if skipPipelineLookup {
+                        return .file(path)
+                    }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -3285,7 +3366,9 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                         let fileSize = path.fileSize() ?? 0
                         optimiser.finish(oldBytes: fileSize, newBytes: fileSize, oldSize: nil)
                     }
-                    if skipPipelineLookup { return .file(path) }
+                    if skipPipelineLookup {
+                        return .file(path)
+                    }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -3330,7 +3413,9 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     optimiser.pdf = pdf
                     optimiser.finish(oldBytes: pdf.fileSize, newBytes: pdf.fileSize, oldSize: pdf.size)
 
-                    if skipPipelineLookup { return .file(path) }
+                    if skipPipelineLookup {
+                        return .file(path)
+                    }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -3339,7 +3424,9 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 }
 
                 var filePdfActions: [PipelineAction] = [.optimise]
-                if let cropSize { filePdfActions.append(.downscale(factor: nil, cropSize: cropSize)) }
+                if let cropSize {
+                    filePdfActions.append(.downscale(factor: nil, cropSize: cropSize))
+                }
 
                 let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
                     let pdf = PDF(path, thumb: !hideFloatingResult)
@@ -3372,7 +3459,9 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                         setAudioThumbnail(on: optimiser, path: path)
                     }
                     optimiser.finish(oldBytes: audio.fileSize, newBytes: audio.fileSize, oldBitrate: audio.bitrate, newBitrate: audio.bitrate)
-                    if skipPipelineLookup { return .file(path) }
+                    if skipPipelineLookup {
+                        return .file(path)
+                    }
                     throw ClopError.alreadyOptimised(path)
                 }
 
@@ -3586,11 +3675,17 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
 
     let optimiser = await MainActor.run {
         let o = OM.optimiser(id: id, type: type, operation: "Running pipeline", hidden: req.hideFloatingResult, source: source)
-        if o.url == nil { o.url = startPath.url }
+        if o.url == nil {
+            o.url = startPath.url
+        }
         // Per-run compression overrides: pipeline steps that spawn child pipelines
         // (convert, optimise) propagate these to the child optimisers.
-        if let compression = req.compression { o.compressionOverride = compression }
-        if let bitrate = req.audioBitrate { o.audioBitrateOverride = bitrate }
+        if let compression = req.compression {
+            o.compressionOverride = compression
+        }
+        if let bitrate = req.audioBitrate {
+            o.audioBitrateOverride = bitrate
+        }
         o.placementOverride = req.placement
         return o
     }
