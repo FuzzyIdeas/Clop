@@ -1,3 +1,23 @@
+# 3.4.5
+
+**[Download Clop 3.4.5 →](https://files.lowtechguys.com/releases/Clop-3.4.5.dmg)**
+## Features
+
+- **Frame choice per speed change**: a pipeline's `changeSpeed` step takes `frames: keep` for smoother motion or `frames: drop` for a smaller file, instead of following the one setting in Settings > Video
+    > `clop optimise --playback-speed-frames keep|drop` does the same from the command line
+    >
+    > When an AI agent speeds up a video and doesn't say, Clop asks you which one you want
+
+## Improvements
+
+- AI agents are told to check ambiguous requests with you before acting, like whether *smaller* means compression or lower resolution, and how much
+- Speeding up, muting or giving a compression level through an agent no longer brings up the *make it smaller* question
+
+## Fixes
+
+- `clop` commands and agent file tools no longer hang until they time out with several agent sessions open
+- Pipeline speed changes set to drop frames no longer keep every frame some of the time
+
 # 3.4.4
 
 **[Download Clop 3.4.4 →](https://files.lowtechguys.com/releases/Clop-3.4.4.dmg)**
