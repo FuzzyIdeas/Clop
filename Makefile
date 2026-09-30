@@ -140,13 +140,23 @@ ifneq (, $(FULL_VERSION))
 	sdfk '((?:CURRENT_PROJECT|MARKETING)_VERSION) = $(OLD_VERSION);' '$$1 = $(FULL_VERSION);'
 endif
 
-Releases/Clop-%.html: ReleaseNotes/$(VERSION)*.md
-	@echo Compiling $^ to $@
+# Older versions whose notes go under this one's in the updater, slash-separated, newest first:
+#   make appcast VERSION=3.4.5 INCLUDE_RELEASES=3.4.4
+# Each lands under a `## From v<version>` heading. The page is rebuilt whenever this is set, since
+# appending notes changes it without touching this version's own notes file.
+INCLUDE_RELEASES=
+
+Releases/Clop-%.html: ReleaseNotes/$(VERSION)*.md $(if $(INCLUDE_RELEASES),FORCE)
+	@echo Compiling $(filter-out FORCE,$^) $(INCLUDE_RELEASES) to $@
+	@for v in $(subst /, ,$(INCLUDE_RELEASES)); do test -f "ReleaseNotes/$$v.md" || { echo "INCLUDE_RELEASES: no ReleaseNotes/$$v.md"; exit 1; }; done
 ifneq (, $(BETA))
-	pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css $(shell ls -t ReleaseNotes/$(VERSION)*.md)
+	{ cat $(shell ls -t ReleaseNotes/$(VERSION)*.md); for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css
 else
-	pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css ReleaseNotes/$(VERSION).md
+	{ cat ReleaseNotes/$(VERSION).md; for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css
 endif
+
+.PHONY: FORCE
+FORCE:
 
 NOTARIZE=1
 Clop/bin.tar.lrz: PATH=$(shell echo $$PWD:$$PATH)
