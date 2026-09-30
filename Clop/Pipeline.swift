@@ -409,6 +409,7 @@ struct TemplateContext {
     scalingFactor: Double? = nil,
     cropSize: CropSize? = nil,
     changePlaybackSpeedFactor: Double? = nil,
+    changePlaybackSpeedFrames: PlaybackSpeedFrameBehaviour? = nil,
     removeAudio: Bool? = nil
 ) -> [PipelineAction] {
     var actions: [PipelineAction] = []
@@ -416,7 +417,7 @@ struct TemplateContext {
     if cropSize != nil || (scalingFactor != nil && scalingFactor! < 1) {
         actions.append(.downscale(factor: scalingFactor, cropSize: cropSize))
     } else if let changePlaybackSpeedFactor, changePlaybackSpeedFactor != 1, changePlaybackSpeedFactor != 0 {
-        actions.append(.changePlaybackSpeed(factor: changePlaybackSpeedFactor))
+        actions.append(.changePlaybackSpeed(factor: changePlaybackSpeedFactor, frames: changePlaybackSpeedFrames))
     } else {
         actions.append(.optimise)
     }
@@ -692,8 +693,8 @@ extension Optimiser {
             exec.handleFilterIfNot(condition: condition)
         case .removeAudio:
             await exec.handleRemoveAudio()
-        case let .changeSpeed(factor):
-            try await exec.handleChangeSpeed(factor: factor)
+        case let .changeSpeed(factor, frames):
+            try await exec.handleChangeSpeed(factor: factor, frames: frames)
         case let .runScript(path, code):
             await exec.handleRunScript(path: path, code: code)
         case let .runShortcut(shortcut):

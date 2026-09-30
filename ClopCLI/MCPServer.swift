@@ -179,6 +179,7 @@ enum MCPServer {
             "protocolVersion": state.protocolVersion,
             "capabilities": ["tools": [String: Any]()],
             "serverInfo": ["name": serverName, "version": serverVersion],
+            "instructions": instructions,
         ])
     }
 

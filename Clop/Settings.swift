@@ -321,6 +321,22 @@ enum PlaybackSpeedFrameBehaviour: String, Codable, Defaults.Serializable {
     case keepFrames
     /// Frames are dropped so the frame rate stays the same as the source, resulting in a smaller file.
     case dropFrames
+
+    /// The pipeline DSL spells these `keep` and `drop`: `changeSpeed(factor: 2.0, frames: drop)`.
+    init?(dslValue: String) {
+        switch dslValue.lowercased() {
+        case "keep", "keepframes": self = .keepFrames
+        case "drop", "dropframes": self = .dropFrames
+        default: return nil
+        }
+    }
+
+    var dslValue: String {
+        switch self {
+        case .keepFrames: "keep"
+        case .dropFrames: "drop"
+        }
+    }
 }
 
 /// What happens to GIF timing when high compression factors (80+) drop animation frames.

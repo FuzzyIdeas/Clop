@@ -576,7 +576,9 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         mandatoryParams: [
             ParamTemplate(name: "factor", description: "speed multiplier (e.g. 2.0 = 2x, 0.5 = half speed)", suggestions: ["1.5", "2.0", "0.5", "0.75"], freeText: true),
         ],
-        optionalParams: [],
+        optionalParams: [
+            ParamTemplate(name: "frames", description: "keep (smoother, higher fps) or drop (smaller file). Unset follows Settings > Video", suggestions: ["keep", "drop"], freeText: false, applicableTypes: [.video]),
+        ],
         applicableTypes: [.video, .audio],
         create: { .changeSpeed(factor: 1.5) }
     ),
@@ -849,7 +851,14 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
 
     case "changeSpeed":
         guard let factor = params["factor"].flatMap({ Double($0) }) else { return nil }
-        return .changeSpeed(factor: factor)
+        // A word the parser doesn't know fails the step, instead of silently following the global
+        // setting the pipeline was written to override.
+        var frames: PlaybackSpeedFrameBehaviour?
+        if let word = params["frames"] {
+            guard let parsed = PlaybackSpeedFrameBehaviour(dslValue: word) else { return nil }
+            frames = parsed
+        }
+        return .changeSpeed(factor: factor, frames: frames)
 
     case "runScript":
         if let code = params["code"], !code.isEmpty {

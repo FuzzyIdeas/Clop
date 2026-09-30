@@ -389,6 +389,8 @@ enum TempPipelineSegment {
     var lowerBitrateDebounceTask: Task<Void, Never>?
     var pdfDPIDebounceTask: Task<Void, Never>?
     @Published var changePlaybackSpeedFactor = 1.0
+    /// The frame choice of the speed change above, so a later downscale re-encodes it the same way.
+    var changePlaybackSpeedFrames: PlaybackSpeedFrameBehaviour?
     @Published var aggressive = false
 
     /// Accumulated pipeline of all actions on this item (processing + file ops).
@@ -879,8 +881,8 @@ enum TempPipelineSegment {
                 if let cs = step.cropSize {
                     actions.append(.downscale(factor: nil, cropSize: cs))
                 }
-            case let .changeSpeed(factor):
-                actions.append(.changePlaybackSpeed(factor: factor))
+            case let .changeSpeed(factor, frames):
+                actions.append(.changePlaybackSpeed(factor: factor, frames: frames))
             case .removeAudio:
                 actions.append(.removeAudio)
             case .optimise:
@@ -1990,6 +1992,7 @@ enum TempPipelineSegment {
         downscaleFactor = 1.0
         coverDownscaleFactor = 1.0
         changePlaybackSpeedFactor = 1.0
+        changePlaybackSpeedFrames = nil
         lastCropSize = nil
         aggressive = false
         resetRemover()
@@ -2886,6 +2889,7 @@ func optimiseURL(
     downscaleTo scalingFactor: Double? = nil,
     cropTo cropSize: CropSize? = nil,
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
+    playbackSpeedFrames: PlaybackSpeedFrameBehaviour? = nil,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
     source: OptimisationSource? = nil,
@@ -2944,6 +2948,7 @@ func optimiseURL(
                 scalingFactor: scalingFactor,
                 cropSize: cropSize,
                 changePlaybackSpeedFactor: changePlaybackSpeedFactor,
+                changePlaybackSpeedFrames: playbackSpeedFrames,
                 removeAudio: removeAudio
             )
             let result: Video? = if let cropSize, let video = try await Video.byFetchingMetadata(path: downloadPath, thumb: !hideFloatingResult, id: optimiser.id), let size = video.size {
@@ -3170,6 +3175,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     downscaleTo scalingFactor: Double? = nil,
     cropTo cropSize: CropSize? = nil,
     changePlaybackSpeedBy changePlaybackSpeedFactor: Double? = nil,
+    playbackSpeedFrames: PlaybackSpeedFrameBehaviour? = nil,
     aggressiveOptimisation: Bool? = nil,
     adaptiveOptimisation: Bool? = nil,
     pdfDPI: Int? = nil,
@@ -3381,6 +3387,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     scalingFactor: scalingFactor,
                     cropSize: cropSize,
                     changePlaybackSpeedFactor: changePlaybackSpeedFactor,
+                    changePlaybackSpeedFrames: playbackSpeedFrames,
                     removeAudio: removeAudio
                 )
 
@@ -3502,6 +3509,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     downscaleTo: scalingFactor,
                     cropTo: cropSize,
                     changePlaybackSpeedBy: changePlaybackSpeedFactor,
+                    playbackSpeedFrames: playbackSpeedFrames,
                     aggressiveOptimisation: aggressiveOptimisation,
                     adaptiveOptimisation: adaptiveOptimisation,
                     source: source,
@@ -3743,6 +3751,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             downscaleTo: req.downscaleFactor,
                             cropTo: req.size,
                             changePlaybackSpeedBy: req.changePlaybackSpeedFactor,
+                            playbackSpeedFrames: req.changePlaybackSpeedFrames.flatMap(PlaybackSpeedFrameBehaviour.init(dslValue:)),
                             aggressiveOptimisation: req.aggressiveOptimisation,
                             adaptiveOptimisation: req.adaptiveOptimisation,
                             pdfDPI: req.pdfDPI,

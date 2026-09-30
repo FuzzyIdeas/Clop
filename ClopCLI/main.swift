@@ -670,6 +670,12 @@ struct CommonOptimisationOptions: ParsableArguments {
     var specificFolderTemplate: String? = nil
 }
 
+/// `--playback-speed-frames` takes the pipeline DSL's words for the setting's two values.
+func validatePlaybackSpeedFrames(_ value: String?) throws {
+    guard let value, !["keep", "drop"].contains(value) else { return }
+    throw ValidationError("--playback-speed-frames takes keep or drop")
+}
+
 /// Build and send the optimisation request shared by `optimise` and its type subcommands.
 func sendOptimisationCommand(
     urls: [URL],
@@ -677,6 +683,7 @@ func sendOptimisationCommand(
     crop: NSSize? = nil,
     downscaleFactor: Double? = nil,
     playbackSpeedFactor: Double? = nil,
+    playbackSpeedFrames: String? = nil,
     aggressive: Bool = false,
     adaptiveOptimisation: Bool? = nil,
     removeAudio: Bool? = nil,
@@ -719,7 +726,8 @@ func sendOptimisationCommand(
             prepareInBatch: options.review,
             placement: placement.isEmpty ? nil : placement,
 
-            origin: CLI_ORIGIN
+            origin: CLI_ORIGIN,
+            changePlaybackSpeedFrames: playbackSpeedFrames
         )
     }
 }
@@ -1704,6 +1712,9 @@ struct Clop: ParsableCommand {
         @Option(help: "Speeds up or slow down the video by a certain amount (1 means no change, 2 means twice as fast, 0.5 means 2x slower)")
         var playbackSpeedFactor: Double? = nil
 
+        @Option(help: "keep (smoother, higher fps) or drop (smaller file). Unset follows Settings > Video")
+        var playbackSpeedFrames: String? = nil
+
         @Option(help: "Makes the image or video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
         var downscaleFactor: Double? = nil
 
@@ -1723,6 +1734,7 @@ struct Clop: ParsableCommand {
             if let factor = downscaleFactor, factor <= 0 || factor > 1 {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and at most 1")
             }
+            try validatePlaybackSpeedFrames(playbackSpeedFrames)
             parsedCompression = try parseCompressionArgument(compression, allowAdaptive: true, allowAuto: true)
 
             if types.isEmpty {
@@ -1744,6 +1756,7 @@ struct Clop: ParsableCommand {
                 crop: crop,
                 downscaleFactor: downscaleFactor,
                 playbackSpeedFactor: playbackSpeedFactor,
+                playbackSpeedFrames: playbackSpeedFrames,
                 aggressive: aggressive,
                 adaptiveOptimisation: adaptiveOptimisation,
                 removeAudio: removeAudio,
@@ -1818,6 +1831,9 @@ struct Clop: ParsableCommand {
         @Option(help: "Speeds up or slow down the video by a certain amount (1 means no change, 2 means twice as fast, 0.5 means 2x slower)")
         var playbackSpeedFactor: Double? = nil
 
+        @Option(help: "keep (smoother, higher fps) or drop (smaller file). Unset follows Settings > Video")
+        var playbackSpeedFrames: String? = nil
+
         @Option(help: "Makes the video smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
         var downscaleFactor: Double? = nil
 
@@ -1837,6 +1853,7 @@ struct Clop: ParsableCommand {
             if let factor = downscaleFactor, factor <= 0 || factor > 1 {
                 throw ValidationError("Invalid downscale factor, must be greater than 0 and at most 1")
             }
+            try validatePlaybackSpeedFrames(playbackSpeedFrames)
             let tier = try parseVideoEncoderArgument(encoder)
             let cq = try parseCompressionArgument(compression, allowAdaptive: false, allowAuto: true)
             if tier != nil || cq != nil {
@@ -1852,6 +1869,7 @@ struct Clop: ParsableCommand {
                 crop: crop,
                 downscaleFactor: downscaleFactor,
                 playbackSpeedFactor: playbackSpeedFactor,
+                playbackSpeedFrames: playbackSpeedFrames,
                 removeAudio: removeAudio,
                 compression: parsedCompression
             )
@@ -2904,6 +2922,10 @@ func compactPipelinePromptContext(task: String?) -> String {
     A saved/attached pipeline optimises first unless "skip optimisation" is set. Default location is
     `inPlace`, except `convert`/`extractPagesAsImages` default to `sameFolder`.
 
+    Ambiguous words: "smaller" is compression, resolution (downscale) or both; "Nx" on video/audio is
+    changeSpeed (there is no upscaling); a video speed-up keeps or drops frames. Ask the user when you can.
+    When you can't: compression for "smaller", and leave `frames` out.
+
     ## Steps ([types]; defaults in (), value sets after :)
     - optimise(encoder, compression, adaptive, dpi, location) [all]. encoder img/pdf/audio: medium|aggressive|lossless;
       video: fast|slowHighQuality|visuallyLossless. compression [img,video,audio]: 5 (best quality)..100
@@ -2920,7 +2942,9 @@ func compactPipelinePromptContext(task: String?) -> String {
     - targetSize(size) [all]: iteratively compress under a limit, e.g. 500KB, 10MB, 25MB. No trailing `optimise`.
     - stripExif [image,video]. watermark(image, position bottomRight|bottomLeft|topRight|topLeft|center,
       opacity 0..1, scale 0.15, location) [image,video].
-    - removeAudio [video]. changeSpeed(factor) [video,audio]. capFps(fps) [video]. normalize(lufs -16) [audio].
+    - removeAudio [video]. changeSpeed(factor, frames) [video,audio]; frames [video]: keep (every frame, the fps
+      rises with the speed) | drop (back to the source fps, smaller file), omitted follows the app setting.
+      capFps(fps) [video]. normalize(lufs -16) [audio].
     - copy(to) / move(to) / rename(to) / delete(path)  (delete(path: "sourceFile") removes the input file).
     - runScript(path | code): inline `code` is one line, no `->`; file is $1 / $CLOP_INPUT_FILE; a path it
       prints replaces the file. runShortcut(name) [image,video,pdf].
@@ -3003,6 +3027,21 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
     Prefer ONE command. A single `attach` with inline steps both starts watching the folder and runs
     the pipeline; you don't need a separate `add` first unless the user explicitly wants it saved by name.
 
+    ## Settle ambiguous wording first
+
+    A pipeline does exactly what its steps say, so a guess becomes a folder full of wrong files. When
+    you can ask the user, ask these as choices, all at once, skipping any the request already answers.
+    When you can't ask, use the fallback and leave the rest as written.
+
+    - "Smaller": compression (`optimise(compression: N)`, same pixel size), resolution
+      (`downscale(factor: F)`, fewer pixels), or both. Ask which, and how much. Fallback: compression.
+    - "2x", "3x", "N times" on video or audio: `changeSpeed(factor: N)`. Clop has no upscaling step, so
+      it never means a larger frame. Nothing to ask.
+    - A video speed-up: keep every frame (`frames: keep`, smoother, the frame rate rises with the speed)
+      or drop frames back to the source rate (`frames: drop`, smaller file). Fallback: leave `frames`
+      out, which follows the app's setting.
+    - "Silent", "mute": `removeAudio`. Nothing to ask.
+
     ## File-type filtering (IMPORTANT)
 
     When you emit `attach --type <t>` or `add --file-type <t>`, the pipeline is ALREADY scoped to that
@@ -3042,8 +3081,8 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
         video uses `fast` (hardware H.264), `slowHighQuality` (software, smaller), `visuallyLossless`.
       - `compression`: how hard to compress, `5` (best quality) to `100` (smallest file), or `adaptive`
         to let Clop pick per file. [image, video, audio] This is the same scale as the app's
-        compression setting, scoped to this pipeline instead of changing it globally. Reach for it
-        when the request is "smaller" or "more compressed" without naming a size.
+        compression setting, scoped to this pipeline instead of changing it globally. A plain
+        "smaller" can also mean `downscale`, see "Settle ambiguous wording first".
       - `adaptive`: `true`/`false` (images only; may change the extension, e.g. PNG↔JPEG).
       - `dpi`: PDF only, overrides encoder. 300 = no downsampling, 150 = screen reading, 72 = screen, 48 = smallest.
     - `downscale(factor, location)`: scale down, keeps aspect ratio. [image, video, audio]
@@ -3084,7 +3123,10 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
     ### Media-specific
 
     - `removeAudio`: strip the audio track. [video]
-    - `changeSpeed(factor)`: playback speed multiplier (2.0 = 2x, 0.5 = half). [video, audio]
+    - `changeSpeed(factor, frames)`: playback speed multiplier (2.0 = 2x, 0.5 = half). [video, audio]
+      - `frames` [video]: `keep` keeps every frame, so the frame rate rises with the speed (2x of 30 fps
+        plays at 60 fps); `drop` drops frames back to the source rate for a smaller file. Omitted, it
+        follows the app's playbackSpeedFrameBehaviour setting.
     - `capFps(fps)`: cap the frame rate (60, 30, 24, …). [video]
     - `normalize(lufs)`: normalise loudness. `lufs` default -16 (-14 Spotify/YouTube, -16 Apple Podcasts, -23 EBU). [audio]
 
@@ -3290,7 +3332,7 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
     - Fit under Discord's 10MB:      `targetSize(size: 10MB)`
     - Video to 1080p MP4:           `crop(width: 1920) -> optimise(encoder: slowHighQuality)`
     - Video to GIF:                 `crop(longEdge: 800) -> convert(to: gif)`
-    - 2× silent screencast:         `changeSpeed(factor: 2.0) -> removeAudio -> optimise(encoder: fast)`
+    - 2× silent screencast:         `changeSpeed(factor: 2.0, frames: drop) -> removeAudio -> optimise(encoder: fast)`
     - Audio to 128k MP3:            `convert(to: mp3) -> lowerBitrate(kbps: 128)`
     - PDF pages to JPEGs:           `extractPagesAsImages(format: jpeg, quality: high)`
     - Watermark then optimise:      `watermark(image: "%P/logo.png", position: bottomRight) -> optimise`

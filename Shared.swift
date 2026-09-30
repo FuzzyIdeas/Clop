@@ -735,6 +735,9 @@ struct OptimisationRequest: Codable, Identifiable {
     /// The port the CLI that sent this listens on for its per-file results. nil from an older CLI,
     /// which listens on `OPTIMISATION_CLI_RESPONSE_PORT_ID` itself.
     var replyPort: String? = nil
+    /// `keep` or `drop`: what a speed change does with the frames, for this request alone. nil follows
+    /// the playbackSpeedFrameBehaviour setting. A string, since the CLI doesn't see the setting's enum.
+    var changePlaybackSpeedFrames: String? = nil
 }
 
 func runningClopApp() -> NSRunningApplication? {
