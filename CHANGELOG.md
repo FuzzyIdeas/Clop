@@ -1,3 +1,21 @@
+# 3.4.4
+
+**[Download Clop 3.4.4 →](https://files.lowtechguys.com/releases/Clop-3.4.4.dmg)**
+## Features
+
+- Clop shows up in *Open With* for PDFs
+
+## Improvements
+
+- Settings and controls can be read and operated by VoiceOver and AI agents that use the Mac through accessibility
+
+## Fixes
+
+- `⌘E` opens a hovered result in your editor app without clicking the result first
+- Optimised screenshots and screen recordings stay marked as screenshots
+- PNGs keep their DPI when metadata is stripped
+- Files in a watched iCloud folder aren't optimised again each time macOS offloads them to free space
+
 # 3.4.3
 
 **[Download Clop 3.4.3 →](https://files.lowtechguys.com/releases/Clop-3.4.3.dmg)**
