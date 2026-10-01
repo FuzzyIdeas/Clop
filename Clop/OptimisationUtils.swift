@@ -3132,7 +3132,9 @@ var manualOptimisationCount = 0
     optimiser.finish(notice: notice)
 }
 
-var THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
+/// A `let`, filled entry by entry: CLI requests run concurrently, and two of them reassigning the
+/// variable at once could over-release the dictionary they both replaced.
+let THUMBNAIL_URLS: ThreadSafeDictionary<URL, URL> = .init()
 
 func getTemplatedPath(type: ClopFileType, path: FilePath, optimisedFileBehaviour: FileBehaviour? = nil) throws -> FilePath? {
     let overrides = optimisedFileBehaviour.map { PlacementOverride(optimised: $0) }
@@ -3709,6 +3711,28 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
     )
 }
 
+/// The CLI request working on each file, which the next request for that file waits for.
+@MainActor private var cliFileTurns: [URL: Task<Void, Never>] = [:]
+
+/// Wait for earlier CLI requests on this file, then hold it until the returned closure is called.
+/// Requests are answered concurrently, and a second pass on a file stops the one in flight
+/// (`imagePipelineInFlight` and the like), so two `clop` calls on one file would fail the first.
+@MainActor func takeCLITurn(on url: URL) async -> @Sendable () -> Void {
+    let previous = cliFileTurns[url]
+    let (released, release) = AsyncStream<Void>.makeStream()
+    let turn = Task { for await _ in released {} }
+    cliFileTurns[url] = turn
+    await previous?.value
+    return {
+        release.finish()
+        Task { @MainActor in
+            if cliFileTurns[url] == turn {
+                cliFileTurns.removeValue(forKey: url)
+            }
+        }
+    }
+}
+
 func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [OptimisationResponse] {
     // --review: open the batch window for the user to tweak knobs and press Optimise; don't process here.
     if req.prepareInBatch == true, await MainActor.run(body: { proactive }) {
@@ -3721,15 +3745,17 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
 
     // Large requests go through the batch engine + window (Pro-only); small ones use the per-file path.
     if await shouldRouteToBatch(req) {
-        return await runBatchForCLI(req)
+        return await runBatchForCLIInTurn(req)
     }
 
     return try await withThrowingTaskGroup(of: OptimisationResponse.self, returning: [OptimisationResponse].self) { group in
-        THUMBNAIL_URLS.accessQueue.sync {
-            THUMBNAIL_URLS = ThreadSafeDictionary(dict: req.originalUrls)
+        for (tempURL, originalURL) in req.originalUrls {
+            THUMBNAIL_URLS[tempURL] = originalURL
         }
         for url in req.urls {
             let added = group.addTaskUnlessCancelled {
+                let endTurn = await takeCLITurn(on: url)
+                defer { endTurn() }
                 let clip = ClipboardType.fromURL(url)
 
                 do {
@@ -3886,7 +3912,6 @@ enum BatchOptimisationError: Error {
     case wrappedClopError(ClopError, URL)
 }
 
-let OPTIMISATION_PORT = LocalMachPort(portLocation: OPTIMISATION_PORT_ID)
 let SETTINGS_PORT = LocalMachPort(portLocation: SETTINGS_PORT_ID)
 let OPTIMISATION_STOP_PORT = LocalMachPort(portLocation: OPTIMISATION_STOP_PORT_ID)
 let OPTIMISATION_RESPONSE_PORT = LocalMachPort(portLocation: OPTIMISATION_RESPONSE_PORT_ID)
