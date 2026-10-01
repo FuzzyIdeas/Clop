@@ -329,7 +329,7 @@ class AppDelegate: AppDelegateParent {
 
     @Setting(.optimiseVideoClipboard) var optimiseVideoClipboard
 
-    var machPortThread: Thread?
+    var optimisationPort: CFMessagePort?
     var machPortStopThread: Thread?
     var machPortSettingsThread: Thread?
 
@@ -629,8 +629,9 @@ class AppDelegate: AppDelegateParent {
         let sem = DispatchSemaphore(value: 0)
         var resp: [OptimisationResponse] = []
         tryAsync {
+            // A throw that skipped this would hold the thread and its slot for good.
+            defer { sem.signal() }
             resp = try await processOptimisationRequest(req)
-            sem.signal()
         }
         sem.wait()
 
@@ -958,24 +959,24 @@ class AppDelegate: AppDelegateParent {
             }.store(in: &observers)
     }
     func initMachPortListener() {
-        machPortThread = Thread {
-            OPTIMISATION_PORT.listen { data in
-                guard let data else {
-                    return nil
-                }
-
-                var result: Data? = nil
-                if let req = OptimisationRequest.from(data) {
-                    result = Self.handleOptimisationRequest(req)
-                }
-
-                guard let result else {
-                    return nil
-                }
-                return Unmanaged.passRetained(result as CFData)
-            }
-            RunLoop.current.run()
+        // A concurrent queue, where one listener thread used to answer every request in turn: a
+        // request is answered once its last file is done, so one agent session's long video held
+        // every other session's `clop optimise` until it finished.
+        let port = CFMessagePortCreateLocal(nil, OPTIMISATION_PORT_ID as CFString, { _, _, data, _ -> Unmanaged<CFData>? in
+            optimisationRequests.enter()
+            defer { optimisationRequests.leave() }
+            guard let data = data as Data?, let req = OptimisationRequest.from(data),
+                  let result = AppDelegate.handleOptimisationRequest(req)
+            else { return nil }
+            return Unmanaged.passRetained(result as CFData)
+        }, nil, nil)
+        if let port {
+            CFMessagePortSetDispatchQueue(port, optimisationServiceQueue)
+            optimisationPort = port
+        } else {
+            log.error("Could not listen on \(OPTIMISATION_PORT_ID)")
         }
+
         machPortStopThread = Thread {
             OPTIMISATION_STOP_PORT.listen { data in
                 guard let data, let req = StopOptimisationRequest.from(data) else {
@@ -1002,7 +1003,6 @@ class AppDelegate: AppDelegateParent {
             RunLoop.current.run()
         }
 
-        machPortThread?.start()
         machPortStopThread?.start()
         machPortSettingsThread?.start()
     }
@@ -1991,4 +1991,46 @@ func resetDefaultPlayer() {
     if let movPlayer = defaultAppForUTI("com.apple.quicktime-movie"), movPlayer.starts(with: "com.lowtechguys.Clop") {
         _ = setDefaultAppForUTI("com.apple.quicktime-movie", "com.apple.QuickTimePlayerX")
     }
+}
+
+private let optimisationServiceQueue = DispatchQueue(label: "com.lowtechguys.Clop.optimisationService", qos: .userInitiated, attributes: .concurrent)
+private let optimisationRequests = CLIRequestGate(queue: optimisationServiceQueue, limit: 16)
+
+/// Lets optimisation requests through from the listener queue a bounded number at a time.
+///
+/// Each request holds a thread until its last file is done, so a script sending one request per
+/// file could take every thread GCD has, and the optimisations need those too. Past `limit`
+/// requests in flight the queue is suspended: later ones wait in it holding no thread, the way
+/// they used to wait for the one listener thread, and start as earlier ones finish.
+final class CLIRequestGate: @unchecked Sendable {
+    init(queue: DispatchQueue, limit: Int) {
+        self.queue = queue
+        self.limit = limit
+    }
+
+    func enter() {
+        lock.withLock {
+            inFlight += 1
+            if inFlight >= limit, !suspended {
+                queue.suspend()
+                suspended = true
+            }
+        }
+    }
+
+    func leave() {
+        lock.withLock {
+            inFlight -= 1
+            if suspended, inFlight < limit {
+                suspended = false
+                queue.resume()
+            }
+        }
+    }
+
+    private let queue: DispatchQueue
+    private let limit: Int
+    private let lock = NSLock()
+    private var inFlight = 0
+    private var suspended = false
 }

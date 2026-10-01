@@ -1284,6 +1284,22 @@ private func batchPDFDPIArgs(_ mode: PDFDPIMode, aggressive: Bool?) -> (dpi: Int
     return req.pipeline == nil && outputExpressible && proactive && req.urls.count > Defaults[.batchModeFileCountThreshold]
 }
 
+/// The CLI batch that ran last, which the next one waits for.
+@MainActor private var cliBatchTail: Task<Void, Never>?
+
+/// Run CLI batches one after another. Requests are answered concurrently, and there is one batch
+/// engine: starting a batch cancels the one running, and `onFinished` holds one waiter, so a second
+/// CLI batch would stop the first and leave its CLI waiting out its deadline.
+@MainActor func runBatchForCLIInTurn(_ req: OptimisationRequest) async -> [OptimisationResponse] {
+    let previous = cliBatchTail
+    let run = Task { @MainActor in
+        await previous?.value
+        return await runBatchForCLI(req)
+    }
+    cliBatchTail = Task { _ = await run.value }
+    return await run.value
+}
+
 /// Run a large CLI/IPC request through the batch engine + window, then stream exactly one response (or
 /// error) per requested URL back over the response port so `clop` still finishes and prints results.
 @MainActor func runBatchForCLI(_ req: OptimisationRequest) async -> [OptimisationResponse] {
