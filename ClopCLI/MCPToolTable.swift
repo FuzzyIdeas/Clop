@@ -513,7 +513,7 @@ extension MCPServer {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", "do shell script \"\(appleScriptEscaped(command))\" with administrator privileges"]
+        process.arguments = ["-e", "do shell script \"\(appleScriptEscaped(command))\" with prompt \"\(appleScriptEscaped(action.passwordPrompt))\" with administrator privileges"]
         let out = Pipe()
         let err = Pipe()
         process.standardInput = FileHandle.nullDevice

@@ -2966,6 +2966,15 @@ enum LogPersistAction: String, CaseIterable, ExpressibleByArgument {
         }
     }
 
+    /// The administrator dialog's text, which would otherwise read "osascript wants to make changes."
+    var passwordPrompt: String {
+        switch self {
+        case .on: "Clop wants to keep its debug logs on disk."
+        case .off: "Clop wants to reset its log settings to the macOS default."
+        case .status: "Clop wants to read its log settings."
+        }
+    }
+
     /// One `/usr/bin/log` invocation for one subsystem.
     func logConfigArguments(subsystem: String) -> [String] {
         switch self {
