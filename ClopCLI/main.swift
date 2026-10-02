@@ -2848,6 +2848,59 @@ struct Clop: ParsableCommand {
         )
     }
 
+    struct LogsCommand: ParsableCommand {
+        /// Release builds ship without the debug level the Debug build phase writes into
+        /// `OSLogPreferences`, and an installed copy's Info.plist cannot change without breaking its
+        /// signature, so the system setting is the switch left for them. `log config` needs root, and
+        /// it runs under sudo right here rather than through the app so the password prompt lands in
+        /// the terminal that asked for it.
+        struct Persist: ParsableCommand {
+            static let configuration = CommandConfiguration(
+                abstract: "Keep Clop's debug logs on disk so `log show` can read them later",
+                discussion: "macOS keeps debug and info messages only in memory, so they are gone before anyone looks. Changing this needs an administrator password."
+            )
+
+            @Argument(help: "on, off or status")
+            var action: LogPersistAction
+
+            mutating func run() throws {
+                for subsystem in CLOP_LOG_SUBSYSTEMS {
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
+                    process.arguments = ["/usr/bin/log"] + action.logConfigArguments(subsystem: subsystem)
+                    // The terminal's own handles, so sudo can ask for the password and status prints
+                    // straight through. sudo remembers the password, so three subsystems ask once.
+                    process.standardInput = FileHandle.standardInput
+                    process.standardOutput = FileHandle.standardOutput
+                    process.standardError = FileHandle.standardError
+                    do {
+                        try process.run()
+                    } catch {
+                        printerr("Could not change the log settings: \(error.localizedDescription)")
+                        throw ExitCode.failure
+                    }
+                    process.waitUntilExit()
+
+                    guard process.terminationStatus == 0 else {
+                        let reason = process.terminationReason == .uncaughtSignal
+                            ? "sudo was interrupted"
+                            : "sudo exited with status \(process.terminationStatus)"
+                        printerr("Could not change the log settings: \(reason)")
+                        throw ExitCode(process.terminationStatus)
+                    }
+                }
+                if let message = action.doneMessage {
+                    print(message)
+                }
+            }
+        }
+
+        static let configuration = CommandConfiguration(
+            commandName: "logs",
+            subcommands: [Persist.self]
+        )
+    }
+
     static let configuration = CommandConfiguration(
         abstract: "Clop: optimise, crop and downscale images, videos, audio files and PDFs",
         subcommands: [
@@ -2861,8 +2914,44 @@ struct Clop: ParsableCommand {
             PipelineCommand.self,
             SettingsCommand.self,
             MCPCommand.self,
+            LogsCommand.self,
         ]
     )
+}
+
+// MARK: - Debug logs
+
+/// Spelled out rather than derived from `LOG_SUBSYSTEM`, which is only the running binary's own id:
+/// the CLI has to reach the app's subsystem and the Setapp build's too, and `log config` matches one
+/// exact subsystem, never a prefix.
+let CLOP_LOG_SUBSYSTEMS = ["com.lowtechguys.Clop", "com.lowtechguys.Clop-setapp", "com.lowtechguys.Clop.CLI"]
+
+/// Shared by `clop logs persist` and the `clop_debug_logs` MCP tool, which differ only in how they
+/// get root: sudo in a terminal, an administrator dialog when there is no terminal.
+enum LogPersistAction: String, CaseIterable, ExpressibleByArgument {
+    case on, off, status
+
+    /// nil for status, whose answer is what `log config` printed.
+    var doneMessage: String? {
+        switch self {
+        case .on: """
+            Debug logs for Clop are kept now. Read them with:
+                log show --debug --info --last 1h --predicate 'subsystem BEGINSWITH "com.lowtechguys.Clop"'
+            """
+        case .off: "Debug logs for Clop are back to the macOS default"
+        case .status: nil
+        }
+    }
+
+    /// One `/usr/bin/log` invocation for one subsystem.
+    func logConfigArguments(subsystem: String) -> [String] {
+        switch self {
+        case .on: ["config", "--subsystem", subsystem, "--mode", "level:debug,persist:debug"]
+        case .off: ["config", "--subsystem", subsystem, "--reset"]
+        case .status: ["config", "--status", "--subsystem", subsystem]
+        }
+    }
+
 }
 
 // MARK: - Pipeline CLI helpers
