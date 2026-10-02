@@ -493,6 +493,72 @@ extension MCPServer {
     }
 }
 
+// MARK: - Debug logs
+
+extension MCPServer {
+    /// `clop logs persist` gets root from sudo, which needs a terminal, and this process has none: its
+    /// stdin and stdout are the JSON-RPC stream. An administrator dialog is the way left, and osascript
+    /// gets its own pipes so nothing it prints can land in that stream.
+    ///
+    /// Never routed through the app or its MCP switch. macOS asks for the password itself, and that
+    /// dialog is a stronger gate than either.
+    static func debugLogs(_ a: [String: Any]) throws -> ToolOutput {
+        guard let action = (a["action"] as? String).flatMap(LogPersistAction.init(rawValue:)) else {
+            throw ClopMCPError("action must be on, off or status")
+        }
+        let command = CLOP_LOG_SUBSYSTEMS
+            .map { (["/usr/bin/log"] + action.logConfigArguments(subsystem: $0)).map(shellQuoted).joined(separator: " ") }
+            // && so a failure on any subsystem is the one reported, rather than only the last one's.
+            .joined(separator: " && ")
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", "do shell script \"\(appleScriptEscaped(command))\" with administrator privileges"]
+        let out = Pipe()
+        let err = Pipe()
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = out
+        process.standardError = err
+        do {
+            try process.run()
+        } catch {
+            throw ClopMCPError("Could not change the log settings: \(error.localizedDescription)")
+        }
+        let output = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let complaint = (String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            // -128 is AppleScript's userCanceledErr, which is what the dialog's Cancel button raises.
+            if complaint.contains("-128") {
+                throw ClopMCPError("The user cancelled the administrator password dialog. Nothing changed.")
+            }
+            throw ClopMCPError("Could not change the log settings: "
+                + (complaint.isEmpty ? "osascript exited with status \(process.terminationStatus)" : complaint))
+        }
+        if let message = action.doneMessage {
+            return .text(message)
+        }
+        // `do shell script` hands back the command's output with carriage returns for line breaks.
+        return .text(output.replacingOccurrences(of: "\r", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// The words are fixed today, but this string runs as root, so a subsystem or mode that ever
+    /// carries a space or a quote has to stay one argument instead of becoming more shell.
+    static func shellQuoted(_ word: String) -> String {
+        guard word.unicodeScalars.contains(where: { !shellSafe.contains($0) }) else { return word }
+        return "'" + word.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    static let shellSafe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_./:,=@%+"))
+
+    /// For the inside of an AppleScript string literal, where only backslash and double quote are special.
+    static func appleScriptEscaped(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+    }
+}
+
 // MARK: - The table
 
 extension MCPServer {
@@ -823,6 +889,23 @@ extension MCPServer {
                 "replace": ["type": "boolean"],
             ], "required": ["name"]],
             handler: pipelinePreset
+        ),
+        // --- diagnostics
+        MCPTool(
+            name: "clop_debug_logs",
+            description: "Turns keeping Clop's debug and info log messages on disk on or off, or reports it, so "
+                + "`log show --debug` can read what happened before anyone started streaming. Use it when "
+                + "reproducing a problem needs logs from earlier. macOS requires root for this: the call "
+                + "shows an administrator password dialog on the user's screen and waits, and nothing "
+                + "changes if they cancel. Debug builds already keep debug logs.",
+            inputSchema: ["type": "object", "properties": [
+                "action": [
+                    "type": "string",
+                    "enum": LogPersistAction.allCases.map(\.rawValue),
+                    "description": "on, off or status",
+                ],
+            ], "required": ["action"]],
+            handler: debugLogs
         ),
     ]
 
