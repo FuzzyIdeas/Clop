@@ -2864,29 +2864,18 @@ struct Clop: ParsableCommand {
             var action: LogPersistAction
 
             mutating func run() throws {
+                // sudo remembers the password, so three subsystems ask once.
                 for subsystem in CLOP_LOG_SUBSYSTEMS {
-                    let process = Process()
-                    process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-                    process.arguments = ["/usr/bin/log"] + action.logConfigArguments(subsystem: subsystem)
-                    // The terminal's own handles, so sudo can ask for the password and status prints
-                    // straight through. sudo remembers the password, so three subsystems ask once.
-                    process.standardInput = FileHandle.standardInput
-                    process.standardOutput = FileHandle.standardOutput
-                    process.standardError = FileHandle.standardError
+                    let status: Int32
                     do {
-                        try process.run()
+                        status = try runInForeground(["/usr/bin/sudo", "/usr/bin/log"] + action.logConfigArguments(subsystem: subsystem))
                     } catch {
-                        printerr("Could not change the log settings: \(error.localizedDescription)")
+                        printerr("Could not change the log settings: \(error)")
                         throw ExitCode.failure
                     }
-                    process.waitUntilExit()
-
-                    guard process.terminationStatus == 0 else {
-                        let reason = process.terminationReason == .uncaughtSignal
-                            ? "sudo was interrupted"
-                            : "sudo exited with status \(process.terminationStatus)"
-                        printerr("Could not change the log settings: \(reason)")
-                        throw ExitCode(process.terminationStatus)
+                    guard status == 0 else {
+                        printerr("Could not change the log settings: sudo exited with status \(status)")
+                        throw ExitCode(status)
                     }
                 }
                 if let message = action.doneMessage {
@@ -2920,6 +2909,40 @@ struct Clop: ParsableCommand {
 }
 
 // MARK: - Debug logs
+
+/// Why spawning failed, worded for the end of "Could not change the log settings: ".
+struct SpawnError: Error, CustomStringConvertible {
+    let description: String
+}
+
+/// Runs `argv` on the terminal's own stdin, stdout and stderr and returns its exit status.
+///
+/// posix_spawn rather than Process: Process starts the child in a process group of its own, which
+/// the terminal treats as a background job. sudo turns echo off before asking for the password, the
+/// kernel stops a background group that changes the terminal's settings with SIGTTOU, and the command
+/// hangs before the prompt shows whenever sudo has no cached password. Spawned in our group the child
+/// stays in the foreground, and Ctrl-C reaches it too.
+func runInForeground(_ argv: [String]) throws -> Int32 {
+    var cArgs: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) } + [nil]
+    defer { cArgs.forEach { free($0) } }
+
+    var pid: pid_t = 0
+    let spawned = posix_spawn(&pid, argv[0], nil, nil, &cArgs, environ)
+    guard spawned == 0 else {
+        throw SpawnError(description: "could not run \(argv[0]): \(String(cString: strerror(spawned)))")
+    }
+
+    var status: Int32 = 0
+    while waitpid(pid, &status, 0) == -1 {
+        guard errno == EINTR else {
+            throw SpawnError(description: "lost track of \(argv[0]): \(String(cString: strerror(errno)))")
+        }
+    }
+    // WIFEXITED and friends are C macros Swift can't see. The low 7 bits are the signal that ended
+    // the process, 0 when it exited on its own; reported the way a shell does, as 128 + the signal.
+    let signal = status & 0x7F
+    return signal == 0 ? (status >> 8) & 0xFF : 128 + signal
+}
 
 /// Spelled out rather than derived from `LOG_SUBSYSTEM`, which is only the running binary's own id:
 /// the CLI has to reach the app's subsystem and the Setapp build's too, and `log config` matches one
