@@ -16,7 +16,7 @@ let MAC26 = if #available(macOS 26.0, *) {
 class DragManager: ObservableObject {
     @MainActor @Published var dragHovering = false
     @MainActor @Published var itemsToOptimise: [ClipboardType] = []
-    @Atomic var optimisationCount = 0
+    let optimisationCount = OptimisationCounter()
 
     @MainActor @Published var dropZoneAtCursor = false
 
@@ -195,8 +195,8 @@ struct DropZonePresetsViewDelegate: DropDelegate {
             return false
         }
 
-        if DM.optimisationCount == 5 {
-            DM.optimisationCount += 1
+        if DM.optimisationCount.used == 5 {
+            DM.optimisationCount.used += 1
         }
         return optimiseDroppedItems(info.itemProviders(for: IMAGE_FORMATS + AUDIO_FORMATS + VIDEO_FORMATS + [.plainText, .utf8PlainText, .url, .fileURL, .aliasFile, .pdf]), copy: NSEvent.modifierFlags.contains(.option), preset: preset)
     }
@@ -596,8 +596,8 @@ extension DropZoneView: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         dragManager.dragHovering = false
         dragManager.dropped = true
-        if dragManager.optimisationCount == 5 {
-            dragManager.optimisationCount += 1
+        if dragManager.optimisationCount.used == 5 {
+            dragManager.optimisationCount.used += 1
         }
 
         let thumbnails: [NSItemProvider] = info.hasItemsConforming(to: VIDEO_FORMATS) ? info.itemProviders(for: IMAGE_FORMATS) : []
@@ -815,9 +815,9 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
     }
 
     // Free tier is limited to 5 optimisations. Optimising more than that in a single drop is a Pro
-    // feature: gate it here, synchronously, before fanning each file out into its own concurrent task
-    // (whose per-file proGuard count can't enforce a limit across concurrent tasks). A handful of
-    // files still goes through for free.
+    // feature: gate it here, before fanning each file out into its own task, so a big drop gets one
+    // notice instead of five results and a refusal for the rest. A handful of files still goes
+    // through for free.
     let droppedItemCount = max(itemProvidersCount, droppedFileProviders.count)
     if !proactive, droppedItemCount > 5 {
         let optimiser = OM.optimiser(id: Optimiser.IDs.pro, type: .unknown, operation: "")
@@ -870,7 +870,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                             item,
                             id: item.id,
                             aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
-                            optimisationCount: &DM.optimisationCount,
+                            optimisationCount: DM.optimisationCount,
                             copyToClipboard: copyToClipboard,
                             source: .dropZone,
                             output: output,
@@ -900,7 +900,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                         .image(image),
                         id: image.path.string,
                         aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
-                        optimisationCount: &DM.optimisationCount,
+                        optimisationCount: DM.optimisationCount,
                         copyToClipboard: copyToClipboard,
                         source: .dropZone,
                         output: output,
@@ -946,7 +946,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                                 item,
                                 id: item.id,
                                 aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
-                                optimisationCount: &DM.optimisationCount,
+                                optimisationCount: DM.optimisationCount,
                                 copyToClipboard: copyToClipboard,
                                 source: .dropZone,
                                 output: output,
@@ -988,7 +988,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                                 item,
                                 id: item.id,
                                 aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
-                                optimisationCount: &DM.optimisationCount,
+                                optimisationCount: DM.optimisationCount,
                                 copyToClipboard: copyToClipboard,
                                 source: .dropZone,
                                 output: output,
@@ -1012,7 +1012,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                             .file(path),
                             id: path.string,
                             aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
-                            optimisationCount: &DM.optimisationCount,
+                            optimisationCount: DM.optimisationCount,
                             copyToClipboard: copyToClipboard,
                             source: .dropZone,
                             output: output,
@@ -1025,7 +1025,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                             .url(url),
                             id: url.absoluteString,
                             aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
-                            optimisationCount: &DM.optimisationCount,
+                            optimisationCount: DM.optimisationCount,
                             copyToClipboard: copyToClipboard,
                             source: .dropZone,
                             output: output,
@@ -1043,7 +1043,7 @@ func optimiseDroppedItems(_ itemProviders: [NSItemProvider], copy: Bool, preset:
                         .url(url),
                         id: url.absoluteString,
                         aggressiveOptimisation: pipeline?.skipOptimisation == true ? false : aggressive,
-                        optimisationCount: &DM.optimisationCount,
+                        optimisationCount: DM.optimisationCount,
                         copyToClipboard: copyToClipboard,
                         source: .dropZone,
                         output: output,
@@ -1089,8 +1089,8 @@ func optimiseDir(path dir: FilePath, aggressive: Bool? = nil, source: Optimisati
         for url in urls {
             let path = url.filePath!
             let added = group.addTaskUnlessCancelled {
-                _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) {
-                    try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: &manualOptimisationCount, copyToClipboard: false, source: source, output: output)
+                _ = try await proGuard(count: DM.optimisationCount, url: path.url) {
+                    try await optimiseItem(.file(path), id: path.string, aggressiveOptimisation: aggressive, optimisationCount: manualOptimisationCount, copyToClipboard: false, source: source, output: output)
                 }
             }
             guard added else { break }
@@ -1108,7 +1108,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
         try await optimiseDir(path: path, aggressive: aggressive, source: source, output: output, types: ALL_FORMATS)
         return
     }
-    _ = try await proGuard(count: &DM.optimisationCount, limit: 5, url: path.url) { () async throws -> ClipboardType? in
+    _ = try await proGuard(count: DM.optimisationCount, url: path.url) { () async throws -> ClipboardType? in
         if await skipOptimiseAndRunPipelineIfEncoding(pipeline, path: path, source: source) {
             return nil
         }
@@ -1118,7 +1118,7 @@ func optimiseFile(from item: NSSecureCoding?, identifier: String, aggressive: Bo
             .file(path),
             id: path.string,
             aggressiveOptimisation: skipOpt ? false : aggressive,
-            optimisationCount: &manualOptimisationCount,
+            optimisationCount: manualOptimisationCount,
             copyToClipboard: Defaults[.autoCopyToClipboard],
             source: source,
             output: output,
