@@ -474,6 +474,7 @@
 				InternetAccessPolicy.plist,
 				ItemType.swift,
 				JSONCEditor.swift,
+				MCPClients.swift,
 				MCPInstaller.swift,
 				MCPSettings.swift,
 				MCPSettingsPane.swift,
