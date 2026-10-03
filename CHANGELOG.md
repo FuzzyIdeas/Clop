@@ -1,3 +1,15 @@
+# 3.4.6
+
+**[Download Clop 3.4.6 →](https://files.lowtechguys.com/releases/Clop-3.4.6.dmg)**
+## Features
+
+- **Persistent debug logs**: `clop logs persist on` keeps Clop's debug logs on disk, so they are still there when you need to send them
+    > `clop logs persist off` returns to the macOS default
+
+## Improvements
+
+- `clop` commands and agent file tools run side by side, so a long video in one session no longer holds up a quick image in another
+
 # 3.4.5
 
 **[Download Clop 3.4.5 →](https://files.lowtechguys.com/releases/Clop-3.4.5.dmg)**
