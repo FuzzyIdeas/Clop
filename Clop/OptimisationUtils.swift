@@ -2273,7 +2273,7 @@ enum TempPipelineSegment {
                 hideFloatingResult: false,
                 cropTo: size,
                 aggressiveOptimisation: aggressive,
-                optimisationCount: &manualOptimisationCount,
+                optimisationCount: manualOptimisationCount,
                 copyToClipboard: id == IDs.clipboardImage,
                 source: source,
                 optimisedFileBehaviour: .inPlace
@@ -3023,12 +3023,48 @@ func optimiseURL(
 
 import LowtechPro
 
+/// The free optimisations left on one way into Clop (the CLI, the drop zone, Shortcuts, a watched
+/// folder), counted per session.
+///
+/// A shared object rather than an `inout Int`: the files of one request run side by side, and each
+/// one checked the count before any of them had added to it, so a CLI call, an Open With or a folder
+/// dropped with any number of files went through whole. A slot is taken before the work starts and
+/// given back if the work fails.
+final class OptimisationCounter: @unchecked Sendable {
+    init(limit: Int = 5) {
+        self.limit = limit
+    }
+
+    let limit: Int
+
+    var used: Int {
+        get { lock.withLock { taken } }
+        set { lock.withLock { taken = newValue } }
+    }
+
+    func take() -> Bool {
+        lock.withLock {
+            guard taken < limit else { return false }
+            taken += 1
+            return true
+        }
+    }
+
+    func giveBack() {
+        lock.withLock { taken = max(0, taken - 1) }
+    }
+
+    private let lock = NSLock()
+    private var taken = 0
+}
+
 @discardableResult @inline(__always)
-@MainActor func proGuard<T>(count: inout Int, limit: Int = 5, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
+@MainActor func proGuard<T>(count: OptimisationCounter, url: URL? = nil, _ action: @escaping () async throws -> T) async throws -> T {
     guard !BM.decompressingBinaries else { throw ClopError.decompressingBinariesError }
-    guard proactive || count < limit, validReq() else {
+    let pro = proactive
+    guard validReq(), pro || count.take() else {
         clopDebugLog(
-            "proGuard BLOCKED: proactive=\(proactive) count=\(count) limit=\(limit) url=\(url?.absoluteString ?? "nil") PRO=\(PRO != nil ? "exists" : "nil") productActivated=\(PRO?.productActivated ?? false) onTrial=\(PRO?.onTrial ?? false)"
+            "proGuard BLOCKED: proactive=\(proactive) count=\(count.used) limit=\(count.limit) url=\(url?.absoluteString ?? "nil") PRO=\(PRO != nil ? "exists" : "nil") productActivated=\(PRO?.productActivated ?? false) onTrial=\(PRO?.onTrial ?? false)"
         )
         if let url {
             OM.skippedBecauseNotPro = OM.skippedBecauseNotPro.with(url)
@@ -3036,12 +3072,17 @@ import LowtechPro
         proLimitsReached(url: url)
         throw ClopError.proError("Pro limits reached")
     }
-    let result = try await action()
-    count += 1
-    return result
+    do {
+        return try await action()
+    } catch {
+        if !pro {
+            count.giveBack()
+        }
+        throw error
+    }
 }
 
-var manualOptimisationCount = 0
+let manualOptimisationCount = OptimisationCounter()
 
 @MainActor func downloadFile(from url: URL, optimiser: Optimiser? = nil, hideFloatingResult: Bool = false, output: String? = nil) async throws -> (FilePath, ItemType, Optimiser)? {
     var optimiser: Optimiser?
@@ -3121,7 +3162,7 @@ var manualOptimisationCount = 0
         downscaleTo: scalingFactor,
         changePlaybackSpeedBy: changePlaybackSpeedFactor,
         aggressiveOptimisation: aggressiveOptimisation,
-        optimisationCount: &manualOptimisationCount,
+        optimisationCount: manualOptimisationCount,
         copyToClipboard: true,
         source: .clipboard
     )
@@ -3183,7 +3224,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     pdfDPI: Int? = nil,
     compression: CompressionQuality? = nil,
     audioBitrate: Int? = nil,
-    optimisationCount: inout Int,
+    optimisationCount: OptimisationCounter,
     copyToClipboard: Bool,
     source: OptimisationSource? = nil,
     output: String? = nil,
@@ -3295,7 +3336,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 [.optimise]
             }
 
-            let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: img.path.url) {
+            let result: Image? = try await proGuard(count: optimisationCount, url: img.path.url) {
                 if let cropSize {
                     guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
                 }
@@ -3342,7 +3383,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     [.optimise]
                 }
 
-                let result: Image? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
+                let result: Image? = try await proGuard(count: optimisationCount, url: path.url) {
                     if let cropSize {
                         guard cropSize < img.size else { throw ClopError.alreadyResized(img.path) }
                     }
@@ -3393,7 +3434,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     removeAudio: removeAudio
                 )
 
-                let result: Video? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
+                let result: Video? = try await proGuard(count: optimisationCount, url: path.url) {
                     let video = await (try? Video.byFetchingMetadata(path: path, thumb: !hideFloatingResult)) ?? Video(path: path, thumb: !hideFloatingResult)
 
                     if let cropSize, let size = video.size {
@@ -3437,7 +3478,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     filePdfActions.append(.downscale(factor: nil, cropSize: cropSize))
                 }
 
-                let result = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
+                let result = try await proGuard(count: optimisationCount, url: path.url) {
                     let pdf = PDF(path, thumb: !hideFloatingResult)
                     guard let doc = pdf.document else { throw ClopError.invalidPDF(path) }
                     guard !doc.isEncrypted else { throw ClopError.encryptedPDF(path) }
@@ -3474,7 +3515,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                     throw ClopError.alreadyOptimised(path)
                 }
 
-                let result: Audio? = try await proGuard(count: &optimisationCount, limit: 5, url: path.url) {
+                let result: Audio? = try await proGuard(count: optimisationCount, url: path.url) {
                     let audio = await (try? Audio.byFetchingMetadata(path: path, thumb: !hideFloatingResult)) ?? Audio(path: path, thumb: !hideFloatingResult)
                     let bitrateOverride: Int? = if let audioBitrate {
                         audioBitrate
@@ -3503,7 +3544,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
                 throw ClopError.unknownType
             }
         case let .url(url):
-            return try await proGuard(count: &optimisationCount, limit: 5, url: url) {
+            return try await proGuard(count: optimisationCount, url: url) {
                 try await optimiseURL(
                     url,
                     copyToClipboard: copyToClipboard,
@@ -3622,7 +3663,7 @@ func isAlreadyTemplatedPath(type: ClopFileType, path: FilePath) -> Bool {
     cursorDropZoneWindow.close()
 }
 
-var cliOptimisationCount = 0
+let cliOptimisationCount = OptimisationCounter()
 
 /// Resolve a request `pipeline` argument: saved pipeline name first, then inline pipeline DSL.
 @MainActor func resolveRequestPipeline(_ arg: String) -> Pipeline? {
@@ -3667,7 +3708,7 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
                 pdfDPI: req.pdfDPI,
                 compression: req.compression,
                 audioBitrate: req.audioBitrate,
-                optimisationCount: &cliOptimisationCount,
+                optimisationCount: cliOptimisationCount,
                 copyToClipboard: false, // batched at the end of processOptimisationRequest
                 source: source,
                 optimisedFileBehaviour: .inPlace,
@@ -3783,7 +3824,7 @@ func processOptimisationRequest(_ req: OptimisationRequest) async throws -> [Opt
                             pdfDPI: req.pdfDPI,
                             compression: req.compression,
                             audioBitrate: req.audioBitrate,
-                            optimisationCount: &cliOptimisationCount,
+                            optimisationCount: cliOptimisationCount,
                             copyToClipboard: false, // batched at the end so every input copies, even failures
                             source: req.source.optSource,
                             output: req.output,
