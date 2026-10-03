@@ -41,12 +41,12 @@ struct MCPSettingsView: View {
             }
 
             Section(header: SectionHeader(title: "Install in")) {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(MCPInstaller.clients) { client in
-                        clientRow(client)
-                    }
+                clientRows(MCPInstaller.featuredClients)
+                DisclosureGroup(isExpanded: $showMoreClients) {
+                    clientRows(MCPInstaller.moreClients)
+                } label: {
+                    Text("See more").regular(13)
                 }
-                .padding(.vertical, 4)
             }
 
             Section(header: SectionHeader(title: "Install by hand")) {
@@ -63,6 +63,7 @@ struct MCPSettingsView: View {
 
     @State private var states: [String: MCPInstaller.ConfigState] = [:]
     @State private var failures: [String: String] = [:]
+    @State private var showMoreClients = false
 
     @Default(.mcpEnabled) private var mcpEnabled
     @Default(.mcpAllowScriptSteps) private var mcpAllowScriptSteps
@@ -73,6 +74,15 @@ struct MCPSettingsView: View {
             Spacer()
             Button("Manage Licence") { manageLicenceInSettings() }
         }
+    }
+
+    private func clientRows(_ clients: [MCPInstaller.Client]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(clients) { client in
+                clientRow(client)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private func clientRow(_ client: MCPInstaller.Client) -> some View {
