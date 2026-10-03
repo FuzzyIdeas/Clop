@@ -132,10 +132,11 @@ extension MCPInstaller {
             path: "~/Library/Application Support/Claude/claude_desktop_config.json", style: .mcpServers,
             evidence: ["/Applications/Claude.app"]
         ),
+        // The ChatGPT desktop app runs Codex too and reads the same config.toml.
         Client(
             id: "codex", name: "Codex",
             path: "~/.codex/config.toml", style: .codex,
-            evidence: ["~/.codex", "/Applications/Codex.app"] + binaries("codex")
+            evidence: ["~/.codex", "/Applications/Codex.app", "/Applications/ChatGPT.app"] + binaries("codex")
         ),
         Client(
             id: "copilot", name: "Copilot CLI",
@@ -332,13 +333,13 @@ extension MCPInstaller {
         return edit(client, config) { text in
             switch config.style {
             case .codex:
-                return try TOMLEditor.removeTable(in: text, path: ["mcp_servers", serverName])
+                try TOMLEditor.removeTable(in: text, path: ["mcp_servers", serverName])
             case .goose:
-                return try YAMLEditor.removeChild(in: text, parent: "extensions", name: serverName)
+                try YAMLEditor.removeChild(in: text, parent: "extensions", name: serverName)
             case .crushrc:
-                return try ShellRCEditor.removeCommand(in: text, matching: ["mcp", "add", serverName])
+                try ShellRCEditor.removeCommand(in: text, matching: ["mcp", "add", serverName])
             default:
-                return JSONCEditor.removeMember(in: text, container: jsonContainer(config.style) ?? "mcpServers", name: serverName)
+                JSONCEditor.removeMember(in: text, container: jsonContainer(config.style) ?? "mcpServers", name: serverName)
             }
         }
     }
