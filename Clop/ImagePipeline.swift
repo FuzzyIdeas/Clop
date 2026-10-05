@@ -9,6 +9,12 @@ import UniformTypeIdentifiers
 private let log = Logger(subsystem: LOG_SUBSYSTEM, category: "ImagePipeline")
 
 @MainActor func applyImageConversionBehaviour(original img: Image, converted: Image, originalPath: inout FilePath?, overrides: PlacementOverride? = nil) throws -> Image {
+    // A file whose extension already names the new format (a WebP saved as `logo.png`, converted to a
+    // real PNG) keeps its name, so a same-folder `%f` template writes the result over the original.
+    // Keep a copy of it first; in-place placement moves it to the same backup path anyway.
+    if converted.path.extension?.lowercased() == img.path.extension?.lowercased(), let backupPath = img.path.clopBackupPath {
+        img.path.backup(path: backupPath, force: true, operation: .copy)
+    }
     let placed = try placeOutput(produced: converted.path, original: img.path, type: .image, kind: .autoConvert, overrides: overrides)
     if placed.originalRemoved || placed.path != converted.path {
         originalPath = img.path
@@ -172,11 +178,19 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
     }
 
     if let autoConversionFormat {
+        // The settings match on what the bytes are, not on the name, so a WebP saved as `logo.png` is
+        // converted like any other WebP.
+        if let ext = img.path.extension, let named = UTType(filenameExtension: ext), !img.type.conforms(to: named) {
+            log.warning("\(pathString) is named .\(ext) but holds \(img.type.identifier) data")
+        }
         // Conversion can spawn an external encoder (e.g. `toGainMapHDR` for HDR HEIC→JPEG) and decode
         // the result with NSImage; run it off the main actor so a large/HDR image doesn't block the
-        // main thread for tens of seconds and trip the ANR watchdog.
+        // main thread for tens of seconds and trip the ANR watchdog. The transparency check decodes
+        // every pixel's alpha, so it runs there too.
         let imageToConvert = img
-        let converted = try await Task.detached { try imageToConvert.convert(to: autoConversionFormat, asTempFile: true) }.value
+        let converted = try await Task.detached {
+            try imageToConvert.convert(to: imageToConvert.formatKeepingTransparency(autoConversionFormat), asTempFile: true)
+        }.value
         // The optimiser may already be pre-registered in OM by the CLI request handler so
         // placementOverride is available here, before the optimiser is formally set up below.
         let placementOverride = opt(id ?? pathString)?.placementOverride

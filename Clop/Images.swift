@@ -1430,6 +1430,14 @@ class Image: CustomStringConvertible {
         }
     }
 
+    /// `format`, or PNG when `format` is JPEG and this image has transparent pixels. JPEG has no alpha
+    /// channel, so a transparent WebP logo converted for compatibility came out on a solid background.
+    func formatKeepingTransparency(_ format: UTType) -> UTType {
+        guard format == .jpeg, type != .png, image.hasTransparentPixels else { return format }
+        log.info("Converting \(self.path.string) to PNG instead of JPEG to keep its transparency")
+        return .png
+    }
+
     func copyToClipboard(withPath: Bool? = nil) {
         let item = NSPasteboardItem()
         if withPath ?? Defaults[.copyImageFilePath] {
