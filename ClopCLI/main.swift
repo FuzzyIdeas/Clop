@@ -1317,9 +1317,10 @@ struct Clop: ParsableCommand {
             }
 
             let tempFile = URL.temporaryDirectory.appendingPathComponent(path.name.string).filePath!
+            // The colour profile isn't EXIF and deleting it changes how the image looks, so it stays.
             let args = [exiftool, "-XResolution=72", "-YResolution=72"]
                 + ["-all=", "-tagsFromFile", "@"]
-                + ["-XResolution", "-YResolution", "-Orientation"]
+                + ["-XResolution", "-YResolution", "-Orientation"] + COLOUR_TAGS
                 + ["-o", tempFile.string, path.string]
             let errPipe = Pipe()
 

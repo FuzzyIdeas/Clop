@@ -484,6 +484,12 @@ extension CompressionQuality {
         }
     }
 
+    /// ImageIO JPEG quality for the images jpegoptim can't touch (an HDR gain map would be lost).
+    /// ImageIO's scale runs lower than libjpeg's: 0.51 gives the file size jpegoptim's 85 does.
+    var imageIOJPEGQuality: Double {
+        Swift.max(0.1, Swift.min(0.9, Double(jpegMaxQuality) * 0.006))
+    }
+
     /// cwebp / heif-enc -q quality (0-100). factor 30 -> 60 (legacy hardcoded default).
     /// Above 70 the curve steepens from 40 down to 15 at 100.
     var conversionQuality: Int {
@@ -1111,6 +1117,11 @@ let ARCH: String = {
     return ret == NSBundleExecutableArchitectureARM64 ? "arm64" : "x86"
 }()
 let APP_SCRIPTS_DIR = FileManager.default.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Application Scripts/com.lowtechguys.Clop")
+
+/// exiftool tags that decide the colours an image shows, kept when stripping metadata. A camera JPEG in
+/// Adobe RGB often has no ICC profile and says so through the primaries in IFD0, which ImageIO reads;
+/// without them the colours come out as sRGB, less saturated.
+let COLOUR_TAGS = ["-ColorSpaceTags", "-icc_profile", "-WhitePoint", "-PrimaryChromaticities"]
 
 let GLOBAL_BIN_DIR_PARENT = APP_SCRIPTS_DIR // ~/Library/Application Scripts/com.lowtechguys.Clop
 let GLOBAL_BIN_DIR = GLOBAL_BIN_DIR_PARENT.appendingPathComponent("bin") // ~/Library/Application Scripts/com.lowtechguys.Clop/bin/

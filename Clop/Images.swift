@@ -7,6 +7,7 @@
 
 import Accelerate
 import Cocoa
+import CoreImage
 import Defaults
 import Foundation
 import ImageIO
@@ -42,6 +43,12 @@ var JPEGOPTIM_OLD = BIN_DIR.appendingPathComponent("jpegoptim-old").filePath!
 var GIFSICLE = BIN_DIR.appendingPathComponent("gifsicle").filePath!
 var VIPSTHUMBNAIL = BIN_DIR.appendingPathComponent("vipsthumbnail").filePath!
 var TO_GAIN_MAP_HDR = BIN_DIR.appendingPathComponent("toGainMapHDR").filePath!
+/// ImageIO writes ISO gain maps, which is how a PQ or HLG photo stays HDR as a JPEG, from macOS 15.
+let canEncodeISOGainMap = if #available(macOS 15, *) {
+    true
+} else {
+    false
+}
 
 func isImageValid(path: FilePath) -> Bool {
     guard let image = NSImage(contentsOfFile: path.string) else {
@@ -789,6 +796,10 @@ class Image: CustomStringConvertible {
     }
 
     func optimiseJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, testPNG: Bool = false) throws -> Image {
+        // jpegoptim keeps only the first image in the file, so an HDR photo would lose its gain map.
+        if path.hasGainMap {
+            return try optimiseGainMapJPEG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
+        }
         let backupPath = path.clopBackupPath
         var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
 
@@ -1049,9 +1060,14 @@ class Image: CustomStringConvertible {
         let args = ["-s", sizeStr, "-o", "%s_\(sizeStr).\(ext)[Q=100]", "--smartcrop", cropSize.smartCrop ? "attention" : "centre", pathForResize.string]
         let resizedPath = pathForResize.dir / "\(pathForResize.stem ?? pathForResize.name.string)_\(sizeStr).\(ext)"
 
+        let keepsAspect = cropSize.cropRect == nil && abs(size.width / size.height - self.size.width / self.size.height) < 0.01
         if let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
             // vipsthumbnail only supports centre/attention crops, arbitrary rects go through CoreGraphics
             try cropWithCGImage(source: pathForResize, dest: resizedPath, cropRect: cropRect, targetSize: size)
+        } else if type == .jpeg, keepsAspect, pathForResize.hasGainMap, let resizeSource = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
+            // vipsthumbnail keeps only the main image, so an HDR photo would come out SDR. ImageIO scales the
+            // gain map along with it; the optimise step below sets the final quality and metadata.
+            try resizeSource.writeHDRJPEG(to: resizedPath, quality: 0.95, maxPixelSize: max(size.width, size.height).evenInt, stripMetadata: false)
         } else {
             do {
                 let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
@@ -1316,6 +1332,8 @@ class Image: CustomStringConvertible {
         let jxlData = try JXLCoder.encode(image: image, effort: cq.jxlEffort, quality: cq.jxlQuality)
         let outPath = path.tempFile(ext: "jxl")
         fm.createFile(atPath: outPath.string, contents: jxlData)
+        // The encoder writes no metadata and gets pixels with the orientation already applied.
+        outPath.copyExif(from: path, excludeTags: ["Orientation"], stripMetadata: Defaults[.stripMetadata])
         try? outPath.setOptimisationStatusXattr("true")
         let finalPath = asTempFile ? outPath : try outPath.move(to: path.withExtension("jxl"), force: true)
         guard let data = fm.contents(atPath: finalPath.string) else {
@@ -1338,20 +1356,23 @@ class Image: CustomStringConvertible {
         try await convertWithProcAsync(to: "webp", asTempFile: asTempFile)
     }
 
-    func convertHDRHEICToJPEG(asTempFile: Bool, optimiser: Optimiser? = nil) throws -> Image {
-        let tempDir = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString).filePath!
-        tempDir.mkdir(withIntermediateDirectories: true)
-        defer { try? fm.removeItem(atPath: tempDir.string) }
-
-        let proc = try tryProc(TO_GAIN_MAP_HDR.string, args: [path.string, tempDir.string, "-q", "1.0", "-j"], tries: 2)
-        guard proc.terminationStatus == 0 else {
-            throw ClopProcError.processError(proc)
-        }
-
-        // toGainMapHDR outputs <stem>.jpg (not .jpeg) into the output folder
-        let outputJPG = tempDir / "\(path.stem ?? "output").jpg"
+    /// HDR to JPEG through ImageIO: an Apple or ISO gain map comes along, and PQ or HLG pixels become one.
+    /// With an optimiser this is the only encode, at the quality jpegoptim would have aimed for, and it
+    /// applies the metadata setting itself; without one the JPEG is an intermediate that keeps everything
+    /// for the step that follows.
+    func convertHDRToJPEG(asTempFile: Bool, optimiser: Optimiser? = nil) throws -> Image {
         let convPath = path.tempFile(ext: "jpeg")
-        try outputJPG.move(to: convPath, force: true)
+        let cq = optimiser.map { effectiveImageCompression(nil, override: $0.compressionOverride) }
+        if let optimiser, let cq {
+            mainActor { optimiser.aggressive = cq.imageIsAggressive }
+        }
+        try writeHDRJPEG(to: convPath, quality: cq?.imageIOJPEGQuality ?? 0.9, stripMetadata: optimiser != nil && Defaults[.stripMetadata], excludeResolution: retinaDownscaled)
+        if optimiser != nil {
+            convPath.copyScreenCaptureXattrs(from: path)
+            if Defaults[.preserveDates] {
+                convPath.copyCreationModificationDates(from: path)
+            }
+        }
 
         try? convPath.setOptimisationStatusXattr("true")
         let finalPath = if asTempFile || path.withExtension("jpeg") == convPath {
@@ -1362,11 +1383,7 @@ class Image: CustomStringConvertible {
         guard let data = fm.contents(atPath: finalPath.string), let img = NSImage(data: data) else {
             throw ClopError.conversionFailed(path)
         }
-        let converted = Image(data: data, path: finalPath, nsImage: img, type: .jpeg, retinaDownscaled: retinaDownscaled)
-        if let optimiser {
-            return try converted.optimise(optimiser: optimiser, allowLarger: true, adaptiveSize: false)
-        }
-        return converted
+        return Image(data: data, path: finalPath, nsImage: img, type: .jpeg, optimised: optimiser != nil, retinaDownscaled: retinaDownscaled)
     }
 
     func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil, cq: CompressionQuality? = nil) throws -> Image {
@@ -1408,14 +1425,16 @@ class Image: CustomStringConvertible {
         case .gif where path.isAnimatedWebP:
             return try convertAnimatedWebPToGIF(asTempFile: asTempFile)
         default:
-            if self.type == .heic, type == .jpeg, path.hasExifHDR() {
-                return try convertHDRHEICToJPEG(asTempFile: asTempFile, optimiser: optimiser)
+            if type == .jpeg, path.hasGainMap || (path.isPQOrHLG && canEncodeISOGainMap) {
+                return try convertHDRToJPEG(asTempFile: asTempFile, optimiser: optimiser)
             }
             let convPath = path.tempFile(ext: ext)
-            guard let data = image.data(using: type.imgType) else {
-                throw ClopError.unknownImageType(path)
+            if !((type == .jpeg || type == .png) && writeOrientedCopy(to: convPath, as: type)) {
+                guard let data = image.data(using: type.imgType) else {
+                    throw ClopError.unknownImageType(path)
+                }
+                fm.createFile(atPath: convPath.string, contents: data)
             }
-            fm.createFile(atPath: convPath.string, contents: data)
 
             convPath.waitForFile(for: 2)
             let path = asTempFile ? convPath : try convPath.move(to: path.withExtension(ext), force: true)
@@ -1453,6 +1472,126 @@ class Image: CustomStringConvertible {
             pb.clearContents()
             pb.writeObjects([item])
         }
+    }
+
+    /// Writes this image as a JPEG through ImageIO, which carries an HDR gain map along (scaled with the
+    /// image when `maxPixelSize` is set) and turns PQ or HLG pixels into an ISO gain map. jpegoptim,
+    /// vipsthumbnail and exiftool would each drop the gain map or strand it without its headroom.
+    func writeHDRJPEG(to dest: FilePath, quality: Double, maxPixelSize: Int? = nil, stripMetadata: Bool, excludeResolution: Bool = false) throws {
+        guard let src = CGImageSourceCreateWithURL(path.url as CFURL, nil) else {
+            throw ClopError.conversionFailed(path)
+        }
+        let original = (CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]) ?? [:]
+        let pq = path.isPQOrHLG
+
+        var props: [CFString: Any] = [:]
+        if stripMetadata {
+            // Keep only what changes how the image looks. Older Apple gain maps (iPhone 12 era) take their
+            // headroom from maker note tags 33 and 48, and show as SDR without them.
+            if !pq {
+                for key in [kCGImagePropertyExifDictionary, kCGImagePropertyGPSDictionary, kCGImagePropertyIPTCDictionary, kCGImagePropertyExifAuxDictionary, kCGImagePropertyTIFFDictionary, kCGImagePropertyMakerAppleDictionary] {
+                    props[key] = kCFNull
+                }
+                props[kCGImageMetadataShouldExcludeXMP] = true
+                props[kCGImageMetadataShouldExcludeGPS] = true
+            }
+            if let maker = original[kCGImagePropertyMakerAppleDictionary] as? [String: Any] {
+                let headroom = maker.filter { ["33", "48"].contains($0.key) }
+                if headroom.isNotEmpty {
+                    props[kCGImagePropertyMakerAppleDictionary] = headroom
+                }
+            }
+            for key in [kCGImagePropertyOrientation, kCGImagePropertyDPIWidth, kCGImagePropertyDPIHeight] {
+                props[key] = original[key]
+            }
+        } else if pq {
+            // AddImage, unlike AddImageFromSource, only writes the metadata it's handed.
+            props = original.filter { [
+                kCGImagePropertyExifDictionary,
+                kCGImagePropertyGPSDictionary,
+                kCGImagePropertyIPTCDictionary,
+                kCGImagePropertyExifAuxDictionary,
+                kCGImagePropertyTIFFDictionary,
+                kCGImagePropertyMakerAppleDictionary,
+                kCGImagePropertyOrientation,
+                kCGImagePropertyDPIWidth,
+                kCGImagePropertyDPIHeight,
+            ].contains($0.key) }
+        }
+        if excludeResolution {
+            props[kCGImagePropertyDPIWidth] = 72
+            props[kCGImagePropertyDPIHeight] = 72
+        }
+        props[kCGImageDestinationLossyCompressionQuality] = quality
+        if let maxPixelSize {
+            props[kCGImageDestinationImageMaxPixelSize] = maxPixelSize
+        }
+
+        if pq {
+            // The base is ImageIO's own SDR decode, so an SDR screen shows the photo the way macOS always
+            // has; Core Image derives the gain map from the HDR decode. ImageIO's ISO gain map encoder picks
+            // its own base instead, 20 levels brighter on an iPhone 15 Pro HEIF.
+            guard #available(macOS 15, *),
+                  let sdr = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceDecodeRequest: kCGImageSourceDecodeToSDR] as CFDictionary),
+                  let hdr = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceDecodeRequest: kCGImageSourceDecodeToHDR] as CFDictionary),
+                  let p3 = CGColorSpace(name: CGColorSpace.displayP3)
+            else {
+                throw ClopError.conversionFailed(path)
+            }
+            let metadata = props.filter { $0.key != kCGImageDestinationLossyCompressionQuality && $0.key != kCGImageDestinationImageMaxPixelSize }
+            var base = CIImage(cgImage: sdr, options: [.properties: metadata])
+            var hdrImage = CIImage(cgImage: hdr)
+            if let maxPixelSize, max(sdr.width, sdr.height) > maxPixelSize {
+                let scale = CGFloat(maxPixelSize) / CGFloat(max(sdr.width, sdr.height))
+                base = base.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                hdrImage = hdrImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            }
+            let options: [CIImageRepresentationOption: Any] = [
+                .hdrImage: hdrImage,
+                CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): quality,
+            ]
+            guard let data = CIContext().jpegRepresentation(of: base, colorSpace: p3, options: options) else {
+                throw ClopError.conversionFailed(path)
+            }
+            try data.write(to: dest.url)
+            return
+        }
+
+        guard let dst = CGImageDestinationCreateWithURL(dest.url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else {
+            throw ClopError.conversionFailed(path)
+        }
+        props[kCGImageDestinationPreserveGainMap] = true
+        CGImageDestinationAddImageFromSource(dst, src, 0, props as CFDictionary)
+        guard CGImageDestinationFinalize(dst) else {
+            throw ClopError.conversionFailed(path)
+        }
+    }
+
+    /// Re-encodes an HDR JPEG through ImageIO at the quality jpegoptim would have aimed for, keeping its
+    /// gain map. Metadata is handled in the same pass, so exiftool never touches the file.
+    private func optimiseGainMapJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool?) throws -> Image {
+        let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
+        mainActor { optimiser.aggressive = cq.imageIsAggressive }
+
+        // ImageIO reads the source while writing, so the two must never be the same file.
+        var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
+        if tempFile == path {
+            tempFile = path.tempFile(ext: "jpg")
+        }
+        try? tempFile.delete()
+        let backup = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : path.backup(path: path.clopBackupPath, operation: .copy)
+
+        try writeHDRJPEG(to: tempFile, quality: cq.imageIOJPEGQuality, stripMetadata: Defaults[.stripMetadata], excludeResolution: retinaDownscaled)
+        tempFile.copyScreenCaptureXattrs(from: backup ?? path)
+        if Defaults[.preserveDates] {
+            tempFile.copyCreationModificationDates(from: backup ?? path)
+        }
+        guard let data = fm.contents(atPath: tempFile.string), NSImage(data: data) != nil else {
+            throw ClopError.fileNotFound(tempFile)
+        }
+
+        try tempFile.setOptimisationStatusXattr("true")
+        return Image(data: data, path: tempFile, type: .jpeg, optimised: true, retinaDownscaled: retinaDownscaled)
     }
 
     /// ffmpeg `-vf` chain for an animated WebP pass, mirroring the resize and crop decisions
@@ -1584,6 +1723,50 @@ class Image: CustomStringConvertible {
         return seen.count
     }
 
+    /// Re-encodes through ImageIO with the orientation applied to the pixels, as the NSImage route did
+    /// (the external encoders that read these files ignore the tag), while keeping the colour profile and
+    /// the metadata NSImage dropped. An HDR source comes out as its SDR rendition.
+    private func writeOrientedCopy(to dest: FilePath, as type: UTType) -> Bool {
+        guard let src = CGImageSourceCreateWithURL(path.url as CFURL, nil),
+              let original = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+              let width = original[kCGImagePropertyPixelWidth] as? Int, let height = original[kCGImagePropertyPixelHeight] as? Int
+        else {
+            return false
+        }
+        var options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(width, height),
+        ]
+        if #available(macOS 14, *) {
+            options[kCGImageSourceDecodeRequest] = kCGImageSourceDecodeToSDR
+        }
+        guard let image = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary),
+              let dst = CGImageDestinationCreateWithURL(dest.url as CFURL, type.identifier as CFString, 1, nil)
+        else {
+            return false
+        }
+
+        // The metadata travels with the pixels; the optimise step strips it when the setting says so.
+        var props = original.filter { [
+            kCGImagePropertyExifDictionary,
+            kCGImagePropertyGPSDictionary,
+            kCGImagePropertyIPTCDictionary,
+            kCGImagePropertyExifAuxDictionary,
+            kCGImagePropertyMakerAppleDictionary,
+            kCGImagePropertyDPIWidth,
+            kCGImagePropertyDPIHeight,
+        ].contains($0.key) }
+        if var tiff = original[kCGImagePropertyTIFFDictionary] as? [CFString: Any] {
+            tiff[kCGImagePropertyTIFFOrientation] = 1
+            props[kCGImagePropertyTIFFDictionary] = tiff
+        }
+        props[kCGImagePropertyOrientation] = 1
+        props[kCGImageDestinationLossyCompressionQuality] = 1.0
+        CGImageDestinationAddImage(dst, image, props as CFDictionary)
+        return CGImageDestinationFinalize(dst)
+    }
+
     private func writeCGImage(_ cgImage: CGImage, to dest: FilePath, as type: UTType) throws {
         guard let destination = CGImageDestinationCreateWithURL(dest.url as CFURL, type.identifier as CFString, 1, nil) else {
             throw ClopError.conversionFailed(dest)
@@ -1626,6 +1809,9 @@ class Image: CustomStringConvertible {
             throw ClopProcError.processError(proc)
         }
 
+        // The encoders decide metadata on their own (cwebp copies all of it, heif-enc copies a JPEG's EXIF),
+        // so apply the setting here, the way every other output gets it.
+        outPath.copyExif(from: path, stripMetadata: Defaults[.stripMetadata])
         try? outPath.setOptimisationStatusXattr("true")
         let path = asTempFile ? outPath : try outPath.move(to: path.withExtension(format), force: true)
         guard let data = fm.contents(atPath: path.string), let img = NSImage(data: data) else {

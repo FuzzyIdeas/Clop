@@ -559,7 +559,7 @@ extension FilePath {
         let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
         var args = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72", "-all=", "-tagsFromFile", "@"] + RESOLUTION_TAGS + ["-Orientation"]
         if Defaults[.preserveColorMetadata] {
-            args += ["-ColorSpaceTags", "-icc_profile"]
+            args += COLOUR_TAGS
         }
         args += ["-o", tempFile.string, string]
         let exifProc = shell("/usr/bin/perl", args: args, wait: true)
@@ -593,25 +593,91 @@ extension FilePath {
         }
     }
 
-    func copyExifCGImage(from source: FilePath) {
-        guard let fileType = fetchFileType()?.split(separator: ";").first?.s, let uttype = UTType(mimeType: fileType) else {
-            return
-        }
-
-        // ImageIO returns nil (not a crash) when it can't read the source or can't create a
-        // destination for `uttype` (unsupported writable type / unwritable destination volume).
-        // Force-unwrapping those traps the process (EXC_BREAKPOINT), so bail out instead.
-        guard let src = CGImageSourceCreateWithURL(source.url as CFURL, nil),
-              let dst = CGImageDestinationCreateWithURL(url as CFURL, uttype.identifier as CFString, 1, nil),
-              let metadata = CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+    /// Merges `source`'s metadata into this file without re-encoding it, so the optimised image data
+    /// stays exactly as the optimiser wrote it. ImageIO copes with files exiftool fails on (HDR iPhone
+    /// photos), but only some formats can be rewritten losslessly: for the rest (GIF) this returns
+    /// false and leaves the file alone.
+    ///
+    /// The colour profile is not part of that metadata, so it stays as the optimiser left it. That is
+    /// what we want: pngquant converts the pixels to sRGB when it drops the profile, and jpegoptim keeps it.
+    func copyExifCGImage(from source: FilePath, excludeTags: [String]? = nil) -> Bool {
+        // ImageIO returns nil (not a crash) when it can't read a file. Force-unwrapping those traps
+        // the process (EXC_BREAKPOINT), so bail out instead.
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil), let type = CGImageSourceGetType(src),
+              let original = CGImageSourceCreateWithURL(source.url as CFURL, nil),
+              let metadata = CGImageSourceCopyMetadataAtIndex(original, 0, nil),
+              let merged = CGImageMetadataCreateMutableCopy(metadata)
         else {
-            log.error("Failed to copy EXIF metadata from \(source) to \(self)")
-            return
+            log.error("Failed to read EXIF metadata from \(source) or \(self)")
+            return false
+        }
+        // ImageIO carries the capture date as XMP photoshop:DateCreated only, so a PNG would lose the
+        // EXIF one that most apps read.
+        if let props = CGImageSourceCopyPropertiesAtIndex(original, 0, nil) as? [CFString: Any],
+           let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any],
+           let date = exif[kCGImagePropertyExifDateTimeOriginal]
+        {
+            CGImageMetadataSetValueWithPath(merged, nil, "exif:DateTimeOriginal" as CFString, date as CFTypeRef)
+        }
+        // The colour description stays the optimiser's: pngquant converts to sRGB, so the original's
+        // Adobe RGB primaries or "uncalibrated" colour space would mislabel the pixels.
+        for path in ["tiff:WhitePoint", "tiff:PrimaryChromaticities", "tiff:YCbCrCoefficients", "tiff:TransferFunction", "tiff:ReferenceBlackWhite", "exif:ColorSpace", "exif:Gamma"] {
+            CGImageMetadataRemoveTagWithPath(merged, nil, path as CFString)
+        }
+        // A downscaled file keeps its own DPI instead of claiming the original's.
+        for tag in excludeTags ?? [] {
+            CGImageMetadataRemoveTagWithPath(merged, nil, "tiff:\(tag)" as CFString)
+            CGImageMetadataRemoveTagWithPath(merged, nil, "exif:\(tag)" as CFString)
         }
 
-        CGImageDestinationAddImageFromSource(dst, src, 0, metadata)
-        CGImageDestinationFinalize(dst)
+        // The image data is read from this file while the copy is written, so write next to it and swap.
+        let temp = dir.appending(".\(name.string).metadata")
+        guard let dst = CGImageDestinationCreateWithURL(temp.url as CFURL, type, 1, nil) else {
+            log.error("Failed to create a \(type) destination at \(temp)")
+            return false
+        }
+        var error: Unmanaged<CFError>?
+        let options = [kCGImageDestinationMetadata: merged, kCGImageDestinationMergeMetadata: true] as CFDictionary
+        guard CGImageDestinationCopyImageSource(dst, src, options, &error) else {
+            let reason = error.map { ($0.takeRetainedValue() as Error).localizedDescription } ?? "unknown error"
+            log.debug("ImageIO can't copy metadata into \(self): \(reason)")
+            try? temp.delete()
+            return false
+        }
+        guard Darwin.rename(temp.string, string) == 0 else {
+            log.error("Failed to replace \(self) with \(temp): \(String(cString: strerror(errno)))")
+            try? temp.delete()
+            return false
+        }
+        return true
+    }
 
+    /// An HDR gain map (Apple's or ISO 21496-1): the second image iPhones and recent cameras store to
+    /// brighten the highlights on an HDR screen. jpegoptim, vipsthumbnail and exiftool each drop it or
+    /// leave it without the headroom it needs.
+    var hasGainMap: Bool {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
+        if CGImageSourceCopyAuxiliaryDataInfoAtIndex(src, 0, kCGImageAuxiliaryDataTypeHDRGainMap) != nil {
+            return true
+        }
+        if #available(macOS 15, *) {
+            return CGImageSourceCopyAuxiliaryDataInfoAtIndex(src, 0, kCGImageAuxiliaryDataTypeISOGainMap) != nil
+        }
+        return false
+    }
+
+    /// HDR stored as PQ or HLG pixels rather than a gain map, like the 10-bit HEIFs an iPhone 15 Pro saves.
+    var isPQOrHLG: Bool {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(src, 0, nil),
+              let colorSpace = image.colorSpace
+        else { return false }
+        return CGColorSpaceUsesITUR_2100TF(colorSpace)
+    }
+
+    /// The image format read from the file's bytes, which a mislabeled extension can't fool.
+    var sniffedImageType: UTType? {
+        fetchFileType().flatMap { UTType(mimeType: $0.split(separator: ";").first?.s ?? $0) }
     }
 
     func hasExifHDR() -> Bool {
@@ -622,22 +688,47 @@ extension FilePath {
 
     func copyExif(from source: FilePath, excludeTags: [String]? = nil, stripMetadata: Bool = true) {
         guard source != self else { return }
-        copyScreenCaptureXattrs(from: source)
+        // ImageIO and exiftool both replace the file, which drops its extended attributes.
+        defer { copyScreenCaptureXattrs(from: source) }
 
-        // `copyExifCGImage` writes a single frame, so an animated file would come back from it as a
-        // still. Those go to exiftool instead, which rewrites the metadata chunks in place and
-        // leaves the frames alone.
         let animated = isAnimatedGIF || isAnimatedWebPFile
-        if !stripMetadata, isImage, !animated {
-            copyExifCGImage(from: source)
+        let ownType = sniffedImageType, sourceType = source.sniffedImageType
+        // A bare JXL codestream has nowhere to keep metadata. exiftool wraps it in a container first, but
+        // only when told to go past that "minor" warning.
+        let jxlWrap = `extension`?.lowercased() == "jxl" ? ["-m"] : []
+        // jpegoptim runs with --keep-all, so a JPEG made from a JPEG already holds every tag of its input.
+        // Rewriting them would only lose some: ImageIO drops other makers' notes and truncates array tags
+        // like a camera's colour primaries, which shifts an Adobe RGB photo's colours.
+        if !stripMetadata, ownType == .jpeg, sourceType == .jpeg {
+            if let excludeTags, excludeTags.contains("XResolution") {
+                _ = shell("/usr/bin/perl", args: [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72", string], wait: true)
+            }
             return
         }
 
-        if stripMetadata {
-            _ = shell("/usr/bin/perl", args: [EXIFTOOL.string, "-overwrite_original", "-all=", string], wait: true)
+        // ImageIO rewrites JPEG and PNG metadata reliably; a HEIC came back missing most of it and GIF
+        // isn't supported. Animated files go to exiftool too, which rewrites the metadata chunks in place
+        // and leaves every frame alone.
+        if !stripMetadata, isImage, !animated, ownType == .jpeg || ownType == .png {
+            if copyExifCGImage(from: source, excludeTags: excludeTags) {
+                return
+            }
+            // exiftool fails on some HDR iPhone photos, which is why ImageIO goes first. When ImageIO can't
+            // rewrite one either (a JPEG whose MPF index points at an image jpegoptim dropped), keep what the
+            // optimiser kept: jpegoptim runs with --keep-all.
+            if source.hasExifHDR() {
+                return
+            }
         }
-        let hdr = isImage && source.hasExifHDR()
 
+        if stripMetadata {
+            // The colour profile has to describe the optimised pixels, and the optimiser already left the
+            // right one on this file: pngquant converts to sRGB and drops it, jpegoptim keeps it. Copying
+            // the original's back instead labelled pngquant's sRGB pixels as Display P3, and left an iPhone
+            // JPEG's P3 pixels with no profile at all when the photo counted as HDR.
+            let keepOwnColour = isImage && Defaults[.preserveColorMetadata] ? ["-tagsFromFile", "@"] + COLOUR_TAGS : []
+            _ = shell("/usr/bin/perl", args: [EXIFTOOL.string, "-overwrite_original"] + jxlWrap + ["-all="] + keepOwnColour + [string], wait: true)
+        }
         var additionalArgs: [String] = []
         // A PNG carries its DPI twice, in EXIF and in the pHYs chunk, so dropping one without the other
         // leaves the file claiming its old density.
@@ -649,13 +740,14 @@ extension FilePath {
         var tagsToKeep: [String] = []
         if stripMetadata {
             tagsToKeep = RESOLUTION_TAGS + ["-Orientation"]
-            if !hdr, Defaults[.preserveColorMetadata] {
+            // Images kept their own colour profile above; videos still take the original's.
+            if !isImage, Defaults[.preserveColorMetadata] {
                 tagsToKeep += ["-ColorSpaceTags", "-icc_profile"]
             }
         } else if isVideo || animated {
             tagsToKeep = ["-All:All"]
         }
-        var args = [EXIFTOOL.string, "-overwrite_original", "-XResolution=72", "-YResolution=72"]
+        var args = [EXIFTOOL.string, "-overwrite_original"] + jxlWrap + ["-XResolution=72", "-YResolution=72"]
         args += additionalArgs
         args += ["-extractEmbedded", "-tagsFromFile", source.string]
         args += tagsToKeep
