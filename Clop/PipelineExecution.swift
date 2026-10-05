@@ -490,7 +490,7 @@ final class PipelineExecution {
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
             proc.arguments = [EXIFTOOL.string, "-XResolution=72", "-YResolution=72"]
                 + ["-all=", "-tagsFromFile", "@"]
-                + ["-XResolution", "-YResolution", "-Orientation"]
+                + ["-XResolution", "-YResolution", "-Orientation"] + (Defaults[.preserveColorMetadata] ? COLOUR_TAGS : [])
                 + ["-o", tempFile.string, input.string]
             proc.standardOutput = FileHandle.nullDevice
             let errPipe = Pipe()
