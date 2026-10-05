@@ -1755,6 +1755,7 @@ struct ImagesSettingsView: View {
     @Default(.imageFormatsToSkip) var imageFormatsToSkip
     @Default(.adaptiveImageSize) var adaptiveImageSize
     @Default(.imageCompression) var imageCompression
+    @Default(.convertHDRToSDR) var convertHDRToSDR
     // @Default(.downscaleRetinaImages) var downscaleRetinaImages
     @Default(.maxImageFileCount) var maxImageFileCount
     @Default(.copyImageFilePath) var copyImageFilePath
@@ -1945,6 +1946,10 @@ struct ImagesSettingsView: View {
                         ).foregroundColor(.secondary)
                 }
                 .searchAnchor("images.optimisationrules.gifFrameDropBehaviour", namesControl: true)
+                Toggle(isOn: $convertHDRToSDR) {
+                    Text("Convert HDR to SDR").regular(13)
+                }
+                .searchAnchor("images.optimisationrules.convertHDRToSDR", namesControl: true)
                 // Toggle(isOn: $downscaleRetinaImages) {
                 //     Text("Downscale HiDPI images to 72 DPI").regular(13)
                 //         + Text("\nScales down images taken on HiDPI screens to the standard DPI for web (e.g. Retina to 1x)").round(11, weight: .regular).foregroundColor(.secondary)

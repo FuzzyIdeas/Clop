@@ -554,6 +554,124 @@ let SCREEN_CAPTURE_XATTRS: Set = [
 let PNG_PHYS_TAGS = ["PixelsPerUnitX", "PixelsPerUnitY", "PixelUnits"]
 let RESOLUTION_TAGS = ["-XResolution", "-YResolution", "-ResolutionUnit"] + PNG_PHYS_TAGS.map { "-\($0)" }
 
+/// Reads a JPEG's markers directly: enough to estimate its quality, and to put an HDR gain map back behind
+/// a main image that jpegoptim rewrote.
+enum JPEGMarkers {
+    /// Where an MPF index (the APP2 segment listing every image in the file) keeps its entries. Offsets in
+    /// it count from the start of its TIFF header.
+    struct MPFIndex {
+        let tiffHeader: Int
+        let entries: Int
+        let count: Int
+        let littleEndian: Bool
+    }
+
+    static func qualityEstimate(of bytes: [UInt8]) -> Int? {
+        var quality: Int?
+        forEachSegment(in: bytes) { marker, start, end in
+            guard marker == 0xDB else { return true }
+            var p = start
+            while p < end {
+                let precision = bytes[p] >> 4, id = bytes[p] & 0x0F
+                let tableLength = precision == 0 ? 64 : 128
+                guard p + 1 + tableLength <= end else { return false }
+                if id == 0 {
+                    let sum = (0 ..< 64).reduce(0) { sum, k in
+                        sum + (precision == 0 ? Int(bytes[p + 1 + k]) : Int(bytes[p + 1 + 2 * k]) << 8 | Int(bytes[p + 2 + 2 * k]))
+                    }
+                    // IJG scaling of its standard luminance table: 50 is the table itself.
+                    let scale = Double(sum) * 100 / Double(IJG_LUMINANCE_TABLE_SUM)
+                    quality = Int((scale <= 100 ? (200 - scale) / 2 : 5000 / scale).rounded())
+                    return false
+                }
+                p += 1 + tableLength
+            }
+            return true
+        }
+        return quality
+    }
+
+    static func mpfIndex(in bytes: [UInt8]) -> MPFIndex? {
+        var index: MPFIndex?
+        forEachSegment(in: bytes) { marker, start, end in
+            guard marker == 0xE2, end - start > 16, Array(bytes[start ..< start + 4]) == [0x4D, 0x50, 0x46, 0x00] else { return true }
+            let tiff = start + 4
+            let little = bytes[tiff] == 0x49
+            var ifd = tiff + readUInt32(bytes, tiff + 4, little)
+            guard ifd + 2 <= end else { return false }
+            let count = readUInt16(bytes, ifd, little)
+            ifd += 2
+            for e in 0 ..< count where ifd + 12 * e + 12 <= end {
+                let entry = ifd + 12 * e
+                // MPEntry: 16 bytes per image, holding its size and offset.
+                if readUInt16(bytes, entry, little) == 0xB002 {
+                    let entries = tiff + readUInt32(bytes, entry + 8, little), images = readUInt32(bytes, entry + 4, little) / 16
+                    if images > 1, entries + 16 * images <= end {
+                        index = MPFIndex(tiffHeader: tiff, entries: entries, count: images, littleEndian: little)
+                    }
+                }
+            }
+            return false
+        }
+        return index
+    }
+
+    /// `primary` followed by every other image `original`'s MPF index lists, with the index jpegoptim copied
+    /// into `primary` pointing at them. nil when the two indexes don't describe the same images.
+    static func reattachingMPFImages(to primary: [UInt8], from original: [UInt8]) -> [UInt8]? {
+        guard let newIndex = mpfIndex(in: primary), let oldIndex = mpfIndex(in: original),
+              newIndex.count == oldIndex.count, newIndex.littleEndian == oldIndex.littleEndian
+        else { return nil }
+
+        let little = newIndex.littleEndian
+        var result = primary
+        writeUInt32(&result, newIndex.entries + 4, primary.count, little)
+        for e in 1 ..< oldIndex.count {
+            let entry = oldIndex.entries + 16 * e
+            let size = readUInt32(original, entry + 4, little)
+            let start = oldIndex.tiffHeader + readUInt32(original, entry + 8, little)
+            guard size > 0, start + size <= original.count else { return nil }
+            writeUInt32(&result, newIndex.entries + 16 * e + 8, result.count - newIndex.tiffHeader, little)
+            result += original[start ..< start + size]
+        }
+        return result
+    }
+
+    private static let IJG_LUMINANCE_TABLE_SUM = [
+        16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13, 16, 24, 40, 57, 69, 56, 14, 17, 22, 29, 51, 87, 80, 62,
+        18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92, 49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99,
+    ].reduce(0, +)
+
+    /// Calls `body` with each marker before the image data and its payload range, until it returns false.
+    private static func forEachSegment(in bytes: [UInt8], _ body: (_ marker: UInt8, _ start: Int, _ end: Int) -> Bool) {
+        guard bytes.count > 4, bytes[0] == 0xFF, bytes[1] == 0xD8 else { return }
+        var i = 2
+        while i + 4 <= bytes.count, bytes[i] == 0xFF {
+            let marker = bytes[i + 1]
+            guard marker != 0xDA else { return }
+            let end = i + 2 + (Int(bytes[i + 2]) << 8 | Int(bytes[i + 3]))
+            guard end <= bytes.count, body(marker, i + 4, end) else { return }
+            i = end
+        }
+    }
+
+    private static func readUInt16(_ b: [UInt8], _ i: Int, _ little: Bool) -> Int {
+        guard i + 2 <= b.count else { return 0 }
+        return little ? Int(b[i]) | Int(b[i + 1]) << 8 : Int(b[i]) << 8 | Int(b[i + 1])
+    }
+
+    private static func readUInt32(_ b: [UInt8], _ i: Int, _ little: Bool) -> Int {
+        guard i + 4 <= b.count else { return 0 }
+        return (0 ..< 4).reduce(0) { value, k in value | Int(b[i + k]) << (little ? 8 * k : 8 * (3 - k)) }
+    }
+
+    private static func writeUInt32(_ b: inout [UInt8], _ i: Int, _ value: Int, _ little: Bool) {
+        for k in 0 ..< 4 {
+            b[i + k] = UInt8((value >> (little ? 8 * k : 8 * (3 - k))) & 0xFF)
+        }
+    }
+}
+
 extension FilePath {
     func stripExif() {
         let tempFile = URL.temporaryDirectory.appendingPathComponent(name.string).filePath!
@@ -666,6 +784,12 @@ extension FilePath {
         return false
     }
 
+    /// Apple's own gain map, which ImageIO scales along with the image. It drops an ISO one instead.
+    var hasAppleGainMap: Bool {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
+        return CGImageSourceCopyAuxiliaryDataInfoAtIndex(src, 0, kCGImageAuxiliaryDataTypeHDRGainMap) != nil
+    }
+
     /// HDR stored as PQ or HLG pixels rather than a gain map, like the 10-bit HEIFs an iPhone 15 Pro saves.
     var isPQOrHLG: Bool {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -673,6 +797,25 @@ extension FilePath {
               let colorSpace = image.colorSpace
         else { return false }
         return CGColorSpaceUsesITUR_2100TF(colorSpace)
+    }
+
+    /// The quality a JPEG was saved at, estimated from its luminance table the way exiftool and ImageMagick
+    /// do. jpegoptim's own estimate reads Apple's tables as 97 at any setting, so the HDR path asks this one.
+    var jpegQualityEstimate: Int? {
+        // The tables sit before the image data, after at most a few 64 KB metadata segments.
+        guard let handle = FileHandle(forReadingAtPath: string) else { return nil }
+        defer { try? handle.close() }
+        return JPEGMarkers.qualityEstimate(of: [UInt8](handle.readData(ofLength: 512 * 1024)))
+    }
+
+    /// Maker note tags 33 and 48, where Apple gain maps from before the iPhone 15 keep their headroom. Such
+    /// a photo shows as SDR without them.
+    var appleHDRHeadroomTags: [String: Any] {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+              let maker = props[kCGImagePropertyMakerAppleDictionary] as? [String: Any]
+        else { return [:] }
+        return maker.filter { ["33", "48"].contains($0.key) }
     }
 
     /// The image format read from the file's bytes, which a mislabeled extension can't fool.
@@ -711,6 +854,11 @@ extension FilePath {
         // and leaves every frame alone.
         if !stripMetadata, isImage, !animated, ownType == .jpeg || ownType == .png {
             if copyExifCGImage(from: source, excludeTags: excludeTags) {
+                // A PNG without an eXIf chunk only gets XMP from ImageIO, which rounds GPS coordinates and has
+                // no place for maker notes.
+                if ownType == .png {
+                    _ = shell("/usr/bin/perl", args: [EXIFTOOL.string, "-overwrite_original", "-tagsFromFile", source.string, "-GPS:all", "-MakerNotes", string], wait: true)
+                }
                 return
             }
             // exiftool fails on some HDR iPhone photos, which is why ImageIO goes first. When ImageIO can't

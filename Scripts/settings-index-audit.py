@@ -79,7 +79,7 @@ def main():
     for name in os.listdir(os.path.join(ROOT, "Clop")):
         if not name.endswith(".swift"):
             continue
-        anchored |= set(re.findall(r'\.searchAnchor\("([^"]+)"\)', read(os.path.join("Clop", name))))
+        anchored |= set(re.findall(r'\.searchAnchor\("([^"]+)"[,)]', read(os.path.join("Clop", name))))
     entry_ids = set(ids)
     for a in sorted(anchored - entry_ids):
         errors.append(f"searchAnchor({a!r}) does not match any index entry")

@@ -8,6 +8,7 @@
 import Accelerate
 import Cocoa
 import CoreImage
+import CoreImage.CIFilterBuiltins
 import Defaults
 import Foundation
 import ImageIO
@@ -796,8 +797,10 @@ class Image: CustomStringConvertible {
     }
 
     func optimiseJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, testPNG: Bool = false) throws -> Image {
-        // jpegoptim keeps only the first image in the file, so an HDR photo would lose its gain map.
-        if path.hasGainMap {
+        // jpegoptim keeps only the first image in the file, so an HDR photo would lose its gain map. That's
+        // the point when the user asked for SDR.
+        let gainMap = path.hasGainMap
+        if gainMap, !Defaults[.convertHDRToSDR] {
             return try optimiseGainMapJPEG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
         }
         let backupPath = path.clopBackupPath
@@ -887,6 +890,10 @@ class Image: CustomStringConvertible {
 
         if type == .jpeg || Defaults[.convertedImageBehaviour] == .temporary {
             tempFile.copyExif(from: backup ?? path, excludeTags: retinaDownscaled ? ["XResolution", "YResolution"] : nil, stripMetadata: Defaults[.stripMetadata])
+        }
+        // The gain map is gone, but jpegoptim copied the index and XMP that point at it.
+        if gainMap, type == .jpeg, !Defaults[.stripMetadata] {
+            _ = shell("/usr/bin/perl", args: [EXIFTOOL.string, "-overwrite_original", "-m", "-MPF:all=", "-XMP-hdrgm:all=", "-XMP-GContainer:all=", tempFile.string], wait: true)
         }
         if Defaults[.preserveDates] {
             tempFile.copyCreationModificationDates(from: backup ?? path)
@@ -1061,13 +1068,21 @@ class Image: CustomStringConvertible {
         let resizedPath = pathForResize.dir / "\(pathForResize.stem ?? pathForResize.name.string)_\(sizeStr).\(ext)"
 
         let keepsAspect = cropSize.cropRect == nil && abs(size.width / size.height - self.size.width / self.size.height) < 0.01
+        let hdrCropSize = hdrCropSize(of: pathForResize)
         if let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
             // vipsthumbnail only supports centre/attention crops, arbitrary rects go through CoreGraphics
-            try cropWithCGImage(source: pathForResize, dest: resizedPath, cropRect: cropRect, targetSize: size)
-        } else if type == .jpeg, keepsAspect, pathForResize.hasGainMap, let resizeSource = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
-            // vipsthumbnail keeps only the main image, so an HDR photo would come out SDR. ImageIO scales the
-            // gain map along with it; the optimise step below sets the final quality and metadata.
-            try resizeSource.writeHDRJPEG(to: resizedPath, quality: 0.95, maxPixelSize: max(size.width, size.height).evenInt, stripMetadata: false)
+            if #available(macOS 15, *), let hdrCropSize {
+                try writeHDRCrop(of: pathForResize, to: resizedPath, rect: cropRect.pixelRect(in: hdrCropSize), size: size)
+            } else {
+                try cropWithCGImage(source: pathForResize, dest: resizedPath, cropRect: cropRect, targetSize: size)
+            }
+        } else if type == .jpeg, keepsAspect, !Defaults[.convertHDRToSDR], pathForResize.hasAppleGainMap, let resizeSource = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
+            // vipsthumbnail keeps only the main image, so an HDR photo would come out SDR. ImageIO scales an
+            // Apple gain map along with it; the optimise step below sets the final quality and metadata.
+            try resizeSource.writeHDR(to: resizedPath, quality: 0.95, maxPixelSize: max(size.width, size.height).evenInt, stripMetadata: false)
+        } else if #available(macOS 15, *), keepsAspect, let hdrCropSize {
+            // ImageIO drops an ISO gain map when it scales.
+            try writeHDRCrop(of: pathForResize, to: resizedPath, rect: CGRect(origin: .zero, size: hdrCropSize), size: size)
         } else {
             do {
                 let proc = try tryProc(VIPSTHUMBNAIL.string, args: args, tries: 3) { proc in
@@ -1083,6 +1098,15 @@ class Image: CustomStringConvertible {
             } catch {
                 log.warning("vipsthumbnail resize failed for \(pathForResize.string), falling back to NSImage: \(String(describing: error))")
                 try resizeWithNSImage(source: pathForResize, dest: resizedPath, targetSize: NSSize(width: size.width.evenInt.d, height: size.height.evenInt.d))
+            }
+            // vips cut the photo but not its gain maps; the HDR version cuts the same rectangle out of all of them.
+            if #available(macOS 15, *), !keepsAspect, let hdrCropSize, let crop = CGImageSourceCreateWithURL(resizedPath.url as CFURL, nil),
+               let cropProps = CGImageSourceCopyPropertiesAtIndex(crop, 0, nil) as? [CFString: Any],
+               let width = cropProps[kCGImagePropertyPixelWidth] as? Int, let height = cropProps[kCGImagePropertyPixelHeight] as? Int
+            {
+                let cutSize = NSSize(width: width, height: height)
+                let rect = vipsCropRect(of: resizedPath, size: cutSize, in: pathForResize, sourceSize: hdrCropSize, attention: cropSize.smartCrop)
+                try writeHDRCrop(of: pathForResize, to: resizedPath, rect: rect, size: cutSize)
             }
         }
 
@@ -1154,6 +1178,187 @@ class Image: CustomStringConvertible {
         guard CGImageDestinationFinalize(destination) else {
             throw ClopError.downscaleFailed(source)
         }
+    }
+
+    /// The photo's displayed size (turned by its orientation) when a crop of it can keep its HDR: a JPEG with
+    /// a gain map, which is cut along with it from macOS 15.
+    func hdrCropSize(of source: FilePath) -> NSSize? {
+        guard type == .jpeg, canEncodeISOGainMap, !Defaults[.convertHDRToSDR], source.hasGainMap,
+              let src = CGImageSourceCreateWithURL(source.url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+              let width = props[kCGImagePropertyPixelWidth] as? Int, let height = props[kCGImagePropertyPixelHeight] as? Int
+        else { return nil }
+        let turned = (props[kCGImagePropertyOrientation] as? UInt32 ?? 1) >= 5
+        return turned ? NSSize(width: height, height: width) : NSSize(width: width, height: height)
+    }
+
+    /// A JPEG with an ISO gain map Core Image derives from PQ or HLG pixels. The base is ImageIO's own SDR
+    /// rendition, so an SDR screen shows the photo the way macOS always has; ImageIO's ISO gain map encoder
+    /// picks its own base instead, 20 levels brighter on an iPhone 15 Pro HEIF.
+    @available(macOS 15, *)
+    func derivedGainMapImage(from src: CGImageSource) -> CGImageSource? {
+        guard let sdr = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceDecodeRequest: kCGImageSourceDecodeToSDR] as CFDictionary),
+              let hdr = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceDecodeRequest: kCGImageSourceDecodeToHDR] as CFDictionary),
+              let p3 = CGColorSpace(name: CGColorSpace.displayP3)
+        else { return nil }
+        let options: [CIImageRepresentationOption: Any] = [
+            .hdrImage: CIImage(cgImage: hdr),
+            CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.98,
+        ]
+        guard let data = CIContext().jpegRepresentation(of: CIImage(cgImage: sdr), colorSpace: p3, options: options) else { return nil }
+        return CGImageSourceCreateWithData(data as CFData, nil)
+    }
+
+    /// Writes a gain map image turned by `orientation`, cropped to `rect` (top-left origin, in the turned
+    /// pixels) and scaled down to `size`, with every gain map it carries (Apple's, and the ISO one iPhones
+    /// and Android phones store) cut and scaled to match at `gainMapScale` of their own resolution. ImageIO
+    /// can only scale an Apple gain map by itself, and Core Image only writes Apple's back.
+    @available(macOS 15, *)
+    func writeGainMapImage(from src: CGImageSource, to dest: FilePath, as type: UTType, orientation: CGImagePropertyOrientation, rect: CGRect? = nil, size: NSSize? = nil, gainMapScale: CGFloat = 1, properties: [CFString: Any]) -> Bool {
+        guard let base = CGImageSourceCreateImageAtIndex(src, 0, nil),
+              let dst = CGImageDestinationCreateWithURL(dest.url as CFURL, type.identifier as CFString, 1, nil)
+        else { return false }
+        let context = CIContext()
+
+        func transform(_ image: CIImage, unit: CGPoint, to size: CGSize?) -> CIImage {
+            var ci = image.oriented(orientation)
+            ci = ci.transformed(by: CGAffineTransform(translationX: -ci.extent.minX, y: -ci.extent.minY))
+            if let rect {
+                // `rect` counts from the top, Core Image from the bottom.
+                let r = CGRect(x: rect.minX * unit.x, y: ci.extent.height - rect.maxY * unit.y, width: rect.width * unit.x, height: rect.height * unit.y)
+                ci = ci.cropped(to: r).transformed(by: CGAffineTransform(translationX: -r.minX, y: -r.minY))
+            }
+            guard let size, size.width.rounded() != ci.extent.width.rounded() || size.height.rounded() != ci.extent.height.rounded() else { return ci }
+
+            let scale = CIFilter.lanczosScaleTransform()
+            scale.inputImage = ci
+            scale.scale = Float(size.height / ci.extent.height)
+            scale.aspectRatio = Float((size.width / ci.extent.width) / (size.height / ci.extent.height))
+            return (scale.outputImage ?? ci).cropped(to: CGRect(x: 0, y: 0, width: size.width.rounded(), height: size.height.rounded()))
+        }
+
+        let baseImage = CIImage(cgImage: base)
+        let upright = baseImage.oriented(orientation).extent.size
+        let outBase = transform(baseImage, unit: CGPoint(x: 1, y: 1), to: size)
+        guard let outBaseImage = context.createCGImage(outBase, from: outBase.extent, format: .RGBA8, colorSpace: base.colorSpace ?? CGColorSpace(name: CGColorSpace.displayP3))
+        else { return false }
+
+        var properties = properties
+        if orientation != .up {
+            properties[kCGImagePropertyOrientation] = 1
+            if var tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] {
+                tiff[kCGImagePropertyTIFFOrientation] = 1
+                properties[kCGImagePropertyTIFFDictionary] = tiff
+            }
+        }
+        CGImageDestinationAddImage(dst, outBaseImage, properties as CFDictionary)
+
+        var gainMaps = 0
+        for auxType in [kCGImageAuxiliaryDataTypeHDRGainMap, kCGImageAuxiliaryDataTypeISOGainMap] {
+            // Gain maps are one 8 bit channel; anything else would need its own pixel handling.
+            guard var info = CGImageSourceCopyAuxiliaryDataInfoAtIndex(src, 0, auxType) as? [CFString: Any],
+                  let description = info[kCGImageAuxiliaryDataInfoDataDescription] as? [String: Any],
+                  let data = info[kCGImageAuxiliaryDataInfoData] as? Data,
+                  let width = description["Width"] as? Int, let height = description["Height"] as? Int,
+                  let bytesPerRow = description["BytesPerRow"] as? Int,
+                  (description["PixelFormat"] as? UInt32) == kCVPixelFormatType_OneComponent8,
+                  let provider = CGDataProvider(data: data as CFData),
+                  let gainMap = CGImage(
+                      width: width,
+                      height: height,
+                      bitsPerComponent: 8,
+                      bitsPerPixel: 8,
+                      bytesPerRow: bytesPerRow,
+                      space: CGColorSpaceCreateDeviceGray(),
+                      bitmapInfo: CGBitmapInfo(rawValue: 0),
+                      provider: provider,
+                      decode: nil,
+                      shouldInterpolate: false,
+                      intent: .defaultIntent
+                  )
+            else { continue }
+
+            // Gain values aren't colours, so Core Image mustn't colour manage them.
+            let gainMapImage = CIImage(cgImage: gainMap, options: [.colorSpace: NSNull()])
+            let gainMapUpright = gainMapImage.oriented(orientation).extent.size
+            let unit = CGPoint(x: gainMapUpright.width / upright.width, y: gainMapUpright.height / upright.height)
+            let target = CGSize(width: (outBase.extent.width * unit.x * gainMapScale).rounded(), height: (outBase.extent.height * unit.y * gainMapScale).rounded())
+            let outGainMap = transform(gainMapImage, unit: unit, to: target)
+
+            let outWidth = Int(outGainMap.extent.width), outHeight = Int(outGainMap.extent.height), outBytesPerRow = (outWidth + 15) / 16 * 16
+            var bytes = Data(count: outBytesPerRow * outHeight)
+            bytes.withUnsafeMutableBytes { buffer in
+                guard let address = buffer.baseAddress else { return }
+                context.render(outGainMap, toBitmap: address, rowBytes: outBytesPerRow, bounds: outGainMap.extent, format: .L8, colorSpace: nil)
+            }
+            info[kCGImageAuxiliaryDataInfoData] = bytes
+            info[kCGImageAuxiliaryDataInfoDataDescription] = ["Width": outWidth, "Height": outHeight, "BytesPerRow": outBytesPerRow, "PixelFormat": kCVPixelFormatType_OneComponent8]
+            CGImageDestinationAddAuxiliaryDataInfo(dst, auxType, info as CFDictionary)
+            gainMaps += 1
+        }
+        return gainMaps > 0 && CGImageDestinationFinalize(dst)
+    }
+
+    /// Crops a gain map JPEG to `rect` (displayed pixels) and scales it down to `size`, gain maps included.
+    /// The optimise step that follows sets the final quality and applies the metadata setting.
+    @available(macOS 15, *)
+    func writeHDRCrop(of source: FilePath, to dest: FilePath, rect: CGRect, size: NSSize) throws {
+        guard let src = CGImageSourceCreateWithURL(source.url as CFURL, nil) else {
+            throw ClopError.downscaleFailed(source)
+        }
+        let original = (CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]) ?? [:]
+        let orientation = (original[kCGImagePropertyOrientation] as? UInt32).flatMap { CGImagePropertyOrientation(rawValue: $0) } ?? .up
+        var properties = original.filter { [
+            kCGImagePropertyExifDictionary,
+            kCGImagePropertyGPSDictionary,
+            kCGImagePropertyIPTCDictionary,
+            kCGImagePropertyExifAuxDictionary,
+            kCGImagePropertyTIFFDictionary,
+            kCGImagePropertyMakerAppleDictionary,
+            kCGImagePropertyDPIWidth,
+            kCGImagePropertyDPIHeight,
+        ].contains($0.key) }
+        properties[kCGImageDestinationLossyCompressionQuality] = 0.95
+        guard writeGainMapImage(from: src, to: dest, as: .jpeg, orientation: orientation, rect: rect, size: size, properties: properties) else {
+            throw ClopError.downscaleFailed(source)
+        }
+    }
+
+    /// Where vipsthumbnail cut a crop of `size` out of `source`, in the photo's displayed pixels. vips scales
+    /// the photo to cover `size` and slides the crop along one side only: to the middle, or for an attention
+    /// crop to wherever it found the subject, which is found here by sliding the crop's brightness profile
+    /// along the photo's.
+    func vipsCropRect(of crop: FilePath, size: NSSize, in source: FilePath, sourceSize: NSSize, attention: Bool) -> CGRect {
+        let scale = max(size.width / sourceSize.width, size.height / sourceSize.height)
+        let horizontal = sourceSize.width * scale - size.width > sourceSize.height * scale - size.height
+        let cut = NSSize(width: size.width / scale, height: size.height / scale)
+        let slack = horizontal ? sourceSize.width - cut.width : sourceSize.height - cut.height
+        var offset = slack / 2
+
+        // Matched at no more than 512 pixels: the HDR crop only has to land where vips's did to the eye.
+        let k = min(1, 512 / max(size.width, size.height))
+        if attention, slack > 1,
+           let cropLuma = luminance(of: crop, maxPixelSize: Int((max(size.width, size.height) * k).rounded())),
+           let sourceLuma = luminance(of: source, maxPixelSize: Int((max(sourceSize.width, sourceSize.height) * scale * k).rounded()))
+        {
+            func profile(_ luma: (pixels: [UInt8], width: Int, height: Int)) -> [Double] {
+                let (outer, inner) = horizontal ? (luma.width, luma.height) : (luma.height, luma.width)
+                return (0 ..< outer).map { o in
+                    (0 ..< inner).reduce(0.0) { sum, i in sum + Double(luma.pixels[horizontal ? i * luma.width + o : o * luma.width + i]) } / Double(inner)
+                }
+            }
+            let cropProfile = profile(cropLuma), sourceProfile = profile(sourceLuma)
+            if sourceProfile.count > cropProfile.count {
+                let differences = (0 ... sourceProfile.count - cropProfile.count).map { o in
+                    zip(cropProfile, sourceProfile[o...]).reduce(0.0) { $0 + abs($1.0 - $1.1) }
+                }
+                let best = differences.indices.min { differences[$0] < differences[$1] } ?? 0
+                offset = min(slack, Double(best) / (scale * k))
+            }
+        }
+        return horizontal
+            ? CGRect(x: offset, y: 0, width: cut.width, height: sourceSize.height)
+            : CGRect(x: 0, y: offset, width: sourceSize.width, height: cut.height)
     }
 
     func resizeWithNSImage(source: FilePath, dest: FilePath, targetSize: NSSize) throws {
@@ -1366,8 +1571,9 @@ class Image: CustomStringConvertible {
         if let optimiser, let cq {
             mainActor { optimiser.aggressive = cq.imageIsAggressive }
         }
-        try writeHDRJPEG(to: convPath, quality: cq?.imageIOJPEGQuality ?? 0.9, stripMetadata: optimiser != nil && Defaults[.stripMetadata], excludeResolution: retinaDownscaled)
+        try writeHDR(to: convPath, quality: cq?.imageIOJPEGQuality ?? 0.9, stripMetadata: optimiser != nil && Defaults[.stripMetadata], excludeResolution: retinaDownscaled)
         if optimiser != nil {
+            losslessGainMapJPEG(from: convPath, to: convPath, optimiser: optimiser)
             convPath.copyScreenCaptureXattrs(from: path)
             if Defaults[.preserveDates] {
                 convPath.copyCreationModificationDates(from: path)
@@ -1386,6 +1592,31 @@ class Image: CustomStringConvertible {
         return Image(data: data, path: finalPath, nsImage: img, type: .jpeg, optimised: optimiser != nil, retinaDownscaled: retinaDownscaled)
     }
 
+    /// HDR to HEIC or AVIF through ImageIO. heif-enc only ever sees the SDR PNG it's handed, so the gain map
+    /// would be lost. Metadata follows the setting in the same pass.
+    func convertHDRToHEIF(as type: UTType, asTempFile: Bool, cq: CompressionQuality? = nil) throws -> Image {
+        let ext = type == .avif ? "avif" : "heic"
+        let cq = cq ?? Defaults[.imageCompression]
+        let outPath = path.tempFile(ext: ext)
+        try writeHDR(to: outPath, as: type, quality: type == .avif ? cq.imageIOAVIFQuality : cq.imageIOHEICQuality, stripMetadata: Defaults[.stripMetadata])
+        outPath.copyScreenCaptureXattrs(from: path)
+        try? outPath.setOptimisationStatusXattr("true")
+        let finalPath = asTempFile ? outPath : try outPath.move(to: path.withExtension(ext), force: true)
+        guard let data = fm.contents(atPath: finalPath.string), let img = NSImage(data: data) else {
+            throw ClopError.conversionFailed(path)
+        }
+        return Image(data: data, path: finalPath, nsImage: img, type: type, retinaDownscaled: retinaDownscaled)
+    }
+
+    /// Whether converting to `type` keeps this photo's HDR. ImageIO writes gain maps into JPEG and HEIC, and
+    /// into AVIF from macOS 15, which is also when Core Image can turn PQ and HLG pixels into one.
+    func keepsHDR(convertingTo type: UTType) -> Bool {
+        guard !Defaults[.convertHDRToSDR], type == .jpeg || type == .heic || (type == .avif && canEncodeISOGainMap) else {
+            return false
+        }
+        return path.hasGainMap || (canEncodeISOGainMap && path.isPQOrHLG)
+    }
+
     func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil, cq: CompressionQuality? = nil) throws -> Image {
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
@@ -1399,6 +1630,9 @@ class Image: CustomStringConvertible {
 
         switch type {
         case .avif:
+            if keepsHDR(convertingTo: type) {
+                return try convertHDRToHEIF(as: type, asTempFile: asTempFile, cq: cq)
+            }
             guard self.type == .png || self.type == .jpeg else {
                 let png = try convert(to: .png, asTempFile: asTempFile)
                 return try png.convertToAVIF(asTempFile: asTempFile, cq: cq)
@@ -1415,6 +1649,9 @@ class Image: CustomStringConvertible {
             }
             return try convertToWEBP(asTempFile: asTempFile, cq: cq)
         case .heic:
+            if keepsHDR(convertingTo: type) {
+                return try convertHDRToHEIF(as: type, asTempFile: asTempFile, cq: cq)
+            }
             guard self.type == .png || self.type == .jpeg else {
                 let png = try convert(to: .png, asTempFile: asTempFile)
                 return try png.convertToHEIC(asTempFile: asTempFile, cq: cq)
@@ -1425,7 +1662,7 @@ class Image: CustomStringConvertible {
         case .gif where path.isAnimatedWebP:
             return try convertAnimatedWebPToGIF(asTempFile: asTempFile)
         default:
-            if type == .jpeg, path.hasGainMap || (path.isPQOrHLG && canEncodeISOGainMap) {
+            if type == .jpeg, keepsHDR(convertingTo: .jpeg) {
                 return try convertHDRToJPEG(asTempFile: asTempFile, optimiser: optimiser)
             }
             let convPath = path.tempFile(ext: ext)
@@ -1474,37 +1711,43 @@ class Image: CustomStringConvertible {
         }
     }
 
-    /// Writes this image as a JPEG through ImageIO, which carries an HDR gain map along (scaled with the
-    /// image when `maxPixelSize` is set) and turns PQ or HLG pixels into an ISO gain map. jpegoptim,
-    /// vipsthumbnail and exiftool would each drop the gain map or strand it without its headroom.
-    func writeHDRJPEG(to dest: FilePath, quality: Double, maxPixelSize: Int? = nil, stripMetadata: Bool, excludeResolution: Bool = false) throws {
+    /// Writes this image as a JPEG, HEIC or AVIF through ImageIO, which carries an HDR gain map along (scaled
+    /// with the image when `maxPixelSize` is set). PQ or HLG pixels become an ISO gain map. jpegoptim,
+    /// vipsthumbnail, heif-enc and exiftool would each drop the gain map or strand it without its headroom.
+    func writeHDR(to dest: FilePath, as type: UTType = .jpeg, quality: Double, maxPixelSize: Int? = nil, stripMetadata: Bool, excludeResolution: Bool = false) throws {
         guard let src = CGImageSourceCreateWithURL(path.url as CFURL, nil) else {
             throw ClopError.conversionFailed(path)
         }
         let original = (CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]) ?? [:]
+        let orientation = (original[kCGImagePropertyOrientation] as? UInt32).flatMap { CGImagePropertyOrientation(rawValue: $0) } ?? .up
+        // ImageIO writes no rotation into an AVIF, and AVIF readers ignore the EXIF one, so its pixels go
+        // upright, gain maps with them. PQ or HLG pixels get a gain map from Core Image first. Both are
+        // redrawn rather than carried over by ImageIO.
+        let upright = type == .avif && orientation != .up
         let pq = path.isPQOrHLG
+        let redraw = pq || upright
 
         var props: [CFString: Any] = [:]
         if stripMetadata {
             // Keep only what changes how the image looks. Older Apple gain maps (iPhone 12 era) take their
             // headroom from maker note tags 33 and 48, and show as SDR without them.
-            if !pq {
-                for key in [kCGImagePropertyExifDictionary, kCGImagePropertyGPSDictionary, kCGImagePropertyIPTCDictionary, kCGImagePropertyExifAuxDictionary, kCGImagePropertyTIFFDictionary, kCGImagePropertyMakerAppleDictionary] {
+            let maker = original[kCGImagePropertyMakerAppleDictionary] as? [String: Any] ?? [:]
+            let headroom = maker.filter { ["33", "48"].contains($0.key) }
+            if !redraw {
+                for key in [kCGImagePropertyExifDictionary, kCGImagePropertyGPSDictionary, kCGImagePropertyIPTCDictionary, kCGImagePropertyExifAuxDictionary, kCGImagePropertyTIFFDictionary] {
                     props[key] = kCFNull
                 }
+                // ImageIO merges a maker note dictionary into the source's, so the other tags go one by one.
+                props[kCGImagePropertyMakerAppleDictionary] = maker.isEmpty ? kCFNull : maker.mapValues { _ -> Any in kCFNull! }.merging(headroom) { $1 }
                 props[kCGImageMetadataShouldExcludeXMP] = true
                 props[kCGImageMetadataShouldExcludeGPS] = true
-            }
-            if let maker = original[kCGImagePropertyMakerAppleDictionary] as? [String: Any] {
-                let headroom = maker.filter { ["33", "48"].contains($0.key) }
-                if headroom.isNotEmpty {
-                    props[kCGImagePropertyMakerAppleDictionary] = headroom
-                }
+            } else if headroom.isNotEmpty {
+                props[kCGImagePropertyMakerAppleDictionary] = headroom
             }
             for key in [kCGImagePropertyOrientation, kCGImagePropertyDPIWidth, kCGImagePropertyDPIHeight] {
                 props[key] = original[key]
             }
-        } else if pq {
+        } else if redraw {
             // AddImage, unlike AddImageFromSource, only writes the metadata it's handed.
             props = original.filter { [
                 kCGImagePropertyExifDictionary,
@@ -1527,37 +1770,32 @@ class Image: CustomStringConvertible {
             props[kCGImageDestinationImageMaxPixelSize] = maxPixelSize
         }
 
-        if pq {
-            // The base is ImageIO's own SDR decode, so an SDR screen shows the photo the way macOS always
-            // has; Core Image derives the gain map from the HDR decode. ImageIO's ISO gain map encoder picks
-            // its own base instead, 20 levels brighter on an iPhone 15 Pro HEIF.
-            guard #available(macOS 15, *),
-                  let sdr = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceDecodeRequest: kCGImageSourceDecodeToSDR] as CFDictionary),
-                  let hdr = CGImageSourceCreateImageAtIndex(src, 0, [kCGImageSourceDecodeRequest: kCGImageSourceDecodeToHDR] as CFDictionary),
-                  let p3 = CGColorSpace(name: CGColorSpace.displayP3)
-            else {
+        if redraw {
+            guard #available(macOS 15, *) else {
                 throw ClopError.conversionFailed(path)
             }
-            let metadata = props.filter { $0.key != kCGImageDestinationLossyCompressionQuality && $0.key != kCGImageDestinationImageMaxPixelSize }
-            var base = CIImage(cgImage: sdr, options: [.properties: metadata])
-            var hdrImage = CIImage(cgImage: hdr)
-            if let maxPixelSize, max(sdr.width, sdr.height) > maxPixelSize {
-                let scale = CGFloat(maxPixelSize) / CGFloat(max(sdr.width, sdr.height))
-                base = base.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-                hdrImage = hdrImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            var size: NSSize?
+            if let maxPixelSize, let width = original[kCGImagePropertyPixelWidth] as? Int, let height = original[kCGImagePropertyPixelHeight] as? Int {
+                let scale = min(1, CGFloat(maxPixelSize) / CGFloat(max(width, height)))
+                let turned = upright && orientation.rawValue >= 5
+                size = NSSize(width: CGFloat(turned ? height : width) * scale, height: CGFloat(turned ? width : height) * scale)
             }
-            let options: [CIImageRepresentationOption: Any] = [
-                .hdrImage: hdrImage,
-                CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): quality,
-            ]
-            guard let data = CIContext().jpegRepresentation(of: base, colorSpace: p3, options: options) else {
+            // Core Image derives the gain map at full size; it's written at half, like Apple's.
+            var gainMapSource = src
+            if pq {
+                guard let derived = derivedGainMapImage(from: src) else {
+                    throw ClopError.conversionFailed(path)
+                }
+                gainMapSource = derived
+            }
+            props[kCGImageDestinationImageMaxPixelSize] = nil
+            guard writeGainMapImage(from: gainMapSource, to: dest, as: type, orientation: upright ? orientation : .up, size: size, gainMapScale: pq ? 0.5 : 1, properties: props) else {
                 throw ClopError.conversionFailed(path)
             }
-            try data.write(to: dest.url)
             return
         }
 
-        guard let dst = CGImageDestinationCreateWithURL(dest.url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else {
+        guard let dst = CGImageDestinationCreateWithURL(dest.url as CFURL, type.identifier as CFString, 1, nil) else {
             throw ClopError.conversionFailed(path)
         }
         props[kCGImageDestinationPreserveGainMap] = true
@@ -1567,8 +1805,28 @@ class Image: CustomStringConvertible {
         }
     }
 
-    /// Re-encodes an HDR JPEG through ImageIO at the quality jpegoptim would have aimed for, keeping its
-    /// gain map. Metadata is handled in the same pass, so exiftool never touches the file.
+    private func luminance(of path: FilePath, maxPixelSize: Int) -> (pixels: [UInt8], width: Int, height: Int)? {
+        guard let src = CGImageSourceCreateWithURL(path.url as CFURL, nil) else { return nil }
+        var options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        if #available(macOS 14, *) {
+            options[kCGImageSourceDecodeRequest] = kCGImageSourceDecodeToSDR
+        }
+        guard let image = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary),
+              let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let data = context.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        let pixels = (0 ..< image.height).flatMap { row in UnsafeBufferPointer(start: data + row * context.bytesPerRow, count: image.width) }
+        return (pixels, image.width, image.height)
+    }
+
+    /// Optimises an HDR JPEG the way jpegoptim treats any other: re-encoded (through ImageIO, which keeps the
+    /// gain map) only when saved above the quality limit, then the lossless pass. A photo already below the
+    /// limit, like a download or one Clop optimised before, keeps its pixels.
     private func optimiseGainMapJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool?) throws -> Image {
         let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
         mainActor { optimiser.aggressive = cq.imageIsAggressive }
@@ -1580,8 +1838,15 @@ class Image: CustomStringConvertible {
         }
         try? tempFile.delete()
         let backup = (path.clopBackupPath?.exists ?? false) ? path.clopBackupPath : path.backup(path: path.clopBackupPath, operation: .copy)
+        let stripMetadata = Defaults[.stripMetadata]
 
-        try writeHDRJPEG(to: tempFile, quality: cq.imageIOJPEGQuality, stripMetadata: Defaults[.stripMetadata], excludeResolution: retinaDownscaled)
+        if (path.jpegQualityEstimate ?? 100) > cq.jpegMaxQuality {
+            try writeHDR(to: tempFile, quality: cq.imageIOJPEGQuality, stripMetadata: stripMetadata, excludeResolution: retinaDownscaled)
+            // ImageIO doesn't optimise its Huffman tables; the lossless pass takes another 4 to 5% off.
+            losslessGainMapJPEG(from: tempFile, to: tempFile, optimiser: optimiser)
+        } else if !losslessGainMapJPEG(from: path, to: tempFile, stripMetadata: stripMetadata, excludeResolution: retinaDownscaled, optimiser: optimiser) {
+            try writeHDR(to: tempFile, quality: cq.imageIOJPEGQuality, stripMetadata: stripMetadata, excludeResolution: retinaDownscaled)
+        }
         tempFile.copyScreenCaptureXattrs(from: backup ?? path)
         if Defaults[.preserveDates] {
             tempFile.copyCreationModificationDates(from: backup ?? path)
@@ -1592,6 +1857,75 @@ class Image: CustomStringConvertible {
 
         try tempFile.setOptimisationStatusXattr("true")
         return Image(data: data, path: tempFile, type: .jpeg, optimised: true, retinaDownscaled: retinaDownscaled)
+    }
+
+    /// jpegoptim's lossless pass over the main image of an HDR JPEG, with the gain map put back behind it.
+    /// jpegoptim keeps only the first image, but it copies the MPF index that lists the others, so they go
+    /// back at their new offsets. Writes `dest` (which can be `source`) only when the gain map survived.
+    @discardableResult
+    private func losslessGainMapJPEG(from source: FilePath, to dest: FilePath, stripMetadata: Bool = false, excludeResolution: Bool = false, optimiser: Optimiser? = nil) -> Bool {
+        guard let original = fm.contents(atPath: source.string) else { return false }
+        let workDir = FilePath.images.appending("lossless-\(UUID().uuidString.prefix(8))")
+        guard workDir.mkdir(withIntermediateDirectories: true) else { return false }
+        defer { try? fm.removeItem(atPath: workDir.string) }
+
+        #if arch(arm64)
+            let modeArgs = ["--auto-mode"]
+        #else
+            let modeArgs: [String] = []
+        #endif
+        let primary = workDir / source.name.string
+        guard let proc = try? tryProc(JPEGOPTIM.string, args: ["--keep-all", "--force"] + modeArgs + ["--dest", workDir.string, source.string], tries: 2, beforeWait: { proc in
+            if let optimiser {
+                mainActor { optimiser.processes = [proc] }
+            }
+        }), proc.terminationStatus == 0, primary.exists else {
+            return false
+        }
+
+        // The metadata goes from the main image alone, before the gain map is back: exiftool -all= would also
+        // delete the MPF index, and Apple gain maps from before the iPhone 15 still need maker note tags 33
+        // and 48, which exiftool can only copy as a whole maker note. A 1 pixel JPEG carries just those two.
+        let headroom = source.appleHDRHeadroomTags
+        if stripMetadata || excludeResolution {
+            var args = [EXIFTOOL.string, "-overwrite_original", "-m"]
+            if stripMetadata {
+                args += ["-EXIF:all=", "-XMP:all=", "-IPTC:all=", "-Photoshop:all=", "-tagsFromFile", "@", "-Orientation"] + RESOLUTION_TAGS + COLOUR_TAGS
+                args += ["-XMP-hdrgm:all", "-XMP-GContainer:all"]
+                if headroom.isNotEmpty, let carrier = headroomCarrier(headroom, in: workDir) {
+                    args += ["-tagsFromFile", carrier.string, "-MakerNotes"]
+                }
+            }
+            if excludeResolution {
+                args += ["-XResolution=72", "-YResolution=72"]
+            }
+            guard shell("/usr/bin/perl", args: args + [primary.string], wait: true).success else { return false }
+        }
+
+        guard let primaryData = fm.contents(atPath: primary.string),
+              let combined = JPEGMarkers.reattachingMPFImages(to: [UInt8](primaryData), from: [UInt8](original))
+        else {
+            log.debug("Can't put the gain map back behind \(source.string)'s main image")
+            return false
+        }
+        let result = workDir / "combined.jpg"
+        guard fm.createFile(atPath: result.string, contents: Data(combined)), result.hasGainMap,
+              headroom.isEmpty || result.appleHDRHeadroomTags.isNotEmpty
+        else {
+            log.debug("\(source.string) lost its gain map in jpegoptim's lossless pass")
+            return false
+        }
+        return (try? result.move(to: dest, force: true)) != nil
+    }
+
+    private func headroomCarrier(_ tags: [String: Any], in dir: FilePath) -> FilePath? {
+        let carrier = dir / "headroom.jpg"
+        guard let context = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+              let pixel = context.makeImage(),
+              let dst = CGImageDestinationCreateWithURL(carrier.url as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(dst, pixel, [kCGImagePropertyMakerAppleDictionary: tags] as CFDictionary)
+        return CGImageDestinationFinalize(dst) ? carrier : nil
     }
 
     /// ffmpeg `-vf` chain for an animated WebP pass, mirroring the resize and crop decisions

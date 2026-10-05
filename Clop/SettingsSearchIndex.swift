@@ -280,6 +280,12 @@ enum SettingsSearchIndex {
             subtitle: "Compression factors above 80% drop every 4th, 3rd or 2nd frame of animated GIFs. The animation can either play faster with the remaining frames, or keep its duration by showing each frame longer",
             keywords: ["gif", "animation", "frames", "drop", "choppy", "smooth"], tab: .images, section: "Optimisation rules"
         ),
+        SettingEntry(
+            id: "images.optimisationrules.convertHDRToSDR", keys: ["convertHDRToSDR"],
+            title: "Convert HDR to SDR",
+            subtitle: "",
+            keywords: ["hdr", "sdr", "gain map", "xdr", "highlights", "brightness", "tone mapping", "file size"], tab: .images, section: "Optimisation rules"
+        ),
 
         SettingEntry(
             id: "dropzone.dropzone.enableDragAndDrop", keys: ["enableDragAndDrop"],
