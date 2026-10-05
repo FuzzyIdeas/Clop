@@ -3296,6 +3296,15 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Copy deep link") {
+                            let link = SettingsURL.link(to: entry)
+                            withGeneralPasteboard { pb in
+                                pb.clearContents()
+                                pb.setString(link, forType: .string)
+                            }
+                        }
+                    }
                 }
             }
         }
