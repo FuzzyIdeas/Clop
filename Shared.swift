@@ -485,9 +485,18 @@ extension CompressionQuality {
     }
 
     /// ImageIO JPEG quality for the images jpegoptim can't touch (an HDR gain map would be lost).
-    /// ImageIO's scale runs lower than libjpeg's: 0.51 gives the file size jpegoptim's 85 does.
+    /// ImageIO's scale runs lower than libjpeg's: 0.51 gives the file size and PSNR jpegoptim's 85 does.
     var imageIOJPEGQuality: Double {
         Swift.max(0.1, Swift.min(0.9, Double(jpegMaxQuality) * 0.006))
+    }
+
+    /// ImageIO HEIC and AVIF quality for HDR conversions, which heif-enc would turn SDR. Each matches the
+    /// PSNR heif-enc reaches at `conversionQuality` on iPhone photos; ImageIO's HEIC tops out at 0.8.
+    var imageIOHEICQuality: Double {
+        Swift.max(0.1, Swift.min(1, Double(conversionQuality) / 75))
+    }
+    var imageIOAVIFQuality: Double {
+        Swift.max(0.1, Swift.min(1, 0.15 + Double(conversionQuality) / 100))
     }
 
     /// cwebp / heif-enc -q quality (0-100). factor 30 -> 60 (legacy hardcoded default).

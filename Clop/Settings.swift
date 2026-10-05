@@ -144,6 +144,9 @@ extension Defaults.Keys {
     static let useAggressiveOptimisationGIF = Key<Bool>("useAggressiveOptimisationGIF", default: false)
     /// What happens to GIF timing when high compression factors (80+) drop animation frames.
     static let gifFrameDropBehaviour = Key<GIFFrameDropBehaviour>("gifFrameDropBehaviour", default: .playFaster)
+    /// Drops the gain map of HDR photos (or tone maps PQ and HLG ones) when optimising, converting, downscaling
+    /// or cropping them: smaller files that look the same on every screen, without the brighter highlights.
+    static let convertHDRToSDR = Key<Bool>("convertHDRToSDR", default: false)
     /// Unified per-format compression value (tier + 5..100 factor). Source of truth for the
     /// compression slider; legacy aggressive/adaptive keys above are kept readable for back-compat.
     static let imageCompression = Key<CompressionQuality>("imageCompression", default: CompressionQuality(tier: .custom, factor: COMPRESSION_FACTOR_NORMAL))
@@ -460,6 +463,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .targetVideoFPS,
     .useAggressiveOptimisationGIF,
     .gifFrameDropBehaviour,
+    .convertHDRToSDR,
     .useAggressiveOptimisationJPEG,
     .useAggressiveOptimisationMP4,
     .pdfDPI,

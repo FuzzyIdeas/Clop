@@ -81,6 +81,7 @@ enum MCPSettingsBridge {
             .gifFrameDropBehaviour,
             [("playFaster", .playFaster), ("keepDuration", .keepDuration)]
         ),
+        bool("convertHDRToSDR", .convertHDRToSDR),
         rawValue("photoCropOrientation", .photoCropOrientation),
 
         // Audio
