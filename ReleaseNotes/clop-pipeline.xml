@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE language>
+<!-- Highlights Clop pipelines in release notes: a ```pipeline (or ```clop) code block.
+     Pandoc reads it through --syntax-definition in the Makefile. -->
+<language name="Clop" section="Other" extensions="*.clop;*.pipeline" version="1" kateversion="5.0" casesensitive="1">
+  <highlighting>
+    <list name="control">
+      <item>if</item>
+      <item>ifNot</item>
+      <item>fork</item>
+    </list>
+    <list name="constants">
+      <item>true</item>
+      <item>false</item>
+    </list>
+    <contexts>
+      <context name="Normal" attribute="Normal Text" lineEndContext="#stay">
+        <DetectSpaces/>
+        <Detect2Chars char="-" char1="&gt;" attribute="Arrow"/>
+        <DetectChar char="→" attribute="Arrow"/>
+        <DetectChar char="#" attribute="Comment" context="Comment"/>
+        <DetectChar char="&quot;" attribute="String" context="String"/>
+        <keyword String="control" attribute="Control"/>
+        <keyword String="constants" attribute="Value"/>
+        <RegExpr String="[A-Za-z_][A-Za-z0-9_]*(?=\s*\()" attribute="Step"/>
+        <RegExpr String="[A-Za-z_][A-Za-z0-9_]*(?=\s*:)" attribute="Label"/>
+        <RegExpr String="[0-9]+(\.[0-9]+)?(x[0-9]+)?(%|[a-zA-Z]+)?\b" attribute="Number"/>
+        <RegExpr String="[A-Za-z_][A-Za-z0-9_.]*" attribute="Value"/>
+      </context>
+      <context name="String" attribute="String" lineEndContext="#pop">
+        <RegExpr String="%[a-zA-Z]|\{[A-Za-z]+\}" attribute="Placeholder"/>
+        <Detect2Chars char="\" char1="&quot;" attribute="String"/>
+        <DetectChar char="&quot;" attribute="String" context="#pop"/>
+      </context>
+      <context name="Comment" attribute="Comment" lineEndContext="#pop"/>
+    </contexts>
+    <itemDatas>
+      <itemData name="Normal Text" defStyleNum="dsNormal"/>
+      <itemData name="Arrow" defStyleNum="dsControlFlow"/>
+      <itemData name="Control" defStyleNum="dsControlFlow"/>
+      <itemData name="Step" defStyleNum="dsFunction"/>
+      <itemData name="Label" defStyleNum="dsAttribute"/>
+      <itemData name="Number" defStyleNum="dsDecVal"/>
+      <itemData name="Value" defStyleNum="dsConstant"/>
+      <itemData name="String" defStyleNum="dsString"/>
+      <itemData name="Placeholder" defStyleNum="dsSpecialChar"/>
+      <itemData name="Comment" defStyleNum="dsComment"/>
+    </itemDatas>
+  </highlighting>
+  <general>
+    <comments>
+      <comment name="singleLine" start="#"/>
+    </comments>
+    <keywords casesensitive="1"/>
+  </general>
+</language>
