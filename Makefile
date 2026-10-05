@@ -115,7 +115,7 @@ CHANGELOG.md: $(RELEASE_NOTES_FILES)
 	tail -n +1 $$(ls ReleaseNotes/*.md | egrep '/[0-9]+(\.[0-9]+)*\.md$$' $(if $(BETA),| egrep -v '/$(VERSION)\.md$$') | sort -Vr) | sd '==> ReleaseNotes/(.+)\.md <==' '# $$1\n\n**[Download Clop $$1 →](https://files.lowtechguys.com/releases/Clop-$$1.dmg)**' > CHANGELOG.md
 
 Releases/changelog.html: CHANGELOG.md
-	pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop Changelog" --css https://files.lowtechguys.com/release.css --include-in-header=ReleaseNotes/changelog-head.html CHANGELOG.md
+	pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop Changelog" --css https://files.lowtechguys.com/release.css --syntax-definition=ReleaseNotes/clop-pipeline.xml --include-in-header=ReleaseNotes/changelog-head.html CHANGELOG.md
 
 changelog: Releases/changelog.html
 
@@ -150,9 +150,9 @@ Releases/Clop-%.html: ReleaseNotes/$(VERSION)*.md $(if $(INCLUDE_RELEASES),FORCE
 	@echo Compiling $(filter-out FORCE,$^) $(INCLUDE_RELEASES) to $@
 	@for v in $(subst /, ,$(INCLUDE_RELEASES)); do test -f "ReleaseNotes/$$v.md" || { echo "INCLUDE_RELEASES: no ReleaseNotes/$$v.md"; exit 1; }; done
 ifneq (, $(BETA))
-	{ cat $(shell ls -t ReleaseNotes/$(VERSION)*.md); for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css
+	{ cat $(shell ls -t ReleaseNotes/$(VERSION)*.md); for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css --syntax-definition=ReleaseNotes/clop-pipeline.xml
 else
-	{ cat ReleaseNotes/$(VERSION).md; for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css
+	{ cat ReleaseNotes/$(VERSION).md; for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css --syntax-definition=ReleaseNotes/clop-pipeline.xml
 endif
 
 .PHONY: FORCE
