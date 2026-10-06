@@ -332,6 +332,25 @@ blockquote > :first-child {
 blockquote > :last-child {
     margin-bottom: 0;
 }
+/* Several sub-points in one well read as a list: each takes a dot on a hanging indent, so a line
+   that wraps stays under its own text and the next point starts clearly apart from it. */
+blockquote:has(> p + p) {
+    padding-left: 1.55rem;
+}
+blockquote:has(> p + p) > p {
+    position: relative;
+    margin: 0.5rem 0;
+}
+blockquote:has(> p + p) > p::before {
+    content: "";
+    position: absolute;
+    top: 0.6em;
+    left: -0.85rem;
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 50%;
+    background: var(--mid, var(--muted));
+}
 
 code, pre, kbd {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;

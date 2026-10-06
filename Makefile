@@ -19,6 +19,10 @@ FULL_VERSION:=$(VERSION)
 endif
 
 RELEASE_NOTES_FILES := $(wildcard ReleaseNotes/*.md)
+# Browsers keep release.css for about 12 days, so pages link it with a hash of the live copy and
+# load a new stylesheet as soon as they are rebuilt.
+RELEASE_CSS_URL := https://files.lowtechguys.com/release.css
+RELEASE_CSS = $(RELEASE_CSS_URL)?v=$(shell curl -fsS $(RELEASE_CSS_URL) | md5 -q | cut -c1-8)
 ENV=Release
 DERIVED_DATA_DIR=$(shell ls -td $$HOME/Library/Developer/Xcode/DerivedData/Clop-* | head -1)
 # Sparkle's generate_appcast ships as an SPM binary artifact, not on PATH. Resolve
@@ -115,7 +119,7 @@ CHANGELOG.md: $(RELEASE_NOTES_FILES)
 	tail -n +1 $$(ls ReleaseNotes/*.md | egrep '/[0-9]+(\.[0-9]+)*\.md$$' $(if $(BETA),| egrep -v '/$(VERSION)\.md$$') | sort -Vr) | sd '==> ReleaseNotes/(.+)\.md <==' '# $$1\n\n**[Download Clop $$1 →](https://files.lowtechguys.com/releases/Clop-$$1.dmg)**' > CHANGELOG.md
 
 Releases/changelog.html: CHANGELOG.md
-	pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop Changelog" --css https://files.lowtechguys.com/release.css --syntax-definition=ReleaseNotes/clop-pipeline.xml --include-in-header=ReleaseNotes/changelog-head.html CHANGELOG.md
+	pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop Changelog" --css "$(RELEASE_CSS)" --syntax-definition=ReleaseNotes/clop-pipeline.xml --include-in-header=ReleaseNotes/changelog-head.html CHANGELOG.md
 
 changelog: Releases/changelog.html
 
@@ -150,9 +154,9 @@ Releases/Clop-%.html: ReleaseNotes/$(VERSION)*.md $(if $(INCLUDE_RELEASES),FORCE
 	@echo Compiling $(filter-out FORCE,$^) $(INCLUDE_RELEASES) to $@
 	@for v in $(subst /, ,$(INCLUDE_RELEASES)); do test -f "ReleaseNotes/$$v.md" || { echo "INCLUDE_RELEASES: no ReleaseNotes/$$v.md"; exit 1; }; done
 ifneq (, $(BETA))
-	{ cat $(shell ls -t ReleaseNotes/$(VERSION)*.md); for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css --syntax-definition=ReleaseNotes/clop-pipeline.xml
+	{ cat $(shell ls -t ReleaseNotes/$(VERSION)*.md); for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css "$(RELEASE_CSS)" --syntax-definition=ReleaseNotes/clop-pipeline.xml
 else
-	{ cat ReleaseNotes/$(VERSION).md; for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css https://files.lowtechguys.com/release.css --syntax-definition=ReleaseNotes/clop-pipeline.xml
+	{ cat ReleaseNotes/$(VERSION).md; for v in $(subst /, ,$(INCLUDE_RELEASES)); do echo; echo "## From v$$v"; echo; cat "ReleaseNotes/$$v.md"; done; } | pandoc -f gfm --section-divs -o $@ --standalone --metadata title="Clop $(FULL_VERSION) - Release Notes" --css "$(RELEASE_CSS)" --syntax-definition=ReleaseNotes/clop-pipeline.xml
 endif
 
 .PHONY: FORCE
