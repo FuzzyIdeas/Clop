@@ -84,6 +84,7 @@ enum ClopError: Error, CustomStringConvertible, Codable {
     case invalidPDF(FilePath)
     case couldNotCreateOutputDirectory(String)
     case folderNotWritable(FilePath)
+    case pipelineStepFailed(String)
     case unknownType
 
     var localizedDescription: String {
@@ -146,6 +147,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             return "Could not create output directory: \(location)"
         case let .folderNotWritable(folder):
             return "No permission to write in \(folder.string)"
+        case let .pipelineStepFailed(error):
+            return error
         case .unknownType:
             return "Unknown type"
         }
@@ -202,6 +205,8 @@ enum ClopError: Error, CustomStringConvertible, Codable {
             "Could not create output directory"
         case .folderNotWritable:
             "Folder is read-only"
+        case .pipelineStepFailed:
+            "Pipeline step failed"
         case .decompressingBinariesError:
             "Decompressing binaries"
         case .unknownType:
@@ -293,6 +298,9 @@ struct SettingsRequest: Codable {
     /// writes until the user has allowed them. An agent driving the CLI directly is just using the CLI,
     /// which it could always do; the gate is about the MCP surface.
     var origin: String? = nil
+    /// Steps a `gate` request is about to save or attach, so the app refuses script steps there the same
+    /// way it does for an `OptimisationRequest`.
+    var pipeline: String? = nil
 }
 
 /// One setting as an agent sees it: what it is called on screen, what it holds, and what it accepts.

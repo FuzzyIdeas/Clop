@@ -53,6 +53,7 @@ enum MCPSettingsBridge {
         // Clipboard
         bool("enableClipboardOptimiser", .enableClipboardOptimiser),
         bool("optimiseTIFF", .optimiseTIFF),
+        bool("optimiseHEICAVIFClipboard", .optimiseHEICAVIFClipboard),
         bool("optimiseImagePathClipboard", .optimiseImagePathClipboard),
         bool("optimiseVideoClipboard", .optimiseVideoClipboard),
         bool("optimiseAudioClipboard", .optimiseAudioClipboard),
@@ -559,11 +560,11 @@ extension MCPSettingsBridge {
     /// write, has allowed agent changes. A request that does not claim MCP origin is somebody using
     /// their own CLI, which needs no permission from anyone.
     @MainActor static func handle(_ req: SettingsRequest) -> SettingsResponse {
-        // `strip-exif`, `crop-pdf` and `uncrop-pdf` do their work inside the CLI and never build an
-        // `OptimisationRequest`, so the app never saw their origin and an agent could run them with
-        // Pro off and MCP off. They ask here first instead.
+        // `strip-exif`, `crop-pdf`, `uncrop-pdf` and the pipeline library commands do their work inside
+        // the CLI and never build an `OptimisationRequest`, so the app never saw their origin and an
+        // agent could run them with Pro off and MCP off. They ask here first instead.
         if req.action == .gate {
-            if let refusal = mcpRefusal(origin: req.origin, pipeline: nil) {
+            if let refusal = mcpRefusal(origin: req.origin, pipeline: req.pipeline) {
                 return SettingsResponse(ok: false, error: refusal)
             }
             return SettingsResponse(ok: true)

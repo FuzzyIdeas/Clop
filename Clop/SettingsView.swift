@@ -2723,6 +2723,7 @@ struct EditorAppRow: View {
 
 struct ClipboardSettingsView: View {
     @Default(.optimiseTIFF) var optimiseTIFF
+    @Default(.optimiseHEICAVIFClipboard) var optimiseHEICAVIFClipboard
     @Default(.optimiseVideoClipboard) var optimiseVideoClipboard
     @Default(.optimiseAudioClipboard) var optimiseAudioClipboard
     @Default(.optimisePDFClipboard) var optimisePDFClipboard
@@ -2767,6 +2768,10 @@ struct ClipboardSettingsView: View {
                             + Text("\nUsually from graphical design apps, sometimes better left alone").round(11, weight: .regular).foregroundColor(.secondary)
                     }
                     .searchAnchor("clipboard.clipboard.optimiseTIFF", namesControl: true)
+                    Toggle(isOn: $optimiseHEICAVIFClipboard) {
+                        Text("HEIC and AVIF data").regular(13)
+                    }
+                    .searchAnchor("clipboard.clipboard.optimiseHEICAVIFClipboard", namesControl: true)
                     Toggle(isOn: $optimiseImagePathClipboard) {
                         Text("Image files").regular(13)
                             + Text("\nCopying images from Finder results in file paths instead of image data").round(11, weight: .regular).foregroundColor(.secondary)

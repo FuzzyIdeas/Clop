@@ -183,13 +183,15 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
         if let ext = img.path.extension, let named = UTType(filenameExtension: ext), !img.type.conforms(to: named) {
             log.warning("\(pathString) is named .\(ext) but holds \(img.type.identifier) data")
         }
-        // Conversion can spawn an external encoder (e.g. `toGainMapHDR` for HDR HEIC→JPEG) and decode
-        // the result with NSImage; run it off the main actor so a large/HDR image doesn't block the
-        // main thread for tens of seconds and trip the ANR watchdog. The transparency check decodes
-        // every pixel's alpha, so it runs there too.
+        // Conversion can re-encode an HDR photo with its gain maps and decode the result with NSImage;
+        // run it off the main actor so a large/HDR image doesn't block the main thread for tens of
+        // seconds and trip the ANR watchdog. The transparency check decodes every pixel's alpha, so it
+        // runs there too.
         let imageToConvert = img
+        let preregistered = opt(id ?? pathString)
+        let keepHDR = hdrAllowed(optimiser: preregistered, cq: compression ?? preregistered?.compressionOverride)
         let converted = try await Task.detached {
-            try imageToConvert.convert(to: imageToConvert.formatKeepingTransparency(autoConversionFormat), asTempFile: true)
+            try imageToConvert.convert(to: imageToConvert.formatKeepingTransparency(autoConversionFormat), asTempFile: true, keepHDR: keepHDR)
         }.value
         // The optimiser may already be pre-registered in OM by the CLI request handler so
         // placementOverride is available here, before the optimiser is formally set up below.
@@ -321,7 +323,7 @@ func decrementedDownscaleFactor(_ factor: Double) -> Double {
 
                     switch action {
                     case let .convert(format):
-                        var converted = try ci.convert(to: format, asTempFile: true, cq: optimiser.compressionOverride)
+                        var converted = try ci.convert(to: format, asTempFile: true, cq: optimiser.compressionOverride, keepHDR: hdrAllowed(optimiser: optimiser, cq: optimiser.compressionOverride))
 
                         // JPEG/PNG/GIF leave `convert` at maximum quality because the system encoder
                         // has no quality knob, so compress them here to honour the compression

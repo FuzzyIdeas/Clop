@@ -300,6 +300,11 @@ struct RightClickMenuView: View {
             .keyboardShortcut("a")
             .disabled(optimiser.aggressive)
         }
+        if optimiser.canConvertHDRToSDR() {
+            Button("Convert HDR to SDR") {
+                optimiser.convertHDRToSDR()
+            }
+        }
     }
 
     /// Submenu transforms, grouped after `editButtons`. The conversion submenus live here too (moved from
@@ -501,6 +506,16 @@ struct BatchRightClickMenuView: View {
             sm.selection = []
         }
         .disabled(optimisers.allSatisfy(\.aggressive))
+
+        let hdrOptimisers = optimisers.filter { $0.canConvertHDRToSDR() }
+        if hdrOptimisers.isNotEmpty {
+            Button("Convert HDR to SDR") {
+                for optimiser in hdrOptimisers {
+                    optimiser.convertHDRToSDR()
+                }
+                sm.selection = []
+            }
+        }
 
         Divider()
 

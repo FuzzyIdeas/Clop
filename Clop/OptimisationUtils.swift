@@ -381,6 +381,9 @@ enum TempPipelineSegment {
     /// Set on the main actor (the slider) and read by the background encode; the per-id in-flight
     /// pipeline is terminated before a new encode starts, so there is no concurrent read+write.
     nonisolated(unsafe) var compressionOverride: CompressionQuality?
+    /// Set from the right-click menu to turn this result's HDR photo SDR; read by the background encode
+    /// the same way as `compressionOverride`.
+    nonisolated(unsafe) var hdrToSDR = false
     /// Ingest-detected codec of the CURRENT file, display-only (chip badge + convert-target
     /// exclusion). Behaviour keys off `type`, which only changes for Clop-made conversions:
     /// retyping arrivals would e.g. strip the crop button from an incoming HEVC mp4.
@@ -392,7 +395,6 @@ enum TempPipelineSegment {
     /// The frame choice of the speed change above, so a later downscale re-encodes it the same way.
     var changePlaybackSpeedFrames: PlaybackSpeedFrameBehaviour?
     @Published var aggressive = false
-
     /// Accumulated pipeline of all actions on this item (processing + file ops).
     /// Processing steps within encoding groups are compiled into single ffmpeg passes.
     var tempPipeline: [PipelineStep] = []
@@ -1893,28 +1895,33 @@ enum TempPipelineSegment {
     func reoptimise(compression cq: CompressionQuality) {
         guard !inRemoval, !isPreview else { return }
         compressionOverride = cq
-        // Compile the per-result operations into the temp pipeline so they always re-run from the
-        // pristine original in a single pass (optimise [+ downscale]) instead of stacking encodes on
-        // top of the previous result. The image/video pipelines read `compressionOverride` for the
-        // factor; the downscale step carries the current resize.
-        // A converted result must stay converted: put the conversion (not a plain optimise, which
-        // would evict it — optimise/convert are mutually exclusive in the encoding group) into the
-        // pipeline, so the re-run re-encodes from the pristine original in the current codec/format
-        // with the new factor.
-        if tempPipeline.contains(where: { $0.stepName == "convert" }) {
-            // A convert step already in the pipeline re-runs with the new `compressionOverride`;
-            // adding a plain optimise would evict it (optimise/convert are mutually exclusive).
-        } else if let fmt = stickyConversionFormat() {
-            updateTempPipeline(with: .convert(to: fmt))
-        } else {
-            updateTempPipeline(with: .optimise())
+        rerunFromOriginal()
+    }
+
+    /// Re-runs this result from the original with its HDR photo turned SDR, and keeps it SDR through
+    /// later re-runs until the original is restored.
+    func convertHDRToSDR() {
+        guard !inRemoval, !isPreview else { return }
+        hdrToSDR = true
+        rerunFromOriginal()
+    }
+
+    /// An HDR photo Clop can re-run from its original: a JPEG, or a conversion that keeps its format.
+    func canConvertHDRToSDR() -> Bool {
+        type.isImage && (canReoptimise() || stickyConversionFormat() != nil) && isHDRImage()
+    }
+
+    /// Whether the current file is an HDR photo. The right-click menu asks on every render, so the answer
+    /// is kept per file version.
+    func isHDRImage() -> Bool {
+        guard type.isImage, let path = url?.existingFilePath else { return false }
+        let key = "\(path.string)|\(path.fileSize() ?? 0)"
+        if let hdrImageCheck, hdrImageCheck.key == key {
+            return hdrImageCheck.isHDR
         }
-        if downscaleFactor < 1 {
-            updateTempPipeline(with: .downscale(factor: downscaleFactor))
-        } else {
-            removeTempPipelineStep(named: "downscale")
-        }
-        executeTempPipeline()
+        let isHDR = path.hasGainMap || path.isPQOrHLG
+        hdrImageCheck = (key, isHDR)
+        return isHDR
     }
 
     /// Copy `path` to the location dictated by the optimised-file location setting
@@ -1995,6 +2002,7 @@ enum TempPipelineSegment {
         changePlaybackSpeedFrames = nil
         lastCropSize = nil
         aggressive = false
+        hdrToSDR = false
         resetRemover()
 
         let restore: (FilePath) -> Void = { path in
@@ -2364,9 +2372,37 @@ enum TempPipelineSegment {
         }
     }
 
+    /// The last answer of `isHDRImage`, for the file version it was asked about.
+    private var hdrImageCheck: (key: String, isHDR: Bool)?
+
     /// Memoised animated-GIF check, keyed by the url it was computed for. Cleared whenever url changes
     /// (e.g. after a video->gif conversion) so a freshly produced GIF is re-probed.
     private var animatedGIFCache: (url: URL, value: Bool)?
+
+    private func rerunFromOriginal() {
+        // Compile the per-result operations into the temp pipeline so they always re-run from the
+        // pristine original in a single pass (optimise [+ downscale]) instead of stacking encodes on
+        // top of the previous result. The image/video pipelines read `compressionOverride` for the
+        // factor; the downscale step carries the current resize.
+        // A converted result must stay converted: put the conversion (not a plain optimise, which
+        // would evict it — optimise/convert are mutually exclusive in the encoding group) into the
+        // pipeline, so the re-run re-encodes from the pristine original in the current codec/format
+        // with the new factor.
+        if tempPipeline.contains(where: { $0.stepName == "convert" }) {
+            // A convert step already in the pipeline re-runs with the new `compressionOverride`;
+            // adding a plain optimise would evict it (optimise/convert are mutually exclusive).
+        } else if let fmt = stickyConversionFormat() {
+            updateTempPipeline(with: .convert(to: fmt))
+        } else {
+            updateTempPipeline(with: .optimise())
+        }
+        if downscaleFactor < 1 {
+            updateTempPipeline(with: .downscale(factor: downscaleFactor))
+        } else {
+            removeTempPipelineStep(named: "downscale")
+        }
+        executeTempPipeline()
+    }
 
     /// The current file when it is a Clop-produced conversion output that persists alongside the original
     /// (same/specific-folder placement) — i.e. the prior format to remove on the next keep-only-last
@@ -3738,6 +3774,7 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
             o.audioBitrateOverride = bitrate
         }
         o.placementOverride = req.placement
+        o.error = nil
         return o
     }
     let (resultFile, _) = await runPipelinesAfterOptimisation(
@@ -3745,6 +3782,11 @@ func processPipelineRequestURL(_ req: OptimisationRequest, url: URL) async throw
         pipelines: [pipeline], forceHide: req.hideFloatingResult,
         copyToClipboard: false // batched at the end of processOptimisationRequest
     )
+    // A step that fails (a script exiting non-zero, a shelf app that isn't installed) stops the pipeline and
+    // leaves its error on the optimiser, which the CLI and MCP used to report as done.
+    if let error = await MainActor.run(body: { optimiser.error }) {
+        throw ClopError.pipelineStepFailed(error)
+    }
 
     return OptimisationResponse(
         path: resultFile.string, forURL: url,

@@ -949,7 +949,7 @@ final class PipelineExecution {
         var newName = context.resolve(to)
         // Re-add the extension when the template resolves without one (e.g. "%y-%m-%d_%f")
         let lastPart = newName.split(separator: "/").last.map(String.init) ?? newName
-        if !lastPart.contains("."), let ext = currentFile.extension, !ext.isEmpty {
+        if !hasFileExtension(lastPart, matching: [currentFile.extension]), let ext = currentFile.extension, !ext.isEmpty {
             newName += ".\(ext)"
         }
         let dest = currentFile.removingLastComponent().appending(newName)
@@ -1302,13 +1302,7 @@ final class PipelineExecution {
     // MARK: - App Integration Steps
 
     func handleShelveWith(app: String) async throws {
-        let shelfApp: AppIntegration? = switch app.lowercased() {
-        case "yoink": YOINK
-        case "dockside": DOCKSIDE
-        case "dropover": DROPOVER
-        case "atoll": ATOLL
-        default: nil
-        }
+        let shelfApp = SHELF_APPS.first { $0.appName.lowercased() == app.lowercased() }
         if let shelfApp {
             shelfApp.fetchAppURL()
             let available = shelfApp.waitToBeAvailable(for: 5.0)
@@ -1685,7 +1679,7 @@ final class PipelineExecution {
         }
 
         try? fm.createDirectory(atPath: dest.removingLastComponent().string, withIntermediateDirectories: true)
-        if let last = dest.lastComponent?.string, !last.contains("."),
+        if let last = dest.lastComponent?.string, !hasFileExtension(last, matching: [currentFile.extension]),
            let ext = currentFile.extension, !ext.isEmpty
         {
             dest = dest.removingLastComponent().appending("\(last).\(ext)")
