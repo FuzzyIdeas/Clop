@@ -3068,8 +3068,8 @@ func compactPipelinePromptContext(task: String?) -> String {
       rises with the speed) | drop (back to the source fps, smaller file), omitted follows the app setting.
       capFps(fps) [video]. normalize(lufs -16) [audio].
     - copy(to) / move(to) / rename(to) / delete(path)  (delete(path: "sourceFile") removes the input file).
-    - runScript(path | code): inline `code` is one line, no `->`; file is $1 / $CLOP_INPUT_FILE; a path it
-      prints replaces the file. runShortcut(name) [image,video,pdf].
+    - runScript(path | code): inline `code` is one line, no `->`; file is $1 / $CLOP_INPUT_FILE; bundled ffmpeg, gs, gifski
+      etc. are in $CLOP_BIN; a path it prints replaces the file. runShortcut(name) [image,video,pdf].
     - copyToClipboard(format path|imageData|markdown, relativeTo). copyLinkForSending(expiration 1m|15m|1h|6h|1d|3d|never).
       fork(location) surfaces a second card. shelveWith(app yoink|dockside|dropover). uploadWith(app dropshare). openWith(app).
 
@@ -3294,6 +3294,8 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
 
     ### Actions
 
+      Clop's bundled binaries (ffmpeg, gs, gifski, exiftool, pngquant…) are in $CLOP_BIN, e.g.
+      `runScript(code: "$CLOP_BIN/gs -q -sDEVICE=txtwrite -o ${1:r}.txt $1")` writes a PDF's text next to it.
     - `runScript(path)` or `runScript(code)`: run a script file/executable, or inline shell code via
       `zsh -c`. The file is passed as $1 and in $CLOP_INPUT_FILE; if the script prints a file path to
       stdout, that file replaces the one the pipeline carries forward. e.g. `runScript(code: "sips -Z 800 $1")`.

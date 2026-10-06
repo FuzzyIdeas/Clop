@@ -1080,6 +1080,8 @@ final class PipelineExecution {
             }
             task.environment = ProcessInfo.processInfo.environment.merging([
                 "CLOP_INPUT_FILE": inputPath,
+                // Clop's bundled ffmpeg, gs, gifski and the rest, so a script can reach them without knowing the install path.
+                "CLOP_BIN": BIN_DIR.path,
             ]) { _, new in new }
 
             let outPipe = Pipe()

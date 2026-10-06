@@ -583,7 +583,8 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
         create: { .changeSpeed(factor: 1.5) }
     ),
     StepTemplate(
-        name: "runScript", description: "Run a script file, executable, or inline shell code. Input file is passed as $1 and CLOP_INPUT_FILE; print a file path to stdout to swap the file the pipeline carries forward",
+        name: "runScript",
+        description: "Run a script file, executable, or inline shell code. Input file is passed as $1 and CLOP_INPUT_FILE; Clop's bundled tools (ffmpeg, gs, gifski…) are in $CLOP_BIN; print a file path to stdout to swap the file the pipeline carries forward",
         mandatoryParams: [],
         optionalParams: [
             ParamTemplate(name: "path", description: "path to a script file or executable", suggestions: [], freeText: true, needsQuotes: true),
