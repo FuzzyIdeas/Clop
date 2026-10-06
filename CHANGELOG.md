@@ -1,3 +1,54 @@
+# 3.5.0
+
+**[Download Clop 3.5.0 →](https://files.lowtechguys.com/releases/Clop-3.5.0.dmg)**
+## Features
+
+- **HDR photos** stay HDR when Clop optimises, converts, downscales or crops them
+    > iPhone HEIC photos used to turn into darker JPEGs with flat highlights
+    >
+    > Converting to HEIC or AVIF keeps the HDR too (AVIF needs macOS 15), and so does cropping on macOS 15 and later
+    >
+    > 10-bit HEIFs, like the ones an iPhone 15 Pro can save, become JPEGs that look the same on an SDR screen and keep their HDR on an XDR one
+    >
+    > Converting HDR photos to JPEG works on macOS versions older than 15.6, where it used to fail
+    >
+    > *Convert HDR to SDR* in **Settings > Images** makes smaller files without the brighter highlights, and so does compression above 75%
+    >
+    > HDR results have *Convert HDR to SDR* in their right-click menu too
+
+- **More agents for the MCP server**: install it into Codex, Copilot CLI, Gemini CLI, OpenCode and pi from Settings > MCP
+    > The Codex row covers the ChatGPT desktop app too, since both read the same config
+
+![MCP agent list](https://files.lowtechguys.com/changelog/clop/3.4.7-mcp-agents.jpeg)
+
+## Improvements
+
+- Settings search results have a *Copy deep link* item in their right-click menu, for a `clop://settings/...` link that opens Settings on that row
+
+![Copy deep link](https://files.lowtechguys.com/changelog/clop/3.4.7-settings-deep-link.png)
+
+- Script steps in pipelines get `$CLOP_BIN`, the folder with Clop's bundled ffmpeg, gs, gifski, exiftool and the rest
+    > `runScript(code: "$CLOP_BIN/gs -q -sDEVICE=txtwrite -o ${1:r}.txt $1")` saves a PDF's text next to it
+
+- Settings > Clipboard can also optimise copied HEIC and AVIF images, keeping their HDR
+
+## Fixes
+
+- HDR JPEGs from Pixel, OnePlus and vivo phones stay `.jpg` and keep their HDR, instead of becoming an SDR `.jpeg` copy
+- Pipeline locations ending in `/` save into that folder, instead of naming the file after it
+- Pipeline locations ending in `%f` keep the extension of files with dots in their name, like screenshots
+- `shelveWith(app: atoll)` is accepted in pipelines and offered in the step's suggestions
+- `clop pipeline run` and agents report a file as failed when a script step fails or a shelf app isn't installed, instead of done
+- Transparent images set to convert to JPEG become PNG instead of losing their transparency
+- Turning off *Strip EXIF Metadata* no longer stops images from being optimised
+- PNG screenshots keep their colours when metadata is stripped, instead of looking more saturated
+- iPhone photos and Adobe RGB camera JPEGs keep their colours when metadata is stripped, instead of looking less saturated
+- HDR iPhone photos converted to PNG keep their colours
+- Converting to WebP, AVIF or HEIC removes location and camera details when *Strip EXIF Metadata* is on
+- Converting to JPEG, PNG or JXL keeps a photo's metadata when *Strip EXIF Metadata* is off
+- Agents optimising files through the MCP server get the compression they ask for, on the same 5 to 100 scale as the app
+- Agents can only save pipelines or add preset zones through the MCP server with Clop Pro and *Enable MCP* turned on, like everything else they do
+
 # 3.4.6
 
 **[Download Clop 3.4.6 →](https://files.lowtechguys.com/releases/Clop-3.4.6.dmg)**
