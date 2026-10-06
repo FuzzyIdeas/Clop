@@ -108,6 +108,12 @@ enum SettingsSearchIndex {
             keywords: [], tab: .clipboard, section: "Clipboard"
         ),
         SettingEntry(
+            id: "clipboard.clipboard.optimiseHEICAVIFClipboard", keys: ["optimiseHEICAVIFClipboard"],
+            title: "HEIC and AVIF data",
+            subtitle: "",
+            keywords: ["heic", "heif", "avif", "iphone", "photos", "hdr", "copied photo"], tab: .clipboard, section: "Clipboard"
+        ),
+        SettingEntry(
             id: "clipboard.clipboard.optimiseImagePathClipboard", keys: ["optimiseImagePathClipboard"],
             title: "Image files",
             subtitle: "Copying images from Finder results in file paths instead of image data",

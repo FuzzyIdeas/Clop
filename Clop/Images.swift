@@ -51,6 +51,17 @@ let canEncodeISOGainMap = if #available(macOS 15, *) {
     false
 }
 
+/// Above this compression factor HDR is converted to SDR: the gain map costs about a third of the file,
+/// which is more than someone asking for that much compression wants to keep.
+let HDR_TO_SDR_COMPRESSION_FACTOR = 75
+
+/// Whether HDR photos stay HDR: not when the user asked for SDR, in Settings or for this file from its
+/// right-click menu, and not above `HDR_TO_SDR_COMPRESSION_FACTOR`.
+func hdrAllowed(optimiser: Optimiser?, cq: CompressionQuality?) -> Bool {
+    let cq = cq ?? effectiveImageCompression(nil, override: optimiser?.compressionOverride)
+    return !Defaults[.convertHDRToSDR] && !(optimiser?.hdrToSDR ?? false) && (cq.tier == .adaptive || cq.factor <= HDR_TO_SDR_COMPRESSION_FACTOR)
+}
+
 func isImageValid(path: FilePath) -> Bool {
     guard let image = NSImage(contentsOfFile: path.string) else {
         return false
@@ -115,6 +126,7 @@ extension NSPasteboard.PasteboardType {
     static let gif = NSPasteboard.PasteboardType(rawValue: "com.compuserve.gif")
     static let webp = NSPasteboard.PasteboardType(rawValue: "org.webmproject.webp")
     static let heic = NSPasteboard.PasteboardType(rawValue: "public.heic")
+    static let heif = NSPasteboard.PasteboardType(rawValue: "public.heif")
     static let avif = NSPasteboard.PasteboardType(rawValue: "public.avif")
     static let bmp = NSPasteboard.PasteboardType(rawValue: "com.microsoft.bmp")
     static let icon = NSPasteboard.PasteboardType(rawValue: "com.apple.icns")
@@ -344,6 +356,13 @@ func typeFromContent(of data: Data) -> UTType? {
     mimeTypeFromMagicBytes(data).flatMap { UTType(mimeType: $0) }
 }
 
+/// `typeFromContent`, kept to image types. The image initialisers consult it before `NSImage.type`: the
+/// CGImage that NSImage decodes from some gain map JPEGs (Pixel, vivo, OnePlus) reports `public.heic`, and
+/// with HEIC in the *Convert to JPEG* list those JPEGs were converted to a `.jpeg` copy before optimising.
+func imageTypeFromContent(of data: Data) -> UTType? {
+    typeFromContent(of: data).flatMap { $0.conforms(to: .image) ? $0 : nil }
+}
+
 // MARK: - Image
 
 class Image: CustomStringConvertible {
@@ -351,7 +370,7 @@ class Image: CustomStringConvertible {
         self.path = path
         self.data = data
         image = nsImage ?? NSImage(data: data)!
-        self.type = type ?? image.type ?? typeFromContent(of: data) ?? UTType(filenameExtension: path.extension ?? "") ?? .png
+        self.type = type ?? imageTypeFromContent(of: data) ?? image.type ?? UTType(filenameExtension: path.extension ?? "") ?? .png
         self.retinaDownscaled = retinaDownscaled
 
         if let optimised {
@@ -368,7 +387,7 @@ class Image: CustomStringConvertible {
             return nil
         }
 
-        let type = type ?? nsImage.type
+        let type = type ?? imageTypeFromContent(of: data) ?? nsImage.type
         let rpath: FilePath
         if let path {
             rpath = path
@@ -399,7 +418,7 @@ class Image: CustomStringConvertible {
     }
 
     init?(nsImage: NSImage, data: Data? = nil, type: UTType? = nil, optimised: Bool? = nil, retinaDownscaled: Bool, id: String? = nil) {
-        guard let type = type ?? nsImage.type, let ext = type.preferredFilenameExtension,
+        guard let type = type ?? data.flatMap(imageTypeFromContent(of:)) ?? nsImage.type, let ext = type.preferredFilenameExtension,
               let data = data ?? nsImage.data
         else { return nil }
 
@@ -531,10 +550,18 @@ class Image: CustomStringConvertible {
             let optimised = item.string(forType: .optimisationStatus) == "true"
             // GIF data is checked first: an animated GIF often rides along with a first-frame PNG/TIFF
             // preview, and preferring the preview would flatten the animation to a single still frame.
-            let dataAndType: (data: Data, type: UTType)? = [
-                (NSPasteboard.PasteboardType.gif, UTType.gif), (.png, .png), (.jpeg, .jpeg), (.tiff, .tiff),
-            ].lazy.compactMap { pbType, utType in
-                item.data(forType: pbType).map { ($0, utType) }
+            // With *HEIC and AVIF data* on, those come next for the same kind of reason: an app only puts
+            // them there when they are the original, and the TIFF the pasteboard derives from them has no
+            // gain map, so an HDR photo would come out SDR. Off by default, since a copied HEIC is usually
+            // on its way to be pasted somewhere and the Convert to JPEG list would hand it back as a JPEG;
+            // off, the pick is the same PNG, JPEG or TIFF as before the setting existed.
+            let heicAVIF: [(NSPasteboard.PasteboardType, UTType?)] = Defaults[.optimiseHEICAVIFClipboard]
+                ? [(.heic, .heic), (.heif, .heif), (.avif, .avif)]
+                : []
+            let candidates: [(NSPasteboard.PasteboardType, UTType?)] = [(.gif, .gif)] + heicAVIF + [(.png, .png), (.jpeg, .jpeg), (.tiff, .tiff)]
+            let dataAndType: (data: Data, type: UTType)? = candidates.lazy.compactMap { pbType, utType in
+                guard let utType else { return nil }
+                return item.data(forType: pbType).map { ($0, utType) }
             }.first
             let data = dataAndType?.data
 
@@ -798,15 +825,15 @@ class Image: CustomStringConvertible {
 
     func optimiseJPEG(optimiser: Optimiser, aggressiveOptimisation: Bool? = nil, testPNG: Bool = false) throws -> Image {
         // jpegoptim keeps only the first image in the file, so an HDR photo would lose its gain map. That's
-        // the point when the user asked for SDR.
+        // the point when HDR is converted to SDR.
+        let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
         let gainMap = path.hasGainMap
-        if gainMap, !Defaults[.convertHDRToSDR] {
+        if gainMap, hdrAllowed(optimiser: optimiser, cq: cq) {
             return try optimiseGainMapJPEG(optimiser: optimiser, aggressiveOptimisation: aggressiveOptimisation)
         }
         let backupPath = path.clopBackupPath
         var tempFile = FilePath.images.appending(path.lastComponent?.string ?? "clop.jpg")
 
-        let cq = effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride)
         let aggressive = cq.imageIsAggressive
         mainActor { optimiser.aggressive = aggressive }
 
@@ -1068,7 +1095,8 @@ class Image: CustomStringConvertible {
         let resizedPath = pathForResize.dir / "\(pathForResize.stem ?? pathForResize.name.string)_\(sizeStr).\(ext)"
 
         let keepsAspect = cropSize.cropRect == nil && abs(size.width / size.height - self.size.width / self.size.height) < 0.01
-        let hdrCropSize = hdrCropSize(of: pathForResize)
+        let keepHDR = hdrAllowed(optimiser: optimiser, cq: effectiveImageCompression(aggressiveOptimisation, override: optimiser.compressionOverride))
+        let hdrCropSize = keepHDR ? hdrCropSize(of: pathForResize) : nil
         if let cropRect = cropSize.cropRect, !cropRect.isFullFrame {
             // vipsthumbnail only supports centre/attention crops, arbitrary rects go through CoreGraphics
             if #available(macOS 15, *), let hdrCropSize {
@@ -1076,7 +1104,7 @@ class Image: CustomStringConvertible {
             } else {
                 try cropWithCGImage(source: pathForResize, dest: resizedPath, cropRect: cropRect, targetSize: size)
             }
-        } else if type == .jpeg, keepsAspect, !Defaults[.convertHDRToSDR], pathForResize.hasAppleGainMap, let resizeSource = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
+        } else if type == .jpeg, keepsAspect, keepHDR, pathForResize.hasAppleGainMap, let resizeSource = Image(path: pathForResize, retinaDownscaled: retinaDownscaled) {
             // vipsthumbnail keeps only the main image, so an HDR photo would come out SDR. ImageIO scales an
             // Apple gain map along with it; the optimise step below sets the final quality and metadata.
             try resizeSource.writeHDR(to: resizedPath, quality: 0.95, maxPixelSize: max(size.width, size.height).evenInt, stripMetadata: false)
@@ -1183,7 +1211,7 @@ class Image: CustomStringConvertible {
     /// The photo's displayed size (turned by its orientation) when a crop of it can keep its HDR: a JPEG with
     /// a gain map, which is cut along with it from macOS 15.
     func hdrCropSize(of source: FilePath) -> NSSize? {
-        guard type == .jpeg, canEncodeISOGainMap, !Defaults[.convertHDRToSDR], source.hasGainMap,
+        guard type == .jpeg, canEncodeISOGainMap, source.hasGainMap,
               let src = CGImageSourceCreateWithURL(source.url as CFURL, nil),
               let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
               let width = props[kCGImagePropertyPixelWidth] as? Int, let height = props[kCGImagePropertyPixelHeight] as? Int
@@ -1319,7 +1347,10 @@ class Image: CustomStringConvertible {
             kCGImagePropertyDPIHeight,
         ].contains($0.key) }
         properties[kCGImageDestinationLossyCompressionQuality] = 0.95
-        guard writeGainMapImage(from: src, to: dest, as: .jpeg, orientation: orientation, rect: rect, size: size, properties: properties) else {
+        // A gain map ImageIO decodes without handing out its pixels (the vivo X300 Pro's) is derived by Core Image.
+        guard writeGainMapImage(from: src, to: dest, as: .jpeg, orientation: orientation, rect: rect, size: size, properties: properties)
+            || derivedGainMapImage(from: src).map({ writeGainMapImage(from: $0, to: dest, as: .jpeg, orientation: orientation, rect: rect, size: size, gainMapScale: 0.5, properties: properties) }) == true
+        else {
             throw ClopError.downscaleFailed(source)
         }
     }
@@ -1608,16 +1639,19 @@ class Image: CustomStringConvertible {
         return Image(data: data, path: finalPath, nsImage: img, type: type, retinaDownscaled: retinaDownscaled)
     }
 
-    /// Whether converting to `type` keeps this photo's HDR. ImageIO writes gain maps into JPEG and HEIC, and
+    /// Whether converting to `type` can keep this photo's HDR. ImageIO writes gain maps into JPEG and HEIC, and
     /// into AVIF from macOS 15, which is also when Core Image can turn PQ and HLG pixels into one.
-    func keepsHDR(convertingTo type: UTType) -> Bool {
-        guard !Defaults[.convertHDRToSDR], type == .jpeg || type == .heic || (type == .avif && canEncodeISOGainMap) else {
+    func canKeepHDR(convertingTo type: UTType) -> Bool {
+        guard type == .jpeg || type == .heic || (type == .avif && canEncodeISOGainMap) else {
             return false
         }
         return path.hasGainMap || (canEncodeISOGainMap && path.isPQOrHLG)
     }
 
-    func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil, cq: CompressionQuality? = nil) throws -> Image {
+    /// `keepHDR` overrides `hdrAllowed` for callers whose optimiser can't be passed, since an optimiser also
+    /// makes this optimise the converted file.
+    func convert(to type: UTType, asTempFile: Bool, optimiser: Optimiser? = nil, cq: CompressionQuality? = nil, keepHDR: Bool? = nil) throws -> Image {
+        let keepHDR = keepHDR ?? hdrAllowed(optimiser: optimiser, cq: cq)
         guard let ext = type.preferredFilenameExtension else {
             throw ClopError.unknownImageType(path)
         }
@@ -1630,7 +1664,7 @@ class Image: CustomStringConvertible {
 
         switch type {
         case .avif:
-            if keepsHDR(convertingTo: type) {
+            if keepHDR, canKeepHDR(convertingTo: type) {
                 return try convertHDRToHEIF(as: type, asTempFile: asTempFile, cq: cq)
             }
             guard self.type == .png || self.type == .jpeg else {
@@ -1649,7 +1683,7 @@ class Image: CustomStringConvertible {
             }
             return try convertToWEBP(asTempFile: asTempFile, cq: cq)
         case .heic:
-            if keepsHDR(convertingTo: type) {
+            if keepHDR, canKeepHDR(convertingTo: type) {
                 return try convertHDRToHEIF(as: type, asTempFile: asTempFile, cq: cq)
             }
             guard self.type == .png || self.type == .jpeg else {
@@ -1662,7 +1696,7 @@ class Image: CustomStringConvertible {
         case .gif where path.isAnimatedWebP:
             return try convertAnimatedWebPToGIF(asTempFile: asTempFile)
         default:
-            if type == .jpeg, keepsHDR(convertingTo: .jpeg) {
+            if type == .jpeg, keepHDR, canKeepHDR(convertingTo: .jpeg) {
                 return try convertHDRToJPEG(asTempFile: asTempFile, optimiser: optimiser)
             }
             let convPath = path.tempFile(ext: ext)
@@ -1725,7 +1759,10 @@ class Image: CustomStringConvertible {
         // redrawn rather than carried over by ImageIO.
         let upright = type == .avif && orientation != .up
         let pq = path.isPQOrHLG
-        let redraw = pq || upright
+        // PreserveGainMap writes an image whose only gain map is an ISO one (Android's Ultra HDR JPEGs, or an
+        // iPhone photo another app saved again) without it, as SDR, so those are redrawn too.
+        let isoOnly = !pq && path.hasGainMap && !path.hasAppleGainMap
+        let redraw = pq || upright || isoOnly
 
         var props: [CFString: Any] = [:]
         if stripMetadata {
@@ -1789,7 +1826,10 @@ class Image: CustomStringConvertible {
                 gainMapSource = derived
             }
             props[kCGImageDestinationImageMaxPixelSize] = nil
-            guard writeGainMapImage(from: gainMapSource, to: dest, as: type, orientation: upright ? orientation : .up, size: size, gainMapScale: pq ? 0.5 : 1, properties: props) else {
+            let written = writeGainMapImage(from: gainMapSource, to: dest, as: type, orientation: upright ? orientation : .up, size: size, gainMapScale: pq ? 0.5 : 1, properties: props)
+            // ImageIO decodes the vivo X300 Pro's ISO gain map but doesn't hand out its pixels, so Core Image
+            // derives one, as it does for PQ.
+            guard written || (isoOnly && derivedGainMapImage(from: src).map { writeGainMapImage(from: $0, to: dest, as: type, orientation: upright ? orientation : .up, size: size, gainMapScale: 0.5, properties: props) } == true) else {
                 throw ClopError.conversionFailed(path)
             }
             return

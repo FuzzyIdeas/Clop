@@ -513,7 +513,15 @@ func mimeTypeFromMagicBytes(_ data: Data) -> String? {
     if str(4, 4) == "ftyp", let brand = str(8, 4)?.trimmingCharacters(in: .whitespaces).lowercased() {
         switch brand {
         case "heic", "heix", "hevc", "hevx", "heim", "heis": return "image/heic"
-        case "mif1", "msf1": return "image/heif"
+        case "mif1", "msf1":
+            // A generic major brand: the compatible brands after it say what the image is encoded with.
+            // Without this a HEIC whose encoder led with mif1 counted as HEIF and skipped Convert to JPEG.
+            let boxEnd = min(b.count, Int(b[0]) << 24 | Int(b[1]) << 16 | Int(b[2]) << 8 | Int(b[3]))
+            let compatible = stride(from: 16, to: boxEnd - 3, by: 4).compactMap { str($0, 4)?.lowercased() }
+            if compatible.contains(where: { ["heic", "heix", "hevc", "hevx"].contains($0) }) {
+                return "image/heic"
+            }
+            return compatible.contains(where: { ["avif", "avis"].contains($0) }) ? "image/avif" : "image/heif"
         case "avif", "avis": return "image/avif"
         case "qt": return "video/quicktime"
         case "m4v", "m4vp": return "video/x-m4v"

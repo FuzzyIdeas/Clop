@@ -657,13 +657,9 @@ let ALL_STEP_TEMPLATES: [StepTemplate] = [
             ParamTemplate(
                 name: "app",
                 description: "shelf app to send to",
-                suggestions: ["yoink", "dockside", "dropover"],
+                suggestions: SHELVE_WITH_APPS.map(\.key),
                 freeText: false,
-                valueDescriptions: [
-                    "yoink": "Yoink shelf app",
-                    "dockside": "Dockside shelf app",
-                    "dropover": "Dropover shelf app",
-                ]
+                valueDescriptions: Dictionary(uniqueKeysWithValues: SHELVE_WITH_APPS.map { ($0.key, $0.value) })
             ),
         ],
         optionalParams: [],
@@ -887,7 +883,7 @@ func parsePipelineStep(_ text: String) -> PipelineStep? {
         return .fork(location: params["location"])
 
     case "shelveWith":
-        guard let app = params["app"], ["yoink", "dockside", "dropover"].contains(app.lowercased()) else { return nil }
+        guard let app = params["app"], SHELVE_WITH_APPS.contains(where: { $0.key == app.lowercased() }) else { return nil }
         return .shelveWith(app: app.lowercased())
 
     case "uploadWith":

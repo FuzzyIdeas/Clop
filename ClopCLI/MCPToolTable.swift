@@ -44,7 +44,7 @@ extension MCPServer {
 
 extension MCPServer {
     /// Clop asks the user only for real ambiguity, and there are exactly three cases: "make it smaller"
-    /// is compression or resolution or both, a size or quality with no number in it, and a video
+    /// is compression or resolution or both, a size or compression with no number in it, and a video
     /// speed-up that doesn't say what happens to the frames. A tool that already knows what to do
     /// never stops to ask.
     static let smallerSchema: [String: Any] = [
@@ -61,16 +61,17 @@ extension MCPServer {
                 ],
                 "default": "compression",
             ],
-            "quality": [
+            // Clop's own scale, the one the compression slider and every other tool use. No default:
+            // left empty, Clop's compression setting applies.
+            "compression": [
                 "type": "integer",
-                "title": "Quality",
-                "description": "Lower is smaller. 80 is the Clop default.",
-                "minimum": 1,
+                "title": "Compression",
+                "description": "5 is the best quality, 100 the smallest file. Leave empty for Clop's compression setting.",
+                "minimum": 5,
                 "maximum": 100,
-                "default": 80,
             ],
         ],
-        // `quality` stays out of `required` so someone who only picks a target is not blocked on a
+        // `compression` stays out of `required` so someone who only picks a target is not blocked on a
         // number they have no opinion about.
         "required": ["target"],
     ]
@@ -78,7 +79,8 @@ extension MCPServer {
     static let smallerOptionsText = """
     Clop can make a file smaller in two ways, and the request did not say which.
       compression: keeps the pixel size and lowers the quality. Pass smallerBy=compression, \
-    and quality as 5 to 100 (lower is smaller, 80 is Clop's default).
+    and compression as 5 to 100 (5 is the best quality, 100 the smallest file; left out, Clop's \
+    compression setting applies).
       resolution: keeps the quality and shrinks the pixels. Pass smallerBy=resolution, \
     and downscaleFactor as 0 to 1 (0.5 is half the width and height).
       both: compress and downscale in one pass. Pass smallerBy=both.
@@ -168,20 +170,20 @@ extension MCPServer {
     static func optimise(_ a: [String: Any]) throws -> ToolOutput {
         let files = try paths(a)
         var smallerBy = a["smallerBy"] as? String
-        var quality = asInt(a, "quality", nil)
+        var compression = a["compression"].map { argument($0) }
         let factor = a["downscaleFactor"]
 
         // The one genuinely ambiguous request. When the caller already said how, or already gave a
         // number, this asks nothing. A speed change or audio removal says what the call is for, so
         // "speed this up" or "mute this" isn't asked how to make the file smaller.
-        if (smallerBy ?? "").isEmpty, quality == nil, a["compression"] == nil, factor == nil, a["crop"] == nil,
+        if (smallerBy ?? "").isEmpty, compression == nil, factor == nil, a["crop"] == nil,
            a["playbackSpeedFactor"] == nil, a["removeAudio"] as? Bool != true
         {
             try refuseBeforeAsking(files)
             switch try ask("smaller_how", "Clop can make \(subject(files)) smaller in two ways. Which should it use?", smallerSchema) {
             case let .answered(content):
                 smallerBy = (content["target"] as? String) ?? "compression"
-                quality = asInt(content, "quality", quality)
+                compression = asInt(content, "compression", nil).map(String.init)
             case .declined:
                 return .text(declinedPrefix + smallerOptionsText)
             case .unanswered:
@@ -205,10 +207,8 @@ extension MCPServer {
         }
 
         var argv = ["optimise", "files"] + files + commonFlags(a)
-        if smallerBy == nil || smallerBy == "compression" || smallerBy == "both", let quality {
-            argv += ["--compression", "\(quality)"]
-        } else if let compression = a["compression"] {
-            argv += ["--compression", argument(compression)]
+        if let compression {
+            argv += ["--compression", compression]
         }
         if smallerBy == "resolution" || smallerBy == "both" {
             argv += ["--downscale-factor", factor.map { argument($0) } ?? "0.5"]
@@ -338,11 +338,11 @@ extension MCPServer {
 
 // MARK: - Pipelines
 
-// Every one of these hands the pipeline to Clop rather than writing it here. Writing the steps from
-// the server would go around the gate entirely: they would land while the switch reads "off", and
-// Clop's own watcher would pick them up and run agent-authored steps anyway. Clop validates the name
-// and the source path too, since `../../.zshrc` is a name an agent can ask for, and it is the app
-// that enforces mcpEnabled and mcpAllowScriptSteps.
+// Every one of these runs a `clop pipeline` command, which asks Clop's gate before it writes anything.
+// Writing the steps from the server would go around the gate entirely: they would land while the
+// switch reads "off", and Clop's own watcher would pick them up and run agent-authored steps anyway.
+// Clop validates the name and the source path too, since `../../.zshrc` is a name an agent can ask
+// for, and it is the app that enforces Pro, mcpEnabled and mcpAllowScriptSteps.
 
 extension MCPServer {
     /// Whether a pipeline for `type` can reach a video. No type means every type.
@@ -632,15 +632,14 @@ extension MCPServer {
             description: "Optimise images, videos, PDFs and audio in place, or into a copy. Smaller files, same "
                 + "pixels, unless a downscale is asked for. When the request is only 'make this smaller' "
                 + "and carries no compression, factor or crop, Clop asks the user whether to compress, "
-                + "downscale or do both, since those give very different files. Pass smallerBy, quality, "
-                + "compression or downscaleFactor to skip that question; a call with playbackSpeedFactor "
+                + "downscale or do both, since those give very different files. Pass smallerBy, compression "
+                + "or downscaleFactor to skip that question; a call with playbackSpeedFactor "
                 + "or removeAudio is never asked it. Placement follows Clop's own setting, which "
                 + "usually rewrites the original, so pass copy when the original must survive. " + gate,
             inputSchema: ["type": "object", "properties": [
                 "paths": ["type": "array", "items": ["type": "string"], "description": "files, folders or URLs"],
                 "smallerBy": ["type": "string", "description": "compression, resolution or both"],
-                "quality": ["type": "integer", "description": "5 to 100, lower is smaller. 80 is Clop's default"],
-                "compression": ["type": "string", "description": "5 to 100, or adaptive, or auto"],
+                "compression": ["type": "string", "description": "5 to 100, or adaptive, or auto. Above 75, HDR is converted to SDR"],
                 "downscaleFactor": ["type": "number", "description": "0 to 1, 0.5 is half the width and height"],
                 "crop": ["type": "string", "description": "WxH, e.g. 1920x1080"],
                 "pdfDPI": ["type": "string", "description": "adaptive, 300, 250, 200, 150, 100, 72 or 48"],
@@ -694,7 +693,7 @@ extension MCPServer {
                 "paths": ["type": "array", "items": ["type": "string"]],
                 "kind": ["type": "string", "description": "image, video or audio"],
                 "to": ["type": "string", "description": "the target format"],
-                "compression": ["type": "string", "description": "5 to 100"],
+                "compression": ["type": "string", "description": "5 to 100. Above 75, HDR is converted to SDR"],
                 "bitrate": ["type": "integer", "description": "audio only, kbps. Beats compression"],
                 "convertBehaviour": ["type": "string", "description": "temp, inplace, samefolder or specificfolder"],
                 "copy": ["type": "boolean"],

@@ -87,31 +87,26 @@ func ensureAppIsRunning() {
 /// the app, so the app's own gate never sees them. Without this an agent could save a pipeline with a
 /// script step and attach it to a watched folder, and every file dropped there would run it.
 ///
+/// The app decides, the same as for files: Pro, the MCP switch and script steps. Reading the switch
+/// from the defaults suite here once missed Pro, so a lapsed licence left the switch on and kept these
+/// working, and `pipeline preset` never checked at all.
+///
 /// This is a check inside the caller's own binary, so it is not a sandbox: an agent that never sets
 /// no origin is simply a person using the CLI, which needs no permission from anyone. What it does
 /// close is the MCP tool surface the user actually granted.
 func refuseUnallowedMCPPipelineWrite(_ dsl: String?) throws {
-    guard CLI_ORIGIN == "mcp" else { return }
-    let defaults = UserDefaults.app
-
-    guard defaults?.bool(forKey: "mcpEnabled") == true else {
-        throw ValidationError("Clop is not accepting changes from agents. Ask the user to allow it in Clop Settings, MCP.")
-    }
-    guard let dsl, dsl.contains("runScript"), defaults?.bool(forKey: "mcpAllowScriptSteps") != true else { return }
-    throw ValidationError("""
-    Clop is not accepting script steps from agents, and this pipeline has a runScript step. \
-    Use a built-in step if one can do the job, or ask the user to allow script steps in Clop Settings, MCP.
-    """)
+    try refuseUnallowedMCPRequest(pipeline: dsl)
 }
 
-/// Ask the app whether an MCP-originated file operation may run, and refuse with its words if not.
+/// Ask the app whether an MCP-originated operation may run, and refuse with its words if not.
 ///
-/// `strip-exif`, `crop-pdf` and `uncrop-pdf` do their work in this process and never build an
-/// `OptimisationRequest`, so nothing carried their origin to the app and the gate never saw them. An
-/// agent could strip the GPS out of a photo with Pro off and MCP off. They ask first now.
+/// `strip-exif`, `crop-pdf`, `uncrop-pdf` and the pipeline library commands do their work in this
+/// process and never build an `OptimisationRequest`, so nothing carried their origin to the app and
+/// the gate never saw them. An agent could strip the GPS out of a photo with Pro off and MCP off.
+/// They ask first now, with the steps they are about to save when there are any.
 ///
 /// Only for calls that claim MCP origin. Somebody running the CLI themselves needs no permission.
-func refuseUnallowedMCPFileOperation() throws {
+func refuseUnallowedMCPRequest(pipeline: String? = nil) throws {
     guard CLI_ORIGIN == "mcp" else { return }
 
     // Launched here rather than left to the caller, so a cold Clop does not turn the first call of a
@@ -127,7 +122,7 @@ func refuseUnallowedMCPFileOperation() throws {
 
     let settingsPort = LocalMachPort(portLocation: SETTINGS_PORT_ID)
     guard let data = try settingsPort.sendAndWait(
-        data: SettingsRequest(action: .gate, origin: CLI_ORIGIN).jsonData,
+        data: SettingsRequest(action: .gate, origin: CLI_ORIGIN, pipeline: pipeline).jsonData,
         recvTimeout: 10
     ),
         let response = SettingsResponse.from(data)
@@ -971,7 +966,7 @@ struct Clop: ParsableCommand {
         @Option(name: [.short, .long], help: "Target format: \(allowedFormats.joined(separator: ", "))")
         var to: String
 
-        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Defaults to the app's image compression setting.")
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file). Above 75, HDR is converted to SDR. Defaults to the app's image compression setting.")
         var compression: String?
 
         @Option(name: .long, help: "Where the converted file goes: temp | inplace | samefolder | specificfolder")
@@ -1138,7 +1133,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try refuseUnallowedMCPFileOperation()
+            try refuseUnallowedMCPRequest()
 
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
                 let pdfPath = pdf.documentURL!.filePath!
@@ -1248,7 +1243,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try refuseUnallowedMCPFileOperation()
+            try refuseUnallowedMCPRequest()
 
             for pdf in foundPDFs.compactMap({ PDFDocument(url: $0.url) }) {
                 let pdfPath = pdf.documentURL!.filePath!
@@ -1374,7 +1369,7 @@ struct Clop: ParsableCommand {
         }
 
         mutating func run() throws {
-            try refuseUnallowedMCPFileOperation()
+            try refuseUnallowedMCPRequest()
 
             let foundPaths = foundPaths
             let lock = NSLock()
@@ -1691,7 +1686,7 @@ struct Clop: ParsableCommand {
 
         @Option(
             name: .long,
-            help: "How hard to compress images, videos and audio: a factor from 5 (best quality) to 100 (smallest file), 'adaptive' (best format per image) or 'auto' (let the video encoder pick). Takes priority over --aggressive."
+            help: "How hard to compress images, videos and audio: a factor from 5 (best quality) to 100 (smallest file), 'adaptive' (best format per image) or 'auto' (let the video encoder pick). Above 75, HDR is converted to SDR. Takes priority over --aggressive."
         )
         var compression: String?
 
@@ -1775,7 +1770,7 @@ struct Clop: ParsableCommand {
 
         @OptionGroup var options: CommonOptimisationOptions
 
-        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), or 'adaptive' to let Clop pick the best format per image")
+        @Option(name: .long, help: "How hard to compress: a factor from 5 (best quality) to 100 (smallest file), or 'adaptive' to let Clop pick the best format per image. Above 75, HDR is converted to SDR.")
         var compression: String?
 
         @Option(help: "Makes the image smaller by a certain amount (1.0 means no resize, 0.5 means half the size)")
@@ -2591,6 +2586,7 @@ struct Clop: ParsableCommand {
                 }
 
                 mutating func run() throws {
+                    try refuseUnallowedMCPPipelineWrite(pipeline)
                     guard let defaults = UserDefaults.app else {
                         throw ValidationError("Can't access Clop defaults")
                     }
@@ -2668,6 +2664,7 @@ struct Clop: ParsableCommand {
                 }
 
                 mutating func run() throws {
+                    try refuseUnallowedMCPPipelineWrite(nil)
                     guard let defaults = UserDefaults.app else {
                         throw ValidationError("Can't access Clop defaults")
                     }
@@ -3071,7 +3068,7 @@ func compactPipelinePromptContext(task: String?) -> String {
     - runScript(path | code): inline `code` is one line, no `->`; file is $1 / $CLOP_INPUT_FILE; bundled ffmpeg, gs, gifski
       etc. are in $CLOP_BIN; a path it prints replaces the file. runShortcut(name) [image,video,pdf].
     - copyToClipboard(format path|imageData|markdown, relativeTo). copyLinkForSending(expiration 1m|15m|1h|6h|1d|3d|never).
-      fork(location) surfaces a second card. shelveWith(app yoink|dockside|dropover). uploadWith(app dropshare). openWith(app).
+      fork(location) surfaces a second card. shelveWith(app yoink|dockside|dropover|atoll). uploadWith(app dropshare). openWith(app).
 
     ## Filters (if / ifNot gate the rest of the pipeline; no else, no branch)
     `if(...)` continues only when every key holds (AND); `ifNot(...)` inverts; a failed filter silently
@@ -3294,11 +3291,11 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
 
     ### Actions
 
-      Clop's bundled binaries (ffmpeg, gs, gifski, exiftool, pngquant…) are in $CLOP_BIN, e.g.
-      `runScript(code: "$CLOP_BIN/gs -q -sDEVICE=txtwrite -o ${1:r}.txt $1")` writes a PDF's text next to it.
     - `runScript(path)` or `runScript(code)`: run a script file/executable, or inline shell code via
       `zsh -c`. The file is passed as $1 and in $CLOP_INPUT_FILE; if the script prints a file path to
       stdout, that file replaces the one the pipeline carries forward. e.g. `runScript(code: "sips -Z 800 $1")`.
+      Clop's bundled binaries (ffmpeg, gs, gifski, exiftool, pngquant…) are in $CLOP_BIN, e.g.
+      `runScript(code: "$CLOP_BIN/gs -q -sDEVICE=txtwrite -o ${1:r}.txt $1")` writes a PDF's text next to it.
       Inline `code` must be one line and must NOT contain `->` (the step separator) or newlines; chain with `;` or `&&`.
     - `runShortcut(name)`: run a macOS Shortcut by its name. [image, video, pdf]
     - `copyToClipboard(format, relativeTo)`: `format`: path (default), imageData (images), markdown.
@@ -3315,7 +3312,7 @@ func pipelinePromptContext(task: String?, compact: Bool = false) -> String {
         would overwrite the same file); otherwise the forked card just points at the file in place.
       - Give a `location` (e.g. `sameFolder`, or a path template): the forked file is persisted there,
         using the same location rules as every other step, without disturbing the main line.
-    - `shelveWith(app)`: yoink, dockside, dropover. `uploadWith(app)`: dropshare. `openWith(app)`: e.g. Preview.
+    - `shelveWith(app)`: yoink, dockside, dropover, atoll. `uploadWith(app)`: dropshare. `openWith(app)`: e.g. Preview.
 
     ## location parameter & path templates
 

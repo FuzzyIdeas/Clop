@@ -112,6 +112,15 @@ class Atoll: AppIntegration {
 /// Shelf apps in priority order (highest priority first)
 @MainActor let SHELF_APPS: [AppIntegration] = [YOINK, DOCKSIDE, DROPOVER, ATOLL]
 
+/// What `shelveWith(app:)` takes, as a pipeline spells it, with what the step's completion says about each.
+/// The parser and the completion read this list, and the step finds the app in `SHELF_APPS` by its name.
+let SHELVE_WITH_APPS: KeyValuePairs<String, String> = [
+    "yoink": "Yoink shelf app",
+    "dockside": "Dockside shelf app",
+    "dropover": "Dropover shelf app",
+    "atoll": "Atoll shelf app",
+]
+
 /// Returns the highest-priority shelf app that is currently running, or nil.
 @MainActor func runningShelfApp() -> AppIntegration? {
     SHELF_APPS.first { $0.isRunning() }

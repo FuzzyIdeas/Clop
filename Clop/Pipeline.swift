@@ -469,6 +469,22 @@ func cleanupTempFile(_ tempFile: FilePath, original: FilePath) {
     try? fm.removeItem(atPath: tempFile.string)
 }
 
+/// Whether a file name a template produced already ends in an extension: the file's own, or a declared file
+/// type's. Any dot used to count, so `Screenshot 2026-10-01 at 10.32.11` was saved with no `.png`.
+func hasFileExtension(_ name: String, matching own: [String?]) -> Bool {
+    guard let ext = FilePath(name).extension?.lowercased(), !ext.isEmpty else { return false }
+    return own.contains { $0?.lowercased() == ext } || UTType(filenameExtension: ext).map { !$0.isDynamic } ?? false
+}
+
+/// The result's file name without the `pipeline-<UUID>-` prefix that `tempCopyIfNeeded` adds.
+private func pipelineResultName(_ resultFile: FilePath) -> String {
+    let filename = resultFile.lastComponent?.string ?? resultFile.name.string
+    guard let range = filename.range(of: #"^pipeline-[A-F0-9]{8}-"#, options: .regularExpression) else {
+        return filename
+    }
+    return String(filename[range.upperBound...])
+}
+
 /// Apply a location parameter to a result file: inPlace (no-op), sameFolder, temporaryFolder, or a template path.
 /// Returns the final file path after copying/moving.
 func applyLocation(_ location: String, to resultFile: FilePath, original: FilePath, context: TemplateContext) -> FilePath {
@@ -491,12 +507,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         }
         return result
     case "sameFolder":
-        var filename = resultFile.lastComponent?.string ?? resultFile.name.string
-        // Strip the pipeline-<UUID>- prefix added by tempCopyIfNeeded
-        if let range = filename.range(of: #"^pipeline-[A-F0-9]{8}-"#, options: .regularExpression) {
-            filename = String(filename[range.upperBound...])
-        }
-        let dest = original.dir.appending(filename)
+        let dest = original.dir.appending(pipelineResultName(resultFile))
         if dest != resultFile, let copied = try? resultFile.copy(to: dest, force: true) {
             return copied
         }
@@ -512,10 +523,12 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         var destPath: FilePath
         if !resolved.contains("/") {
             let ext = resultFile.extension ?? original.extension ?? ""
-            let nameWithExt = resolved.contains(".") ? resolved : "\(resolved).\(ext)"
+            let nameWithExt = hasFileExtension(resolved, matching: [ext]) ? resolved : "\(resolved).\(ext)"
             destPath = original.dir.appending(nameWithExt)
         } else if let fp = resolved.filePath {
-            destPath = fp
+            // A trailing slash or an existing folder means "into this folder", under the file's own
+            // name. FilePath drops the slash, so it has to be read off the string.
+            destPath = resolved.hasSuffix("/") || fp.isDir ? fp.appending(pipelineResultName(resultFile)) : fp
         } else {
             return resultFile
         }
@@ -523,7 +536,7 @@ func applyLocation(_ location: String, to resultFile: FilePath, original: FilePa
         // Inherit the result's extension when the template didn't specify one.
         // Lets users write "%P/optimised/%f" without knowing the post-optimisation extension
         // (e.g. .mov gets converted to .mp4).
-        if let last = destPath.lastComponent?.string, !last.contains("."),
+        if let last = destPath.lastComponent?.string, !hasFileExtension(last, matching: [resultFile.extension, original.extension]),
            let ext = resultFile.extension ?? original.extension, !ext.isEmpty
         {
             destPath = destPath.removingLastComponent().appending("\(last).\(ext)")

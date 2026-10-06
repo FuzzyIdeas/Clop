@@ -89,6 +89,9 @@ extension Defaults.Keys {
     static let hideFloatingResultTooltips = Key<Bool>("hideFloatingResultTooltips", default: false)
 
     static let optimiseTIFF = Key<Bool>("optimiseTIFF", default: true)
+    /// Off by default: people copy a HEIC or AVIF photo to paste it somewhere else, and do not expect it to
+    /// come back as another format, which the Convert to JPEG list would make it.
+    static let optimiseHEICAVIFClipboard = Key<Bool>("optimiseHEICAVIFClipboard", default: false)
     static let enableClipboardOptimiser = Key<Bool>("enableClipboardOptimiser", default: true)
     static let clipboardIgnoredAppBundleIds = Key<Set<String>>("clipboardIgnoredAppBundleIds", default: [])
     static let optimiseVideoClipboard = Key<Bool>("optimiseVideoClipboard", default: false)
@@ -442,6 +445,7 @@ let SETTINGS_TO_SYNC: [Defaults._AnyKey] = [
     .specificFolderNameTemplatePDF,
     .optimiseImagePathClipboard,
     .optimiseTIFF,
+    .optimiseHEICAVIFClipboard,
     .optimiseVideoClipboard,
     .optimiseAudioClipboard,
     .optimisePDFClipboard,
