@@ -56,7 +56,10 @@ try {
   assert.equal(initialImage.status, 'ready'); assert.equal(initialImage.width, 2400);
   await until(async () => { await main.evaluate(`window.clop.copy(${JSON.stringify(initialImage.id)})`); return true; }, 'Native clipboard did not connect');
   await main.evaluate(`window.clop.apply(${JSON.stringify(initialImage.id)}, {mode:"balanced",format:"webp",scale:0.5})`);
-  const resized = (await main.evaluate('window.clop.state()')).items[0];
+  const afterApply = await main.evaluate('window.clop.state()');
+  console.log('After applying WebP and 50%:', JSON.stringify({ notice: afterApply.notice, items: afterApply.items.map(({id,status,error,width,height,format,source,options}) => ({id,status,error,width,height,format,source,options})) }));
+  const resized = afterApply.items.find(item => item.id === initialImage.id);
+  assert.equal(resized?.status, 'ready', resized?.error);
   assert.deepEqual([resized.width, resized.height, resized.format], [1200, 800, 'webp']);
   assert.ok(resized.outputBytes < initialImage.originalBytes);
   const floatTarget = await until(async () => (await pages()).find(page => page.type === 'page' && page.url.includes('floating')), 'Floating window did not open');
@@ -74,7 +77,7 @@ try {
     await writeFile(`release/Windows-${name}.png`, Buffer.from(capture.data, 'base64'));
   }
   await main.evaluate(`window.clop.restore(${JSON.stringify(initialImage.id)})`);
-  const restored = (await main.evaluate('window.clop.state()')).items[0]; assert.equal(restored.restored, true); assert.equal(restored.outputBytes, initialImage.originalBytes);
+  const restored = (await main.evaluate('window.clop.state()')).items.find(item => item.id === initialImage.id); assert.equal(restored.restored, true); assert.equal(restored.outputBytes, initialImage.originalBytes);
   console.log('Packaged Windows app smoke passed: automatic clipboard processing, original card geometry, selected format, clipboard loop protection and restore.');
 } finally {
   try { if (main) await main.send('Runtime.evaluate', { expression: 'window.clop.window("quit")' }); } catch {}
