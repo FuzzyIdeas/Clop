@@ -3,17 +3,21 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,WindowsBase
 Add-Type -TypeDefinition @'
 using System;
+using System.Text;
 using System.Runtime.InteropServices;
 public static class ClopExplorerSource {
   [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr context);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern uint GetLongPathName(string path, StringBuilder result, uint length);
 }
 '@
 [ClopExplorerSource]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
 $shell = New-Object -ComObject Shell.Application
 $before = @($shell.Windows() | ForEach-Object { $_.HWND })
 $folder = Split-Path -Parent $Image
+$longFolder = New-Object System.Text.StringBuilder 32768
+if ([ClopExplorerSource]::GetLongPathName($folder,$longFolder,$longFolder.Capacity) -gt 0) { $folder = $longFolder.ToString() }
 $filename = Split-Path -Leaf $Image
 $owned = $null
 try {
@@ -25,7 +29,10 @@ try {
     }
     if ($null -eq $owned) { Start-Sleep -Milliseconds 250 }
   } while ($null -eq $owned -and [DateTime]::UtcNow -lt $deadline)
-  if ($null -eq $owned) { throw 'The task-owned Explorer window did not open' }
+  if ($null -eq $owned) {
+    $observed = @($shell.Windows() | ForEach-Object { try { "$($_.HWND):$($_.Document.Folder.Self.Path)" } catch { $_.Exception.Message } }) -join '; '
+    throw "The task-owned Explorer window did not open for $folder. Shell windows: $observed"
+  }
   $hwnd = [IntPtr]([long]$owned.HWND)
   [ClopExplorerSource]::SetWindowPos($hwnd,[IntPtr]::Zero,60,60,800,600,0) | Out-Null
   [ClopExplorerSource]::SetForegroundWindow($hwnd) | Out-Null
