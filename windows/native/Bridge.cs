@@ -28,7 +28,7 @@ namespace ClopWindows {
     static volatile bool Ended;
     static uint Sequence;
     static readonly string ClipboardOwner = Guid.NewGuid().ToString("N");
-    static bool WasDown, Announced, DetectDrag = true;
+    static bool WasDown, Announced, OleDrag, DetectDrag = true;
     static Point Start;
     static int PressTime;
     static bool ExternalPress;
@@ -108,7 +108,10 @@ namespace ClopWindows {
       bool down = (GetAsyncKeyState(1) & 0x8000) != 0;
       Point cursor; GetCursorPos(out cursor);
       if (DetectDrag && down && !WasDown) {
-        Start = cursor; PressTime = Environment.TickCount; Announced = false;
+        Start = cursor; PressTime = Environment.TickCount;
+        // A Windows drag event can arrive before the polling timer sees the mouse press.
+        // Keep that announcement alive instead of waiting for a second movement threshold.
+        if (!OleDrag) Announced = false;
         ExternalPress = !OwnWindows.Contains(GetForegroundWindow().ToInt64());
         DragPaths = ExternalPress ? ExplorerSelection() : new string[0];
       }
@@ -118,13 +121,18 @@ namespace ClopWindows {
       if (DetectDrag && down && ExternalPress && !Announced && (DragPaths.Length > 0 || Environment.TickCount - PressTime > 180) && (Math.Abs(cursor.X - Start.X) > threshold || Math.Abs(cursor.Y - Start.Y) > threshold)) {
         Announced = true; Emit(new { type = "drag-start", paths = DragPaths });
       }
-      if (!down && WasDown && Announced) { Announced = false; Emit(new { type = "drag-end" }); }
+      if (!down && WasDown && Announced) { Announced = false; OleDrag = false; Emit(new { type = "drag-end" }); }
       WasDown = down;
     }
     static void OnDragEvent(IntPtr hook, uint eventType, IntPtr window, int objectId, int childId, uint thread, uint time) {
-      if (!DetectDrag || OwnWindows.Contains(GetForegroundWindow().ToInt64())) return;
-      if (eventType == 0x000E && !Announced) { Announced = true; Emit(new { type = "drag-start", paths = new string[0] }); }
-      if (eventType == 0x000F && Announced) { Announced = false; Emit(new { type = "drag-end" }); }
+      if (!DetectDrag) return;
+      if (eventType == 0x000E) {
+        if (OwnWindows.Contains(GetForegroundWindow().ToInt64())) return;
+        OleDrag = true;
+        if (!Announced) { Announced = true; Emit(new { type = "drag-start", paths = new string[0] }); }
+      }
+      // The foreground window may now be Clop after a drop. Always finish an external drag.
+      if (eventType == 0x000F) { OleDrag = false; if (Announced) { Announced = false; Emit(new { type = "drag-end" }); } }
     }
     static string[] ExplorerSelection() {
       var paths = new List<string>();

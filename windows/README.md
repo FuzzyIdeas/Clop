@@ -27,7 +27,7 @@ Settings stay closed unless requested from the tray. Choose a screen corner, def
 
 ## Install
 
-Download the Windows x64 installer or portable executable from this fork's Windows releases. Windows 10 and Windows 11 are supported. The builds are unsigned. No Node.js, PowerShell module or development setup is required to use them.
+Download the [Windows x64 installer](https://github.com/ramifara/Clop/releases/download/windows-v0.1.0/Clop-Windows-0.1.0-x64-Setup.exe) or [portable executable](https://github.com/ramifara/Clop/releases/download/windows-v0.1.0/Clop-Windows-0.1.0-x64-Portable.exe). Windows 10 and Windows 11 are supported. The builds are unsigned. No Node.js, PowerShell module or development setup is required to use them.
 
 ## Image and clipboard details
 
