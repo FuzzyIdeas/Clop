@@ -47,12 +47,12 @@
       }
     },
     {
-      "identity" : "launchatlogin-modern",
+      "identity" : "launchatlogin",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sindresorhus/LaunchAtLogin-Modern",
+      "location" : "https://github.com/FuzzyIdeas/LaunchAtLogin",
       "state" : {
-        "revision" : "a04ec1c363be3627734f6dad757d82f5d4fa8fcc",
-        "version" : "1.1.0"
+        "revision" : "5173435c65730c87b8e8075955d90330bed641b5",
+        "version" : "1.2.0"
       }
     },
     {
@@ -61,7 +61,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "89812896d072aa0928833b0d64f18906df09d429"
+        "revision" : "d6381fcea6a1a297ac0a6e775bc2f27fd0b97479"
       }
     },
     {
