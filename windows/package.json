@@ -14,7 +14,7 @@
     "build": "tsc --noEmit && vite build && node scripts/build.mjs",
     "test": "tsx --test electron/engine.test.ts electron/settings.test.ts",
     "typecheck": "tsc --noEmit",
-    "dist:win": "npm run build && electron-builder --win nsis portable --x64"
+    "dist:win": "npm run build && electron-builder --win nsis portable --x64 --publish never"
   },
   "dependencies": {
     "react": "19.3.0",
@@ -39,8 +39,9 @@
     "files": ["dist/**/*", "dist-electron/**/*", "package.json"],
     "extraResources": [{ "from": "native", "to": "native" }],
     "asarUnpack": ["node_modules/sharp/**/*", "node_modules/@img/**/*"],
-    "win": { "target": ["nsis", "portable"], "icon": "assets/icon.ico", "artifactName": "Clop-Windows-${version}-${arch}-${target}.${ext}" },
-    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true },
+    "win": { "target": ["nsis", "portable"], "icon": "assets/icon.ico" },
+    "nsis": { "artifactName": "Clop-Windows-${version}-${arch}-Setup.${ext}", "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true },
+    "portable": { "artifactName": "Clop-Windows-${version}-${arch}-Portable.${ext}" },
     "publish": null
   }
 }

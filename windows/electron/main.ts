@@ -24,6 +24,8 @@ function broadcast() { for (const window of [main, floating]) if (window && !win
 function inform(text: string) { notice = text; broadcast(); }
 function positionFloating() {
   const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const [currentWidth, currentHeight] = floating.getSize();
+  floating.setSize(Math.min(currentWidth, area.width - 40), Math.min(currentHeight, area.height - 40));
   const [w, h] = floating.getSize();
   floating.setPosition(settings.corner.endsWith('right') ? area.x + area.width - w - 20 : area.x + 20,
     settings.corner.startsWith('bottom') ? area.y + area.height - h - 20 : area.y + 20);
