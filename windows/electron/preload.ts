@@ -8,8 +8,8 @@ const api: ClopApi = {
     ipcRenderer.on('clop:state', listener);
     return () => { ipcRenderer.removeListener('clop:state', listener); };
   },
-  importFiles: files => invoke('import', files.map(file => webUtils.getPathForFile(file)).filter(Boolean)),
-  importUrl: url => invoke('import-url', url),
+  importFiles: (files, aggressive) => invoke('import', files.map(file => webUtils.getPathForFile(file)).filter(Boolean), aggressive),
+  importUrl: (url, aggressive) => invoke('import-url', url, aggressive),
   clipboard: () => invoke('clipboard'),
   apply: (id, options) => invoke('apply', id, options), restore: id => invoke('restore', id),
   copy: id => invoke('copy', id), save: id => invoke('save', id), reveal: id => invoke('reveal', id),

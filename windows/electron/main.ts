@@ -63,7 +63,7 @@ async function makeRoom() {
   const oldest = engine.list().at(-1);
   if (engine.list().length >= 40 && oldest) { const timer = hideTimers.get(oldest.id); if (timer) clearTimeout(timer); hideTimers.delete(oldest.id); hidden.delete(oldest.id); await engine.dismiss(oldest.id); }
 }
-async function importUrl(value: unknown) {
+async function importUrl(value: unknown, aggressive = false) {
   if (typeof value !== 'string' || value.length > 8192) throw new Error('Drop an HTTP or HTTPS image link.');
   const url = new URL(value);
   if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Drop an HTTP or HTTPS image link.');
@@ -80,7 +80,7 @@ async function importUrl(value: unknown) {
       while (true) { const chunk = await reader.read(); if (chunk.done) break; length += chunk.value.length; if (length > 128 * 1024 * 1024) throw new Error('Use an image smaller than 128 MB.'); chunks.push(Buffer.from(chunk.value)); }
     } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
     await makeRoom();
-    const id = await engine.importBuffer(Buffer.concat(chunks), path.basename(url.pathname) || 'Image.png', 'drop', defaults());
+    const id = await engine.importBuffer(Buffer.concat(chunks), path.basename(url.pathname) || 'Image.png', 'drop', { ...defaults(), ...(aggressive ? { mode: 'aggressive' } : {}) });
     if (settings.autoCopy && engine.get(id).result.status === 'ready') await copy(id, sequence);
   } finally { importsRunning--; syncFloating(); broadcast(); }
 }
@@ -207,8 +207,8 @@ ipcMain.handle('clop:action', async (event, action: string, ...args: unknown[]) 
   const id = args[0] as string;
   switch (action) {
     case 'state': return state();
-    case 'import': await importPaths(args[0] as string[]); break;
-    case 'import-url': await importUrl(args[0]); break;
+    case 'import': await importPaths(args[0] as string[], 'drop', undefined, args[1] === true); break;
+    case 'import-url': await importUrl(args[0], args[1] === true); break;
     case 'clipboard': await optimiseClipboard(undefined, [], true); break;
     case 'apply': await engine.apply(id, args[1] as ImageOptions); if (settings.autoCopy && engine.get(id).result.status === 'ready') await copy(id); break;
     case 'restore': await engine.restore(id); if (settings.autoCopy) await copy(id); break;

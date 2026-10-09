@@ -60,10 +60,10 @@ export function App() {
   function drop(event: DragEvent) {
     event.preventDefault(); setLocalDrag(false);
     const files = Array.from(event.dataTransfer.files);
-    if (files.length) void run(() => api.importFiles(files));
+    if (files.length) void run(() => api.importFiles(files, event.ctrlKey));
     else {
       const url = (event.dataTransfer.getData('text/uri-list') || event.dataTransfer.getData('text/plain')).split('\n').find(line => /^https?:\/\//i.test(line.trim()));
-      if (url) void run(() => api.importUrl(url.trim()));
+      if (url) void run(() => api.importUrl(url.trim(), event.ctrlKey));
     }
   }
   const items = state.items.slice(0, 3).reverse();

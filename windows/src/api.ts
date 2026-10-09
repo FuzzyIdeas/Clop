@@ -5,14 +5,14 @@ async function request(action: string, body?: unknown): Promise<AppState> {
   if (!response.ok) throw new Error(data.error || 'The image operation failed. Try again.');
   return data;
 }
-async function importFiles(files: File[]) {
+async function importFiles(files: File[], aggressive = false) {
   if (files.length > 20) throw new Error('Drop up to 20 images at a time.');
   for (const file of files) {
     if (file.size > 32 * 1024 * 1024) throw new Error('Use an image smaller than 32 MB in the browser preview.');
     const data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('Could not read this image.')); reader.readAsDataURL(file);
     });
-    await request('import', { name: file.name, data });
+    await request('import', { name: file.name, data, aggressive });
   }
 }
 function download(id: string) { const link = document.createElement('a'); link.href = `/api/output/${id}`; link.download = ''; link.click(); }
@@ -24,11 +24,11 @@ const browser: ClopApi = {
     return () => { active = false; clearInterval(timer); };
   },
   importFiles,
-  importUrl: async url => {
+  importUrl: async (url, aggressive) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error('Could not download this image. Copy the image instead.');
     const blob = await response.blob();
-    await importFiles([new File([blob], new URL(url).pathname.split('/').pop() || 'Image.png', { type: blob.type })]);
+    await importFiles([new File([blob], new URL(url).pathname.split('/').pop() || 'Image.png', { type: blob.type })], aggressive);
   },
   clipboard: async () => {
     if (!navigator.clipboard?.read) throw new Error('Paste an image with Ctrl+V, or drop an image file here.');

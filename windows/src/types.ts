@@ -14,7 +14,7 @@ export interface Settings {
 export interface AppState { items: ImageResult[]; settings: Settings; native: boolean; platform: string; dropActive?: boolean; notice?: string }
 export interface ClopApi {
   state(): Promise<AppState>; subscribe(callback: (state: AppState) => void): () => void;
-  importFiles(files: File[]): Promise<void>; importUrl(url: string): Promise<void>; clipboard(): Promise<void>;
+  importFiles(files: File[], aggressive?: boolean): Promise<void>; importUrl(url: string, aggressive?: boolean): Promise<void>; clipboard(): Promise<void>;
   apply(id: string, options: ImageOptions): Promise<void>; restore(id: string): Promise<void>;
   copy(id: string): Promise<void>; save(id: string): Promise<void>; reveal(id: string): Promise<void>;
   drag(id: string): void; dismiss(id: string): Promise<void>; settings(settings: Partial<Settings>): Promise<void>;

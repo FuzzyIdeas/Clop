@@ -41,7 +41,7 @@ function localImagePreview(): Plugin {
             switch (req.url) {
               case '/api/import':
                 if (engine.list().length >= 40) throw new Error('Dismiss some images before adding more.');
-                await engine.importBuffer(Buffer.from(body.data, 'base64'), String(body.name), 'drop', { mode: settings.defaultMode, format: settings.defaultFormat, scale: 1 }); break;
+                await engine.importBuffer(Buffer.from(body.data, 'base64'), String(body.name), 'drop', { mode: body.aggressive === true ? 'aggressive' : settings.defaultMode, format: settings.defaultFormat, scale: 1 }); break;
               case '/api/apply': await engine.apply(body.id, body.options as ImageOptions); break;
               case '/api/restore': await engine.restore(body.id); break;
               case '/api/dismiss': await engine.dismiss(body.id); break;
