@@ -78,7 +78,9 @@ namespace ClopWindows {
         if (type == "read") {
           var paths = new List<string>();
           if (Clipboard.ContainsFileDropList()) foreach (string file in Clipboard.GetFileDropList()) if (Extensions.Contains(Path.GetExtension(file))) paths.Add(file);
-          Emit(new { type = "reply", id, ok = true, sequence = GetClipboardSequenceNumber(), paths = paths.ToArray() }); return;
+          var contents = Clipboard.GetDataObject();
+          bool owned = contents != null && Convert.ToString(contents.GetData("ClopWindows.Owner")) == ClipboardOwner;
+          Emit(new { type = "reply", id, ok = true, sequence = GetClipboardSequenceNumber(), paths = paths.ToArray(), owned }); return;
         }
         if (type == "copy") {
           if (command.ContainsKey("expectedSequence") && Convert.ToUInt32(command["expectedSequence"]) != GetClipboardSequenceNumber()) {

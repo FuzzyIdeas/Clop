@@ -16,7 +16,7 @@ let settingsPath: string, storage: string;
 let dropActive = false, dragging = false, importsRunning = 0, hovered = false;
 const hidden = new Set<string>();
 const hideTimers = new Map<string, NodeJS.Timeout>();
-let clipboardBusy = false, lastFingerprint = '', clipboardTimer: NodeJS.Timeout | undefined;
+let clipboardBusy = false, lastFingerprint = '', lastOwnFingerprint = '', clipboardTimer: NodeJS.Timeout | undefined;
 let lastClipboardSequence: number | undefined;
 let pendingClipboard: { sequence?: number; paths: string[]; manual: boolean; aggressive: boolean } | undefined;
 const bridge = new WindowsBridge();
@@ -107,14 +107,15 @@ async function copy(id: string, expectedSequence?: number, files?: string[]) {
     const png = path.join(engine.get(id).directory, 'clipboard.png');
     if (engine.get(id).result.format === 'png') await copyFile(file, png);
     else await sharp(file, { limitInputPixels: 60_000_000 }).autoOrient().png().toFile(png);
-    await bridge.request({ type: 'copy', file, files, png, ...(expectedSequence === undefined ? {} : { expectedSequence }) });
+    const reply = await bridge.request({ type: 'copy', file, files, png, ...(expectedSequence === undefined ? {} : { expectedSequence }) });
+    if (!reply.skipped) { lastClipboardSequence = Number(reply.sequence); lastOwnFingerprint = fingerprint(await readFile(png)); }
   } else {
     const image = nativeImage.createFromPath(file);
     if (image.isEmpty()) throw new Error('This format cannot be copied as an image here. Save the result instead.');
     const png = image.toPNG();
     await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })]);
     const items = await clipboard.read(), item = items.find(item => item.types.includes('image/png'));
-    lastFingerprint = fingerprint(item ? Buffer.from(await (await item.getType('image/png')).arrayBuffer()) : png);
+    lastOwnFingerprint = fingerprint(item ? Buffer.from(await (await item.getType('image/png')).arrayBuffer()) : png);
   }
 }
 async function importPaths(files: string[], source: ImageResult['source'] = 'drop', expectedSequence?: number, aggressive = false) {
@@ -140,17 +141,41 @@ async function optimiseClipboard(sequence?: number, paths: string[] = [], manual
   try {
     if (sequence === undefined && bridgeReady) {
       const snapshot = await bridge.request({ type: 'read' });
+      if (!manual && snapshot.owned) return;
       sequence = Number(snapshot.sequence); paths = snapshot.paths as string[];
     }
     if (!manual && sequence !== undefined && sequence === lastClipboardSequence) return;
     if (sequence !== undefined) lastClipboardSequence = sequence;
     if (!manual && paths.length && paths.every(file => path.resolve(file).toLowerCase().startsWith(path.resolve(storage).toLowerCase() + path.sep))) return;
-    if (paths.length) { await importPaths(paths, 'clipboard', sequence, aggressive); return; }
+    if (paths.length) {
+      if (!manual) {
+        const hashes: string[] = [];
+        for (const file of paths.slice(0, 20)) {
+          const info = await stat(file);
+          if (!info.isFile() || info.size > 128 * 1024 * 1024) throw new Error('Copy an image smaller than 128 MB.');
+          hashes.push(fingerprint(await readFile(file)));
+        }
+        const hash = hashes.length === 1 ? hashes[0] : fingerprint(Buffer.from(hashes.join('\n')));
+        if (hash === lastFingerprint || hash === lastOwnFingerprint) return;
+        lastFingerprint = hash;
+      }
+      await importPaths(paths, 'clipboard', sequence, aggressive); return;
+    }
     // Prefer an encoded PNG clipboard payload, avoiding an unnecessary bitmap round trip.
     let bytes = Buffer.alloc(0);
     for (const item of await clipboard.read()) {
       const type = item.types.find(type => type === 'image/png' || type === 'electron application/osclipboard;format="PNG"') ?? item.types.find(type => type.startsWith('image/'));
       if (type) { const blob = await item.getType(type); if ('arrayBuffer' in blob) { bytes = Buffer.from(await blob.arrayBuffer()); break; } }
+    }
+    // Reading a delayed image format can change the sequence. Also, a new external copy may
+    // arrive while the async Electron read is pending. Re-read that snapshot before importing.
+    if (!manual && bridgeReady && sequence !== undefined) {
+      const snapshot = await bridge.request({ type: 'read' });
+      if (snapshot.owned) return;
+      if (Number(snapshot.sequence) !== sequence) {
+        pendingClipboard = { sequence: Number(snapshot.sequence), paths: snapshot.paths as string[], manual: false, aggressive };
+        return;
+      }
     }
     if (!bytes.length) {
       if (manual) {
@@ -161,7 +186,7 @@ async function optimiseClipboard(sequence?: number, paths: string[] = [], manual
       return;
     }
     const hash = fingerprint(bytes);
-    if (!manual && hash === lastFingerprint) return;
+    if (!manual && (hash === lastFingerprint || hash === lastOwnFingerprint)) return;
     lastFingerprint = hash;
     await makeRoom();
     const id = await engine.importBuffer(bytes, `Clipboard-${new Date().toISOString().replace(/[:.]/g, '-')}.png`, 'clipboard', { ...defaults(), ...(aggressive ? { mode: 'aggressive' } : {}) });
