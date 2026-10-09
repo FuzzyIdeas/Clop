@@ -1,5 +1,5 @@
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, readFile, writeFile, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,7 @@ const hideTimers = new Map<string, NodeJS.Timeout>();
 let clipboardBusy = false, lastFingerprint = '', lastOwnFingerprint = '', clipboardTimer: NodeJS.Timeout | undefined;
 let lastClipboardSequence: number | undefined;
 let pendingClipboard: { sequence?: number; paths: string[]; manual: boolean; aggressive: boolean } | undefined;
+let clipboardWrites: Promise<void> = Promise.resolve();
 const bridge = new WindowsBridge();
 const devUrl = process.env.CLOP_DEV_URL;
 const fingerprint = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
@@ -102,13 +103,23 @@ async function createWindows() {
 }
 async function copy(id: string, expectedSequence?: number, files?: string[]) {
   const file = engine.output(id);
+  const { directory, result: { format } } = engine.get(id);
   if (process.platform === 'win32') {
-    if (!bridgeReady) throw new Error('The Windows clipboard helper is unavailable. Save or drag the result instead.');
-    const png = path.join(engine.get(id).directory, 'clipboard.png');
-    if (engine.get(id).result.format === 'png') await copyFile(file, png);
-    else await sharp(file, { limitInputPixels: 60_000_000 }).autoOrient().png().toFile(png);
-    const reply = await bridge.request({ type: 'copy', file, files, png, ...(expectedSequence === undefined ? {} : { expectedSequence }) });
-    if (!reply.skipped) { lastClipboardSequence = Number(reply.sequence); lastOwnFingerprint = fingerprint(await readFile(png)); }
+    // Image processing can finish before the previous Windows clipboard write has flushed.
+    // Snapshot its immutable output, then serialize encoding and native writes in action order.
+    const write = async () => {
+      if (!bridgeReady) throw new Error('The Windows clipboard helper is unavailable. Save or drag the result instead.');
+      const png = path.join(directory, `clipboard-${randomUUID()}.png`);
+      try {
+        if (format === 'png') await copyFile(file, png);
+        else await sharp(file, { limitInputPixels: 60_000_000 }).autoOrient().png().toFile(png);
+        const reply = await bridge.request({ type: 'copy', file, files, png, ...(expectedSequence === undefined ? {} : { expectedSequence }) });
+        if (!reply.skipped) { lastClipboardSequence = Number(reply.sequence); lastOwnFingerprint = fingerprint(await readFile(png)); }
+      } finally { await rm(png, { force: true }); }
+    };
+    const job = clipboardWrites.then(write, write);
+    clipboardWrites = job.catch(() => {});
+    await job;
   } else {
     const image = nativeImage.createFromPath(file);
     if (image.isEmpty()) throw new Error('This format cannot be copied as an image here. Save the result instead.');

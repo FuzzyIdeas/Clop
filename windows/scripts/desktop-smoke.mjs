@@ -85,6 +85,7 @@ try {
   assert.equal(await floating.evaluate('Boolean(document.querySelector(".sidebar,.dropzone,.image-editor"))'), false, 'No workbench should exist');
   await pause(1000);
   assert.equal((await main.evaluate('window.clop.state()')).items.length, 1, 'Own clipboard writes must not create a loop');
+  assert.equal(await floating.evaluate('document.querySelector(".corner-notice")?.textContent ?? ""'), '', 'Fast in-card format and resize actions must not show a clipboard error');
   await mkdir('release', { recursive: true });
   for (const [name, client] of [['floating', floating]]) {
     const capture = await client.send('Page.captureScreenshot', { format: 'png' });
