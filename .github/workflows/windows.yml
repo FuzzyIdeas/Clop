@@ -1,0 +1,43 @@
+name: Windows image app
+on:
+  workflow_dispatch:
+  push:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Test image operations
+        run: npm test
+      - name: Compile Windows helper
+        shell: powershell
+        run: powershell.exe -NoProfile -Sta -File native/bridge.ps1 -Check
+      - name: Build installer and portable app
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Check native clipboard integration
+        run: node scripts/native-smoke.mjs
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Clop-Windows-x64
+          path: windows/release/*.exe
+          if-no-files-found: error
+          retention-days: 30

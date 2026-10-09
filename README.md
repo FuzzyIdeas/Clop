@@ -1,3 +1,7 @@
+## Windows image port
+
+This fork adds an independent Electron and TypeScript image app for Windows. It focuses on clipboard optimisation, a floating drag-and-drop shelf and quick downscaling. See [the Windows app guide](windows/README.md) for downloads, supported formats, shortcuts and build instructions. The original macOS project remains below.
+
 <p align="center">
     <a href="https://lowtechguys.com/clop"><img width="128" height="128" src="Clop/Assets.xcassets/clop.imageset/clop_256.png" style="filter: drop-shadow(0px 2px 4px rgba(80, 50, 6, 0.2));"></a>
     <h1 align="center"><code style="text-shadow: 0px 3px 10px rgba(8, 0, 6, 0.35); font-size: 3rem; font-family: ui-monospace, Menlo, monospace; font-weight: 800; background: transparent; color: #4d3e56; padding: 0.2rem 0.2rem; border-radius: 6px">Clop</code></h1>

@@ -19,3 +19,10 @@ docs/specs/
 
 # subagent-driven-development scratch workspace
 .superpowers/
+
+# Windows desktop app
+windows/node_modules/
+windows/dist/
+windows/dist-electron/
+windows/release/
+windows/.preview-data/
