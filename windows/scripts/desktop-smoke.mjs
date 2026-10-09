@@ -86,6 +86,12 @@ try {
   await pause(1000);
   assert.equal((await main.evaluate('window.clop.state()')).items.length, 1, 'Own clipboard writes must not create a loop');
   assert.equal(await floating.evaluate('document.querySelector(".corner-notice")?.textContent ?? ""'), '', 'Fast in-card format and resize actions must not show a clipboard error');
+  await until(async () => {
+    const snapshot = await externalClipboard.request({ type: 'read' });
+    if (!snapshot.paths?.[0]) return false;
+    const metadata = await sharp(snapshot.paths[0]).metadata();
+    return metadata.width === 1200 && metadata.height === 800 && metadata.format === 'webp';
+  }, 'Automatic clipboard output did not match the card’s selected format and downscale');
   await mkdir('release', { recursive: true });
   for (const [name, client] of [['floating', floating]]) {
     const capture = await client.send('Page.captureScreenshot', { format: 'png' });
@@ -110,7 +116,10 @@ try {
   const pixelImage = await until(async () => (await main.evaluate('window.clop.state()')).items.find(item => item.id !== initialImage.id && item.status === 'ready' && item.source === 'clipboard'), 'A pixel-only clipboard image did not automatically produce a new card');
   assert.deepEqual([pixelImage.originalWidth, pixelImage.originalHeight], [2400, 1600]);
   await pause(1000);
-  assert.equal((await main.evaluate('window.clop.state()')).items.length, 2, 'Pixel-only clipboard writes must produce exactly one new card');
+  const finalState = await main.evaluate('window.clop.state()');
+  // The older result may have reached its normal ten-second dismissal by now.
+  assert.equal(finalState.items.filter(item => item.id !== initialImage.id).length, 1, 'Pixel-only clipboard writes must produce exactly one new card');
+  assert.equal(finalState.notice, undefined, 'Pixel-only clipboard processing must not show an error');
   console.log('Packaged Windows app smoke passed: automatic file and pixel clipboard processing, original card geometry, in-card format/resize, duplicate protection, repeat copying after text, restore and automatic drag target.');
 } finally {
   try { if (main) await main.send('Runtime.evaluate', { expression: 'window.clop.window("quit")' }); } catch {}
