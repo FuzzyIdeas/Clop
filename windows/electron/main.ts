@@ -178,6 +178,7 @@ async function optimiseClipboard(sequence?: number, paths: string[] = [], manual
       }
     }
     if (!bytes.length) {
+      if (!manual) { lastFingerprint = ''; lastOwnFingerprint = ''; }
       if (manual) {
         const text = (await clipboard.readText()).trim().replace(/^"|"$/g, '');
         if (path.isAbsolute(text)) await importPaths([text], 'clipboard', sequence);

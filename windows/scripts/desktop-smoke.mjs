@@ -101,7 +101,16 @@ try {
   await dragFinished;
   await until(() => floating.evaluate('!document.querySelector(".drop-target")'), 'Releasing the drag did not dismiss its target');
   assert.equal((await main.evaluate('window.clop.state()')).items.length, 1, 'Dragging without a drop must not import another image');
-  console.log('Packaged Windows app smoke passed: automatic clipboard processing, original card geometry, selected format, clipboard loop protection, restore and automatic drag target.');
+  // A browser/screenshot image has no file-drop payload. Copy text between repeated copies
+  // of the image so content deduplication does not permanently suppress that image.
+  execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::SetText("Clop clipboard smoke")']);
+  await pause(1000);
+  execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-Command', '$ErrorActionPreference = "Stop"; Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $image = New-Object System.Drawing.Bitmap($env:CLOP_SMOKE_IMAGE); $stream = New-Object System.IO.MemoryStream(,[System.IO.File]::ReadAllBytes($env:CLOP_SMOKE_IMAGE)); try { $data = New-Object System.Windows.Forms.DataObject; $data.SetImage($image); $data.SetData("PNG",$false,$stream); [System.Windows.Forms.Clipboard]::SetDataObject($data,$true,5,100) } finally { $stream.Dispose(); $image.Dispose() }'], { env: { ...process.env, CLOP_SMOKE_IMAGE: sourceFile } });
+  const pixelImage = await until(async () => (await main.evaluate('window.clop.state()')).items.find(item => item.id !== initialImage.id && item.status === 'ready' && item.source === 'clipboard'), 'A pixel-only clipboard image did not automatically produce a new card');
+  assert.deepEqual([pixelImage.originalWidth, pixelImage.originalHeight], [2400, 1600]);
+  await pause(1000);
+  assert.equal((await main.evaluate('window.clop.state()')).items.length, 2, 'Pixel-only clipboard writes must produce exactly one new card');
+  console.log('Packaged Windows app smoke passed: automatic file and pixel clipboard processing, original card geometry, in-card format/resize, duplicate protection, repeat copying after text, restore and automatic drag target.');
 } finally {
   try { if (main) await main.send('Runtime.evaluate', { expression: 'window.clop.window("quit")' }); } catch {}
   main?.close(); floating?.close();
