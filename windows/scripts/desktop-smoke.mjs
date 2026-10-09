@@ -36,6 +36,12 @@ async function connect(target) {
     return result.result.value;
   } };
 }
+async function click(client, selector) {
+  const point = await client.evaluate(`(() => { const rect = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return {x:rect.x + rect.width/2,y:rect.y + rect.height/2}; })()`);
+  await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+  await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
+  await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
+}
 let main, floating, drag;
 const externalClipboard = new WindowsBridge();
 try {
@@ -55,15 +61,23 @@ try {
   const initialImage = await until(async () => (await main.evaluate('window.clop.state()')).items.find(item => item.status === 'ready' && item.source === 'clipboard'), 'Clipboard image did not automatically produce a result');
   assert.equal(initialImage.status, 'ready'); assert.equal(initialImage.width, 2400);
   await until(async () => { await main.evaluate(`window.clop.copy(${JSON.stringify(initialImage.id)})`); return true; }, 'Native clipboard did not connect');
-  await main.evaluate(`window.clop.apply(${JSON.stringify(initialImage.id)}, {mode:"balanced",format:"webp",scale:0.5})`);
+  const floatTarget = await until(async () => (await pages()).find(page => page.type === 'page' && page.url.includes('floating')), 'Floating window did not open');
+  floating = await connect(floatTarget);
+  await until(() => floating.evaluate('Boolean(document.querySelector(".corner-card"))'), 'Automatic corner card did not render');
+  await click(floating, '[aria-label="Convert to WEBP"]');
+  await until(async () => (await main.evaluate('window.clop.state()')).items.some(item => item.id === initialImage.id && item.status === 'ready' && item.format === 'webp'), 'In-card format selection did not convert the image');
+  await floating.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
+  await click(floating, '[aria-label="Downscale"]');
+  await until(() => floating.evaluate('Boolean(document.querySelector(".scale-presets"))'), 'In-card downscale controls did not open');
+  await click(floating, '.scale-presets button:nth-child(3)');
+  await until(async () => (await main.evaluate('window.clop.state()')).items.some(item => item.id === initialImage.id && item.status === 'ready' && item.width === 1200), 'In-card 50% preset did not downscale the image');
+  await floating.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1 });
   const afterApply = await main.evaluate('window.clop.state()');
   console.log('After applying WebP and 50%:', JSON.stringify({ notice: afterApply.notice, items: afterApply.items.map(({id,status,error,width,height,format,source,options}) => ({id,status,error,width,height,format,source,options})) }));
   const resized = afterApply.items.find(item => item.id === initialImage.id);
   assert.equal(resized?.status, 'ready', resized?.error);
   assert.deepEqual([resized.width, resized.height, resized.format], [1200, 800, 'webp']);
   assert.ok(resized.outputBytes < initialImage.originalBytes);
-  const floatTarget = await until(async () => (await pages()).find(page => page.type === 'page' && page.url.includes('floating')), 'Floating window did not open');
-  floating = await connect(floatTarget);
   await until(() => floating.evaluate('Boolean(document.querySelector(".corner-card") && document.body.innerText.includes("1200×800"))'), 'Automatic corner card did not render');
   const layout = await floating.evaluate('(() => { const rect = document.querySelector(".corner-card").getBoundingClientRect(); return {width:rect.width,height:rect.height,bottom:rect.bottom,viewport:innerHeight,selected:document.querySelector(".format-bar button.active").innerText}; })()');
   assert.deepEqual([layout.width, layout.height, layout.selected], [196, 166, 'WEBP']);
