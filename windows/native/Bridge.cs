@@ -27,6 +27,7 @@ namespace ClopWindows {
     static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
     static volatile bool Ended;
     static uint Sequence;
+    static readonly string ClipboardOwner = Guid.NewGuid().ToString("N");
     static bool WasDown, Announced, DetectDrag = true;
     static Point Start;
     static int PressTime;
@@ -47,6 +48,10 @@ namespace ClopWindows {
         if (next != Sequence) {
           Sequence = next;
           try {
+            var contents = Clipboard.GetDataObject();
+            // OLE can bump the sequence again when delayed clipboard formats render. Tag ownership
+            // explicitly rather than relying only on the sequence captured by SetDataObject.
+            if (contents != null && Convert.ToString(contents.GetData("ClopWindows.Owner")) == ClipboardOwner) return;
             var paths = new List<string>();
             if (Clipboard.ContainsFileDropList()) foreach (string file in Clipboard.GetFileDropList()) if (Extensions.Contains(Path.GetExtension(file))) paths.Add(file);
             Emit(new { type = "clipboard", sequence = next, paths = paths.ToArray() });
@@ -81,6 +86,7 @@ namespace ClopWindows {
           }
           string file = Convert.ToString(command["file"]), png = Convert.ToString(command["png"]);
           var data = new DataObject();
+          data.SetData("ClopWindows.Owner", false, ClipboardOwner);
           var paths = new StringCollection();
           if (command.ContainsKey("files") && command["files"] != null) foreach (object item in (System.Collections.IEnumerable)command["files"]) paths.Add(Convert.ToString(item));
           if (paths.Count == 0) paths.Add(file);

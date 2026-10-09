@@ -144,6 +144,7 @@ async function optimiseClipboard(sequence?: number, paths: string[] = [], manual
     }
     if (!manual && sequence !== undefined && sequence === lastClipboardSequence) return;
     if (sequence !== undefined) lastClipboardSequence = sequence;
+    if (!manual && paths.length && paths.every(file => path.resolve(file).toLowerCase().startsWith(path.resolve(storage).toLowerCase() + path.sep))) return;
     if (paths.length) { await importPaths(paths, 'clipboard', sequence, aggressive); return; }
     // Prefer an encoded PNG clipboard payload, avoiding an unnecessary bitmap round trip.
     let bytes = Buffer.alloc(0);
