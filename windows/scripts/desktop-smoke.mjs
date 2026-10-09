@@ -54,7 +54,7 @@ try {
   const ready = once(externalClipboard, 'ready');
   externalClipboard.start(path.resolve('native/bridge.ps1')); await ready;
   await externalClipboard.request({ type: 'settings', explorerDrag: false });
-  const sourceFile = path.join(profile, 'screenshot.png');
+  const sourceFile = path.join(profile, 'screenshot-über-画像.png');
   await sharp('../Clop/Assets.xcassets/preview-image-thumb.imageset/pv-image-thumb.jpg').resize(2400, 1600, { fit: 'cover' }).png({ compressionLevel: 0 }).toFile(sourceFile);
   // An external clipboard write must trigger processing and the corner card without opening Clop.
   await externalClipboard.request({ type: 'copy', file: sourceFile, png: sourceFile });

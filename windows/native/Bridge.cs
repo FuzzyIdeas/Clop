@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -36,6 +37,10 @@ namespace ClopWindows {
     static readonly HashSet<string> Extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".tif", ".tiff" };
     static void Emit(object value) { Console.WriteLine(Json.Serialize(value)); Console.Out.Flush(); }
     public static void Run() {
+      // Electron pipes UTF-8 JSON. Windows PowerShell's inherited console code page varies
+      // by machine, so read and write the pipe streams explicitly to preserve file names.
+      Console.SetIn(new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false)));
+      Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true });
       Sequence = GetClipboardSequenceNumber();
       var reader = new Thread(() => { string line; while ((line = Console.ReadLine()) != null) Commands.Enqueue(line); Ended = true; });
       reader.IsBackground = true; reader.Start();

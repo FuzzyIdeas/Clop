@@ -14,7 +14,7 @@ try {
   bridge.start(path.resolve('native/bridge.ps1'));
   await Promise.race([ready, new Promise((_, reject) => { const timeout = setTimeout(() => reject(new Error('Windows bridge did not start')), 15000); timeout.unref(); })]);
   await bridge.request({ type: 'settings', explorerDrag: false });
-  const png = path.join(dir, 'clipboard.png'); await sharp({ create: { width: 64, height: 32, channels: 4, background: '#7864bf80' } }).png().toFile(png);
+  const png = path.join(dir, 'clipboard-über-画像.png'); await sharp({ create: { width: 64, height: 32, channels: 4, background: '#7864bf80' } }).png().toFile(png);
   const current = await bridge.request({ type: 'sequence' });
   const skipped = await bridge.request({ type: 'copy', file: png, png, expectedSequence: Number(current.sequence) + 1000 });
   assert.equal(skipped.skipped, true);
