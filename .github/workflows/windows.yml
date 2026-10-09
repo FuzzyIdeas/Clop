@@ -34,10 +34,14 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - name: Check native clipboard integration
         run: node scripts/native-smoke.mjs
+      - name: Exercise packaged Windows app
+        run: node scripts/desktop-smoke.mjs
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: Clop-Windows-x64
-          path: windows/release/*.exe
+          path: |
+            windows/release/*.exe
+            windows/release/Windows-*.png
           if-no-files-found: error
           retention-days: 30

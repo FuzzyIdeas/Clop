@@ -40,7 +40,7 @@ Explorer drag detection covers ordinary Explorer windows. Third-party file manag
 | `R` | Restore selected image |
 | `Escape` | Hide floating shelf |
 
-Letter and resize shortcuts operate in Clop when no input or button has focus. Global shortcut conflicts appear in the app; tray commands remain available.
+Letter and resize shortcuts operate in Clop when no text input or select has focus. Global shortcut conflicts appear in the app; tray commands remain available.
 
 ## Development
 
@@ -59,7 +59,7 @@ npm run build
 npm run dist:win
 ```
 
-The last command runs on Windows and produces an NSIS installer and portable executable in `release/`. The GitHub workflow builds on Windows, tests the engine and validates clipboard image, encoded PNG, file-list formats and clipboard sequence protection through the native helper. Artifacts are unsigned. A signed release requires the publisher's Windows code-signing certificate.
+The last command runs on Windows and produces an NSIS installer and portable executable in `release/`. The GitHub workflow builds on Windows, tests the engine and validates clipboard image, encoded PNG, file-list formats and clipboard sequence protection through the native helper. It also launches the packaged app and checks its sandboxed preload, real image processing, clipboard, floating result window and restore action. Windows screenshots accompany the executable artifacts. Artifacts are unsigned. A signed release requires the publisher's Windows code-signing certificate.
 
 ## Implementation
 
