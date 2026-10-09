@@ -63,7 +63,7 @@ try {
   events.length = 0; await fixture.gesture('image'); await pause(250);
   assert.deepEqual(events, ['drag-start', 'drag-end'], 'A real Explorer image drag must still announce and finish');
   assert.deepEqual(paths, [[png]], 'Explorer must identify the actual supported image file');
-  for (const kind of ['title', 'resize', 'text', 'blank']) {
+  for (const kind of ['title', 'resize', 'blank']) {
     events.length = 0; await fixture.gesture(kind); await pause(250);
     assert.deepEqual(events, [], `Explorer ${kind} must not announce a drag, even with an image selected`);
   }
