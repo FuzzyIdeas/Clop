@@ -4,7 +4,7 @@ import { copyFile, mkdir, readFile, writeFile, readdir, rm, stat } from 'node:fs
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { ImageEngine, message, sampleImage } from './engine';
+import { ImageEngine, message } from './engine';
 import { defaultSettings, parseSettings } from './settings';
 import { WindowsBridge } from './native';
 import type { AppState, ImageOptions, ImageResult, Settings } from '../src/types';
@@ -13,26 +13,76 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 let main: BrowserWindow, floating: BrowserWindow, tray: Tray, engine: ImageEngine;
 let settings = { ...defaultSettings }, notice: string | undefined, quitting = false, bridgeReady = false;
 let settingsPath: string, storage: string;
+let dropActive = false, dragging = false, importsRunning = 0, hovered = false;
+const hidden = new Set<string>();
+const hideTimers = new Map<string, NodeJS.Timeout>();
 let clipboardBusy = false, lastFingerprint = '', clipboardTimer: NodeJS.Timeout | undefined;
+let lastClipboardSequence: number | undefined;
 let pendingClipboard: { sequence?: number; paths: string[]; manual: boolean; aggressive: boolean } | undefined;
 const bridge = new WindowsBridge();
 const devUrl = process.env.CLOP_DEV_URL;
 const fingerprint = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 const defaults = (): ImageOptions => ({ mode: settings.defaultMode, format: settings.defaultFormat, scale: 1 });
-const state = (): AppState => ({ items: engine.list(), settings, native: true, platform: process.platform, notice });
+const state = (): AppState => ({ items: engine.list().filter(item => !hidden.has(item.id)), settings, native: true, platform: process.platform, dropActive, notice });
 function broadcast() { for (const window of [main, floating]) if (window && !window.isDestroyed()) window.webContents.send('clop:state', state()); }
-function inform(text: string) { notice = text; broadcast(); }
+function inform(text: string) { notice = text; syncFloating(); broadcast(); }
 function positionFloating() {
   const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
-  const [currentWidth, currentHeight] = floating.getSize();
-  floating.setSize(Math.min(currentWidth, area.width - 40), Math.min(currentHeight, area.height - 40));
   const [w, h] = floating.getSize();
-  floating.setPosition(settings.corner.endsWith('right') ? area.x + area.width - w - 20 : area.x + 20,
-    settings.corner.startsWith('bottom') ? area.y + area.height - h - 20 : area.y + 20);
+  floating.setPosition(settings.corner.endsWith('right') ? area.x + area.width - w : area.x,
+    settings.corner.startsWith('bottom') ? area.y + area.height - h : area.y);
 }
 function showFloating(focus = false, reposition = false) {
   if (reposition && !floating.isVisible()) positionFloating();
   if (focus) floating.show(); else floating.showInactive();
+}
+function syncFloating() {
+  if (!floating || floating.isDestroyed()) return;
+  const count = Math.min(3, state().items.length);
+  const target = dropActive || settings.pinned;
+  const height = count * 166 + Math.max(0, count - 1) * 4 + (target ? 160 : 0) + (count > 1 ? 28 : 0) + (notice ? 85 : 0) + 40;
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  floating.setSize(236, Math.min(height, area.height));
+  positionFloating();
+  if (count || target || notice || importsRunning) showFloating(); else floating.hide();
+}
+function showLatest() {
+  for (const item of engine.list().slice(0, 3)) hidden.delete(item.id);
+  dropActive = !engine.list().length;
+  syncFloating(); broadcast();
+}
+function scheduleHide(id: string) {
+  const existing = hideTimers.get(id); if (existing) clearTimeout(existing);
+  const check = () => {
+    if (hovered || dragging) { hideTimers.set(id, setTimeout(check, 1000)); return; }
+    hidden.add(id); hideTimers.delete(id); syncFloating(); broadcast();
+  };
+  hideTimers.set(id, setTimeout(check, engine.get(id).result.source === 'clipboard' ? 10000 : 30000));
+}
+async function makeRoom() {
+  const oldest = engine.list().at(-1);
+  if (engine.list().length >= 40 && oldest) { const timer = hideTimers.get(oldest.id); if (timer) clearTimeout(timer); hideTimers.delete(oldest.id); hidden.delete(oldest.id); await engine.dismiss(oldest.id); }
+}
+async function importUrl(value: unknown) {
+  if (typeof value !== 'string' || value.length > 8192) throw new Error('Drop an HTTP or HTTPS image link.');
+  const url = new URL(value);
+  if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Drop an HTTP or HTTPS image link.');
+  importsRunning++; dropActive = false;
+  try {
+    const sequence = bridgeReady ? Number((await bridge.request({ type: 'sequence' })).sequence) : undefined;
+    const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!response.ok) throw new Error('Could not download this image. Copy the image instead.');
+    if (Number(response.headers.get('content-length')) > 128 * 1024 * 1024) throw new Error('Use an image smaller than 128 MB.');
+    const chunks: Buffer[] = []; let length = 0;
+    if (!response.body) throw new Error('This link did not return an image.');
+    const reader = response.body.getReader();
+    try {
+      while (true) { const chunk = await reader.read(); if (chunk.done) break; length += chunk.value.length; if (length > 128 * 1024 * 1024) throw new Error('Use an image smaller than 128 MB.'); chunks.push(Buffer.from(chunk.value)); }
+    } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    await makeRoom();
+    const id = await engine.importBuffer(Buffer.concat(chunks), path.basename(url.pathname) || 'Image.png', 'drop', defaults());
+    if (settings.autoCopy && engine.get(id).result.status === 'ready') await copy(id, sequence);
+  } finally { importsRunning--; syncFloating(); broadcast(); }
 }
 function configure(window: BrowserWindow) {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -41,14 +91,14 @@ function configure(window: BrowserWindow) {
 }
 async function createWindows() {
   const webPreferences = { preload: path.join(here, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true };
-  main = new BrowserWindow({ width: 1080, height: 790, minWidth: 760, minHeight: 580, show: false, backgroundColor: '#f5f5f8', title: 'Clop for Windows', autoHideMenuBar: true, webPreferences });
-  floating = new BrowserWindow({ width: 420, height: 660, minWidth: 360, minHeight: 360, frame: false, resizable: true, show: false, skipTaskbar: true, alwaysOnTop: settings.alwaysOnTop, backgroundColor: '#f5f5f8', webPreferences });
+  main = new BrowserWindow({ width: 390, height: 500, resizable: false, show: false, backgroundColor: '#f3f1ef', title: 'Clop settings', autoHideMenuBar: true, webPreferences });
+  floating = new BrowserWindow({ width: 236, height: 206, frame: false, resizable: false, transparent: true, show: false, skipTaskbar: true, alwaysOnTop: settings.alwaysOnTop, backgroundColor: '#00000000', webPreferences });
   configure(main); configure(floating);
-  if (devUrl) { await main.loadURL(devUrl); await floating.loadURL(`${devUrl}/?floating=1`); }
-  else { await main.loadFile(path.join(here, '../dist/index.html')); await floating.loadFile(path.join(here, '../dist/index.html'), { query: { floating: '1' } }); }
+  if (devUrl) { await main.loadURL(`${devUrl}/?preferences=1`); await floating.loadURL(`${devUrl}/?floating=1`); }
+  else { await main.loadFile(path.join(here, '../dist/index.html'), { query: { preferences: '1' } }); await floating.loadFile(path.join(here, '../dist/index.html'), { query: { floating: '1' } }); }
   positionFloating();
-  if (!process.argv.includes('--hidden')) main.show();
-  if (settings.pinned) showFloating();
+  floating.setIgnoreMouseEvents(true, { forward: true });
+  if (settings.pinned) { syncFloating(); floating.setIgnoreMouseEvents(false); }
 }
 async function copy(id: string, expectedSequence?: number, files?: string[]) {
   const file = engine.output(id);
@@ -69,16 +119,19 @@ async function copy(id: string, expectedSequence?: number, files?: string[]) {
 }
 async function importPaths(files: string[], source: ImageResult['source'] = 'drop', expectedSequence?: number, aggressive = false) {
   if (!Array.isArray(files) || files.length > 20 || files.some(p => typeof p !== 'string' || !path.isAbsolute(p))) throw new Error('Drop up to 20 local image files at a time.');
+  dropActive = false; importsRunning++; broadcast();
+  try {
   if (expectedSequence === undefined && bridgeReady) expectedSequence = Number((await bridge.request({ type: 'sequence' })).sequence);
   const completed: string[] = [];
   for (const file of files) {
     try {
-      if (engine.list().length >= 40) throw new Error('The shelf holds 40 images. Dismiss a few before adding more.');
+      await makeRoom();
       const id = await engine.importPath(file, source, { ...defaults(), ...(aggressive ? { mode: 'aggressive' } : {}) });
       if (engine.get(id).result.status === 'ready') completed.push(id);
     } catch (error) { inform(`${path.basename(file)}: ${message(error)}`); }
   }
   if (settings.autoCopy && completed.length) await copy(completed[completed.length - 1], expectedSequence, completed.map(id => engine.output(id)));
+  } finally { importsRunning--; syncFloating(); broadcast(); }
 }
 async function optimiseClipboard(sequence?: number, paths: string[] = [], manual = false, aggressive = false) {
   if (clipboardBusy) { pendingClipboard = { sequence, paths, manual, aggressive }; return; }
@@ -89,6 +142,8 @@ async function optimiseClipboard(sequence?: number, paths: string[] = [], manual
       const snapshot = await bridge.request({ type: 'read' });
       sequence = Number(snapshot.sequence); paths = snapshot.paths as string[];
     }
+    if (!manual && sequence !== undefined && sequence === lastClipboardSequence) return;
+    if (sequence !== undefined) lastClipboardSequence = sequence;
     if (paths.length) { await importPaths(paths, 'clipboard', sequence, aggressive); return; }
     // Prefer an encoded PNG clipboard payload, avoiding an unnecessary bitmap round trip.
     let bytes = Buffer.alloc(0);
@@ -107,7 +162,7 @@ async function optimiseClipboard(sequence?: number, paths: string[] = [], manual
     const hash = fingerprint(bytes);
     if (!manual && hash === lastFingerprint) return;
     lastFingerprint = hash;
-    if (engine.list().length >= 40) throw new Error('The shelf holds 40 images. Dismiss a few before adding more.');
+    await makeRoom();
     const id = await engine.importBuffer(bytes, `Clipboard-${new Date().toISOString().replace(/[:.]/g, '-')}.png`, 'clipboard', { ...defaults(), ...(aggressive ? { mode: 'aggressive' } : {}) });
     if (settings.autoCopy && engine.get(id).result.status === 'ready') await copy(id, sequence);
   } catch (error) { inform(message(error)); }
@@ -123,12 +178,12 @@ function startClipboardFallback() {
 }
 function updateTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open Clop', click: () => main.show() },
-    { label: 'Show floating shelf', click: () => showFloating(true) },
+    { label: 'Show latest results', click: showLatest },
     { label: 'Optimise clipboard', accelerator: 'Control+Shift+C', click: () => { void optimiseClipboard(undefined, [], true); } },
     { type: 'separator' },
     { label: 'Watch clipboard', type: 'checkbox', checked: settings.clipboard, click: item => { void updateSettings({ clipboard: item.checked }); } },
     { label: 'Keep drop zone visible', type: 'checkbox', checked: settings.pinned, click: item => { void updateSettings({ pinned: item.checked }); } },
+    { label: 'Settings…', click: () => main.show() },
     { label: 'Open originals and results', click: () => { void shell.openPath(storage); } },
     { type: 'separator' }, { label: 'Quit Clop', click: () => app.quit() },
   ]));
@@ -137,11 +192,13 @@ async function updateSettings(value: Partial<Settings>) {
   settings = parseSettings(value, settings);
   await writeFile(settingsPath, JSON.stringify(settings, null, 2));
   floating.setAlwaysOnTop(settings.alwaysOnTop);
-  if (settings.pinned) showFloating();
-  if (value.corner) positionFloating();
+  syncFloating();
   if (process.platform === 'win32') app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin, path: process.execPath, args: ['--hidden'] });
-  if (bridgeReady) await bridge.request({ type: 'settings', explorerDrag: settings.explorerDrag });
+  if (bridgeReady) await bridge.request(nativeSettings());
   updateTray(); broadcast();
+}
+function nativeSettings() {
+  return { type: 'settings', explorerDrag: settings.explorerDrag, ownWindows: [main, floating].map(window => Number(window.getNativeWindowHandle().readBigUInt64LE())) };
 }
 function trusted(sender: Electron.WebContents) { return [main, floating].some(window => window && !window.isDestroyed() && window.webContents === sender); }
 ipcMain.handle('clop:action', async (event, action: string, ...args: unknown[]) => {
@@ -150,11 +207,7 @@ ipcMain.handle('clop:action', async (event, action: string, ...args: unknown[]) 
   switch (action) {
     case 'state': return state();
     case 'import': await importPaths(args[0] as string[]); break;
-    case 'pick': {
-      const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender)!, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'tif', 'tiff'] }] });
-      if (!result.canceled) await importPaths(result.filePaths, 'file'); break;
-    }
-    case 'sample': await engine.importBuffer(await sampleImage(), 'Alpine-study.png', 'sample', defaults()); break;
+    case 'import-url': await importUrl(args[0]); break;
     case 'clipboard': await optimiseClipboard(undefined, [], true); break;
     case 'apply': await engine.apply(id, args[1] as ImageOptions); if (settings.autoCopy && engine.get(id).result.status === 'ready') await copy(id); break;
     case 'restore': await engine.restore(id); if (settings.autoCopy) await copy(id); break;
@@ -166,14 +219,17 @@ ipcMain.handle('clop:action', async (event, action: string, ...args: unknown[]) 
       if (result.filePath && !result.canceled) await copyFile(file, result.filePath); break;
     }
     case 'reveal': shell.showItemInFolder(engine.output(id)); break;
-    case 'dismiss': await engine.dismiss(id); break;
+    case 'dismiss': { const timer = hideTimers.get(id); if (timer) clearTimeout(timer); hideTimers.delete(id); hidden.delete(id); await engine.dismiss(id); break; }
     case 'settings': await updateSettings(args[0] as Partial<Settings>); break;
     case 'window':
       switch (args[0]) {
         case 'hide': BrowserWindow.fromWebContents(event.sender)?.hide(); break;
         case 'minimize': BrowserWindow.fromWebContents(event.sender)?.minimize(); break;
         case 'main': main.show(); break;
-        case 'float': showFloating(true); break;
+        case 'float': showLatest(); break;
+        case 'interactive': hovered = true; floating.setIgnoreMouseEvents(false); break;
+        case 'passthrough': hovered = false; if (!dropActive) floating.setIgnoreMouseEvents(true, { forward: true }); break;
+        case 'dismiss-notice': notice = undefined; syncFloating(); broadcast(); break;
         case 'quit': app.quit(); break;
         default: throw new Error('Unknown window action.');
       } break;
@@ -187,7 +243,7 @@ ipcMain.on('clop:drag', (event, id: string) => {
 });
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', (_event, argv) => { main?.show(); const files = argv.filter(arg => /\.(png|jpe?g|webp|gif|avif|tiff?)$/i.test(arg) && path.isAbsolute(arg)); if (files.length) void importPaths(files, 'file'); });
+  app.on('second-instance', (_event, argv) => { if (engine) showLatest(); const files = argv.filter(arg => /\.(png|jpe?g|webp|gif|avif|tiff?)$/i.test(arg) && path.isAbsolute(arg)); if (files.length) void importPaths(files, 'file'); });
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     storage = path.join(app.getPath('userData'), 'images');
@@ -200,21 +256,21 @@ else {
       if ((await stat(file)).mtimeMs < Date.now() - 7 * 86400000) await rm(file, { recursive: true, force: true });
     }
     engine = new ImageEngine(path.join(storage, `session-${Date.now()}`));
-    engine.on('change', broadcast);
-    engine.on('ready', () => showFloating(false, true));
+    engine.on('change', () => { syncFloating(); broadcast(); });
+    engine.on('ready', (id: string) => { hidden.delete(id); scheduleHide(id); syncFloating(); broadcast(); });
     await createWindows();
     const icon = nativeImage.createFromPath(path.join(here, 'icon.png'));
-    tray = new Tray(icon); tray.setToolTip('Clop for Windows'); tray.on('double-click', () => main.show()); updateTray();
+    tray = new Tray(icon); tray.setToolTip('Clop'); tray.on('double-click', showLatest); updateTray();
     for (const [key, callback] of [
       ['Control+Shift+C', () => { void optimiseClipboard(undefined, [], true); }],
       ['Control+Shift+A', () => { void optimiseClipboard(undefined, [], true, true); }],
-      ['Control+Shift+Space', () => showFloating(true)],
+      ['Control+Shift+Space', showLatest],
     ] as const) if (!globalShortcut.register(key, callback)) inform(`${key} is already in use. Use the tray menu or floating shelf instead.`);
     if (process.platform === 'win32') {
-      bridge.on('ready', () => { bridgeReady = true; void bridge.request({ type: 'settings', explorerDrag: settings.explorerDrag }).catch(error => inform(message(error))); });
+      bridge.on('ready', () => { bridgeReady = true; void bridge.request(nativeSettings()).then(() => { if (settings.clipboard) void optimiseClipboard(); }).catch(error => inform(message(error))); });
       bridge.on('clipboard', event => { if (settings.clipboard) void optimiseClipboard(event.sequence, event.paths); });
-      bridge.on('drag-start', () => { if (settings.explorerDrag) showFloating(false, true); });
-      bridge.on('drag-end', () => {});
+      bridge.on('drag-start', () => { if (settings.explorerDrag) { dragging = true; dropActive = true; floating.setIgnoreMouseEvents(false); syncFloating(); broadcast(); } });
+      bridge.on('drag-end', () => { dragging = false; setTimeout(() => { if (!dragging) { dropActive = false; syncFloating(); broadcast(); } }, 180); });
       bridge.on('notice', inform);
       bridge.on('stopped', () => { bridgeReady = false; startClipboardFallback(); });
       bridge.start(path.join(app.isPackaged ? process.resourcesPath : app.getAppPath(), 'native', 'bridge.ps1'));
@@ -222,7 +278,7 @@ else {
     const files = process.argv.slice(1).filter(arg => /\.(png|jpe?g|webp|gif|avif|tiff?)$/i.test(arg) && path.isAbsolute(arg));
     if (files.length) await importPaths(files, 'file');
   }).catch(error => { dialog.showErrorBox('Clop could not start', message(error)); app.quit(); });
-  app.on('before-quit', () => { quitting = true; if (clipboardTimer) clearInterval(clipboardTimer); bridge.stop(); globalShortcut.unregisterAll(); });
+  app.on('before-quit', () => { quitting = true; if (clipboardTimer) clearInterval(clipboardTimer); for (const timer of hideTimers.values()) clearTimeout(timer); bridge.stop(); globalShortcut.unregisterAll(); });
   app.on('window-all-closed', () => { if (quitting) app.quit(); });
-  app.on('activate', () => main?.show());
+  app.on('activate', () => { if (engine) showLatest(); });
 }

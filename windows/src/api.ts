@@ -24,11 +24,12 @@ const browser: ClopApi = {
     return () => { active = false; clearInterval(timer); };
   },
   importFiles,
-  async pick() {
-    const input = document.createElement('input'); input.type = 'file'; input.multiple = true; input.accept = '.png,.jpg,.jpeg,.gif,.webp,.avif,.tif,.tiff';
-    return new Promise<void>((resolve, reject) => { input.onchange = () => importFiles(Array.from(input.files || [])).then(resolve, reject); input.addEventListener('cancel', () => resolve()); input.click(); });
+  importUrl: async url => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Could not download this image. Copy the image instead.');
+    const blob = await response.blob();
+    await importFiles([new File([blob], new URL(url).pathname.split('/').pop() || 'Image.png', { type: blob.type })]);
   },
-  sample: async () => { await request('sample', {}); },
   clipboard: async () => {
     if (!navigator.clipboard?.read) throw new Error('Paste an image with Ctrl+V, or drop an image file here.');
     const items = await navigator.clipboard.read();

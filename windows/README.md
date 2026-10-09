@@ -1,74 +1,83 @@
 # Clop for Windows
 
-A Windows image app inspired by [Clop](https://github.com/FuzzyIdeas/Clop). It watches the clipboard, offers a floating drop target and keeps compression, resizing and format switching on the result card. This is an independent port, not an official Lowtech Guys release. The original macOS app lives in the existing Swift directories.
+A Windows port of Clop's automatic image and clipboard workflow. This is an independent fork of [Clop by the Lowtech Guys](https://github.com/FuzzyIdeas/Clop), under the same GPLv3 license.
 
-## Use it
+## The experience
 
-Download the installer or portable executable from this fork's Windows releases. Run it on Windows 10 or Windows 11, x64. Clop opens a workbench and stays in the system tray when you close its windows.
+Run Clop once. It stays in the system tray. There is no workbench, file browser, onboarding dashboard or sample-image screen.
 
-- Copy an image, screenshot or image file. Clop optimises it and shows a floating card. Automatic copying keeps the result ready to paste.
-- Drag an image from Explorer. The floating target appears when Clop detects a mouse drag of selected image files. Drop there to optimise. This uses Explorer's selection and a movement threshold; it does not intercept or optimise files moved elsewhere.
-- Pin the drop zone to use it with any app. Drag its header to position it. `Ctrl+Shift+Space` brings it forward.
-- Switch between Balanced, Smaller and Lossless compression, change the format, choose a percentage or set the longest edge in pixels. Every change starts from the original.
-- Drag the preview into another app, copy it, save it or reveal it in Explorer. Compare the original and result with the comparison slider.
-- Restore the exact original bytes with the restore button or `R`.
+Copy an image or screenshot in another app. Clop automatically optimises it, puts the result back on the clipboard and shows a small thumbnail card in the bottom-right corner. You can keep working in the original app. The card does not steal focus.
 
-PNG, JPEG, WebP, GIF, AVIF and single-page TIFF are supported. TIFF converts to PNG. Animated GIF and WebP retain their frames and timing. Animated images cannot convert to a still format. HEIC, SVG, PDF, audio and video are outside this version. It only downscales; it does not include an AI upscaler.
+The result uses the geometry and interaction model in the original `FloatingResult.swift`:
 
-The source files are never overwritten. Clop stores originals and results in `%APPDATA%\Clop for Windows\images` for seven days, accessible from the tray menu. The shelf itself starts fresh on restart. Limits are 128 MB per input, 60 million pixels across all frames, 250 animation frames, 20 files per drop and 40 shelf items. These keep large images from overwhelming the desktop.
+- A 196 × 148 thumbnail with the image filling its background.
+- Size reduction and resolution over the bottom of the thumbnail.
+- An 18-pixel format bar beneath it, with the current format preselected. Click PNG, JPG, WebP, AVIF or GIF to convert in place.
+- Six small actions revealed on hover: downscale, restore, compression, aggressive optimisation, copy and save.
+- Downscaling opens a slider over the same thumbnail. Choose 100%, 75%, 50%, 25% or 10%, or use the slider. No separate editing window opens.
+- Dimensions, compare and Show in Explorer live in the corner menu. Drag the thumbnail to another app.
 
-## Clipboard behavior
+While dragging, a transient 196 × 148 `Drop to optimise` target appears in the corner, matching `DropZone.swift`. Drop an image onto it to optimise. Releasing the drag elsewhere dismisses the target without changing the file. Dragged image URLs from browsers can also be downloaded and optimised after an explicit drop.
 
-The Windows helper writes an encoded PNG, a Windows bitmap and a file-drop list in one clipboard operation. Explorer and file-aware apps receive the optimised files. Image-aware apps receive an image. Applications that accept only bitmap data may re-encode it themselves, so their final attachment size depends on that app. GIF and WebP animation survives file paste and drag; bitmap paste uses the first frame.
+Windows accessibility drag events drive the target. Explorer selection detection covers image files, including copied files. A held-mouse movement fallback offers the target for apps that omit Windows drag events. That fallback can also appear during non-image mouse drags; unsupported drops never change the source. The native target cannot know an arbitrary app's dragged payload until it is dropped.
 
-Clop ignores its own clipboard writes and checks the Windows clipboard sequence before replacing an automatically optimised image. Copying something else during processing prevents the old image from overwriting it. Other clipboard tools may compete with Clop, and apps running as administrator can reject drops from ordinary apps.
+Clipboard cards disappear after ten seconds and file cards after thirty, as in the original defaults. Hovering pauses dismissal. The tray's `Show latest results` or `Ctrl+Shift+Space` brings recent cards back. Up to three cards stack vertically. The tray also provides clipboard controls, optional pinning, settings and access to originals.
 
-Lossless PNG and WebP preserve decoded pixels. Lossless mode keeps untouched JPEG bytes when no resize is requested. Resizing a JPEG in Lossless mode outputs PNG. JPEG conversion uses a white background for transparency. Balanced and Smaller modes can discard detail; inspect the comparison when that matters.
+Settings stay closed unless requested from the tray. Choose a screen corner, default format, clipboard behaviour or starting with Windows. The current cursor's screen receives automatic popups.
 
-Explorer drag detection covers ordinary Explorer windows. Third-party file managers, the desktop shell and touch gestures can require the pinned target or shortcut. No file move happens unless you explicitly drop on Clop. The helper uses the Windows PowerShell 5.1 and .NET Framework components included in Windows, not an extra service or installed runtime. Managed machines can block PowerShell; the app reports helper failures and still permits save and drag operations.
+## Install
+
+Download the Windows x64 installer or portable executable from this fork's Windows releases. Windows 10 and Windows 11 are supported. The builds are unsigned. No Node.js, PowerShell module or development setup is required to use them.
+
+## Image and clipboard details
+
+Supported formats are PNG, JPEG, WebP, GIF, AVIF and single-page TIFF. TIFF converts to PNG. Animated GIF and WebP retain their frames and timing. Their format bar disables still-image targets. This version does not process video, audio, PDF, HEIC or SVG and does not include an AI upscaler.
+
+Every resize and format switch starts from the saved original. Restoring recovers its exact bytes. Source files are never overwritten. If a same-format, same-resolution optimisation would increase file size, Clop keeps the original bytes.
+
+The Windows helper writes an encoded PNG, a Windows bitmap and a file-drop list together. File-aware apps receive optimised files; image-aware apps receive an image. Apps that only accept bitmap data may re-encode it themselves. Animation survives file paste and drag; bitmap paste uses the first frame. Copying something else during automatic processing prevents the old image from overwriting the new clipboard contents. Own writes do not trigger another optimisation.
+
+Lossless PNG and WebP preserve decoded pixels. Lossless mode keeps original JPEG bytes when no resize is requested; resizing a JPEG in Lossless mode produces PNG. JPEG conversion uses white behind transparent pixels. Balanced and Smaller compression may discard detail.
+
+Originals and results remain in `%APPDATA%\Clop for Windows\images` for seven days. The app remembers up to 40 images during its session and automatically retires the oldest entries. Its local cache starts fresh on restart. Input limits are 128 MB, 60 million pixels across all frames, 250 animation frames and 20 files per drop.
 
 ## Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
 | `Ctrl+Shift+C` | Optimise current clipboard |
-| `Ctrl+Shift+A` | Optimise clipboard with Smaller compression |
-| `Ctrl+Shift+Space` | Show floating shelf |
+| `Ctrl+Shift+A` | Optimise clipboard more aggressively |
+| `Ctrl+Shift+Space` | Bring back recent corner cards |
 | `1` through `9` | Resize selected image to 10% through 90% |
 | `-` | Reduce selected image by another 10% of original width |
 | `C` | Copy selected image |
 | `R` | Restore selected image |
-| `Escape` | Hide floating shelf |
+| `Escape` | Hide corner cards |
 
-Letter and resize shortcuts operate in Clop when no text input or select has focus. Global shortcut conflicts appear in the app; tray commands remain available.
+Single-letter shortcuts operate while a card has keyboard focus and no text field is active. Global shortcut conflicts appear as a small notification; tray commands remain available.
 
-## Development
+## Development and verification
+
+The Windows app uses Electron, TypeScript, React and Sharp, with a small STA helper using built-in Windows PowerShell 5.1 and .NET Framework. It registers Windows drag-event hooks and watches clipboard sequence numbers. The renderer is sandboxed, has no Node.js access and receives a narrow preload API. External navigation is blocked.
 
 Use Node.js 24 or newer. From `windows/`:
 
 ```sh
 npm ci
 npm run desktop
-```
-
-`npm run dev` starts a browser workbench on loopback port 5274. It uses the real Sharp engine with drag, paste, compression, conversion, comparison and downloads. It cannot provide system-wide clipboard watching, native drag out, Explorer detection or a Windows tray. Desktop settings are disabled in the browser. Preview files are task data under `.preview-data/` and can be removed after shutting down the server.
-
-```sh
 npm test
 npm run build
 npm run dist:win
 ```
 
-The last command runs on Windows and produces an NSIS installer and portable executable in `release/`. The GitHub workflow builds on Windows, tests the engine and validates clipboard image, encoded PNG, file-list formats and clipboard sequence protection through the native helper. It also launches the packaged app and checks its sandboxed preload, real image processing, clipboard, floating result window and restore action. Windows screenshots accompany the executable artifacts. Artifacts are unsigned. A signed release requires the publisher's Windows code-signing certificate.
+The packaging command runs on Windows and produces NSIS and portable executables in `release/`. CI tests image processing, compiles the Windows helper, checks native clipboard formats and launches the packaged app. An external clipboard write must produce a corner result automatically. CI checks the 196 × 166 card, selected format, resize, restore and clipboard loop protection, and saves an actual Windows screenshot.
 
-## Implementation
+`npm run dev` serves a development-only corner-card preview on loopback port 5274. Its background is a neutral canvas so the transparent cards can be inspected in a browser. Paste an image to inspect a card. There are no browse or sample controls. A browser cannot demonstrate system-wide clipboard watching or native Windows drag detection; those are exercised by the packaged-app test. Preview data stays under `.preview-data/` and can be removed after shutdown.
 
-Electron and React provide the workbench, tray, global shortcuts and movable floating window. Sharp performs compression and resizing through its native image libraries. A small STA Windows helper implements clipboard file formats and detects Explorer selection drags. Processing runs in a serial queue with two Sharp threads. No network upload or analytics is used by the desktop app.
-
-The renderer has context isolation and sandboxing, no Node.js access, a narrow preload API and a content security policy. External navigation is blocked. The main process only exposes operations on image IDs it owns, validates processing options and uses user-selected paths for exports.
+The desktop app does not upload images or send analytics. Downloading an image URL only occurs when that URL is explicitly dropped onto the target. Managed machines may block the Windows helper; Clop reports the failure, and save and drag operations remain available.
 
 API references: [Electron clipboard](https://www.electronjs.org/docs/latest/api/clipboard), [Electron file paths](https://www.electronjs.org/docs/latest/api/web-utils), [Sharp output](https://sharp.pixelplumbing.com/api-output/) and [Sharp resizing](https://sharp.pixelplumbing.com/api-resize/).
 
-## Attribution and license
+## Attribution
 
-Clop's workflow and original macOS source are by the Lowtech Guys and Clop contributors. This fork retains the repository's GPLv3 license. The Windows implementation is also GPLv3. Its icon and sample illustration were created for this port. Dependency licenses remain with their respective authors.
+The original macOS source, interaction model and hat icon are by the Lowtech Guys and Clop contributors. The Windows implementation is GPLv3, as is this repository. Dependency licenses remain with their respective authors.

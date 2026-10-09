@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
-import { ImageEngine, message, sampleImage } from './electron/engine';
+import { ImageEngine, message } from './electron/engine';
 import { defaultSettings, parseSettings } from './electron/settings';
 import type { ImageOptions } from './src/types';
 
@@ -14,7 +14,7 @@ function localImagePreview(): Plugin {
     name: 'clop-local-image-preview',
     transformIndexHtml(html, context) {
       // Vite's React refresh preamble is inline in development only.
-      return context.server ? html.replace("script-src 'self';", "script-src 'self' 'unsafe-inline';") : html;
+      return context.server ? html.replace("script-src 'self';", "script-src 'self' 'unsafe-inline'; worker-src 'self' blob:;") : html;
     },
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
@@ -42,7 +42,6 @@ function localImagePreview(): Plugin {
               case '/api/import':
                 if (engine.list().length >= 40) throw new Error('Dismiss some images before adding more.');
                 await engine.importBuffer(Buffer.from(body.data, 'base64'), String(body.name), 'drop', { mode: settings.defaultMode, format: settings.defaultFormat, scale: 1 }); break;
-              case '/api/sample': await engine.importBuffer(await sampleImage(), 'Alpine-study.png', 'sample', { mode: settings.defaultMode, format: settings.defaultFormat, scale: 1 }); break;
               case '/api/apply': await engine.apply(body.id, body.options as ImageOptions); break;
               case '/api/restore': await engine.restore(body.id); break;
               case '/api/dismiss': await engine.dismiss(body.id); break;

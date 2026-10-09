@@ -18,12 +18,19 @@ namespace ClopWindows {
     [DllImport("user32.dll")] static extern bool GetCursorPos(out Point point);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    delegate void WinEventCallback(IntPtr hook, uint eventType, IntPtr window, int objectId, int childId, uint thread, uint time);
+    [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr module, WinEventCallback callback, uint process, uint thread, uint flags);
+    [DllImport("user32.dll")] static extern bool UnhookWinEvent(IntPtr hook);
+    static readonly WinEventCallback DragEvents = OnDragEvent;
+    static readonly HashSet<long> OwnWindows = new HashSet<long>();
     static readonly ConcurrentQueue<string> Commands = new ConcurrentQueue<string>();
     static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
     static volatile bool Ended;
     static uint Sequence;
     static bool WasDown, Announced, DetectDrag = true;
     static Point Start;
+    static int PressTime;
+    static bool ExternalPress;
     static string[] DragPaths = new string[0];
     static readonly HashSet<string> Extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".tif", ".tiff" };
     static void Emit(object value) { Console.WriteLine(Json.Serialize(value)); Console.Out.Flush(); }
@@ -47,7 +54,9 @@ namespace ClopWindows {
         }
         DetectExplorerDrag();
       };
+      var hook = SetWinEventHook(0x000E, 0x000F, IntPtr.Zero, DragEvents, 0, 0, 2);
       timer.Start(); Emit(new { type = "ready", sequence = Sequence }); Application.Run(); timer.Dispose();
+      if (hook != IntPtr.Zero) UnhookWinEvent(hook);
     }
     static void Handle(string line) {
       string id = null;
@@ -55,7 +64,11 @@ namespace ClopWindows {
         var command = Json.Deserialize<Dictionary<string, object>>(line);
         id = Convert.ToString(command["id"]);
         string type = Convert.ToString(command["type"]);
-        if (type == "settings") { DetectDrag = Convert.ToBoolean(command["explorerDrag"]); Emit(new { type = "reply", id, ok = true }); return; }
+        if (type == "settings") {
+          DetectDrag = Convert.ToBoolean(command["explorerDrag"]);
+          if (command.ContainsKey("ownWindows")) { OwnWindows.Clear(); foreach (object window in (System.Collections.IEnumerable)command["ownWindows"]) OwnWindows.Add(Convert.ToInt64(window)); }
+          Emit(new { type = "reply", id, ok = true }); return;
+        }
         if (type == "sequence") { Emit(new { type = "reply", id, ok = true, sequence = GetClipboardSequenceNumber() }); return; }
         if (type == "read") {
           var paths = new List<string>();
@@ -87,13 +100,23 @@ namespace ClopWindows {
       bool down = (GetAsyncKeyState(1) & 0x8000) != 0;
       Point cursor; GetCursorPos(out cursor);
       if (DetectDrag && down && !WasDown) {
-        Start = cursor; Announced = false; DragPaths = ExplorerSelection();
+        Start = cursor; PressTime = Environment.TickCount; Announced = false;
+        ExternalPress = !OwnWindows.Contains(GetForegroundWindow().ToInt64());
+        DragPaths = ExternalPress ? ExplorerSelection() : new string[0];
       }
-      if (DetectDrag && down && !Announced && DragPaths.Length > 0 && (Math.Abs(cursor.X - Start.X) > 12 || Math.Abs(cursor.Y - Start.Y) > 12)) {
+      int threshold = DragPaths.Length > 0 ? 12 : 48;
+      // WinEvent covers OLE drags. Some applications omit it; a held mouse drag supplies a transient
+      // corner target there too. The target never reads or changes the dragged item until a drop.
+      if (DetectDrag && down && ExternalPress && !Announced && (DragPaths.Length > 0 || Environment.TickCount - PressTime > 180) && (Math.Abs(cursor.X - Start.X) > threshold || Math.Abs(cursor.Y - Start.Y) > threshold)) {
         Announced = true; Emit(new { type = "drag-start", paths = DragPaths });
       }
       if (!down && WasDown && Announced) { Announced = false; Emit(new { type = "drag-end" }); }
       WasDown = down;
+    }
+    static void OnDragEvent(IntPtr hook, uint eventType, IntPtr window, int objectId, int childId, uint thread, uint time) {
+      if (!DetectDrag || OwnWindows.Contains(GetForegroundWindow().ToInt64())) return;
+      if (eventType == 0x000E && !Announced) { Announced = true; Emit(new { type = "drag-start", paths = new string[0] }); }
+      if (eventType == 0x000F && Announced) { Announced = false; Emit(new { type = "drag-end" }); }
     }
     static string[] ExplorerSelection() {
       var paths = new List<string>();

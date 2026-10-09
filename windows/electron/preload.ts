@@ -9,7 +9,8 @@ const api: ClopApi = {
     return () => { ipcRenderer.removeListener('clop:state', listener); };
   },
   importFiles: files => invoke('import', files.map(file => webUtils.getPathForFile(file)).filter(Boolean)),
-  pick: () => invoke('pick'), sample: () => invoke('sample'), clipboard: () => invoke('clipboard'),
+  importUrl: url => invoke('import-url', url),
+  clipboard: () => invoke('clipboard'),
   apply: (id, options) => invoke('apply', id, options), restore: id => invoke('restore', id),
   copy: id => invoke('copy', id), save: id => invoke('save', id), reveal: id => invoke('reveal', id),
   drag: id => ipcRenderer.send('clop:drag', id), dismiss: id => invoke('dismiss', id),

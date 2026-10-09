@@ -3,163 +3,125 @@ import { api } from './api';
 import { Icon } from './icons';
 import type { AppState, ImageOptions, ImageResult, Settings } from './types';
 
-const floating = new URLSearchParams(location.search).has('floating');
-const bytes = (value: number) => value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(2)} MB` : `${(value / 1024).toFixed(1)} KB`;
+const preferences = new URLSearchParams(location.search).has('preferences');
+const humanSize = (value: number) => value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1000))} KB`;
 type Run = (task: () => Promise<unknown>, success?: string) => Promise<void>;
 
 export function App() {
   const [state, setState] = useState<AppState>();
-  const [section, setSection] = useState<'workspace' | 'shelf' | 'settings'>('workspace');
-  const [selected, setSelected] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState('');
   const [error, setError] = useState('');
-  const [dragging, setDragging] = useState(false);
-  const lastNewest = useRef<string | undefined>(undefined);
-  const dragDepth = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const item = state?.items.find(item => item.id === selected) ?? state?.items[0];
-
-  useEffect(() => { api.state().then(setState).catch(error => setError(error.message)); return api.subscribe(setState); }, []);
+  const [message, setMessage] = useState('');
+  const [localDrag, setLocalDrag] = useState(false);
+  const [selected, setSelected] = useState<string>();
+  const notification = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const interactive = useRef(false);
   useEffect(() => {
-    const newest = state?.items[0]?.id;
-    if (newest && lastNewest.current !== newest) { setSelected(newest); lastNewest.current = newest; }
-  }, [state?.items[0]?.id]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+    api.state().then(setState).catch(error => setError(error.message));
+    return api.subscribe(setState);
+  }, []);
+  useEffect(() => { document.documentElement.classList.toggle('browser-preview', state?.native === false); }, [state?.native]);
+  useEffect(() => () => { if (notification.current) clearTimeout(notification.current); }, []);
   const run: Run = useCallback(async (task, success) => {
-    setBusy(true); setError(''); setToast('');
+    setError('');
     try {
       await task(); setState(await api.state());
-      if (success) { setToast(success); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => setToast(''), 3500); }
+      if (success) { setMessage(success); if (notification.current) clearTimeout(notification.current); notification.current = setTimeout(() => setMessage(''), 1600); }
     } catch (error) { setError(error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': Error: /, '') : String(error)); }
-    finally { setBusy(false); }
   }, []);
-  useEffect(() => {
-    const paste = (event: ClipboardEvent) => {
-      if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
-      const files = Array.from(event.clipboardData?.files ?? []);
-      if (files.length || state?.native) { event.preventDefault(); void run(() => state?.native ? api.clipboard() : api.importFiles(files)); }
-    };
-    document.addEventListener('paste', paste); return () => document.removeEventListener('paste', paste);
-  }, [run, state?.native]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName) || event.target.isContentEditable)) return;
-      if (!item || item.status !== 'ready' || busy || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (/^[1-9]$/.test(event.key)) { event.preventDefault(); void run(() => api.apply(item.id, { ...item.options, maxEdge: undefined, scale: Number(event.key) / 10 })); }
-      else if (event.key === '-') { event.preventDefault(); void run(() => api.apply(item.id, { ...item.options, maxEdge: undefined, scale: Math.max(.1, Math.round((item.width / item.originalWidth - .1) * 10) / 10) })); }
-      else if (event.key.toLowerCase() === 'r') void run(() => api.restore(item.id), 'Original restored');
-      else if (event.key.toLowerCase() === 'c') void run(() => api.copy(item.id), 'Copied to clipboard');
-      else if (event.key === 'Escape' && floating) void api.window('hide');
+      const item = state?.items.find(item => item.id === selected) ?? state?.items[0];
+      if (event.key === 'Escape') { void api.window('hide'); return; }
+      if (!item || item.status !== 'ready' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (/^[1-9]$/.test(event.key)) { event.preventDefault(); void run(() => api.apply(item.id, { ...item.options, scale: Number(event.key) / 10, maxEdge: undefined })); }
+      else if (event.key === '-') { event.preventDefault(); void run(() => api.apply(item.id, { ...item.options, scale: Math.max(.1, Math.round((item.width / item.originalWidth - .1) * 10) / 10), maxEdge: undefined })); }
+      else if (event.key.toLowerCase() === 'c') void run(() => api.copy(item.id), 'Copied');
+      else if (event.key.toLowerCase() === 'r') void run(() => api.restore(item.id));
     };
-    document.addEventListener('keydown', key); return () => document.removeEventListener('keydown', key);
-  }, [item, run, busy]);
-  function drop(event: DragEvent) { event.preventDefault(); dragDepth.current = 0; setDragging(false); const files = Array.from(event.dataTransfer.files); if (files.length) void run(() => api.importFiles(files)); }
-  if (!state) return <div className="loading">{error || 'Opening Clop…'}</div>;
-  const ready = state.items.filter(item => item.status === 'ready');
-  const saved = ready.reduce((total, item) => total + Math.max(0, item.originalBytes - item.outputBytes), 0);
-  const watching = state.native && state.settings.clipboard;
-  const choose = (id: string) => { setSelected(id); setSection('workspace'); };
-  return <div className={`app ${floating ? 'floating' : ''}`} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
-    onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); dragDepth.current++; setDragging(true); } }}
-    onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }} onDrop={drop}>
-    {!floating && <aside className="sidebar">
-      <div className="brand"><div className="brand-icon"><Icon name="image" size={25}/></div><div><strong>Clop</strong><span>for Windows</span></div></div>
-      <nav aria-label="Main navigation">
-        <button className={section === 'workspace' ? 'active' : ''} onClick={() => setSection('workspace')}><Icon name="clipboard"/>Image tools</button>
-        <button className={section === 'shelf' ? 'active' : ''} onClick={() => setSection('shelf')}><Icon name="shelf"/>Shelf<span className="count">{state.items.length}</span></button>
-        <button className={section === 'settings' ? 'active' : ''} onClick={() => setSection('settings')}><Icon name="settings"/>Settings</button>
-      </nav>
-      <div className="sidebar-bottom">
-        <button className="float-launch" onClick={() => void run(() => api.window('float'))}><Icon name="float"/><span>Open floating shelf<small>Ctrl + Shift + Space</small></span></button>
-        <div className="watch-state"><span className={`status-dot ${watching ? 'on' : ''}`}/>{watching ? 'Watching your clipboard' : state.native ? 'Clipboard watching paused' : 'Browser preview'}</div>
-        <p className="version">0.1 · Images only</p>
-      </div>
-    </aside>}
-    <main className="main">
-      <header className="topbar">
-        {floating ? <><div className="float-brand"><span className="brand-icon"><Icon name="image" size={18}/></span><strong>Clop</strong><span className={`status-dot ${watching ? 'on' : ''}`} title={watching ? 'Watching clipboard' : 'Clipboard paused'}/></div><div className="window-actions">
-          <button className={`icon-button ${state.settings.pinned ? 'selected' : ''}`} aria-label="Keep drop zone visible" title="Keep drop zone visible" disabled={!state.native} onClick={() => void run(() => api.settings({ pinned: !state.settings.pinned }))}><Icon name="pin" size={17}/></button>
-          <button className="icon-button" aria-label="Open main window" title="Open main window" onClick={() => void api.window('main')}><Icon name="float" size={17}/></button>
-          <button className="icon-button" aria-label="Hide floating shelf" title="Hide floating shelf" onClick={() => void api.window('hide')}><Icon name="close" size={17}/></button>
-        </div></> : <><span className="breadcrumb">{section === 'workspace' ? 'Image tools' : section === 'shelf' ? 'Your shelf' : 'Settings'}</span><div className="topbar-actions"><span className="local-label"><span className="status-dot on"/>Processed on this device</span><button className="button small" onClick={() => void run(() => api.pick())} disabled={busy}><Icon name="folder" size={16}/>Open images</button></div></>}
-      </header>
-      <div className="content">
-        {error && <div className="notice error" role="alert"><span>{error}</span><button className="icon-button" aria-label="Dismiss error" onClick={() => setError('')}><Icon name="close" size={16}/></button></div>}
-        {state.notice && <div className="notice" role="status">{state.notice}</div>}
-        {!state.native && !floating && <div className="preview-note">Image processing works here. Background clipboard watching, Explorer detection and the tray run in the Windows app.</div>}
-        {section === 'settings' ? <SettingsPanel settings={state.settings} native={state.native} run={run}/> : section === 'shelf' ? <>
-          <div className="section-heading"><div><h1>Your shelf</h1><p>Pick an image to resize it or use it again.</p></div><span className="shelf-total">{saved > 0 ? `${bytes(saved)} saved` : `${state.items.length} images`}</span></div>
-          {state.items.length ? <div className="shelf-grid">{state.items.map(image => <button className="shelf-tile" key={image.id} onClick={() => choose(image.id)}><div className="tile-preview"><img src={image.preview} alt=""/></div><strong>{image.name}</strong><span>{image.status === 'processing' ? 'Optimising…' : image.status === 'error' ? 'Needs attention' : `${image.width} × ${image.height} · ${bytes(image.outputBytes)}`}</span></button>)}</div> : <DropZone compact={false} busy={busy} run={run}/>}
-        </> : <>
-          {!floating && <div className="section-heading"><div><h1>{item ? 'Ready for the next paste.' : 'Copy large. Paste small.'}</h1><p>{item ? 'Optimise, resize and send it on. Your original stays safe.' : 'Drop an image, resize it, and keep the result ready to paste.'}</p></div><div className="format-tags">{['PNG', 'JPEG', 'WebP', 'GIF'].map(format => <span key={format}>{format}</span>)}</div></div>}
-          <DropZone compact={!!item || floating} busy={busy} run={run}/>
-          {item ? <ImageEditor key={item.id} item={item} native={state.native} busy={busy} run={run}/> : <div className="empty-guide">
-            <div className="guide-icon"><Icon name="clipboard" size={24}/></div><h2>{floating ? 'Drop an image. Keep moving.' : 'Your clipboard, a little lighter.'}</h2><p>{watching ? 'Copy an image anywhere. Clop will optimise it and show the result here, ready to paste.' : 'Drop an image above, open a file, or paste one with Ctrl+V.'}</p>
-            <button className="text-button" disabled={busy} onClick={() => void run(() => api.sample())}>Try it with a sample image<Icon name="arrow" size={15}/></button>
-            {!floating && <div className="shortcut-guide"><span><kbd>1</kbd> through <kbd>9</kbd> to resize</span><span><kbd>C</kbd> to copy</span><span><kbd>R</kbd> to restore</span></div>}
-          </div>}
-          {state.items.length > 1 && <div className="recent-strip"><div className="mini-heading">On your shelf<span>{state.items.length}</span></div><div className="recent-items">{state.items.slice(0, 8).map(image => <button key={image.id} className={`recent-item ${image.id === item?.id ? 'active' : ''}`} onClick={() => setSelected(image.id)} title={image.name} aria-label={`Select ${image.name}`}><img src={image.preview} alt=""/><span>{image.name}</span></button>)}</div></div>}
-        </>}
-      </div>
-      <footer className="footer"><span>{busy ? 'Working on your image…' : toast || (floating ? 'Ctrl + Shift + C · Optimise clipboard' : 'Originals stay untouched. Everything runs locally.')}</span>{busy ? <span className="spinner"/> : <span>{floating ? `${state.items.length} on shelf` : 'Clop for Windows'}</span>}</footer>
-    </main>
-    {dragging && <div className="drag-overlay"><div><Icon name="drop" size={46}/><h2>Drop to optimise</h2><p>Images only. Originals stay untouched.</p></div></div>}
+    const paste = (event: ClipboardEvent) => {
+      if (preferences || (event.target instanceof HTMLElement && event.target.closest('input'))) return;
+      const files = Array.from(event.clipboardData?.files ?? []);
+      if (files.length || state?.native) { event.preventDefault(); void run(() => state?.native ? api.clipboard() : api.importFiles(files)); }
+    };
+    document.addEventListener('keydown', key); document.addEventListener('paste', paste);
+    return () => { document.removeEventListener('keydown', key); document.removeEventListener('paste', paste); };
+  }, [state, selected, run]);
+  useEffect(() => {
+    if (!state?.native || preferences) return;
+    const move = (event: MouseEvent) => {
+      const hit = document.elementFromPoint(event.clientX, event.clientY)?.closest('.corner-card,.drop-target,.corner-notice,.stack-actions');
+      if (Boolean(hit) !== interactive.current) { interactive.current = Boolean(hit); void api.window(hit ? 'interactive' : 'passthrough'); }
+    };
+    document.addEventListener('mousemove', move); return () => document.removeEventListener('mousemove', move);
+  }, [state?.native]);
+  if (!state) return null;
+  if (preferences) return <Preferences settings={state.settings} run={run}/>;
+  function drop(event: DragEvent) {
+    event.preventDefault(); setLocalDrag(false);
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length) void run(() => api.importFiles(files));
+    else {
+      const url = (event.dataTransfer.getData('text/uri-list') || event.dataTransfer.getData('text/plain')).split('\n').find(line => /^https?:\/\//i.test(line.trim()));
+      if (url) void run(() => api.importUrl(url.trim()));
+    }
+  }
+  const items = state.items.slice(0, 3).reverse();
+  return <div className={`corner-surface ${state.settings.corner}`} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setLocalDrag(true); } }} onDrop={drop}>
+    <div className="corner-stack">
+      {(state.dropActive || state.settings.pinned || localDrag) && <div className={`drop-target ${localDrag ? 'receiving' : ''}`} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setLocalDrag(false); }}><strong>Drop to optimise</strong><div className="drop-ring"><span/><span/><span/></div><small>Images · originals stay safe</small><small>Ctrl: smaller file</small></div>}
+      {items.map(item => <ResultCard key={item.id} item={item} native={state.native} run={run} onSelect={() => setSelected(item.id)}/>)}
+      {(error || state.notice) && <div className="corner-notice" role="alert"><span>{error || state.notice}</span><button aria-label="Dismiss message" onClick={() => { setError(''); void api.window('dismiss-notice'); }}><Icon name="close" size={12}/></button></div>}
+      {items.length > 1 && <div className="stack-actions"><button onClick={() => void run(() => api.copy(state.items[0].id), 'Copied')}>Copy latest</button><button onClick={() => void run(async () => { for (const item of state.items) await api.dismiss(item.id); })}>Clear all</button></div>}
+      {message && <div className="copy-toast" role="status">{message}</div>}
+    </div>
   </div>;
 }
 
-function DropZone({ compact, busy, run }: { compact: boolean; busy: boolean; run: Run }) {
-  return <div className={`dropzone ${compact ? 'compact' : ''}`}>
-    <div className="drop-symbol"><Icon name="drop" size={compact ? 22 : 34}/></div>
-    <div><strong>{compact ? 'Drop another image here' : 'Drop your images here'}</strong><p>{compact ? 'or paste with Ctrl+V' : 'PNG, JPEG, WebP, GIF, AVIF and TIFF'}</p></div>
-    <div className="drop-actions"><button className="button primary" disabled={busy} onClick={() => void run(() => api.pick())}>{compact ? 'Browse' : 'Choose images'}</button>{!compact && <button className="button" disabled={busy} onClick={() => void run(() => api.clipboard())}><Icon name="clipboard" size={16}/>From clipboard</button>}</div>
-  </div>;
-}
-
-function ImageEditor({ item, native, busy, run }: { item: ImageResult; native: boolean; busy: boolean; run: Run }) {
+function ResultCard({ item, native, run, onSelect }: { item: ImageResult; native: boolean; run: Run; onSelect: () => void }) {
+  const [panel, setPanel] = useState<'scale' | 'compression' | 'dimensions' | 'menu' | null>(null);
+  const [scale, setScale] = useState(Math.round(item.width / item.originalWidth * 100));
+  const [edge, setEdge] = useState(Math.max(item.width, item.height).toString());
   const [comparing, setComparing] = useState(false);
-  const [compare, setCompare] = useState(50);
-  const [scale, setScale] = useState(Math.round(item.options.scale * 100));
-  const [edge, setEdge] = useState(item.options.maxEdge?.toString() ?? '');
-  useEffect(() => { setScale(Math.round(item.options.scale * 100)); setEdge(item.options.maxEdge?.toString() ?? ''); }, [item.options.scale, item.options.maxEdge]);
-  const processing = busy || item.status === 'processing';
-  const ready = item.status === 'ready';
-  const saving = Math.round((1 - item.outputBytes / item.originalBytes) * 1000) / 10;
-  const apply = (options: Partial<ImageOptions>) => { void run(() => api.apply(item.id, { ...item.options, ...options })); };
-  return <article className="image-editor" aria-label={`Image tools for ${item.name}`}>
-    <div className="image-heading"><div className="image-name"><Icon name="image" size={18}/><strong title={item.name}>{item.name}</strong><span className="source-label">{item.source === 'clipboard' ? 'Clipboard' : item.source === 'sample' ? 'Sample' : 'File'}{item.animated ? ' · animated' : ''}</span></div><button className="icon-button" disabled={processing} title="Dismiss image" aria-label="Dismiss image" onClick={() => void run(() => api.dismiss(item.id))}><Icon name="close" size={16}/></button></div>
-    <div className={`image-preview ${processing ? 'processing' : ''}`}>
-      <div className="preview-images" draggable={native && ready} title={native ? 'Drag the image into another app' : 'Use Save image to download the result'} onDragStart={event => { event.preventDefault(); if (native && ready) api.drag(item.id); }}>
-        <img src={item.preview} alt={`Optimised ${item.name}`} draggable={false}/>
-        {comparing && <><img className="original-layer" src={item.originalPreview} alt="Original image" draggable={false} style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}/><div className="compare-line" style={{ left: `${compare}%` }}><span>↔</span></div><span className="compare-label left">Original</span><span className="compare-label right">Result</span></>}
-      </div>
-      <button className={`compare-toggle ${comparing ? 'selected' : ''}`} disabled={processing} onClick={() => setComparing(!comparing)}><Icon name="compare" size={15}/>{comparing ? 'Close comparison' : 'Compare'}</button>
-      {processing && <div className="processing-label"><span className="spinner"/>Optimising…</div>}
-      {!comparing && native && ready && <span className="drag-hint">Drag into any app</span>}
+  const [hovering, setHovering] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const ready = item.status === 'ready', busy = item.status === 'processing';
+  const saved = Math.min(99.9, Math.round((1 - item.outputBytes / item.originalBytes) * 1000) / 10);
+  const expanded = hovering && !collapsed;
+  useEffect(() => { setScale(Math.round(item.width / item.originalWidth * 100)); setEdge(Math.max(item.width, item.height).toString()); }, [item.width, item.height, item.originalWidth]);
+  const apply = (options: Partial<ImageOptions>) => { setPanel(null); setCollapsed(true); void run(() => api.apply(item.id, { ...item.options, ...options })); };
+  function commitScale(value = scale) { apply({ scale: value / 100, maxEdge: undefined }); }
+  const actions = [
+    { name: 'Downscale', icon: 'minus', action: () => setPanel('scale') },
+    { name: 'Restore original', icon: 'restore', action: () => { setCollapsed(true); void run(() => api.restore(item.id)); } },
+    { name: 'Compression', icon: 'settings', action: () => setPanel('compression') },
+    { name: 'Aggressive optimisation', icon: 'bolt', action: () => apply({ mode: 'aggressive' }) },
+    { name: 'Copy image', icon: 'copy', action: () => { setCollapsed(true); void run(() => api.copy(item.id), 'Copied'); } },
+    { name: 'Save image', icon: 'down', action: () => void run(() => api.save(item.id)) },
+  ];
+  return <article className={`corner-card ${expanded || panel ? 'expanded' : ''} ${busy ? 'processing' : ''}`} aria-label={`Optimised ${item.name}`} onPointerEnter={() => { setHovering(true); setCollapsed(false); onSelect(); }} onPointerLeave={() => { setHovering(false); setPanel(null); setComparing(false); }} onFocus={onSelect}>
+    <div className="thumbnail" draggable={native && ready && !panel} onDragStart={event => { event.preventDefault(); if (native && ready && !panel) api.drag(item.id); }} onDoubleClick={() => { if (ready && native) void run(() => api.reveal(item.id)); }}>
+      <img src={comparing ? item.originalPreview : item.preview} alt={item.name} draggable={false}/><div className="thumbnail-shade"/><div className="hover-glass"/>
     </div>
-    {comparing && <div className="compare-control"><span>Original</span><input type="range" min="0" max="100" value={compare} onChange={event => setCompare(Number(event.target.value))} aria-label="Comparison position"/><span>Result</span></div>}
-    <div className="result-stats"><div><span className="stat-label">File size</span><div className="size-flow"><span>{bytes(item.originalBytes)}</span><Icon name="arrow" size={13}/><strong>{bytes(item.outputBytes)}</strong></div></div><div className="result-dimensions"><span className="stat-label">{item.width} × {item.height} · {item.format.toUpperCase()}</span><span className={`savings ${saving < 0 ? 'larger' : ''}`}>{item.restored ? 'Original restored' : item.unchanged ? 'Already small' : saving > 0 ? `${saving}% smaller` : saving < 0 ? `${Math.abs(saving)}% larger` : 'Same file size'}</span></div></div>
-    {item.error && <div className="notice error" role="alert">{item.error} Change the settings or restore the original.</div>}
-    <div className="tool-controls">
-      <div className="control-heading"><label>Compression</label><span>{item.options.mode === 'lossless' ? 'Keep pixel detail' : item.options.mode === 'aggressive' ? 'Smaller file, less detail' : 'Quality comes first'}</span></div>
-      <div className="segmented" role="group" aria-label="Compression mode">{(['balanced', 'aggressive', 'lossless'] as const).map(mode => <button key={mode} disabled={processing} className={item.options.mode === mode ? 'active' : ''} onClick={() => apply({ mode })}>{mode === 'balanced' ? 'Balanced' : mode === 'aggressive' ? 'Smaller' : 'Lossless'}</button>)}</div>
-      <div className="control-heading scale-heading"><label htmlFor={`scale-${item.id}`}>Downscale</label><span className="scale-value">{scale}% <small>of original</small></span></div>
-      <div className="resize-row"><input id={`scale-${item.id}`} type="range" min="10" max="100" step="5" disabled={processing} value={scale} onChange={event => setScale(Number(event.target.value))} onPointerUp={event => apply({ scale: Number(event.currentTarget.value) / 100, maxEdge: undefined })} onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) apply({ scale: Number(event.currentTarget.value) / 100, maxEdge: undefined }); }}/><div className="presets">{[100, 75, 50, 25].map(value => <button disabled={processing} key={value} className={scale === value && !item.options.maxEdge ? 'active' : ''} onClick={() => apply({ scale: value / 100, maxEdge: undefined })}>{value}%</button>)}</div></div>
-      <div className="format-row"><div className="edge-control"><label htmlFor={`edge-${item.id}`}>Longest edge</label><div className="input-with-button"><input id={`edge-${item.id}`} type="number" min="1" max="16000" placeholder="Original" value={edge} disabled={processing} onChange={event => setEdge(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && edge) apply({ maxEdge: Number(edge), scale: 1 }); }}/><span>px</span><button aria-label="Apply longest edge" disabled={processing || !edge} onClick={() => apply({ maxEdge: Number(edge), scale: 1 })}><Icon name="arrow" size={14}/></button></div></div><div className="format-control"><label htmlFor={`format-${item.id}`}>Format</label><select id={`format-${item.id}`} value={item.options.format} disabled={processing} onChange={event => apply({ format: event.target.value as ImageOptions['format'] })}><option value="auto">Keep format</option><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option><option value="avif">AVIF</option><option value="gif">GIF</option></select></div></div>
+    <div className="window-grip" title="Move result"/>
+    <div className="card-corners"><button className="corner-button close" aria-label="Dismiss image" title="Dismiss" disabled={busy} onClick={() => void run(() => api.dismiss(item.id))}><Icon name="close" size={10}/></button><button className="corner-button more" aria-label="More actions" title="More actions" disabled={busy} onClick={() => setPanel(panel === 'menu' ? null : 'menu')}>•••</button></div>
+    {panel === 'scale' ? <div className="card-panel scale-panel"><button className="panel-close" aria-label="Close downscale" onClick={() => setPanel(null)}><Icon name="close" size={10}/></button><strong>{scale}% · {Math.round(item.originalWidth * scale / 100)}×{Math.round(item.originalHeight * scale / 100)}</strong><input autoFocus type="range" aria-label="Downscale" min="10" max="100" step="5" value={scale} onChange={event => setScale(Number(event.target.value))} onPointerUp={event => commitScale(Number(event.currentTarget.value))} onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) commitScale(Number(event.currentTarget.value)); }}/><div className="scale-presets">{[100, 75, 50, 25, 10].map(value => <button key={value} disabled={busy} onClick={() => commitScale(value)}>{value}%</button>)}</div></div>
+    : panel === 'compression' ? <div className="card-panel compression-panel"><strong>Compression</strong>{(['balanced', 'aggressive', 'lossless'] as const).map(mode => <button key={mode} className={mode === item.options.mode ? 'active' : ''} onClick={() => apply({ mode })}>{mode === 'balanced' ? 'Balanced' : mode === 'aggressive' ? 'Smaller' : 'Lossless'}</button>)}</div>
+    : panel === 'dimensions' ? <form className="card-panel dimension-panel" onSubmit={event => { event.preventDefault(); apply({ maxEdge: Number(edge), scale: 1 }); }}><label htmlFor={`edge-${item.id}`}>Longest edge</label><div><input id={`edge-${item.id}`} autoFocus type="number" min="1" max="16000" value={edge} onChange={event => setEdge(event.target.value)}/><span>px</span><button type="submit" aria-label="Apply dimensions"><Icon name="check" size={14}/></button></div></form>
+    : panel === 'menu' ? <div className="card-panel action-menu"><button onClick={() => { setPanel(null); setComparing(true); }}>Compare original</button><button onClick={() => setPanel('dimensions')}>Set dimensions…</button><button onClick={() => void run(() => api.save(item.id))}>Save as…</button>{native && <button onClick={() => void run(() => api.reveal(item.id))}>Show in Explorer</button>}</div>
+    : !busy && !item.error && <div className="action-grid" aria-label="Image actions">{actions.map(action => <button key={action.name} className="grid-button" aria-label={action.name} title={action.name} onPointerDown={event => { if (action.name === 'Downscale') { event.preventDefault(); setPanel('scale'); } }} onClick={action.action}><Icon name={action.icon} size={17}/></button>)}</div>}
+    <div className="card-bottom">
+      {busy ? <div className="card-progress"><span className="spinner"/>Optimising…</div> : item.error ? <div className="card-error" role="alert">{item.error}<button onClick={() => void run(() => api.restore(item.id))}>Restore original</button></div> : panel ? null : <>
+        <div className="size-diff"><span className={item.outputBytes < item.originalBytes ? 'old' : ''}>{humanSize(item.originalBytes)}</span>{item.outputBytes !== item.originalBytes && <><Icon name="arrow" size={11}/><strong className={saved < 0 ? 'larger' : ''}>{humanSize(item.outputBytes)}</strong></>}</div>
+        <button className="resolution-chip" aria-label="Set dimensions" title="Set dimensions" disabled={busy} onClick={() => setPanel('dimensions')}>{item.width}×{item.height}{saved > 0 && !item.restored ? ` · −${saved}%` : item.restored ? ' · Original' : ''}</button>
+        <span className="filename-chip" title={item.name}>{item.name.replace(/\.[^.]+$/, '')}</span>
+      </>}
     </div>
-    <div className="image-actions"><button className="button primary" disabled={!ready || processing} onClick={() => void run(() => api.copy(item.id), 'Copied to clipboard')}><Icon name="copy" size={16}/>Copy image</button><button className="button" disabled={!ready || processing} onClick={() => void run(() => api.save(item.id))}><Icon name="down" size={16}/>Save image</button><div className="utility-actions"><button className="icon-button" title="Restore original (R)" aria-label="Restore original" disabled={processing} onClick={() => void run(() => api.restore(item.id), 'Original restored')}><Icon name="restore" size={19}/></button>{native && <button className="icon-button" title="Show in Explorer" aria-label="Show in Explorer" disabled={!ready || processing} onClick={() => void run(() => api.reveal(item.id))}><Icon name="folder" size={19}/></button>}</div></div>
+    <div className="format-bar" role="group" aria-label="Image format">{(['png', 'jpeg', 'webp', 'avif', 'gif'] as const).map(format => <button key={format} disabled={busy || (item.animated && !['gif', 'webp'].includes(format))} aria-label={`Convert to ${format === 'jpeg' ? 'JPEG' : format.toUpperCase()}`} aria-pressed={item.format === format} className={item.format === format ? 'active' : ''} onClick={() => apply({ format })}>{format === 'jpeg' ? 'JPG' : format.toUpperCase()}</button>)}</div>
   </article>;
 }
 
-function SettingsPanel({ settings, native, run }: { settings: Settings; native: boolean; run: Run }) {
-  function toggle(key: keyof Settings, title: string, description: string) {
-    return <label className="setting-row" key={key}><span><strong>{title}</strong><small>{description}</small></span><input className="switch" type="checkbox" checked={Boolean(settings[key])} disabled={!native} onChange={event => void run(() => api.settings({ [key]: event.target.checked }))}/></label>;
-  }
-  return <div className="settings-panel"><div className="section-heading"><div><h1>Make Clop yours.</h1><p>Keep it nearby, and let the clipboard do the work.</p></div></div>
-    <section className="settings-section"><h2>Clipboard</h2>{toggle('clipboard', 'Optimise copied images', 'Watch for images and image files copied from Explorer.')}{toggle('autoCopy', 'Keep the result ready to paste', 'Copy the result after an optimisation or resize.')}<div className="setting-row"><span><strong>Default compression</strong><small>Used when a new image arrives.</small></span><select aria-label="Default compression" value={settings.defaultMode} onChange={event => void run(() => api.settings({ defaultMode: event.target.value as Settings['defaultMode'] }))}><option value="balanced">Balanced</option><option value="aggressive">Smaller</option><option value="lossless">Lossless</option></select></div><div className="setting-row"><span><strong>Default format</strong><small>Transparent images stay transparent unless you choose JPEG.</small></span><select aria-label="Default format" value={settings.defaultFormat} onChange={event => void run(() => api.settings({ defaultFormat: event.target.value as Settings['defaultFormat'] }))}><option value="auto">Keep format</option><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option><option value="avif">AVIF</option><option value="gif">GIF</option></select></div></section>
-    <section className="settings-section"><h2>Floating shelf</h2>{toggle('explorerDrag', 'Appear when dragging from Explorer', 'Show the drop target when you drag a selected image file.')}{toggle('pinned', 'Keep the drop zone visible', 'A permanent place to drop images from any app.')}{toggle('alwaysOnTop', 'Stay above other windows', 'Keep the floating shelf within reach.')}<div className="setting-row"><span><strong>Screen corner</strong><small>On the screen where your cursor is. Drag the header to move it.</small></span><select aria-label="Screen corner" disabled={!native} value={settings.corner} onChange={event => void run(() => api.settings({ corner: event.target.value as Settings['corner'] }))}>{(['bottom-right', 'bottom-left', 'top-right', 'top-left'] as const).map(corner => <option key={corner} value={corner}>{corner.replace('-', ' ').replace(/^./, c => c.toUpperCase())}</option>)}</select></div>{toggle('launchAtLogin', 'Start with Windows', 'Open quietly in the tray when you sign in.')}</section>
-    <section className="settings-section"><h2>Keyboard shortcuts</h2><div className="shortcut-row"><span>Optimise clipboard</span><kbd>Ctrl + Shift + C</kbd></div><div className="shortcut-row"><span>Use smaller compression</span><kbd>Ctrl + Shift + A</kbd></div><div className="shortcut-row"><span>Show floating shelf</span><kbd>Ctrl + Shift + Space</kbd></div><div className="shortcut-row"><span>Resize selected image</span><kbd>1–9 · 10–90%</kbd></div><div className="shortcut-row"><span>Copy / restore selected image</span><kbd>C / R</kbd></div></section>
-    <p className="settings-footnote">Clop keeps source files untouched. Originals and results stay in its local image folder for seven days. The shelf starts fresh when the app restarts.</p>
-    {native && <button className="text-button" onClick={() => void api.window('quit')}>Quit Clop</button>}
-  </div>;
+function Preferences({ settings, run }: { settings: Settings; run: Run }) {
+  function toggle(key: keyof Settings, title: string) { return <label className="preference-row" key={key}><span>{title}</span><input type="checkbox" checked={Boolean(settings[key])} onChange={event => void run(() => api.settings({ [key]: event.target.checked }))}/></label>; }
+  return <div className="preferences"><h1>Clop settings</h1>{toggle('clipboard', 'Automatically optimise clipboard images')}{toggle('autoCopy', 'Copy optimised results to the clipboard')}{toggle('explorerDrag', 'Show drop target while dragging')}{toggle('pinned', 'Keep drop target visible')}{toggle('alwaysOnTop', 'Keep results above other windows')}{toggle('launchAtLogin', 'Start with Windows')}<label className="preference-row"><span>Position</span><select value={settings.corner} onChange={event => void run(() => api.settings({ corner: event.target.value as Settings['corner'] }))}>{['bottom-right', 'bottom-left', 'top-right', 'top-left'].map(corner => <option key={corner} value={corner}>{corner.replace('-', ' ')}</option>)}</select></label><label className="preference-row"><span>Default format</span><select value={settings.defaultFormat} onChange={event => void run(() => api.settings({ defaultFormat: event.target.value as Settings['defaultFormat'] }))}><option value="auto">Keep original format</option>{['png', 'jpeg', 'webp', 'avif', 'gif'].map(format => <option key={format} value={format}>{format.toUpperCase()}</option>)}</select></label><p>Ctrl+Shift+C optimises the clipboard.<br/>Ctrl+Shift+Space shows the latest result.<br/>1–9 downscale; C copies; R restores.</p></div>;
 }

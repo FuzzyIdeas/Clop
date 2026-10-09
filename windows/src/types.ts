@@ -11,13 +11,13 @@ export interface Settings {
   launchAtLogin: boolean; corner: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
   defaultMode: ImageOptions['mode']; defaultFormat: OutputFormat;
 }
-export interface AppState { items: ImageResult[]; settings: Settings; native: boolean; platform: string; notice?: string }
+export interface AppState { items: ImageResult[]; settings: Settings; native: boolean; platform: string; dropActive?: boolean; notice?: string }
 export interface ClopApi {
   state(): Promise<AppState>; subscribe(callback: (state: AppState) => void): () => void;
-  importFiles(files: File[]): Promise<void>; pick(): Promise<void>; sample(): Promise<void>; clipboard(): Promise<void>;
+  importFiles(files: File[]): Promise<void>; importUrl(url: string): Promise<void>; clipboard(): Promise<void>;
   apply(id: string, options: ImageOptions): Promise<void>; restore(id: string): Promise<void>;
   copy(id: string): Promise<void>; save(id: string): Promise<void>; reveal(id: string): Promise<void>;
   drag(id: string): void; dismiss(id: string): Promise<void>; settings(settings: Partial<Settings>): Promise<void>;
-  window(action: 'hide' | 'main' | 'float' | 'quit' | 'minimize'): Promise<void>;
+  window(action: 'hide' | 'main' | 'float' | 'quit' | 'minimize' | 'interactive' | 'passthrough' | 'dismiss-notice'): Promise<void>;
 }
 declare global { interface Window { clop?: ClopApi } }
