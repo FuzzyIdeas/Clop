@@ -6,6 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { WindowsBridge } from '../dist-electron/native-test.js';
+// The inspection below opens files in the temporary profile. Release their Windows handles
+// immediately so the final recursive cleanup can remove that profile after the app exits.
+sharp.cache(false);
 
 // Exercise the actual packaged app and sandboxed preload through local Chrome DevTools.
 const profile = await mkdtemp(path.join(os.tmpdir(), 'clop-desktop-'));
@@ -17,7 +20,8 @@ app.stdout.on('data', chunk => { output += chunk; }); app.stderr.on('data', chun
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(task, description) {
   let last;
-  for (let i = 0; i < 80; i++) { try { const value = await task(); if (value) return value; } catch (error) { last = error; } await pause(250); }
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) { try { const value = await task(); if (value) return value; } catch (error) { last = error; } await pause(250); }
   throw new Error(`${description}: ${last?.message ?? output.slice(-2000)}`);
 }
 async function connect(target) {
@@ -86,10 +90,13 @@ try {
   await pause(1000);
   assert.equal((await main.evaluate('window.clop.state()')).items.length, 1, 'Own clipboard writes must not create a loop');
   assert.equal(await floating.evaluate('document.querySelector(".corner-notice")?.textContent ?? ""'), '', 'Fast in-card format and resize actions must not show a clipboard error');
+  console.log('Inspecting the native clipboard output after format and downscale.');
   await until(async () => {
     const snapshot = await externalClipboard.request({ type: 'read' });
+    console.log('Clipboard files:', JSON.stringify(snapshot.paths));
     if (!snapshot.paths?.[0]) return false;
     const metadata = await sharp(snapshot.paths[0]).metadata();
+    console.log('Clipboard image:', metadata.width, metadata.height, metadata.format);
     return metadata.width === 1200 && metadata.height === 800 && metadata.format === 'webp';
   }, 'Automatic clipboard output did not match the card’s selected format and downscale');
   await mkdir('release', { recursive: true });
@@ -122,10 +129,13 @@ try {
   assert.equal(finalState.notice, undefined, 'Pixel-only clipboard processing must not show an error');
   console.log('Packaged Windows app smoke passed: automatic file and pixel clipboard processing, original card geometry, in-card format/resize, duplicate protection, repeat copying after text, restore and automatic drag target.');
 } finally {
+  console.log('Stopping packaged app and native test helper.');
   try { if (main) await main.send('Runtime.evaluate', { expression: 'window.clop.window("quit")' }); } catch {}
   main?.close(); floating?.close();
   externalClipboard.stop();
   if (drag && drag.exitCode === null) drag.kill();
   if (app.exitCode === null) { await Promise.race([once(app, 'exit'), pause(3000)]); if (app.exitCode === null) app.kill(); }
+  console.log('Removing temporary Windows profile.');
   await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+  console.log('Desktop smoke cleanup complete.');
 }
