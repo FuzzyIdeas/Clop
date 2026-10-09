@@ -66,7 +66,7 @@ export function App() {
       if (url) void run(() => api.importUrl(url.trim(), event.ctrlKey));
     }
   }
-  const items = state.items.slice(0, 3).reverse();
+  const items = state.items.slice(0, state.dropActive || state.settings.pinned || localDrag ? 2 : 3).reverse();
   return <div className={`corner-surface ${state.settings.corner}`} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setLocalDrag(true); } }} onDrop={drop}>
     <div className="corner-stack">
       {(state.dropActive || state.settings.pinned || localDrag) && <div className={`drop-target ${localDrag ? 'receiving' : ''}`} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setLocalDrag(false); }}><strong>Drop to optimise</strong><div className="drop-ring"><span/><span/><span/></div><small>Images · originals stay safe</small><small>Ctrl: smaller file</small></div>}

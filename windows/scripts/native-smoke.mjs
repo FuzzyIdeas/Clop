@@ -22,5 +22,9 @@ try {
   const snapshot = await bridge.request({ type: 'read' }); assert.deepEqual(snapshot.paths, [png]);
   const inspection = execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; $d = [System.Windows.Forms.Clipboard]::GetDataObject(); @{ image = $d.GetDataPresent([System.Windows.Forms.DataFormats]::Bitmap); png = $d.GetDataPresent("PNG"); files = $d.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop) } | ConvertTo-Json -Compress'], { encoding: 'utf8' });
   assert.deepEqual(JSON.parse(inspection), { image: true, png: true, files: true });
-  console.log('Windows clipboard smoke passed: image, PNG payload, file list and sequence protection.');
+  await bridge.request({ type: 'settings', explorerDrag: true });
+  const started = once(bridge, 'drag-start'), ended = once(bridge, 'drag-end');
+  execFileSync('powershell.exe', ['-NoProfile', '-Command', 'Add-Type -TypeDefinition \'using System; using System.Runtime.InteropServices; public static class ClopDragSmoke { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra); }\'; [ClopDragSmoke]::SetCursorPos(300,300) | Out-Null; try { [ClopDragSmoke]::mouse_event(2,0,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 300; [ClopDragSmoke]::SetCursorPos(400,350) | Out-Null; Start-Sleep -Milliseconds 500 } finally { [ClopDragSmoke]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }']);
+  await Promise.race([Promise.all([started, ended]), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('Native drag start/end were not detected')), 5000); timer.unref(); })]);
+  console.log('Windows native smoke passed: image, PNG, files, sequence protection and global mouse drag start/end.');
 } finally { bridge.stop(); await rm(dir, { recursive: true, force: true }); }

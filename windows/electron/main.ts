@@ -38,8 +38,8 @@ function showFloating(focus = false, reposition = false) {
 }
 function syncFloating() {
   if (!floating || floating.isDestroyed()) return;
-  const count = Math.min(3, state().items.length);
   const target = dropActive || settings.pinned;
+  const count = Math.min(target ? 2 : 3, state().items.length);
   const height = count * 166 + Math.max(0, count - 1) * 4 + (target ? 160 : 0) + (count > 1 ? 28 : 0) + (notice ? 85 : 0) + 40;
   const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   floating.setSize(236, Math.min(height, area.height));
