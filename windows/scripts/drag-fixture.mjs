@@ -23,6 +23,7 @@ async function sourceFixture(script, image, graceful = false) {
     source.once('exit', code => { clearTimeout(timer); reject(new Error(`Drag source exited ${code}: ${output}`)); });
   }).catch(error => { source.kill(); lines.close(); throw error; });
   const gestures = new Set();
+  let stopped = false;
   return {
     window: ready.window,
     gesture(kind, { hold = 600, escape = false, pressDelay = 300, moveX = 90, moveY = 40 } = {}) {
@@ -40,9 +41,11 @@ async function sourceFixture(script, image, graceful = false) {
       });
     },
     async stop() {
-      for (const process of gestures) if (process.exitCode === null) process.kill();
+      if (stopped) return;
+      stopped = true;
+      for (const process of gestures) if (process.exitCode === null && process.signalCode === null) process.kill();
       lines.close();
-      if (source.exitCode === null) {
+      if (source.exitCode === null && source.signalCode === null) {
         const exited = once(source, 'exit');
         if (graceful) source.stdin.end(); else source.kill();
         const timer = setTimeout(() => source.kill(), 5000);

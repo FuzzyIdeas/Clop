@@ -40,6 +40,7 @@ try {
     events.length = 0;
     await fixture.gesture('image', { escape }); await pause(250);
     assert.deepEqual(events, ['drag-start', 'drag-end'], `A real image drag must appear and finish (${escape ? 'Escape' : 'release'})`);
+    console.log(`Image drag detected and dismissed by ${escape ? 'Escape' : 'release'}.`);
   }
   events.length = 0;
   await fixture.gesture('image', { moveX: 0, moveY: 0 }); await pause(250);
@@ -53,6 +54,7 @@ try {
   await bridge.request({ type: 'settings', explorerDrag: false, ownWindows: [] });
   events.length = 0; await fixture.gesture('image'); await pause(250);
   assert.deepEqual(events, [], 'Disabling automatic drag detection must keep the target quiet');
+  console.log('Opening a task-owned Explorer window for image selection checks.');
   await fixture.stop(); fixture = await explorerFixture(png);
   await bridge.request({ type: 'settings', explorerDrag: true });
   const paths = []; bridge.on('drag-start', event => paths.push(event.paths));
