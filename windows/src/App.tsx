@@ -20,6 +20,7 @@ export function App() {
     return api.subscribe(setState);
   }, []);
   useEffect(() => { document.documentElement.classList.toggle('browser-preview', state?.native === false); }, [state?.native]);
+  useEffect(() => { if (state?.native && !state.dropActive && !state.settings.pinned) setLocalDrag(false); }, [state?.native, state?.dropActive, state?.settings.pinned]);
   useEffect(() => () => { if (notification.current) clearTimeout(notification.current); }, []);
   const run: Run = useCallback(async (task, success) => {
     setError('');
@@ -66,8 +67,13 @@ export function App() {
       if (url) void run(() => api.importUrl(url.trim(), event.ctrlKey));
     }
   }
+  function imageDrag(event: DragEvent) {
+    if (state?.native) return Boolean(state.dropActive || state.settings.pinned) && event.dataTransfer.types.some(type => ['Files', 'text/uri-list', 'text/plain'].includes(type));
+    if (!event.dataTransfer.types.includes('Files')) return false;
+    return Array.from(event.dataTransfer.items).some(item => /^image\/(png|jpeg|webp|gif|avif|tiff)$/i.test(item.type));
+  }
   const items = state.items.slice(0, state.dropActive || state.settings.pinned || localDrag ? 2 : 3).reverse();
-  return <div className={`corner-surface ${state.settings.corner}`} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragEnter={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setLocalDrag(true); } }} onDrop={drop}>
+  return <div className={`corner-surface ${state.settings.corner}`} onDragOver={event => { if (imageDrag(event)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDragEnter={event => { if (imageDrag(event)) { event.preventDefault(); setLocalDrag(true); } }} onDrop={drop}>
     <div className="corner-stack">
       {(state.dropActive || state.settings.pinned || localDrag) && <div className={`drop-target ${localDrag ? 'receiving' : ''}`} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setLocalDrag(false); }}><strong>Drop to optimise</strong><div className="drop-ring"><span/><span/><span/></div><small>Images · originals stay safe</small><small>Ctrl: smaller file</small></div>}
       {items.map(item => <ResultCard key={item.id} item={item} native={state.native} run={run} onSelect={() => setSelected(item.id)}/>)}

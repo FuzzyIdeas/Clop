@@ -6,8 +6,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import sharp from 'sharp';
+import { dragFixture, explorerFixture } from './drag-fixture.mjs';
 const bridge = new WindowsBridge();
 const dir = await mkdtemp(path.join(os.tmpdir(), 'clop-native-'));
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+let fixture;
 try {
   const ready = once(bridge, 'ready');
   bridge.on('notice', notice => process.stderr.write(notice + '\n'));
@@ -23,8 +26,36 @@ try {
   const inspection = execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; $d = [System.Windows.Forms.Clipboard]::GetDataObject(); @{ image = $d.GetDataPresent([System.Windows.Forms.DataFormats]::Bitmap); png = $d.GetDataPresent("PNG"); files = $d.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop) } | ConvertTo-Json -Compress'], { encoding: 'utf8' });
   assert.deepEqual(JSON.parse(inspection), { image: true, png: true, files: true });
   await bridge.request({ type: 'settings', explorerDrag: true });
-  const started = once(bridge, 'drag-start'), ended = once(bridge, 'drag-end');
-  execFileSync('powershell.exe', ['-NoProfile', '-Command', 'Add-Type -TypeDefinition \'using System; using System.Runtime.InteropServices; public static class ClopDragSmoke { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra); }\'; [ClopDragSmoke]::SetCursorPos(300,300) | Out-Null; try { [ClopDragSmoke]::mouse_event(2,0,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 300; [ClopDragSmoke]::SetCursorPos(400,350) | Out-Null; Start-Sleep -Milliseconds 500 } finally { [ClopDragSmoke]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }']);
-  await Promise.race([Promise.all([started, ended]), new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('Native drag start/end were not detected')), 5000); timer.unref(); })]);
-  console.log('Windows native smoke passed: image, PNG, files, sequence protection and global mouse drag start/end.');
-} finally { bridge.stop(); await rm(dir, { recursive: true, force: true }); }
+  fixture = await dragFixture(png);
+  const events = [];
+  bridge.on('drag-start', event => events.push(event.type)); bridge.on('drag-end', event => events.push(event.type));
+  // Keep a supported image in the clipboard throughout. It must not authorise other gestures.
+  for (const kind of ['text', 'textDrag', 'blank', 'unsupported', 'title', 'resize']) {
+    events.length = 0;
+    await fixture.gesture(kind); await pause(250);
+    assert.deepEqual(events, [], `${kind} must not announce an image drag`);
+    console.log(`No image target for ${kind}.`);
+  }
+  for (const escape of [false, true]) {
+    events.length = 0;
+    await fixture.gesture('image', { escape }); await pause(250);
+    assert.deepEqual(events, ['drag-start', 'drag-end'], `A real image drag must appear and finish (${escape ? 'Escape' : 'release'})`);
+  }
+  await bridge.request({ type: 'settings', explorerDrag: true, ownWindows: [fixture.window] });
+  events.length = 0; await fixture.gesture('image'); await pause(250);
+  assert.deepEqual(events, [], 'Clop’s own windows must not announce an external drag');
+  await bridge.request({ type: 'settings', explorerDrag: false, ownWindows: [] });
+  events.length = 0; await fixture.gesture('image'); await pause(250);
+  assert.deepEqual(events, [], 'Disabling automatic drag detection must keep the target quiet');
+  await fixture.stop(); fixture = await explorerFixture(png);
+  await bridge.request({ type: 'settings', explorerDrag: true });
+  const paths = []; bridge.on('drag-start', event => paths.push(event.paths));
+  events.length = 0; await fixture.gesture('image'); await pause(250);
+  assert.deepEqual(events, ['drag-start', 'drag-end'], 'A real Explorer image drag must still announce and finish');
+  assert.deepEqual(paths, [[png]], 'Explorer must identify the actual supported image file');
+  for (const kind of ['text', 'blank', 'title', 'resize']) {
+    events.length = 0; await fixture.gesture(kind); await pause(250);
+    assert.deepEqual(events, [], `Explorer ${kind} must not announce a drag, even with an image selected`);
+  }
+  console.log('Windows native smoke passed: clipboard formats, sequence protection, real image/Explorer drags, release/Escape and suppression of text, unsupported images, empty space, window movement and resizing.');
+} finally { await fixture?.stop(); bridge.stop(); await rm(dir, { recursive: true, force: true }); }

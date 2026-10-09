@@ -1,7 +1,7 @@
 {
   "name": "clop-windows",
   "productName": "Clop for Windows",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Clipboard image optimisation and floating image tools for Windows",
   "license": "GPL-3.0-only",

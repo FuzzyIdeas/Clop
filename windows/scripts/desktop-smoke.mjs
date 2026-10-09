@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { WindowsBridge } from '../dist-electron/native-test.js';
+import { dragFixture } from './drag-fixture.mjs';
 // The inspection below opens files in the temporary profile. Release their Windows handles
 // immediately so the final recursive cleanup can remove that profile after the app exits.
 sharp.cache(false);
@@ -46,7 +47,7 @@ async function click(client, selector) {
   await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
   await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
 }
-let main, floating, drag;
+let main, floating, fixture;
 const externalClipboard = new WindowsBridge();
 try {
   const pages = () => fetch('http://127.0.0.1:9227/json/list').then(response => response.json());
@@ -106,15 +107,23 @@ try {
   }
   await main.evaluate(`window.clop.restore(${JSON.stringify(initialImage.id)})`);
   const restored = (await main.evaluate('window.clop.state()')).items.find(item => item.id === initialImage.id); assert.equal(restored.restored, true); assert.equal(restored.outputBytes, initialImage.originalBytes);
-  // The app's own native helper must reveal the target during an external mouse drag.
-  drag = spawn('powershell.exe', ['-NoProfile', '-Command', 'Add-Type -TypeDefinition \'using System; using System.Runtime.InteropServices; public static class ClopDesktopDrag { [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra); }\'; [ClopDesktopDrag]::SetCursorPos(300,300) | Out-Null; try { [ClopDesktopDrag]::mouse_event(2,0,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 300; [ClopDesktopDrag]::SetCursorPos(400,350) | Out-Null; Start-Sleep -Milliseconds 2500 } finally { [ClopDesktopDrag]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }']);
-  const dragFinished = once(drag, 'exit');
+  fixture = await dragFixture(sourceFile);
+  // Observe every state update, including transient popups, while an image remains on the clipboard.
+  await main.evaluate('window.clop.subscribe(state => { if (state.dropActive) window.unexpectedDragTarget = true; })');
+  for (const kind of ['text', 'textDrag', 'blank', 'unsupported', 'title', 'resize']) {
+    await main.evaluate('window.unexpectedDragTarget = false');
+    await fixture.gesture(kind); await pause(300);
+    assert.equal(await main.evaluate('Boolean(window.unexpectedDragTarget)'), false, `${kind} must not reveal a target in the packaged app`);
+    assert.equal(await floating.evaluate('Boolean(document.querySelector(".drop-target"))'), false, `${kind} must not leave a target behind`);
+  }
+  // The app's own native helper must still reveal the target for a real image OLE drag.
+  const dragFinished = fixture.gesture('image', { hold: 2500 });
   await until(() => floating.evaluate('Boolean(document.querySelector(".drop-target"))'), 'Dragging did not reveal the automatic corner target');
   const dragCapture = await floating.send('Page.captureScreenshot', { format: 'png' });
   await writeFile('release/Windows-drag-target.png', Buffer.from(dragCapture.data, 'base64'));
   await dragFinished;
   await until(() => floating.evaluate('!document.querySelector(".drop-target")'), 'Releasing the drag did not dismiss its target');
-  assert.equal((await main.evaluate('window.clop.state()')).items.length, 1, 'Dragging without a drop must not import another image');
+  assert.ok((await main.evaluate('window.clop.state()')).items.every(item => item.id === initialImage.id), 'Dragging without a drop must not import another image');
   // A browser/screenshot image has no file-drop payload. Copy text between repeated copies
   // of the image so content deduplication does not permanently suppress that image.
   execFileSync('powershell.exe', ['-NoProfile', '-Sta', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Clipboard]::SetText("Clop clipboard smoke")']);
@@ -133,7 +142,7 @@ try {
   try { if (main) await main.send('Runtime.evaluate', { expression: 'window.clop.window("quit")' }); } catch {}
   main?.close(); floating?.close();
   externalClipboard.stop();
-  if (drag && drag.exitCode === null) drag.kill();
+  await fixture?.stop();
   if (app.exitCode === null) { await Promise.race([once(app, 'exit'), pause(3000)]); if (app.exitCode === null) app.kill(); }
   console.log('Removing temporary Windows profile.');
   await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });

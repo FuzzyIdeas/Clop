@@ -19,7 +19,9 @@ The result uses the geometry and interaction model in the original `FloatingResu
 
 While dragging, a transient 196 × 148 `Drop to optimise` target appears in the corner, matching `DropZone.swift`. Drop an image onto it to optimise. Releasing the drag elsewhere dismisses the target without changing the file. Dragged image URLs from browsers can also be downloaded and optimised after an explicit drop.
 
-Windows accessibility drag events drive the target. Explorer selection detection covers image files, including copied files. A held-mouse movement fallback offers the target for apps that omit Windows drag events. That fallback can also appear during non-image mouse drags; unsupported drops never change the source. The native target cannot know an arbitrary app's dragged payload until it is dropped.
+The helper checks the object under the pointer at the original mouse press. In Explorer, the press must hit a selected supported image file; it also recognises image files on the desktop. Other apps can expose image objects through Windows accessibility. A known unsupported image suffix is rejected. Text selection, text drags, title bars, resize handles and empty folder space stay quiet, even with an image selected or on the clipboard. Releasing the mouse or pressing Escape dismisses the target.
+
+Apps that do not expose their image objects through Windows accessibility cannot reveal the target automatically. Copying their image still uses the automatic clipboard workflow. The tray's `Keep drop target visible` also provides a target for an explicit drop. The exact payload of an arbitrary app's drag is only available after a drop.
 
 Clipboard cards disappear after ten seconds and file cards after thirty, as in the original defaults. Hovering pauses dismissal. The tray's `Show latest results` or `Ctrl+Shift+Space` brings recent cards back. Up to three cards stack vertically. The tray also provides clipboard controls, optional pinning, settings and access to originals.
 
@@ -27,7 +29,7 @@ Settings stay closed unless requested from the tray. Choose a screen corner, def
 
 ## Install
 
-Download the [Windows x64 installer](https://github.com/ramifara/Clop/releases/download/windows-v0.1.0/Clop-Windows-0.1.0-x64-Setup.exe) or [portable executable](https://github.com/ramifara/Clop/releases/download/windows-v0.1.0/Clop-Windows-0.1.0-x64-Portable.exe). Windows 10 and Windows 11 are supported. The builds are unsigned. No Node.js, PowerShell module or development setup is required to use them.
+Download the [Windows x64 installer](https://github.com/ramifara/Clop/releases/download/windows-v0.1.1/Clop-Windows-0.1.1-x64-Setup.exe) or [portable executable](https://github.com/ramifara/Clop/releases/download/windows-v0.1.1/Clop-Windows-0.1.1-x64-Portable.exe). Quit the previous version from its tray menu before upgrading. Windows 10 and Windows 11 are supported. The builds are unsigned. No Node.js, PowerShell module or development setup is required to use them.
 
 ## Image and clipboard details
 
@@ -58,7 +60,7 @@ Single-letter shortcuts operate while a card has keyboard focus and no text fiel
 
 ## Development and verification
 
-The Windows app uses Electron, TypeScript, React and Sharp, with a small STA helper using built-in Windows PowerShell 5.1 and .NET Framework. It registers Windows drag-event hooks and watches clipboard sequence numbers. The renderer is sandboxed, has no Node.js access and receives a narrow preload API. External navigation is blocked.
+The Windows app uses Electron, TypeScript, React and Sharp, with a small STA helper using built-in Windows PowerShell 5.1 and .NET Framework. It captures mouse-press coordinates, hit-tests Windows accessibility objects, handles drag-end events and watches clipboard sequence numbers. The mouse hook queues coordinates without doing COM work or reading clipboard data. The renderer is sandboxed, has no Node.js access and receives a narrow preload API. External navigation is blocked.
 
 Use Node.js 24 or newer. From `windows/`:
 
@@ -70,13 +72,13 @@ npm run build
 npm run dist:win
 ```
 
-The packaging command runs on Windows and produces NSIS and portable executables in `release/`. CI tests image processing, compiles the Windows helper, checks native clipboard formats and launches the packaged app. An external clipboard write must produce a corner result automatically. CI checks the 196 × 166 card, selected format, resize, restore and clipboard loop protection, and saves an actual Windows screenshot.
+The packaging command runs on Windows and produces NSIS and portable executables in `release/`. CI tests image processing, compiles the Windows helper, checks native clipboard formats and launches the packaged app. An external clipboard write must produce a corner result automatically. CI checks the 196 × 166 card, selected format, resize, restore and clipboard loop protection, and saves an actual Windows screenshot. Real mouse gestures in a separate native app and Explorer verify image drags, release/Escape and suppression of text selection, text drags, unsupported images, empty space, window movement and resizing.
 
 `npm run dev` serves a development-only corner-card preview on loopback port 5274. Its background is a neutral canvas so the transparent cards can be inspected in a browser. Paste an image to inspect a card. There are no browse or sample controls. A browser cannot demonstrate system-wide clipboard watching or native Windows drag detection; those are exercised by the packaged-app test. Preview data stays under `.preview-data/` and can be removed after shutdown.
 
 The desktop app does not upload images or send analytics. Downloading an image URL only occurs when that URL is explicitly dropped onto the target. Managed machines may block the Windows helper; Clop reports the failure, and save and drag operations remain available.
 
-API references: [Electron clipboard](https://www.electronjs.org/docs/latest/api/clipboard), [Electron file paths](https://www.electronjs.org/docs/latest/api/web-utils), [Sharp output](https://sharp.pixelplumbing.com/api-output/) and [Sharp resizing](https://sharp.pixelplumbing.com/api-resize/).
+API references: [Windows accessibility hit testing](https://learn.microsoft.com/en-us/windows/win32/api/oleacc/nf-oleacc-accessibleobjectfrompoint), [Windows object roles](https://learn.microsoft.com/en-us/windows/win32/winauto/object-roles), [Windows drag events](https://learn.microsoft.com/en-us/windows/win32/winauto/event-constants), [Electron clipboard](https://www.electronjs.org/docs/latest/api/clipboard), [Electron file paths](https://www.electronjs.org/docs/latest/api/web-utils), [Sharp output](https://sharp.pixelplumbing.com/api-output/) and [Sharp resizing](https://sharp.pixelplumbing.com/api-resize/).
 
 ## Attribution
 
