@@ -1,4 +1,4 @@
-param([long]$Window, [int]$X, [int]$Y, [int]$MoveX = 90, [int]$MoveY = 40, [int]$Hold = 600, [switch]$Escape)
+param([long]$Window, [int]$Width, [int]$Height, [int]$X, [int]$Y, [int]$MoveX = 90, [int]$MoveY = 40, [int]$Hold = 600, [int]$PressDelay = 300, [switch]$Escape)
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -13,13 +13,16 @@ public static class ClopDragGesture {
 }
 '@
 [ClopDragGesture]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
-[ClopDragGesture]::SetWindowPos([IntPtr]$Window, [IntPtr]::Zero, 60, 60, 0, 0, 5) | Out-Null
+Write-Output 'Positioning the source window'
+[ClopDragGesture]::SetWindowPos([IntPtr]$Window, [IntPtr]::Zero, 60, 60, $Width, $Height, 4) | Out-Null
 [ClopDragGesture]::SetForegroundWindow([IntPtr]$Window) | Out-Null
 [ClopDragGesture]::SetCursorPos($X, $Y) | Out-Null
 Start-Sleep -Milliseconds 150
 try {
+  Write-Output 'Pressing the mouse'
   [ClopDragGesture]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds $PressDelay
+  Write-Output 'Moving the mouse'
   [ClopDragGesture]::SetCursorPos($X + $MoveX, $Y + $MoveY) | Out-Null
   Start-Sleep -Milliseconds $Hold
   if ($Escape) {
@@ -30,6 +33,7 @@ try {
     Start-Sleep -Milliseconds 500
   }
 } finally {
+  Write-Output 'Releasing the mouse'
   [ClopDragGesture]::keybd_event(27,0,2,[UIntPtr]::Zero)
   [ClopDragGesture]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
 }

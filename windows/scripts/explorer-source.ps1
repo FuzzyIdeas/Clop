@@ -42,7 +42,7 @@ try {
   $search = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$editCondition) | Where-Object { $_.Current.Name -like 'Search*' } | Select-Object -First 1
   if ($null -eq $search) { throw 'Explorer search field was not exposed' }
   $searchRect = $search.Current.BoundingRectangle
-  @{ window = [long]$hwnd; image = @{ x = [int]($rect.X + 30); y = [int]($rect.Y + $rect.Height/2) }; text = @{ x = [int]($searchRect.X + 30); y = [int]($searchRect.Y + $searchRect.Height/2) }; title = @{x = 260; y = 72}; blank = @{x = 740; y = 540}; resize = @{x = 857; y = 657} } | ConvertTo-Json -Compress
+  @{ window = [long]$hwnd; width = 800; height = 600; image = @{ x = [int]($rect.X + 30); y = [int]($rect.Y + $rect.Height/2) }; text = @{ x = [int]($searchRect.X + 30); y = [int]($searchRect.Y + $searchRect.Height/2) }; title = @{x = 260; y = 72}; blank = @{x = 740; y = 540}; resize = @{x = 857; y = 657} } | ConvertTo-Json -Compress
   # Keep only this Explorer window alive until Node closes its stdin.
   [Console]::In.ReadLine() | Out-Null
 } finally {

@@ -11,12 +11,16 @@ public static class ClopDragSource {
   [DllImport("user32.dll")] static extern void NotifyWinEvent(uint type, IntPtr window, int objectId, int child);
   static void Draggable(Control control, object payload) {
     Point start = Point.Empty;
-    control.MouseDown += (sender, args) => { start = args.Location; };
+    bool armed = false;
+    control.MouseDown += (sender, args) => { start = args.Location; armed = args.Button == MouseButtons.Left; };
+    control.MouseUp += (sender, args) => { armed = false; };
     control.MouseMove += (sender, args) => {
-      if (args.Button != MouseButtons.Left || Math.Abs(args.X - start.X) + Math.Abs(args.Y - start.Y) < 12) return;
+      if (!armed || args.Button != MouseButtons.Left || Math.Abs(args.X - start.X) + Math.Abs(args.Y - start.Y) < 12) return;
+      armed = false; // DoDragDrop pumps messages; never re-enter it on a queued MouseMove.
+      Console.WriteLine("Source drag started: " + control.AccessibleName); Console.Out.Flush();
       NotifyWinEvent(0x000E, control.Handle, -4, 0);
       try { control.DoDragDrop(payload, DragDropEffects.Copy); }
-      finally { NotifyWinEvent(0x000F, control.Handle, -4, 0); }
+      finally { NotifyWinEvent(0x000F, control.Handle, -4, 0); Console.WriteLine("Source drag ended: " + control.AccessibleName); Console.Out.Flush(); }
     };
   }
   static object Bounds(Control control) {
@@ -37,7 +41,7 @@ public static class ClopDragSource {
       form.Activate();
       var rect = form.Bounds;
       var blank = form.PointToScreen(new Point(420, 360));
-      Console.WriteLine(new JavaScriptSerializer().Serialize(new { window = form.Handle.ToInt64(), image = Bounds(picture), unsupported = Bounds(unsupported), text = Bounds(text), textDrag = Bounds(textDrag), blank = new { x = blank.X, y = blank.Y }, title = new { x = rect.X + 160, y = rect.Y + 12 }, resize = new { x = rect.Right - 3, y = rect.Bottom - 3 } }));
+      Console.WriteLine(new JavaScriptSerializer().Serialize(new { window = form.Handle.ToInt64(), width = rect.Width, height = rect.Height, image = Bounds(picture), unsupported = Bounds(unsupported), text = Bounds(text), textDrag = Bounds(textDrag), blank = new { x = blank.X, y = blank.Y }, title = new { x = rect.X + 160, y = rect.Y + 12 }, resize = new { x = rect.Right - 3, y = rect.Bottom - 3 } }));
       Console.Out.Flush();
     };
     Application.Run(form); picture.Image.Dispose(); form.Dispose();

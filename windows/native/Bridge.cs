@@ -21,6 +21,9 @@ namespace ClopWindows {
     [DllImport("user32.dll")] static extern bool GetCursorPos(out Point point);
     [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
     [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window, uint flags);
+    [StructLayout(LayoutKind.Sequential)] struct Bounds { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr window, out Bounds bounds);
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr window, ref Point point);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int length);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessageTimeout(IntPtr window, uint message, IntPtr wparam, IntPtr lparam, uint flags, uint timeout, out IntPtr result);
     [DllImport("oleacc.dll")] static extern int AccessibleObjectFromPoint(Point point, out IAccessible accessible, [MarshalAs(UnmanagedType.Struct)] out object child);
@@ -78,8 +81,8 @@ namespace ClopWindows {
         }
         DetectImageDrag();
       };
-      // Capture the original press before the cursor leaves the item. The mouse hook only
-      // queues coordinates; COM/accessibility work stays outside the input callback.
+      // Capture the original press before the cursor leaves the item. The mouse hook samples
+      // client bounds and queues coordinates; COM work stays outside the input callback.
       var mouseHook = SetWindowsHookEx(14, MouseEvents, GetModuleHandle(null), 0);
       var hook = SetWinEventHook(0x000F, 0x000F, IntPtr.Zero, DragEvents, 0, 0, 2);
       timer.Start(); Emit(new { type = "ready", sequence = Sequence }); Application.Run(); timer.Dispose();
@@ -131,7 +134,15 @@ namespace ClopWindows {
     static IntPtr OnMouseEvent(int code, IntPtr message, IntPtr data) {
       if (code >= 0 && (message.ToInt64() == 0x0201 || message.ToInt64() == 0x0202)) {
         var mouse = (MouseData)Marshal.PtrToStructure(data, typeof(MouseData));
-        Presses.Enqueue(new Press { Point = mouse.Point, Window = GetAncestor(WindowFromPoint(mouse.Point), 2), Down = message.ToInt64() == 0x0201 });
+        var window = GetAncestor(WindowFromPoint(mouse.Point), 2);
+        bool down = message.ToInt64() == 0x0201;
+        if (down) {
+          Bounds bounds; var origin = Point.Empty;
+          // Sample this before a fast title-bar/resize gesture moves the window underneath
+          // the original screen point. These calls do not message the other application.
+          down = GetClientRect(window, out bounds) && ClientToScreen(window, ref origin) && mouse.Point.X >= origin.X && mouse.Point.Y >= origin.Y && mouse.Point.X < origin.X + bounds.Right && mouse.Point.Y < origin.Y + bounds.Bottom;
+        }
+        Presses.Enqueue(new Press { Point = mouse.Point, Window = window, Down = down });
       }
       return CallNextHookEx(IntPtr.Zero, code, message, data);
     }

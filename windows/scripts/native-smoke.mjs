@@ -41,6 +41,12 @@ try {
     await fixture.gesture('image', { escape }); await pause(250);
     assert.deepEqual(events, ['drag-start', 'drag-end'], `A real image drag must appear and finish (${escape ? 'Escape' : 'release'})`);
   }
+  events.length = 0;
+  await fixture.gesture('image', { moveX: 0, moveY: 0 }); await pause(250);
+  assert.deepEqual(events, [], 'Clicking an image without dragging must stay quiet');
+  events.length = 0;
+  await fixture.gesture('title', { pressDelay: 20, moveX: 0, moveY: -60 }); await pause(250);
+  assert.deepEqual(events, [], 'A fast title-bar drag must not mistake the image moved underneath its original point for a source');
   await bridge.request({ type: 'settings', explorerDrag: true, ownWindows: [fixture.window] });
   events.length = 0; await fixture.gesture('image'); await pause(250);
   assert.deepEqual(events, [], 'Clop’s own windows must not announce an external drag');
@@ -53,7 +59,7 @@ try {
   events.length = 0; await fixture.gesture('image'); await pause(250);
   assert.deepEqual(events, ['drag-start', 'drag-end'], 'A real Explorer image drag must still announce and finish');
   assert.deepEqual(paths, [[png]], 'Explorer must identify the actual supported image file');
-  for (const kind of ['text', 'blank', 'title', 'resize']) {
+  for (const kind of ['title', 'resize', 'text', 'blank']) {
     events.length = 0; await fixture.gesture(kind); await pause(250);
     assert.deepEqual(events, [], `Explorer ${kind} must not announce a drag, even with an image selected`);
   }
